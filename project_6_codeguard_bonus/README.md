@@ -54,47 +54,52 @@ On purpose, less detailed than Projects 1-5 — you've built four multi-agent sy
 *Project: **CodeGuard-Multi-Agent-PR-Review-Security-Style-And-Test-Coverage-In-One-Pass** — Step 1 of 4: One Reviewer, Working as a Plain Chain on a Made-Up Diff*
 
 **What this step does:** proves you can figure out this project's own version of "Step 1" from a one-line description now, without me spelling out smaller steps — the way Doc04/05's Core Concepts, used by you, would suggest.
+**Why this step matters:** the actual skill this whole bonus project is testing is starting from a one-line description and building your own first step — proving that on the smallest possible piece here, before anything else depends on it, is what makes the rest of the project trustworthy.
 **What's new:** nothing exists yet — this is the start. **What stays the same going forward:** whatever chain you build here becomes the reused core of your Security (or whichever you pick first) reviewer agent.
 **When you'll hit this for real:** any time you're handed a new problem domain and have to figure out your own first step — which is most of a real job, once you're past following tutorials.
 **Read first (if needed):** [05_langchain_fundamentals Core Concepts](../05_langchain_fundamentals/README.md#core-concepts-read-this-first-everything-you-need-is-here), [06_tools_function_calling Core Concepts](../06_tools_function_calling/README.md#core-concepts-read-this-first-everything-you-need-is-here) if your reviewer needs a tool (like a text-search secret scanner as a real tool, not just something you prompt for).
 
-Pick one reviewer (Security is a good start — clear, checkable rules) and get it answering correctly on 2-3 made-up example diffs before anything else exists.
+Pick one reviewer (Security is a good start — clear, checkable rules) and get it answering correctly on 2-3 made-up example diffs before anything else exists. Include at least one diff that's clean on purpose, not just diffs with a planted problem — a reviewer you've only ever tested against bad input will happily flag something in code that's actually fine.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step1_security_reviewer_chain_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_security_reviewer_chain_hints.md#hint-2) · [Hint 3](hints_and_solutions/step1_security_reviewer_chain_hints.md#hint-3) · [Hint 4](hints_and_solutions/step1_security_reviewer_chain_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step1_security_reviewer_chain_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step1_security_reviewer_chain_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_security_reviewer_chain_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step1_security_reviewer_chain_solution.md)
 
 ### Step 2 — That Reviewer, Turned Into an Agent; Add the Style Reviewer With RAG
 
 *Project: **CodeGuard-Multi-Agent-PR-Review-Security-Style-And-Test-Coverage-In-One-Pass** — Step 2 of 4: That Reviewer, Turned Into an Agent; Add the Style Reviewer With RAG*
 
 **What this step does:** brings in review grounded by search (your style guide), and proves two separately-built reviewers can exist side by side without getting in each other's way.
+**Why this step matters:** an ungrounded Style reviewer answering from general training knowledge instead of your real document would look correct right up until it confidently cites a rule that isn't actually yours — this step is what makes that failure mode checkable instead of invisible.
 **When you'll hit this for real:** any review or QA tool checking against a written standard (style guide, compliance rules, brand voice) — the model needs to check against your real document, not its own training knowledge.
 **Read first (if needed):** [08_rag Core Concepts](../08_rag/README.md#core-concepts-read-this-first-everything-you-need-is-here).
 
-Build the Style reviewer against a real, searched style guide (not the model's general knowledge — this is the whole point, see the problems/fixes table above). Test both reviewers separately, against the same set of example diffs.
+Build the Style reviewer against a real, searched style guide (not the model's general knowledge — this is the whole point, see the problems/fixes table above). Test both reviewers separately, against the same set of example diffs. Write at least one style rule into your guide that's specific or unusual enough a model wouldn't invent it from general training knowledge on its own — a generic rule any model would get right regardless proves nothing about whether retrieval is actually working.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step2_style_reviewer_rag_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_style_reviewer_rag_hints.md#hint-2) · [Hint 3](hints_and_solutions/step2_style_reviewer_rag_hints.md#hint-3) · [Hint 4](hints_and_solutions/step2_style_reviewer_rag_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step2_style_reviewer_rag_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step2_style_reviewer_rag_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_style_reviewer_rag_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_style_reviewer_rag_solution.md)
 
 ### Step 3 — Add the Test-Coverage Reviewer + Supervisor Routing (final: 4 agents)
 
 *Project: **CodeGuard-Multi-Agent-PR-Review-Security-Style-And-Test-Coverage-In-One-Pass** — Step 3 of 4: Add the Test-Coverage Reviewer + Supervisor Routing*
 
 **What this step does:** finishes the team and adds the coordination layer — routing, compiling results, and the actual multi-agent value.
+**Why this step matters:** 3 separately-correct reviewers stuck together is not the same thing as one useful review — this step is where the actual value of a multi-agent system over 3 standalone tools either shows up or doesn't, which is the whole thing this project exists to prove.
 **When you'll hit this for real:** any "combine several specialist opinions into one clear recommendation" system — code review, content moderation, multi-criteria approval workflows all have this exact shape.
 **Read first (if needed):** [11_multi_agent_systems Core Concepts](../11_multi_agent_systems/README.md#core-concepts-read-this-first-everything-you-need-is-here).
 
-Build the Test-Coverage reviewer, then the Supervisor: routing based on the diff (which reviewers actually apply), a compiling step that merges findings into one clear review, and — reusing Doc11's revision-loop idea if you want to go further — an optional pass where the Supervisor can ask a reviewer to double-check an unclear finding before finishing.
+Build the Test-Coverage reviewer, then the Supervisor: routing based on the diff (which reviewers actually apply), a compiling step that merges findings into one clear review, and — reusing Doc11's revision-loop idea if you want to go further — an optional pass where the Supervisor can ask a reviewer to double-check an unclear finding before finishing. If you build that optional pass, give it a hard round limit the same way Project 4's Writer↔Reviewer loop needed one — an "ask for clarification" loop with no limit is the exact same infinite-loop risk in a new shape.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step3_test_coverage_supervisor_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_test_coverage_supervisor_hints.md#hint-2) · [Hint 3](hints_and_solutions/step3_test_coverage_supervisor_hints.md#hint-3) · [Hint 4](hints_and_solutions/step3_test_coverage_supervisor_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step3_test_coverage_supervisor_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step3_test_coverage_supervisor_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_test_coverage_supervisor_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step3_test_coverage_supervisor_solution.md)
 
 ### Step 4 — Production Wrap (optional, reuses Project 5's steps completely)
 
 *Project: **CodeGuard-Multi-Agent-PR-Review-Security-Style-And-Test-Coverage-In-One-Pass** — Step 4 of 4: Production Wrap*
 
+**What this step does:** wraps the finished 4-agent system in the exact same production layer Project 5 already built — FastAPI, a database, Docker, and a test-gated release process — proving that layer generalizes too, not just the agent design.
+**Why this step matters:** it's the difference between a portfolio project you can only describe and one you can hand someone a real link to — and doing it a second time, by reusing Project 5 almost unchanged, is what actually makes Doc12/13/19's patterns stick as reusable skills instead of one-off code you happened to write once.
 **When you'll hit this for real:** any portfolio project you want a real, runnable link for instead of just source code — this is what makes CodeGuard something you can point an interviewer at, not just describe.
 
-If you want this as a real, portfolio-runnable API: wrap it in FastAPI, add a test suite (a set of example diffs with known-correct findings), and containerize it — literally repeat Project 5's Steps 1-4, on this codebase instead of ContentForge's. No new ideas here — just repetition, which is the fastest way to make Doc12/13/19 stick permanently.
+If you want this as a real, portfolio-runnable API: wrap it in FastAPI, add a test suite (a set of example diffs with known-correct findings), and containerize it — literally repeat Project 5's Steps 1-4, on this codebase instead of ContentForge's. No new ideas here — just repetition, which is the fastest way to make Doc12/13/19 stick permanently. Include at least one eval task that specifically checks Step 3's routing (e.g. a docs-only diff correctly skipping the Security reviewer) — a suite that only checks each reviewer's accuracy could still pass even if routing were completely broken.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step4_production_wrap_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_production_wrap_hints.md#hint-2) · [Hint 3](hints_and_solutions/step4_production_wrap_hints.md#hint-3) · [Hint 4](hints_and_solutions/step4_production_wrap_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step4_production_wrap_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step4_production_wrap_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_production_wrap_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step4_production_wrap_solution.md)
 
 **Final Deliverable:** **CodeGuard-Multi-Agent-PR-Review-Security-Style-And-Test-Coverage-In-One-Pass** — a Supervisor-led team of 3 specialist reviewers that turns a code diff into one compiled, sorted review comment, grounded in your actual style guide through RAG.
 
@@ -109,4 +114,4 @@ If you want this as a real, portfolio-runnable API: wrap it in FastAPI, add a te
 Not started. Track your progress in [../PROGRESS.md](../PROGRESS.md).
 
 ---
-Stuck? Ask for **Hint 1** through **Hint 4** about the exact part you're stuck on. Only ask for the full code if you say **"Show me the solution."** — but try harder before asking here than you did on Projects 1-5. That's the actual exercise.
+Stuck? Ask for **Hint 1** or **Hint 2** about the exact part you're stuck on. Only ask for the full code if you say **"Show me the solution."** — but try harder before asking here than you did on Projects 1-5. That's the actual exercise.

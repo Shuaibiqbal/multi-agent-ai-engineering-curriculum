@@ -74,6 +74,27 @@ retrieve(query="refund policy", filters={"user_id": current_user.id, "tag": "pol
 ### Evaluating a RAG system
 "Does the answer look right" isn't a real evaluation — it doesn't scale past a handful of manual checks, and it doesn't tell you *which* stage of the pipeline to fix when something's wrong. There are two genuinely separate kinds of metrics here, and each can fail on its own. **Retrieval metrics** ask: did the right chunk even get found? (Common ones: did the correct chunk appear anywhere in the top-k results, and how high did it rank.) **Generation metrics** ask a completely different question: given that the model *was* handed the right chunk, did it actually use it correctly in the answer? A system can score perfectly on retrieval and still generate a wrong answer (a generation failure), or generate a perfectly reasonable-sounding answer built from the wrong chunk because retrieval never found the right one (a retrieval failure) — this is exactly the retrieval-vs-generation distinction from the Core Concepts topic above, just turned into something you can measure instead of eyeball. **When to use it:** this is only previewed here to connect it to the failure types you're already learning to spot by hand — [13_testing_evaluation_observability](../13_testing_evaluation_observability/) covers building an actual evaluation suite (test sets, scoring, and LLM-as-a-judge) properly.
 
+### Exposing your retriever as an MCP tool
+**What this actually is:** everything in this document builds a `retrieve(query, k)` function — a plain Python function that only the script it lives in can call. If a teammate, a different app, or even Claude Desktop wants to search your documents, they can't — the function is trapped inside your one program. Turning it into an MCP Tool means wrapping that same function so it's reachable over a standard protocol, by any MCP-compatible client, not just your own code.
+
+**Why this matters, specifically:** without MCP, "let someone else use my retriever" means writing a custom integration for every single client that wants it — a REST endpoint for one teammate's app, a different wrapper for an IDE plugin, something else again for a chatbot. Each one is separate work, and each one has to be maintained separately as your retriever changes. [06_tools_function_calling](../06_tools_function_calling/) covers MCP (Model Context Protocol) precisely because it removes this duplication: you expose your retriever *once*, as one MCP server, and every client — Claude Desktop, an IDE, an agent from Project 8, a teammate's own agent — connects to that same server the same standard way. You maintain one integration instead of N of them.
+
+**How it actually works, underneath:** the wrapping itself is thin — you are not rewriting `retrieve()`, you're placing a small, standard-shaped function around it. `FastMCP` is the official SDK's helper class that turns a plain Python function into something MCP clients can discover and call: the `@mcp.tool()` decorator registers the function under a name (`search_documents`) and a description (its docstring), which is exactly what a connecting client sees when it calls `list_tools()` — the same discovery mechanism covered in Doc06. The function body does nothing new; it just calls the `retrieve()` you already built and hands back the result, reshaped into the plain dict/list format MCP expects on the wire:
+```python
+from mcp.server.fastmcp import FastMCP
+from retriever import retrieve
+
+mcp = FastMCP("knowledge-base")
+
+@mcp.tool()
+def search_documents(query: str, k: int = 3) -> list[dict]:
+    """Search the knowledge base and return the top k matching chunks."""
+    return retrieve(query, k)
+```
+Once this server is running, any MCP client — including one you never wrote and don't control — can call `search_documents("refund policy")` and get real, grounded results back, without knowing or caring whether your retriever uses Chroma, FAISS, or something else entirely underneath. That's the actual point of the protocol: the client only needs to know the tool's name and its expected inputs/outputs, never your implementation.
+
+**When to bother doing this:** not for a one-off script only you run — that's needless overhead. Do it once your retriever is genuinely useful *outside* the one script you built it in: you also want Claude Desktop to search the same documents, or a teammate's separate agent needs the same knowledge base, or you're building Project 8's agent and want it to pull from a real, running server instead of importing your retriever code directly. Project 7 builds this exact pattern properly, end to end, with a real local database and a real running server — not just one wrapped function.
+
 ## Go Deeper (Optional)
 _You don't need any of these to understand the Core Concepts above — use them if you want a second explanation or more detail._
 

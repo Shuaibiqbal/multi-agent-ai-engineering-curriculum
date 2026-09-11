@@ -19,7 +19,7 @@ This is not a theory course. Every document pairs its concepts with hands-on pra
 | 03 | [LLM Basics](03_llm_fundamentals/) | — |
 | 04 | [OpenAI API](04_openai_api/) | Project 1 |
 | 05 | [LangChain Basics](05_langchain_fundamentals/) | — |
-| 06 | [Tools & Function Calling](06_tools_function_calling/) | — |
+| 06 | [Tools & Function Calling](06_tools_function_calling/) | Projects 7, 8 (MCP topics) |
 | 07 | [AI Agents](07_ai_agents/) | Project 2 |
 | 08 | [RAG](08_rag/) | — |
 | — | [Async Python (checkpoint)](08b_async_prereq/) | — |
@@ -45,6 +45,10 @@ This is not a theory course. Every document pairs its concepts with hands-on pra
 | 4 | [ContentForge: Supervisor-Led Team](project_4_multi_agent_system/) | 5 | Doc 11 | You can split a problem across specialist agents, with a supervisor routing on the fly |
 | 5 | [ContentForge Pro: Production Platform](project_5_production_capstone/) | 5 (production-ready) | Docs 12-19 | You can ship, test, secure, watch, version, and defend the design of #4 |
 | 6 (bonus) | [CodeGuard: PR-Review Team](project_6_codeguard_bonus/) | 4 | All of Docs 01-19, applied again | You can apply the whole architecture to a new problem, with less help |
+| 7 (bonus) | [MCPForge: MCP Server](project_7_mcp_server/) | — (server, not agents) | Doc06's MCP topics | You can expose real tools/resources/prompts over the Model Context Protocol, usable by any MCP client |
+| 8 (bonus) | [MCPBridge: MCP Client Agent](project_8_mcp_client_agent/) | 1 (dynamic tools) | Doc06/07's MCP + ReAct topics | You can build an agent whose tools are discovered at runtime from live MCP servers, not hardcoded |
+| 9 (bonus) | [MCPCrew: Multi-Agent Research Team Powered by MCP Servers](project_9_multi_agent_mcp_team/) | 3 (+ Supervisor) | Doc06/11's MCP + multi-agent topics | You can build a Supervisor-led team where each specialist connects to its own MCP server, with graceful degradation if one goes down |
+| 10 (bonus) | [MCPResearch: Multi-Agent Pipeline Exposed as One MCP Tool](project_10_agentic_mcp_service/) | 2 (Researcher + Fact-Checker) | Doc06/11's MCP + multi-agent topics | You can wrap an entire agentic pipeline behind a single MCP tool call — the "agent-as-a-service" pattern |
 
 Agent count grows deliberately across the arc (2 → 2 → 3 → 5 → 5) — each project adds one new idea on top of the last, not several at once.
 

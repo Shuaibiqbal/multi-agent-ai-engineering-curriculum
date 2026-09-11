@@ -1,8 +1,10 @@
 # Step 2 — Writer↔Reviewer Loop — Solution
 
-> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Hint 3](step2_writer_reviewer_loop_hints.md#hint-3) · [Hint 4](step2_writer_reviewer_loop_hints.md#hint-4) · [Solution](step2_writer_reviewer_loop_solution.md)
+> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
 
-## Simple Version
+## Basic Version
+
+### Approach 1 — the direct way
 
 **`agents/writer_agent.py`**
 ```python
@@ -52,13 +54,15 @@ for i in range(MAX_ROUNDS):
 print(draft)
 ```
 
-This works. It reuses Step 1's chain via a module-level `_chain`, which is fine, though building the chain fresh inside `run_writer` on every call (Intermediate version) is a little cleaner for testing.
+This works. It reuses Step 1's chain via a module-level `_chain`, which is fine, though building the chain fresh inside `run_writer` on every call (Intermediate version) is a little cleaner for testing. Nothing here notices if the Reviewer gives the same feedback twice in a row — it just spends every remaining round anyway.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Hint 3](step2_writer_reviewer_loop_hints.md#hint-3) · [Hint 4](step2_writer_reviewer_loop_hints.md#hint-4) · [Solution](step2_writer_reviewer_loop_solution.md)
+> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
 
 ## Intermediate Version
+
+### Approach 1 — a real, testable loop function
 
 **`agents/writer_agent.py`**
 ```python
@@ -134,6 +138,91 @@ if __name__ == "__main__":
     print("Approved:", final_verdict.approved)
 ```
 
-**What's different, and why it's better:** the loop logic is pulled into its own testable function, `run_writer_reviewer_loop`, instead of living directly in a script's top level — this is exactly what `test_writer_reviewer.py` needs to import and call. Full type hints, including the `tuple[str, ReviewVerdict]` return type, which tells any caller (including Step 5's Supervisor, later) exactly what it gets back. `temperature=0` on the Reviewer keeps its judgments consistent between runs — important once you're comparing "did this get better" across rounds.
+**Difference from Basic:** the loop logic is pulled into its own testable function, `run_writer_reviewer_loop`, instead of living directly in a script's top level — this is exactly what `test_writer_reviewer.py` needs to import and call. Full type hints, including the `tuple[str, ReviewVerdict]` return type, which tells any caller (including Step 5's Supervisor, later) exactly what it gets back. `temperature=0` on the Reviewer keeps its judgments consistent between runs. Still missing: any way to tell "gave up because it wasn't improving" apart from "gave up because rounds ran out" — both return the same shape, `(draft, unapproved_verdict)`.
 
-**Which one should you use, and why?** The Simple version is correct and fine for a first pass at proving the loop works. Move to the Intermediate version specifically because Step 5's Supervisor needs to call this exact loop logic as a function with a clear return type — if the loop only exists as inline script code, you'll end up rewriting it anyway when the Supervisor arrives. Writing it as a real function now, even though nothing calls it but `main.py` yet, is the same "prove it works alone, in a reusable shape" principle the whole project is built on.
+<hr class="page-break">
+
+> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
+
+## Advanced Version
+
+### Approach 1 — no-progress detection + round history
+
+```python
+from dataclasses import dataclass, field
+from agents.writer_agent import run_writer
+from agents.reviewer_agent import run_reviewer, ReviewVerdict
+
+MAX_ROUNDS = 3
+
+
+@dataclass
+class LoopResult:
+    draft: str
+    verdict: ReviewVerdict
+    status: str  # "approved" | "no_progress" | "max_rounds"
+    history: list[tuple[str, ReviewVerdict]] = field(default_factory=list)
+
+
+def run_writer_reviewer_loop(notes: str, max_rounds: int = MAX_ROUNDS) -> LoopResult:
+    feedback: str | None = None
+    previous_feedback: str | None = None
+    history: list[tuple[str, ReviewVerdict]] = []
+    draft = ""
+    verdict: ReviewVerdict | None = None
+
+    for round_num in range(max_rounds):
+        draft = run_writer(notes, feedback)
+        verdict = run_reviewer(draft)
+        history.append((draft, verdict))
+
+        if verdict.approved:
+            return LoopResult(draft, verdict, "approved", history)
+
+        if previous_feedback is not None and verdict.feedback == previous_feedback:
+            return LoopResult(draft, verdict, "no_progress", history)
+
+        previous_feedback = verdict.feedback
+        feedback = verdict.feedback
+
+    return LoopResult(draft, verdict, "max_rounds", history)
+
+
+if __name__ == "__main__":
+    result = run_writer_reviewer_loop(
+        "Electric bikes cost $800-3000. Battery range 20-60 miles."
+    )
+    print(result.draft)
+    print("Status:", result.status, "| Rounds run:", len(result.history))
+```
+**Expected output (a normal case):** a draft, then `Status: approved | Rounds run: 1` or `2`. On a deliberately-impossible-to-satisfy case where the Reviewer repeats the same complaint, you'd see `Status: no_progress | Rounds run: 2` — stopped one round earlier than `max_rounds` would have allowed, because continuing clearly wasn't helping.
+
+### Approach 2 — same idea, exposed as a plain function return instead of a dataclass
+
+```python
+def run_writer_reviewer_loop(notes: str, max_rounds: int = MAX_ROUNDS):
+    feedback = None
+    previous_feedback = None
+    history = []
+    draft = ""
+    verdict = None
+
+    for round_num in range(max_rounds):
+        draft = run_writer(notes, feedback)
+        verdict = run_reviewer(draft)
+        history.append((draft, verdict))
+
+        if verdict.approved:
+            return draft, verdict, "approved", history
+        if previous_feedback is not None and verdict.feedback == previous_feedback:
+            return draft, verdict, "no_progress", history
+
+        previous_feedback = verdict.feedback
+        feedback = verdict.feedback
+
+    return draft, verdict, "max_rounds", history
+```
+
+**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's loop only ever tells you `verdict.approved` — `True`, or `False` with no explanation of why it gave up. Both Advanced approaches add the same two things on top: a `history` list (every round's draft and verdict, useful for debugging and for a later observability step), and a third status, `"no_progress"`, that stops the loop early when the Reviewer's feedback repeats verbatim instead of burning every remaining round on a redraft that already failed to help once. Approach 1 packages the result as a small `LoopResult` dataclass, which is easier for a caller to read (`result.status`, `result.history`) and easier to extend later without breaking every call site's unpacking. Approach 2 is the plain-tuple version — no new class to define, but every caller has to remember the order of 4 return values, and adding a 5th one later means changing every call site.
+
+**Which one should you actually write?** Approach 1's dataclass. Step 5's Supervisor is going to call this exact loop from inside a bigger system, and by then you'll likely also want to log `result.status` and `result.history` somewhere — a named dataclass with clear fields survives that kind of growth much better than a 4-item tuple. The no-progress check itself (in either approach) is worth keeping regardless: it's a small, cheap addition that turns "wasted every remaining round" into "recognized it was stuck and said so," which is exactly the difference between a demo loop and one you'd trust in a system a real caller depends on.

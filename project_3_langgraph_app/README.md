@@ -57,13 +57,14 @@ See [15_five_projects_index](../15_five_projects_index/): write out Problem → 
 *Project: **DocuMind-RAG-Agent-Ask-Your-Documents-Anything-Safely** — Step 1 of 5: A 2-Node Graph With No Branching, Just to Prove the Mechanics*
 
 **What this step does:** proves the basic graph mechanics — state, nodes, one edge — actually work, before any agent behavior or branching gets added. Keeps "do I understand the graph basics" separate from everything after it.
+**Why this step matters:** every step after this one adds nodes and branches to this exact skeleton — if you don't trust that state actually flows from node to node here, you can't trust it once branching and agents make the graph harder to read.
 **When you'll hit this for real:** the start of every new LangGraph project you'll ever build — always prove the skeleton compiles and runs before adding real logic to it.
 **Read first:** [09_langgraph Core Concepts](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here) — "From a hidden loop to a clear graph," "State," "Nodes and edges."
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step1_graph_basics_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_graph_basics_hints.md#hint-2) · [Hint 3](hints_and_solutions/step1_graph_basics_hints.md#hint-3) · [Hint 4](hints_and_solutions/step1_graph_basics_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step1_graph_basics_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step1_graph_basics_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_graph_basics_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step1_graph_basics_solution.md)
 
 What to do:
-1. Build a minimal 2-node `StateGraph` with a typed state shape and one plain edge — no tools, no branching yet (this is Doc09's own "Basic" exercise).
+1. Build a minimal 2-node `StateGraph` with a typed state shape and one plain edge — no tools, no branching yet (this is Doc09's own "Basic" exercise). Define the state as a `TypedDict` (or Pydantic model) with named fields up front, even though it's tiny now — every later step in this project only ever adds fields to this same shape, it's never replaced.
 2. By hand, trace what the state looks like after each node runs. Check that your own understanding matches what the code actually does, before adding anything else.
 
 **Your files after Step 1:**
@@ -79,15 +80,16 @@ project_3_langgraph_app/
 *Project: **DocuMind-RAG-Agent-Ask-Your-Documents-Anything-Safely** — Step 2 of 5: Project 2's Agent, Rebuilt as a Graph With Saved State*
 
 **What this step does:** proves your existing agent (from Project 2) can be rebuilt as graph nodes with the exact same behavior, and now gains saved state.
+**Why this step matters:** this is the migration you'll actually do at a real job far more often than a from-scratch build — taking something that already works and moving it onto infrastructure (here, a graph with a checkpointer) that makes it pausable and inspectable, without changing what it does.
 **What's new vs. Step 1:** real nodes (Project 2's tool-calling logic) replace the simple placeholder nodes; a conditional edge and a checkpointer get added. **What stays the same:** the tools themselves and the Worker's decisions — you're changing the *container* (loop → graph), not the agent's behavior.
 **When you'll hit this for real:** any time you outgrow a hand-rolled agent loop and need it to be pausable, resumable, or inspectable — this exact migration, not a rewrite from scratch.
 **Read first:** [09_langgraph Core Concepts — "Loops," "Checkpointers," "`interrupt()`"](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here).
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step2_agent_as_graph_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_agent_as_graph_hints.md#hint-2) · [Hint 3](hints_and_solutions/step2_agent_as_graph_hints.md#hint-3) · [Hint 4](hints_and_solutions/step2_agent_as_graph_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step2_agent_as_graph_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step2_agent_as_graph_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_agent_as_graph_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_agent_as_graph_solution.md)
 
 What to do:
 1. Rebuild Project 2's Worker agent (tool-calling loop) as graph nodes with a conditional edge — same tools, same behavior, now built as a graph (Doc09's "Real-world" exercise).
-2. Connect a checkpointer and prove a pause/resume cycle works on this single-agent graph, before adding any more agents.
+2. Connect a checkpointer and prove a pause/resume cycle works on this single-agent graph, before adding any more agents. Test the resume in a fresh process, not just the same one still running — a checkpointer that only appears to work because the Python objects are still sitting in memory isn't actually proving the state was saved.
 
 **Your files after Step 2:**
 ```
@@ -103,14 +105,15 @@ project_3_langgraph_app/
 *Project: **DocuMind-RAG-Agent-Ask-Your-Documents-Anything-Safely** — Step 3 of 5: A Retriever Agent That Judges Its Own Search Results*
 
 **What this step does:** adds the first new specialist — a node that doesn't just fetch chunks, but decides whether what it found is actually good enough to answer from.
+**Why this step matters:** a RAG system that always hands its search results to the answerer, good or bad, is how you get a confident answer built on nothing — judging relevance before answering is what actually earns the word "grounded."
 **What's new vs. Step 2:** a new Retriever node appears, only run when needed; the state grows to carry found chunks, not just the question. **What stays the same:** Step 2's checkpointer and the core graph-building pattern — you're adding a node to an already-proven base, not rebuilding it.
 **When you'll hit this for real:** any "answer questions about my documents" feature request — this is the exact node that turns a plain agent into a RAG agent.
 **Read first:** [08_rag Core Concepts](../08_rag/README.md#core-concepts-read-this-first-everything-you-need-is-here) — "Vector stores and searching for the top matches."
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step3_retriever_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_retriever_agent_hints.md#hint-2) · [Hint 3](hints_and_solutions/step3_retriever_agent_hints.md#hint-3) · [Hint 4](hints_and_solutions/step3_retriever_agent_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step3_retriever_agent_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step3_retriever_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_retriever_agent_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step3_retriever_agent_solution.md)
 
 What to do:
-1. Build the **Retriever agent** as its own node: wraps `08_rag`'s `retrieve()`, plus a step that judges relevance (is what came back actually useful? if not, route to a "can't ground this" path instead of forcing an answer downstream).
+1. Build the **Retriever agent** as its own node: wraps `08_rag`'s `retrieve()`, plus a step that judges relevance (is what came back actually useful? if not, route to a "can't ground this" path instead of forcing an answer downstream). Write the relevance bar down as an explicit, checkable rule (a similarity-score cutoff, or a concrete judged question like "do these chunks actually mention the thing being asked?") before you test — a vague "does this look okay?" bar just gets adjusted after the fact to match whatever the first test happened to do.
 2. Wire it in as a conditional step in the Step 2 graph — some tasks skip it entirely, same idea as Doc10's routing.
 3. Test it: a question the knowledge base can answer, and one it can't — confirm the "can't ground this" path actually runs on the second one.
 
@@ -130,14 +133,15 @@ project_3_langgraph_app/
 *Project: **DocuMind-RAG-Agent-Ask-Your-Documents-Anything-Safely** — Step 4 of 5: A Reasoner Agent That Only Answers From What the Retriever Found*
 
 **What this step does:** adds the specialist that actually writes an answer, and only from grounded material — keeping "did we find good context" (Step 3) separate from "did we use it correctly" (this step).
+**Why this step matters:** search quality and answer quality fail for different reasons and need different fixes — separating them into two nodes means when an answer is wrong, you can tell in seconds whether the Retriever found the wrong thing or the Reasoner used the right thing badly.
 **What's new vs. Step 3:** a new Reasoner node uses the Retriever's output; the graph now has search → answer as a real sequence. **What stays the same:** the Retriever from Step 3 is untouched — Step 4 just adds something that uses its output.
 **When you'll hit this for real:** the moment a RAG system's answers start drifting from what was actually retrieved — this separation (search quality vs. answer quality) is exactly how you'd diagnose and fix that.
 **Read first:** [10_agent_workflows Core Concepts](../10_agent_workflows/README.md#core-concepts-read-this-first-everything-you-need-is-here) — how the pieces fit together.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step4_reasoner_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_reasoner_agent_hints.md#hint-2) · [Hint 3](hints_and_solutions/step4_reasoner_agent_hints.md#hint-3) · [Hint 4](hints_and_solutions/step4_reasoner_agent_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step4_reasoner_agent_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step4_reasoner_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_reasoner_agent_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step4_reasoner_agent_solution.md)
 
 What to do:
-1. Build the **Reasoner agent**: takes the Retriever's output plus the task, and writes a grounded draft answer — clearly told not to answer beyond what was found.
+1. Build the **Reasoner agent**: takes the Retriever's output plus the task, and writes a grounded draft answer — clearly told not to answer beyond what was found. Spell out explicitly what it should say when the found chunks don't actually cover the question — an unprompted model tends to quietly fill the gap from what it remembers rather than admit the retrieved material falls short.
 2. Wire search → answer as a real edge sequence.
 3. Test it: check that the draft actually reflects the found content, not just believable-sounding text — check this by hand against a couple of test cases, not just "it ran without error."
 
@@ -158,14 +162,15 @@ project_3_langgraph_app/
 *Project: **DocuMind-RAG-Agent-Ask-Your-Documents-Anything-Safely** — Step 5 of 5: An Approval Agent That Only Asks a Human When It Really Needs To*
 
 **What this step does:** adds the last specialist — a gate that automatically clears low-risk drafts, and only pauses for a real human when its own checks aren't enough — completing the full 3-agent team.
+**Why this step matters:** full automation is too risky for consequential actions, but a human check on every single run is too slow to actually be used — a gate that only escalates when it's genuinely unsure is the difference between a safety feature people keep and one they route around.
 **What's new vs. Step 4:** a new Approval node appears with an `interrupt()` gate; routing now branches based on the approval outcome. **What stays the same:** the Retriever and Reasoner from Steps 3-4 don't change — Approval only watches the Reasoner's draft, it doesn't rewrite it.
 **When you'll hit this for real:** any agent about to take a consequential, hard-to-undo action — sending something, spending money, deleting data — where full automation is too risky but a human-in-the-loop for *every* run is too slow.
 **Read first:** [09_langgraph Core Concepts — "`interrupt()`: pausing for a human"](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here), [11_multi_agent_systems Core Concepts — "Sequential" and "Supervisor" patterns](../11_multi_agent_systems/README.md#core-concepts-read-this-first-everything-you-need-is-here).
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step5_approval_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step5_approval_agent_hints.md#hint-2) · [Hint 3](hints_and_solutions/step5_approval_agent_hints.md#hint-3) · [Hint 4](hints_and_solutions/step5_approval_agent_hints.md#hint-4) · [Show me the solution](hints_and_solutions/step5_approval_agent_solution.md)
+**Stuck on this step?** [Hint 1](hints_and_solutions/step5_approval_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step5_approval_agent_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step5_approval_agent_solution.md)
 
 What to do:
-1. Build the **Approval agent**: runs automatic checks on the Reasoner's draft (like — does it actually cite found content, does it avoid a "risky action" without support) — only calls `interrupt()` to ask a real human when its own checks aren't clear, or the action is genuinely important; otherwise it approves on its own and the graph continues.
+1. Build the **Approval agent**: runs automatic checks on the Reasoner's draft (like — does it actually cite found content, does it avoid a "risky action" without support) — only calls `interrupt()` to ask a real human when its own checks aren't clear, or the action is genuinely important; otherwise it approves on its own and the graph continues. Write the auto-approval checks as an explicit checklist the code evaluates one item at a time, not one vague "is this okay?" model call — a checklist is what lets you point to exactly which check failed when a draft gets wrongly escalated, or wrongly waved through.
 2. Wire the final routing: task → Retriever (if needed) → Reasoner → Approval → (approved on its own: done) or (interrupt: pause for a human) → resume → final answer.
 3. Test the full cycle, plus the "search found nothing" path (Step 3), plus the "Approval agent approves on its own" path (not every run should need a human).
 
@@ -201,4 +206,4 @@ Full requirements, test cases, and hints: [10_agent_workflows/README.md](../10_a
 Not started. Track your progress in [../PROGRESS.md](../PROGRESS.md).
 
 ---
-Stuck? Ask for **Hint 1** through **Hint 4** about the exact part you're stuck on. Only ask for the full code if you say **"Show me the solution."**
+Stuck? Ask for **Hint 1** or **Hint 2** about the exact part you're stuck on. Only ask for the full code if you say **"Show me the solution."**

@@ -1,31 +1,27 @@
 # Step 2 — One Tool, One Loop: the Smallest Possible Working Agent — Hints
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
-Work through in order — don't jump ahead until you've genuinely tried.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper LangChain), **Advanced** (what a loop that Step 3 grows into a real Worker needs to already get right). Read Basic first even if you already know the pattern — it's the fastest way to spot exactly what each deeper level adds.
 
-- [Hint 1](#hint-1)
-- [Hint 2](#hint-2)
-- [Hint 3](#hint-3)
-- [Hint 4](#hint-4)
+- [Hint 1 — The idea, and the exact pieces](#hint-1)
+- [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
-## Hint 1
+## Hint 1 — The idea, and the exact pieces {: #hint-1 }
 
-### Simple Version
+### Basic Version
 
 An "agent," at its simplest, is a model that can decide to use a tool instead of just answering directly. This step gives it exactly one tool — a plain Python function, decorated so LangChain knows how to offer it to the model — and wraps a small loop around the model call: ask the model, check if it wants to use the tool, if so run the tool and tell the model what happened, then ask again.
 
-Pick the simplest possible tool for this — something with no external dependency, like a calculator function. You want the *loop* to be the thing you're proving works, not the tool itself.
-
-Deliberately don't reach for `AgentExecutor` here — building the loop by hand once is the whole point of this step, per Doc07.
+Pick the simplest possible tool for this — something with no external dependency, like a calculator function. You want the *loop* to be the thing you're proving works, not the tool itself. Deliberately don't reach for `AgentExecutor` here — building the loop by hand once is the whole point of this step, per Doc07.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
 ### Intermediate Version
 
@@ -50,44 +46,31 @@ Sketch the loop's shape (ask → check for `tool_calls` → run tool or stop) be
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
-## Hint 2
+### Advanced Version
 
-### Simple Version
+The exercise's own loop has no exit condition beyond "the model eventually stops asking for the tool" — fine here, since a single reliable tool naturally finishes in 1-2 rounds. But this exact loop shape is what Step 3 grows into the real Worker, hard limit and all. Two things worth getting right now, so Step 3 is a true extension and not a rewrite.
 
-Here are the exact pieces you need:
+First, what actually happens if `calculator.invoke(call["args"])` raises — say the model sends an expression that isn't valid Python. An un-caught exception here crashes the whole agent mid-loop, which is a much worse failure than the model just getting a clear error message and trying again. Catch it, and feed the error back as the tool's result (still a `ToolMessage`), the same shape as a successful result — the model can often self-correct from a labeled error, but it never even gets the chance if your code crashes first.
 
-- `from langchain_core.tools import tool` — the decorator that turns a plain function into something the model can call.
-- `from pydantic import BaseModel` — for the tool's argument shape.
-- `model.bind_tools([calculator])` — gives the model the ability to ask for this tool.
-- After calling the bound model, check `response.tool_calls` — a list, empty if the model didn't ask for a tool.
-- Each entry in `tool_calls` has `name` and `args` — use `args` to actually call your Python function.
-- Add the tool's result back as a message with `role="tool"` (LangChain's `ToolMessage`), so the model can see what happened on its next turn.
+Second, `steps: list[str]` as plain strings is fine for printing, but throws away structure — you can't later filter "just the tool calls" or count how many rounds actually ran without re-parsing text. A small `AgentStep` model (tool name, args, result, whether it errored) keeps the same information queryable.
 
-<hr class="page-break">
+The extra pieces:
+- A `try/except` around the tool call, catching the general case (`Exception`) for this exercise, returning `f"Error: {e}"` as the `ToolMessage` content instead of letting it propagate.
+- An `AgentStep(BaseModel)` with fields like `tool: str`, `args: dict`, `result: str`, `ok: bool`, used instead of a plain string in `AgentResult.steps`.
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+Sketch how a failing calculator call should look in the message history before checking Hint 2.
 
-### Intermediate Version
-
-Look specifically at:
-- **`@tool(args_schema=CalculatorArgs)`** — the decorator reads the schema to build the tool's description for the model, and validates whatever arguments the model sends before your function body ever runs.
-- **`response.tool_calls`** — on an `AIMessage`, this is a list of dicts with `name`, `args`, and `id`. An empty list means "no tool needed, this is the final answer" — that's your loop's stop condition.
-- **`ToolMessage(content=result, tool_call_id=call["id"])`** — the `tool_call_id` must match the id from the original `tool_calls` entry, or the model can't tell which call this result belongs to (this matters more once you have several tools in Step 3).
-- **The loop only calling the tool when asked:** don't hardcode "always call the calculator" — the whole point of Step 2's test (a prompt that needs it, one that doesn't) is proving the model decides correctly on its own.
-
-Write `run_agent()`'s full loop body, including the `ToolMessage` construction, before moving to Hint 3.
+**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both assume the tool call succeeds every time — reasonable for a first working loop. Advanced treats failure as a normal thing this loop needs to handle even with the "friendliest" possible tool, because the loop's actual shape (not its exact tools) is what Step 3 reuses wholesale — a failure path added now is a failure path Step 3 doesn't have to invent under more pressure, with more tools in play.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
-## Hint 3
+## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
 
-### Simple Version
-
-The plan, in plain steps:
+### Basic Version
 
 ```
 define a calculator tool: takes an expression, returns the computed result
@@ -104,13 +87,28 @@ function run_agent(task):
             this is the final answer, stop and return it
 ```
 
+Here's almost the whole loop — try finishing the rest yourself:
+```python
+def run_agent(task):
+    model = ChatOpenAI(model="gpt-4o-mini").bind_tools([calculator])
+    messages = [SystemMessage("Use the calculator tool for any math."), HumanMessage(task)]
+
+    while True:
+        response = model.invoke(messages)
+        messages.append(response)
+        if not response.tool_calls:
+            return response.content
+        for call in response.tool_calls:
+            result = calculator.invoke(call["args"])
+            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+```
+**Expected output**, run against `"What is 47 * 6?"`: the loop makes exactly one tool call round, then returns a final answer mentioning `282`. Run against `"What's the capital of Japan?"` and confirm zero tool calls happen — the model should answer directly.
+
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
 ### Intermediate Version
-
-The same plan, closer to real structure:
 
 ```
 tools.py:
@@ -144,59 +142,42 @@ agent.py:
                 messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
 ```
 
-Notice the loop has no exit limit yet — that's deliberate, it's Step 3's job. For now, trust that a single-tool task naturally finishes in 1-2 rounds.
+Notice the loop has no exit limit yet — that's deliberate, it's Step 3's job. Write `main.py` printing each think/act/observe step from `AgentResult.steps`, and the two-prompt test (one that clearly needs the calculator, one that doesn't), before moving to the Advanced version.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
-## Hint 4
+### Advanced Version
 
-### Simple Version
+```
+class AgentStep(BaseModel): tool, args, result, ok
 
-Here's almost the whole loop — try finishing the rest yourself:
-
-```python
-def run_agent(task):
-    model = ChatOpenAI(model="gpt-4o-mini").bind_tools([calculator])
-    messages = [SystemMessage("Use the calculator tool for any math."), HumanMessage(task)]
-
-    while True:
-        response = model.invoke(messages)
-        messages.append(response)
-        if not response.tool_calls:
-            return response.content
-        for call in response.tool_calls:
-            result = calculator.invoke(call["args"])
-            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+function run_agent(task) -> AgentResult:
+    ... same loop as Intermediate ...
+    for each call in response.tool_calls:
+        try:
+            result = run the tool
+            record an AgentStep with ok=True
+        except Exception as e:
+            result = "Error: " + str(e)
+            record an AgentStep with ok=False
+        add result to messages as a ToolMessage either way
 ```
 
-What's missing: type hints, the `AgentResult` return shape with a step log, and `main.py` printing each think/act/observe step as the README asks. Add those, then check the [Solution](step2_single_tool_loop_solution.md).
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
-
-### Intermediate Version
-
-The same idea, fully typed with a proper `AgentResult`:
-
+Here's almost the whole thing — fill in the missing piece yourself:
 ```python
-from pydantic import BaseModel
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
-from langchain_openai import ChatOpenAI
-from tools import calculator
-
-
-class AgentResult(BaseModel):
-    answer: str
-    steps: list[str]
+class AgentStep(BaseModel):
+    tool: str
+    args: dict
+    result: str
+    ok: bool
 
 
 def run_agent(task: str) -> AgentResult:
     model = ChatOpenAI(model="gpt-4o-mini").bind_tools([calculator])
     messages = [SystemMessage("Use the calculator tool for any math."), HumanMessage(task)]
-    steps: list[str] = []
+    steps: list[AgentStep] = []
 
     while True:
         response = model.invoke(messages)
@@ -206,15 +187,17 @@ def run_agent(task: str) -> AgentResult:
             return AgentResult(answer=response.content, steps=steps)
 
         for call in response.tool_calls:
-            result = calculator.invoke(call["args"])
-            steps.append(f"called {call['name']} with {call['args']} -> {result}")
-            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+            # your turn: wrap this in try/except, build an AgentStep either way,
+            # and append it to `steps` before adding the ToolMessage
+            ...
 ```
 
-What's missing: `main.py`, and the two-prompt test from the README (one that clearly needs the calculator, one that clearly doesn't — confirm the loop only calls the tool for the first one). Write those yourself, then compare against the [Solution](step2_single_tool_loop_solution.md).
+Fill in the try/except and `AgentStep` construction yourself, then compare all 3 of your finished versions against the [Solution](step2_single_tool_loop_solution.md).
+
+**Difference between Basic, Intermediate, and Advanced:** the loop's core shape (ask → check `tool_calls` → run or stop) never changes across all 3 levels — Basic proves it runs, Intermediate adds real types and a structured `AgentResult`, Advanced adds the one thing that only shows up once something actually goes wrong: a tool call that raises instead of returning cleanly. That failure path is small here (this tool barely ever fails), but it's the exact seam Step 3 plugs a genuinely-failing tool into.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Hint 3](step2_single_tool_loop_hints.md#hint-3) · [Hint 4](step2_single_tool_loop_hints.md#hint-4) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
 Full solution: [Show me the solution](step2_single_tool_loop_solution.md)

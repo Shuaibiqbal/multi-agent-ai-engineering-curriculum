@@ -29,6 +29,8 @@ That's the whole story: **the patterns** are just different ways of arranging wh
 
 ## Core Concepts (read this first — everything you need is here)
 
+**Topics on this page:** [The real question: one agent, or many?](#the-real-question-one-agent-or-many) · [Every pattern below: what/why/when/trade-off](#every-pattern-below-what-why-when-trade-off) · [The `Command` tool](#the-command-tool-todays-way-of-handing-work-between-agents) · [Shared state design](#shared-state-design-what-goes-in-the-shared-state-and-what-doesnt) · [Error propagation between agents](#error-propagation-between-agents) · [Cost and latency](#cost-and-latency-multi-agent-is-not-free) · [Agent-to-agent communication patterns](#agent-to-agent-communication-patterns-beyond-the-command-tool)
+
 ### The real question: one agent, or many?
 Before any pattern below, ask the question that actually matters: **does this task genuinely need multiple agents, or would one agent with more tools do the job for less cost, less delay, and fewer ways to break?** A single agent with a large, well-organized set of tools can handle a surprising amount. Splitting into multiple agents earns its cost specifically when: the task has genuinely separate phases that would conflict if forced into one system prompt, when one agent's context would get overloaded with too many tools or too much history to reason about well, or when running independent parts at the same time gives a real speed benefit. **Why this matters more than memorizing patterns:** the failure this whole document guards against is reaching for multiple agents because it sounds advanced, then paying 3-4 times the cost and delay of a single agent, for a task that never needed splitting up.
 

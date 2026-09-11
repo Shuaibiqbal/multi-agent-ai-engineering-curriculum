@@ -29,6 +29,8 @@ That's the whole story: a tool's description, its argument shape, how the model 
 
 ## Core Concepts (read this first — everything you need is here)
 
+**Topics on this page:** [A tool's description is really a prompt](#a-tools-description-is-really-a-prompt) · [Checking arguments: Pydantic as the contract](#checking-arguments-pydantic-as-the-contract) · [Choosing between multiple tools](#choosing-between-multiple-tools) · [Getting a tool's failure back to the model, correctly](#getting-a-tools-failure-back-to-the-model-correctly) · [Seeing the whole thing three ways](#seeing-the-whole-thing-three-ways-analogy-trace-and-code-side-by-side) · [Parallel tool calls](#parallel-tool-calls) · [Forcing or forbidding tool use](#forcing-or-forbidding-tool-use-tool_choice) · [Chaining tool calls across multiple turns](#chaining-tool-calls-across-multiple-turns) · [Security: tools are a real attack surface](#security-tools-are-a-real-attack-surface) · [What MCP actually is](#what-mcp-actually-is-and-the-problem-it-solves) · [MCP's 3 building blocks](#mcps-3-building-blocks-tools-resources-and-prompts) · [MCP servers and clients](#mcp-servers-and-clients-and-how-they-actually-connect) · [Why MCP matters for multi-agent systems](#why-mcp-matters-for-the-multi-agent-systems-this-curriculum-builds)
+
 ### A tool's description is really a prompt
 When you register a tool, you give the model its name, a plain-English description of what it does, and a shape for its arguments — and the model reads that description as part of deciding what to do, exactly the same way it reads your system prompt. **Why this matters:** a vague or unclear description ("gets data") leads to unreliable choices — not because the model is "confused," but because you gave it too little to work with. The fix is almost always a better description, not a bigger or smarter model. **How it works underneath:** at call time, the model is shown the full list of available tools (name, description, argument shape) along with the conversation, and it can either write a normal reply, or ask to "call this tool with these arguments." The model never actually runs anything itself — it only *asks* to call something, and your code is what actually runs it and reports back the result.
 
@@ -219,6 +221,58 @@ def run_query(table: str, limit: int) -> str:
     return query_database(table, limit)
 ```
 Treat every tool argument as coming from an untrusted source, even though it "came from the model" — because ultimately, it came from whatever the user typed.
+
+### What MCP actually is, and the problem it solves
+**What:** MCP (Model Context Protocol) is a standardized way for an AI application to connect to external tools, data, and prompts — created by Anthropic, now an open standard that any vendor can build to. **The problem it solves:** everything you've read so far in this document — a tool's description, its Pydantic argument shape, how it's registered on the API call — is specific to one API's function-calling format. A tool you wire up by hand for one app has to be rewritten, by hand, to work in a different app, even if the underlying function never changes. That's fine for one tool in one app, but it doesn't scale: every new tool source (a database, a search index, a file system) needs its own custom integration, in every app that wants to use it. **Why this matters:** MCP fixes this by defining one shared protocol — a "server" exposes its tools/data once, and any MCP-compatible "client" (Claude Desktop, an IDE, your own agent) can plug into it without a custom integration being rewritten each time. **The analogy to hold onto:** this is the same idea as a USB port. Before USB, every peripheral (mouse, printer, keyboard) needed its own custom cable and custom port. USB standardized the connection once, so any USB device works with any USB port. MCP does the same thing for AI tools — standardize the connection once, instead of every app and every tool source inventing its own custom cable.
+
+### MCP's 3 building blocks: Tools, Resources, and Prompts
+An MCP server can expose three different kinds of things, and picking the right one for the job matters as much as picking the right tool description did earlier in this document. **Tools** are functions the model can call — the same idea this whole document has been teaching, just exposed over the protocol instead of hardcoded into one app's API call. Use a Tool when something needs to *happen* — an action with a side effect, or real computation (send an email, run a calculation, write to a database). **Resources** are data the client can read — a file, a database row, a URL's contents — without necessarily invoking a model call to get it. Use a Resource when the data is just meant to be *read*, not acted on — read-only context the client can pull in directly. **Prompts** are reusable, parameterized prompt templates the server provides, so prompt engineering can live server-side and be shared across every client that connects, instead of every app re-writing the same prompt from scratch. **When each is the right shape:**
+
+- An action with side effects or real computation → **Tool**.
+- Read-only data (a file, a record, a URL) → **Resource**.
+- A reusable prompt pattern meant to be shared → **Prompt**.
+
+A single MCP server is free to expose all three at once — a "GitHub" MCP server, for example, might offer a `create_issue` Tool, a `repo_readme` Resource, and a `code_review_template` Prompt, all from the same connection.
+
+### MCP servers and clients, and how they actually connect
+**What:** an MCP **server** is a small program that exposes Tools, Resources, and Prompts over the protocol. An MCP **client** — built into an AI app like Claude Desktop, or your own agent code — connects to one or more servers. **Why this matters:** the client can *discover* what a server offers at runtime, by calling `list_tools()` or `list_resources()`, instead of you hardcoding ahead of time exactly which tools exist — which is exactly the manual registration step (`tools=[get_weather, ...]`) this document has been doing by hand, now happening automatically, at connection time. **How it works — two common transports:** **stdio** is the simplest: the client launches the server as a local subprocess and talks to it over stdin/stdout, used for local tools running on the same machine. **SSE/HTTP** is used when the server runs remotely — the client connects over the network instead of launching a subprocess — which fits a server meant to be a shared service used by many different clients, not a single local process.
+
+**A minimal server and client**, using the official `mcp` Python SDK:
+```python
+# server.py -- exposes one tool over stdio
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("weather-server")
+
+@mcp.tool()
+def get_weather(city: str, country_code: str) -> str:
+    """Get the current weather for a specific city."""
+    return f"18C, cloudy, in {city}, {country_code}"
+
+if __name__ == "__main__":
+    mcp.run(transport="stdio")
+```
+```python
+# client.py -- launches server.py as a subprocess and calls its tool
+import asyncio
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+async def main():
+    server_params = StdioServerParameters(command="python", args=["server.py"])
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools = await session.list_tools()          # discovered, not hardcoded
+            result = await session.call_tool("get_weather", {"city": "Paris", "country_code": "FR"})
+            print(result)
+
+asyncio.run(main())
+```
+Notice the shape underneath is the same round-trip this whole document has been teaching — a name, a description, typed arguments, a result handed back — MCP just standardizes *how* the client and server talk to each other, so the same server works with any MCP-compatible client, not just the one you wrote it for.
+
+### Why MCP matters for the multi-agent systems this curriculum builds
+Everything in this document so far has been one app, hardcoding its own tools directly into one model call. That's fine for a single agent. It stops being fine once you reach Doc11's territory — several agents that all need access to the *same* underlying capabilities (a shared database, a shared search index). **Without MCP,** each agent's tool definitions get duplicated by hand across your codebase — the same database-query tool, rewritten and re-registered separately for every agent that needs it, drifting out of sync as one copy gets updated and the others don't. **With MCP,** you stand up one MCP server exposing that database as a Tool (and maybe a Resource, for read-only lookups), and every agent becomes a client that connects to it and discovers what's available at runtime — one server, many agent clients, instead of re-wiring the same tool into every agent by hand. **Why this matters going forward:** the tool-calling fundamentals in this document — a precise description, a Pydantic-checked argument shape, clean error handling — don't change at all. MCP just moves where the tool *lives*, from "hardcoded into this one app" to "a shared service any agent can plug into," which is exactly the kind of consistency a multi-agent system needs to avoid drifting, duplicated tool code.
 
 ## Go Deeper (Optional)
 _You don't need any of these to understand the Core Concepts above — use them if you want a second explanation or more detail._

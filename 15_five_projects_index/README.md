@@ -32,6 +32,8 @@ Every project is a real multi-agent system — the number of agents grows across
 | 4 | ContentForge: Supervisor-Led Team | 5 | [project_4_multi_agent_system](../project_4_multi_agent_system/) | Doc 11 | You can split up a problem across specialist agents, with a supervisor deciding routing on the fly |
 | 5 | ContentForge Pro: Production Platform | 5 (production-ready) | [project_5_production_capstone](../project_5_production_capstone/) | Docs 12-19 | You can ship, test, secure, watch, version, and defend the design of #4 |
 | 6 (bonus) | CodeGuard: PR-Review Team | 4 | [project_6_codeguard_bonus](../project_6_codeguard_bonus/) | All of Docs 01-19, used again | You can apply the whole architecture to a new problem, with less help from this curriculum |
+| 7 (bonus) | MCPForge: MCP Server | — (server, not agents) | [project_7_mcp_server](../project_7_mcp_server/) | Doc06's MCP topics | You can expose real tools/resources/prompts over the Model Context Protocol, usable by any MCP client |
+| 8 (bonus) | MCPBridge: MCP Client Agent | 1 (dynamic tools) | [project_8_mcp_client_agent](../project_8_mcp_client_agent/) | Doc06/07's MCP + ReAct topics | You can build an agent whose tools are discovered at runtime from live MCP servers, not hardcoded |
 
 ## Practice Exercises
 **Why only 1 here:** this page's whole job is the 7-step process, not code — one worked example is enough to show you how to actually use it. Real practice is running these 7 steps yourself, fresh, at the start of each of the 6 projects.
