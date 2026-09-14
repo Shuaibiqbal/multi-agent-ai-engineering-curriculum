@@ -7,7 +7,7 @@ This is not a theory course. Every document pairs its concepts with hands-on pra
 ## How this curriculum is structured
 
 - **19 documents** (`01_python_foundations/` → `19_mlops_llmops/`) — each one teaches a topic through simple-English "Core Concepts," then a set of practice exercises with a 2-hint, 3-depth (Basic/Intermediate/Advanced) hint system and full solutions, then a Build Task that feeds directly into the projects below.
-- **6 projects** (`project_1_beginner_llm_app/` → `project_6_codeguard_bonus/`) — real multi-agent systems you build across the documents, growing from a 2-agent terminal app to a tested, deployed, production-ready platform.
+- **6 projects** (`project_1_supportdesk_chat_and_triage/` → `project_13_codeguard_pr_review/`) — real multi-agent systems you build across the documents, growing from a 2-agent terminal app to a tested, deployed, production-ready platform.
 - Every document and project is delivered as both a `README.md` (source) and a matching `README.pdf` (for comfortable reading), with fully clickable internal links between exercises, hints, and solutions.
 
 ## Documents
@@ -39,16 +39,19 @@ This is not a theory course. Every document pairs its concepts with hands-on pra
 
 | # | Project | Agents | Built during | Proves |
 |---|---|---|---|---|
-| 1 | [SupportDesk: Concierge & Triage](project_1_beginner_llm_app/) | 2 | Docs 01-04 | You can talk to a model correctly and safely, and route between two simple agents |
-| 2 | [ResearchHand: Worker & Verifier](project_2_tool_using_agent/) | 2 | Docs 05-07 | You can give a model real abilities, check its choices, and add an independent check |
-| 3 | [DocuMind: Retriever, Reasoner & Approval](project_3_langgraph_app/) | 3 | Docs 08-10 | You can build agents as a clear, checkable graph, with real handoffs |
-| 4 | [ContentForge: Supervisor-Led Team](project_4_multi_agent_system/) | 5 | Doc 11 | You can split a problem across specialist agents, with a supervisor routing on the fly |
-| 5 | [ContentForge Pro: Production Platform](project_5_production_capstone/) | 5 (production-ready) | Docs 12-19 | You can ship, test, secure, watch, version, and defend the design of #4 |
-| 6 (bonus) | [CodeGuard: PR-Review Team](project_6_codeguard_bonus/) | 4 | All of Docs 01-19, applied again | You can apply the whole architecture to a new problem, with less help |
-| 7 (bonus) | [MCPForge: MCP Server](project_7_mcp_server/) | — (server, not agents) | Doc06's MCP topics | You can expose real tools/resources/prompts over the Model Context Protocol, usable by any MCP client |
-| 8 (bonus) | [MCPBridge: MCP Client Agent](project_8_mcp_client_agent/) | 1 (dynamic tools) | Doc06/07's MCP + ReAct topics | You can build an agent whose tools are discovered at runtime from live MCP servers, not hardcoded |
-| 9 (bonus) | [MCPCrew: Multi-Agent Research Team Powered by MCP Servers](project_9_multi_agent_mcp_team/) | 3 (+ Supervisor) | Doc06/11's MCP + multi-agent topics | You can build a Supervisor-led team where each specialist connects to its own MCP server, with graceful degradation if one goes down |
-| 10 (bonus) | [MCPResearch: Multi-Agent Pipeline Exposed as One MCP Tool](project_10_agentic_mcp_service/) | 2 (Researcher + Fact-Checker) | Doc06/11's MCP + multi-agent topics | You can wrap an entire agentic pipeline behind a single MCP tool call — the "agent-as-a-service" pattern |
+| 1 | [SupportDesk: Concierge & Triage](project_1_supportdesk_chat_and_triage/) | 2 | Docs 01-04 | You can talk to a model correctly and safely, and route between two simple agents |
+| 2 | [ResearchHand: Worker & Verifier](project_2_researchhand_tool_agent/) | 2 | Docs 05-07 | You can give a model real abilities, check its choices, and add an independent check |
+| 3 | [DocuMind: Retriever, Reasoner & Approval](project_3_documind_rag_agent/) | 3 | Docs 08-10 | You can build agents as a clear, checkable graph, with real handoffs |
+| 4 | [ContentForge: Supervisor-Led Team](project_4_contentforge_multi_agent/) | 5 | Doc 11 | You can split a problem across specialist agents, with a supervisor routing on the fly |
+| 5 | [ContentForge Pro: Production Platform](project_5_contentforge_pro_production/) | 5 (production-ready) | Docs 12-19 | You can ship, test, secure, watch, version, and defend the design of #4 |
+| 6 (bonus) | [LangChainPro: Production LCEL Patterns](project_6_langchainpro_lcel_patterns/) | — | Doc05 | You can build a real multi-step pipeline (branching, parallel calls, retries/fallbacks) in LangChain alone, without needing LangGraph |
+| 7 (bonus) | [MCPForge: MCP Server](project_7_mcpforge_mcp_server/) | — (server, not agents) | Doc06's MCP topics | You can expose real tools/resources/prompts over the Model Context Protocol, usable by any MCP client |
+| 8 (bonus) | [MCPBridge: MCP Client Agent](project_8_mcpbridge_mcp_client/) | 1 (dynamic tools) | Doc06/07's MCP + ReAct topics | You can build an agent whose tools are discovered at runtime from live MCP servers, not hardcoded |
+| 9 (bonus) | [PromptShield: RAG Agent Hardened Against Prompt Injection](project_9_promptshield_injection_defense/) | 1 | Doc06/08's prompt injection topics | You can defend a RAG agent against injected instructions, and prove it with a real red-team test suite |
+| 10 (bonus) | [MemoryKeeper: Persistent Assistant That Remembers You Across Sessions](project_10_memorykeeper_persistent_memory/) | 1 | Doc09's long-term memory topic | You can give an agent real memory that survives across separate conversations, with a working "forget me" |
+| 11 (bonus) | [MCPCrew: Multi-Agent Research Team Powered by MCP Servers](project_11_mcpcrew_multi_agent_mcp/) | 3 (+ Supervisor) | Doc06/11's MCP + multi-agent topics | You can build a Supervisor-led team where each specialist connects to its own MCP server, with graceful degradation if one goes down |
+| 12 (bonus) | [MCPResearch: Multi-Agent Pipeline Exposed as One MCP Tool](project_12_mcpresearch_agentic_mcp_tool/) | 2 (Researcher + Fact-Checker) | Doc06/11's MCP + multi-agent topics | You can wrap an entire agentic pipeline behind a single MCP tool call — the "agent-as-a-service" pattern |
+| 13 (bonus) | [CodeGuard: PR-Review Team](project_13_codeguard_pr_review/) | 4 | All of Docs 01-19, applied again | You can apply the whole architecture to a new problem, with less help |
 
 Agent count grows deliberately across the arc (2 → 2 → 3 → 5 → 5) — each project adds one new idea on top of the last, not several at once.
 

@@ -157,7 +157,7 @@ Your system depends on an outside provider (OpenAI) that can have outages, rate-
 - MLOps vs. LLMOps · why prompts need the same version discipline as code · canary vs. blue-green vs. shadow release trade-offs · what a good rollback trigger looks like · a backup plan for a provider outage.
 
 ## 🎯 You Can Now Finish Project 5
-Docs 12-19 are everything Project 5 needs — this document is the last piece (the versioned deploy gate). Go to [project_5_production_capstone/](../project_5_production_capstone/) and follow its Step 4 to add this document's gate on top of what Docs 12-18 already built.
+Docs 12-19 are everything Project 5 needs — this document is the last piece (the versioned deploy gate). Go to [project_5_contentforge_pro_production/](../project_5_contentforge_pro_production/) and follow its Step 4 to add this document's gate on top of what Docs 12-18 already built.
 
 ## Move On When
 You can explain, clearly, what would need to be true for you to trust an automatic rollback enough not to watch every release yourself — and you have a working gate that actually blocks a worse version of Project 5 from reaching "live." There's no document after this one — go back to [18_capstone](../18_capstone/) and [CURRICULUM.md §6](../CURRICULUM.md#6-final-capabilities-what-done-means) to confirm the whole curriculum is complete.

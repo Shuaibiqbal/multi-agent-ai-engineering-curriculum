@@ -41,7 +41,7 @@ Write your guesses for the code snippet and the non-English sentence, in tokens,
 
 The deeper pattern connecting both exceptions (code, non-English text) is the same: **token efficiency tracks training-data frequency, not human-perceived complexity.** A short Urdu sentence isn't linguistically more complex than its English translation — it just has far less representation in the corpus the tokenizer's vocabulary was built from, so the tokenizer has fewer efficient whole-chunk tokens reserved for it and falls back to smaller, less efficient pieces.
 
-This has a real consequence beyond trivia: any two features that feel equally simple to a developer (a support bot in English vs. the same bot in Urdu; a code-formatting feature vs. a prose-formatting one) can have very different token costs and context-budget footprints, purely because of how the training corpus happened to be weighted — not because either task is inherently harder.
+This has a real consequence beyond trivia: any two features that feel equally simple to a developer (a support bot in English vs. the same bot in Urdu; a code-formatting feature vs. a prose-formatting one) can have very different token costs and context-budget footprints, purely because of how the training corpus happened to be weighted — not because one task is harder than the other by nature.
 
 Given this, predict: would a JSON-heavy system prompt (lots of `{`, `}`, `"`, `:`) tokenize better or worse than the equivalent information written as plain English sentences? Write your prediction, then check it against a real tokenizer.
 

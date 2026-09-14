@@ -29,7 +29,7 @@ def trim_history(history, max_turns):
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_1_beginner_llm_app/chatbot.py", line 42, in send_message
+  File "project_1_supportdesk_chat_and_triage/chatbot.py", line 42, in send_message
     for msg in trim_history(conversation, MAX_TURNS):
 TypeError: 'NoneType' object is not iterable
 ```

@@ -64,7 +64,7 @@ This document has no new library or tool content — it's a practiced, well-know
 - **Multi-agent:** wrong agent picked, agents disagreeing, an endless loop between agents, repeated tool calls, wrong state sharing, one agent's notes leaking into shared state, high cost, high delay.
 
 ## Practice Exercises — how each round works
-**Where the code lives:** no separate practice files for this document — bugs get planted directly into Projects 1-4's real code, inside their own project folders (`project_1_beginner_llm_app/`, etc.). Nothing to set up ahead of time beyond having those projects working.
+**Where the code lives:** no separate practice files for this document — bugs get planted directly into Projects 1-4's real code, inside their own project folders (`project_1_supportdesk_chat_and_triage/`, etc.). Nothing to set up ahead of time beyond having those projects working.
 
 For each planted bug, you get: broken requirements, symptoms, error/log output, what should happen vs. what's actually happening. Then: **"What do you think is wrong?"** — you look into it and answer, before I tell you if you're right.
 

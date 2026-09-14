@@ -29,6 +29,8 @@ That's the whole story: each Core Concept below is one interchangeable piece, an
 
 ## Core Concepts (read this first — everything you need is here)
 
+**Topics on this page:** [What a library gives you, and what it costs](#what-a-library-gives-you-and-what-it-costs) · [`ChatOpenAI`](#chatopenai-a-wrapper-not-a-different-model) · [Prompt templates](#prompt-templates-keeping-the-fixed-part-separate-from-the-changing-part) · [LCEL](#lcel-chaining-pieces-together-with) · [Output parsers](#output-parsers-turning-raw-text-into-a-real-python-object) · [The three LangChain packages](#the-three-langchain-packages-langchain-core-langchain-openai-langchain)
+
 ### What a library gives you, and what it costs
 Doc04 taught the raw way: build a `messages` list by hand, call the API, read the reply by hand, every single time. LangChain's value is that it standardizes and reuses all that repeated work — building prompts, reading replies, swapping which AI provider you use — behind shared, common tools, so you're not rewriting the same boring code for every new task. **The cost:** there's now an extra layer between your code and the actual API call, so when something breaks, you're debugging through both LangChain's code *and* the API, not just the API. **Why this trade-off is worth naming clearly** (and why you'll be asked to explain it, not just repeat it): for a single one-off call, the raw SDK is often genuinely simpler and easier to debug. LangChain earns its cost when you have many similar prompts or chains that benefit from a shared, swappable structure — not for a quick one-time script.
 

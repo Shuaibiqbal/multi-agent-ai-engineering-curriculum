@@ -37,6 +37,8 @@ That's the story: this document turns three documents' worth of preparation into
 
 ## Core Concepts (read this first — everything you need is here)
 
+**Topics on this page:** [The client, and the list of messages](#the-client-and-the-list-of-messages) · [Streaming vs. waiting](#streaming-vs-waiting-for-the-full-reply) · [Structured output](#structured-output-how-give-me-json-is-actually-guaranteed) · [Error types](#error-types-and-which-doc02-rules-apply-to-each) · [Chat Completions vs. Responses API](#chat-completions-vs-the-newer-responses-api)
+
 ### The client, and the list of messages
 The `openai` library wraps the raw HTTP calls from Doc02 into an easier-to-use client: `client = OpenAI(api_key=...)`, then `client.chat.completions.create(model=..., messages=[...])`. The `messages` list **is** the whole conversation, written as a sequence of entries, each with a role: `{"role": "system", "content": "..."}` sets the model's behavior once, near the top. `{"role": "user", ...}` and `{"role": "assistant", ...}` go back and forth as the conversation continues. **Why the system role is separate from the user role:** it's a way to give the model standing instructions that carry more weight than a regular user message, and keeping it separate makes it easy to change the model's behavior without touching your conversation logic. **How "memory" actually gets built** (tying back to Doc03): every new call resends the *whole* growing `messages` list — there's no `add_message()` call on some server-side conversation object. You're the one appending to the list, and sending the whole thing again each time.
 
@@ -131,7 +133,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Suggested files:**
 ```
-project_1_beginner_llm_app/
+project_1_supportdesk_chat_and_triage/
 ├── main.py
 ├── chat_client.py
 ├── schemas.py
@@ -168,7 +170,7 @@ project_1_beginner_llm_app/
 - Chat Completions vs. Responses API · streaming vs. non-streaming trade-offs · how structured output is actually enforced · why "memory" is just resent history.
 
 ## 🎯 You Can Now Build Project 1
-Docs 01-04 are everything Project 1 needs. Go to [project_1_beginner_llm_app/](../project_1_beginner_llm_app/) and start with its **Setup** section — the step-by-step build guide there (not the Build Task summary above) is what you actually follow.
+Docs 01-04 are everything Project 1 needs. Go to [project_1_supportdesk_chat_and_triage/](../project_1_supportdesk_chat_and_triage/) and start with its **Setup** section — the step-by-step build guide there (not the Build Task summary above) is what you actually follow.
 
 ## Move On When
 Project 1 runs start to finish, handles at least 3 of the problems above gracefully, and you can explain every line without help. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-04-openai-api-project-1).

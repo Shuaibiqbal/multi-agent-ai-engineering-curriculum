@@ -35,7 +35,7 @@ Things to use:
 
 Think past "does it get the same answer" — ask **does `AgentExecutor` count a "step" the same way your loop does, and does it handle a tool's exception the same way `run_tool()` does?** Some versions of `AgentExecutor` count a full think→act→observe round as 1 iteration; others count differently. And by default, `AgentExecutor` catches an exception raised inside a tool and turns it into an "Invalid or incomplete response" message fed back to the model — similar in spirit to your own Hint 1 Advanced `run_tool()` from the Intermediate exercise, but with a *different, less specific* error string, unless you pass `handle_parsing_errors=True` and customize it. Write down, in your own words, what you'd expect to be different before reading Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the pieces and the comparison to run. Intermediate explains what each piece is actually doing, mapped directly back onto the loop you already built. Advanced asks the harder question underneath the comparison — not "does it work," but "does it count and fail the same way yours does" — which is exactly what makes reading someone else's `AgentExecutor` code later feel familiar instead of opaque.
+**Difference between Basic, Intermediate, and Advanced:** Basic names the pieces and the comparison to run. Intermediate explains what each piece is actually doing, mapped directly back onto the loop you already built. Advanced asks the harder question underneath the comparison — not "does it work," but "does it count and fail the same way yours does" — which is exactly what makes reading someone else's `AgentExecutor` code later feel familiar instead of confusing.
 
 <hr class="page-break">
 

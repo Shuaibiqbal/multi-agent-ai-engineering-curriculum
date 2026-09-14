@@ -46,7 +46,7 @@ Write the two docstrings deliberately similar — e.g. `"Get the current weather
 
 ### Advanced Version
 
-A 5-run split like `{"get_weather": 3, "get_forecast": 2}` raises a harder question than "which one is right": **is that split itself a problem, or is it just what an inherently ambiguous prompt should produce?** The prompt genuinely doesn't say whether "today" or "this week" was meant — a perfect model might legitimately split its answers too, the same way two different humans reading the same vague request might make different reasonable guesses. The fix isn't always "make the split go away" — sometimes it's "recognize the prompt actually needs a follow-up question," which is a UX decision, not a tool-description bug.
+A 5-run split like `{"get_weather": 3, "get_forecast": 2}` raises a harder question than "which one is right": **is that split itself a problem, or is it just what a genuinely unclear prompt should produce?** The prompt genuinely doesn't say whether "today" or "this week" was meant — a perfect model might legitimately split its answers too, the same way two different humans reading the same vague request might make different reasonable guesses. The fix isn't always "make the split go away" — sometimes it's "recognize the prompt actually needs a follow-up question," which is a UX decision, not a tool-description bug.
 
 Two things a real evaluation would check that a single ad hoc run never does:
 

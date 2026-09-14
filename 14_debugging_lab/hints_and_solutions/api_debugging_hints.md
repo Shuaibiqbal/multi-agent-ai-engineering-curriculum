@@ -33,7 +33,7 @@ response = request_with_retry("GET", url, 3)
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_1_beginner_llm_app/lookup.py", line 12, in fetch
+  File "project_1_supportdesk_chat_and_triage/lookup.py", line 12, in fetch
     response = request_with_retry("GET", url, 3)
 TypeError: request_with_retry() takes 2 positional arguments but 3 were given
 ```

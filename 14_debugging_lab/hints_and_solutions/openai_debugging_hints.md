@@ -33,7 +33,7 @@ data = json.loads(response.choices[0].message.content)
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_1_beginner_llm_app/extract.py", line 33, in summarize
+  File "project_1_supportdesk_chat_and_triage/extract.py", line 33, in summarize
     data = json.loads(response.choices[0].message.content)
 json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
 ```

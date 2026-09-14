@@ -35,6 +35,8 @@ That's the whole story: testing layers give you a way to check correctness witho
 
 ## Core Concepts (read this first — everything you need is here)
 
+**Topics on this page:** [Why testing something that isn't always the same needs a different mindset](#why-testing-something-that-isnt-always-the-same-needs-a-different-mindset) · [The testing layers, and what each one actually checks](#the-testing-layers-and-what-each-one-actually-checks) · [Regression testing for prompts](#regression-testing-for-prompts) · [Test sets and LLM-as-a-judge](#test-sets-and-llm-as-a-judge) · [Watching your system: what to record for each run](#watching-your-system-what-to-record-for-each-run)
+
 ### Why testing something that isn't always the same needs a different mindset
 Normal unit tests check exact equality: given this input, the output must be exactly that. An LLM given the same input can word its answer differently each time, while still being just as correct — checking for the exact same words makes tests fail for the wrong reason (the system is actually fine, the check is just too strict). **Why this needs a mindset shift:** you're not checking "is the output identical," you're checking "does the output have the *qualities* a correct answer must have" — has the right fact, is valid JSON, scores above some quality bar, calls the right tool. **How this changes what you write:** checks based on properties and score thresholds, instead of exact-match checks, for anything touching the model directly.
 

@@ -33,7 +33,7 @@ graph.add_conditional_edges("agent", route, {
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_3_langgraph_app/graph.py", line 44, in <module>
+  File "project_3_documind_rag_agent/graph.py", line 44, in <module>
     result = compiled_graph.invoke({"needs_tool": False, ...})
   ...
 ValueError: At 'agent' node, 'route' returned unknown target: 'finish'

@@ -152,7 +152,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Suggested files:**
 ```
-project_3_langgraph_app/
+project_3_documind_rag_agent/
 ├── main.py
 ├── graph.py           (builds on 09_langgraph/graph.py)
 ├── state.py
@@ -190,7 +190,7 @@ project_3_langgraph_app/
 - How this is different from Project 2 · where saved state actually lives · what human-checking costs in delay/user experience · agentic RAG vs. plain RAG.
 
 ## 🎯 You Can Now Build Project 3
-Docs 08-10 (plus the Async Python gate) are everything Project 3 needs. Go to [project_3_langgraph_app/](../project_3_langgraph_app/) and start with its **Setup** section — the step-by-step build guide there (not the Build Task summary above) is what you actually follow.
+Docs 08-10 (plus the Async Python gate) are everything Project 3 needs. Go to [project_3_documind_rag_agent/](../project_3_documind_rag_agent/) and start with its **Setup** section — the step-by-step build guide there (not the Build Task summary above) is what you actually follow.
 
 ## Move On When
 Project 3 runs a full search → answer → pause → resume → final answer cycle start to finish, in your own code. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-10-agent-workflows-project-3).

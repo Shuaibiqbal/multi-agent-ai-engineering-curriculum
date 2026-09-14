@@ -30,7 +30,7 @@ result = chain.invoke({"input": "What is the refund policy?"})
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_1_beginner_llm_app/qa.py", line 18, in answer
+  File "project_1_supportdesk_chat_and_triage/qa.py", line 18, in answer
     result = chain.invoke({"input": "What is the refund policy?"})
   ...
 KeyError: "Input to ChatPromptTemplate is missing variables {'question'}.  Expected: ['question'] Received: ['input']"
@@ -63,7 +63,7 @@ chain = prompt | ChatOpenAI() | PydanticOutputParser(pydantic_object=Answer)
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_1_beginner_llm_app/qa.py", line 24, in answer
+  File "project_1_supportdesk_chat_and_triage/qa.py", line 24, in answer
     result = chain.invoke({"question": "What is the refund policy?"})
   ...
 langchain_core.exceptions.OutputParserException: Invalid json output: ```json
@@ -96,7 +96,7 @@ The model's actual reply, in full:
 **Error output (only for certain inputs):**
 ```
 Traceback (most recent call last):
-  File "project_1_beginner_llm_app/qa.py", line 24, in answer
+  File "project_1_supportdesk_chat_and_triage/qa.py", line 24, in answer
     result = chain.invoke({"question": user_question})
   ...
 KeyError: 'status'

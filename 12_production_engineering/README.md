@@ -132,7 +132,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Suggested files:**
 ```
-project_5_production_capstone/          (this work feeds directly into the capstone)
+project_5_contentforge_pro_production/          (this work feeds directly into the capstone)
 ├── api/
 │   ├── main.py
 │   ├── routes.py

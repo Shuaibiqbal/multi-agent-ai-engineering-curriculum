@@ -32,7 +32,7 @@ return "Reserach"
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_4_multi_agent_system/agents/supervisor.py", line 22, in supervisor_node
+  File "project_4_contentforge_multi_agent/agents/supervisor.py", line 22, in supervisor_node
     return Command(goto=next_agent)
   ...
 langgraph.errors.InvalidUpdateError: Node 'Reserach' referenced in Command(goto=...)

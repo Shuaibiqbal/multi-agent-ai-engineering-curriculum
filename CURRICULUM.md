@@ -87,10 +87,14 @@ Every project is a real multi-agent system — the number of agents grows 2→2�
 | 3 — DocuMind (Retriever, Reasoner & Approval) | 3 | Docs 08-10 | You can build agents as a clear, checkable graph, with real handoffs |
 | 4 — ContentForge (Supervisor-Led Team) | 5 | Doc 11 | You can split up a problem across specialist agents, with a supervisor deciding routing on the fly |
 | 5 — ContentForge Pro (Production Platform) | 5 (production-ready) | Docs 12-19 | You can ship, test, secure, watch, version, and defend the design of #4 |
-| 6 (bonus) — CodeGuard (PR-Review Team) | 4 | All of Docs 01-19, applied again | You can apply the whole architecture to a new problem, with less help |
+| 6 (bonus) — LangChainPro (Production LCEL Patterns) | — | Doc05 | You can build a real multi-step pipeline (branching, parallel calls, retries/fallbacks) in LangChain alone, without needing LangGraph |
 | 7 (bonus) — MCPForge (MCP Server) | — (server, not agents) | Doc06's MCP topics | You can expose real tools/resources/prompts over the Model Context Protocol, usable by any MCP client |
 | 8 (bonus) — MCPBridge (MCP Client Agent) | 1 (dynamic tools) | Doc06/07's MCP + ReAct topics | You can build an agent whose tools are discovered at runtime from live MCP servers, not hardcoded |
-| 5 — ContentForge Pro (Production Platform) | 5 (production-ready) | Docs 12-19 | You can ship, test, secure, watch, version, and defend the design of #4 |
+| 9 (bonus) — PromptShield (Injection-Hardened RAG Agent) | 1 | Doc06/08's prompt injection topics | You can defend a RAG agent against injected instructions, and prove it with a real red-team test suite |
+| 10 (bonus) — MemoryKeeper (Persistent Cross-Session Memory) | 1 | Doc09's long-term memory topic | You can give an agent real memory that survives across separate conversations, with a working "forget me" |
+| 11 (bonus) — MCPCrew (Multi-Agent Research Team) | 3 (+ Supervisor) | Doc06/11's MCP + multi-agent topics | You can build a Supervisor-led team where each specialist connects to its own MCP server, with graceful degradation |
+| 12 (bonus) — MCPResearch (Agentic Pipeline as an MCP Tool) | 2 (Researcher + Fact-Checker) | Doc06/11's MCP + multi-agent topics | You can wrap a whole agentic pipeline behind one MCP tool call — the "agent-as-a-service" pattern |
+| 13 (bonus) — CodeGuard (PR-Review Team) | 4 | All of Docs 01-19, applied again | You can apply the whole architecture to a new problem, with less help |
 
 ---
 

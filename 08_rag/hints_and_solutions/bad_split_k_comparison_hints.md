@@ -56,7 +56,7 @@ The extra pieces:
 - Measure `retrieve()`'s timing again, but against a much larger synthetic chunk list (repeat/pad your test document hundreds of times) — watch the per-query time actually start to grow with corpus size, unlike the near-flat numbers from a few dozen chunks.
 - Re-run the whole exercise using `chunk_by_chars_with_overlap` (from `chunking_methods`' Advanced section) instead of the plain `chunk_by_chars`, and confirm `k=1` alone now returns the complete fact.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate observe that timing barely changes across `k` values, at a scale too small to show why that's misleading. Advanced explains *why* it barely changes (brute force over a handful of chunks), shows what happens once the corpus is actually large, and separates "the split-fact bug" (a chunking problem, fixed by overlap) from "how wide to search" (a `k`/cost trade-off) — two genuinely different decisions that are easy to conflate after watching `k` alone seem to fix things in a tiny example.
+**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate observe that timing barely changes across `k` values, at a scale too small to show why that's misleading. Advanced explains *why* it barely changes (brute force over a handful of chunks), shows what happens once the corpus is actually large, and separates "the split-fact bug" (a chunking problem, fixed by overlap) from "how wide to search" (a `k`/cost trade-off) — two genuinely different decisions that are easy to mix up after watching `k` alone seem to fix things in a tiny example.
 
 <hr class="page-break">
 

@@ -142,7 +142,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Suggested files:**
 ```
-project_4_multi_agent_system/
+project_4_contentforge_multi_agent/
 ├── main.py
 ├── graph.py
 ├── state.py
@@ -186,7 +186,7 @@ project_4_multi_agent_system/
 - Full trade-off table for every pattern above · defending "why 4 agents and not 1" · shared vs. private state · redundant-work and state-leaking failures.
 
 ## 🎯 You Can Now Build Project 4
-Doc11 is everything Project 4 needs on top of Project 3. Go to [project_4_multi_agent_system/](../project_4_multi_agent_system/) and start with its **Setup** section — the step-by-step build guide there (not the Build Task summary above) is what you actually follow.
+Doc11 is everything Project 4 needs on top of Project 3. Go to [project_4_contentforge_multi_agent/](../project_4_contentforge_multi_agent/) and start with its **Setup** section — the step-by-step build guide there (not the Build Task summary above) is what you actually follow.
 
 ## Move On When
 Project 4 finishes a full task through all four agents, survives at least two break scenarios, and you can defend the architecture choice without being asked twice. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-11-multi-agent-systems-project-4).

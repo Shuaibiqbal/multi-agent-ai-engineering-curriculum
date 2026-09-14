@@ -108,6 +108,15 @@ def relativize_pdf_links(pdf_path: pathlib.Path) -> None:
     reader = PdfReader(str(pdf_path))
     writer = PdfWriter()
     writer.append(reader)
+    # writer.append() does not carry over document metadata (Title, etc.) —
+    # without this, every PDF's Title/Keywords silently end up empty after
+    # this rewrite step, even though Chrome set them correctly at print time.
+    if reader.metadata:
+        title = reader.metadata.title or ""
+        writer.add_metadata({
+            "/Title": title,
+            "/Keywords": title,
+        })
     changed = False
     for page in writer.pages:
         annots = page.get("/Annots")

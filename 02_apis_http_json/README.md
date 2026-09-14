@@ -90,7 +90,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 ### Edge cases — 200 doesn't mean safe to trust {: #ex-json_edge_cases }
 
 - **What:** handle a response with status 200 but a body that isn't valid JSON, and separately, a response with valid JSON but a field your code expects is missing.
-- **Why:** a status code only tells you the *transport* succeeded — it says nothing about whether the *content* is what you expected. Conflating these two is a very common real bug.
+- **Why:** a status code only tells you the *transport* succeeded — it says nothing about whether the *content* is what you expected. Mixing up these two is a very common real bug.
 - **When you'll hit this for real:** an API having a bad day and returning an HTML error page with a 200 status, or an API changing its response shape without warning you.
 - **How to code it:** fake a `Response`-like object (or point at a URL that returns HTML) and call `.json()` inside a `try/except json.JSONDecodeError`. Separately, parse a real JSON dict and access a key that isn't there with `.get("missing_key")` vs. `["missing_key"]` — see the difference in what happens.
 - **Stuck?** [Hint 1](hints_and_solutions/json_edge_cases_hints.md#hint-1) · [Hint 2](hints_and_solutions/json_edge_cases_hints.md#hint-2) · [Show me the solution](hints_and_solutions/json_edge_cases_solution.md)

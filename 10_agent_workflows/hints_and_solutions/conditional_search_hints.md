@@ -49,7 +49,7 @@ graph.add_conditional_edges("router", should_search, {"search": "search_node", "
 The exact pieces:
 
 - **The routing function's return value** — it must exactly match one of the keys in the mapping dict you pass to `add_conditional_edges`. A typo here fails silently in confusing ways (LangGraph raises an error about an unknown node, which can look unrelated to the real cause).
-- **Where the decision lives** — a plain keyword/heuristic check is a fine first version; a second, smaller model call classifying "needs search: yes/no" is the more robust real-world version, at the cost of one extra call.
+- **Where the decision lives** — a plain keyword/heuristic check is a fine first version; a second, smaller model call classifying "needs search: yes/no" is the more solid real-world version, at the cost of one extra call.
 - **The two mapped branches** — one path goes to your search node, the other skips straight to your reasoning node, both eventually rejoining before the final answer.
 
 <hr class="page-break">
