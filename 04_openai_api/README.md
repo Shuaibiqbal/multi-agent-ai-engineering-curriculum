@@ -90,6 +90,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the single call every other document and project builds on — get it working with your own eyes before adding anything else.
 - **When you'll hit this for real:** literally Step 1 of Project 1.
 - **How to code it:** `client = OpenAI()`, then `client.chat.completions.create(model="gpt-4o-mini", messages=[{"role":"system","content":"..."},{"role":"user","content":"..."}])`. Print `response.choices[0].message.content`. Change the system prompt and run it again.
+- **Save as:** `chat_api_basics_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/first_chat_call_hints.md#hint-1) · [Hint 2](hints_and_solutions/first_chat_call_hints.md#hint-2) · [Show me the solution](hints_and_solutions/first_chat_call_solution.md)
 
 ### Intermediate — build real memory {: #ex-conversation_memory }
@@ -98,6 +99,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this *is* what "memory" means for an LLM — there's no other kind. Building it yourself once means you'll never be confused by it again.
 - **When you'll hit this for real:** Project 1 Step 2, and every chat feature you'll ever build.
 - **How to code it:** start with `history = [{"role":"system","content":"..."}]`. In a loop: `history.append({"role":"user","content":input()})`, call the API with `history`, append the reply too, and print it.
+- **Save as:** `conversation_memory_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/conversation_memory_hints.md#hint-1) · [Hint 2](hints_and_solutions/conversation_memory_hints.md#hint-2) · [Show me the solution](hints_and_solutions/conversation_memory_solution.md)
 
 ### Real-world — make it feel alive with streaming {: #ex-streaming_replies }
@@ -106,6 +108,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the difference between a chatbot that feels instant and one that feels like it's stalling — a real, user-facing quality difference, not just a technical detail.
 - **When you'll hit this for real:** any chat UI where the user is watching and waiting — which is most of them.
 - **How to code it:** add `stream=True` to your call, then `for chunk in response: print(chunk.choices[0].delta.content or "", end="")`.
+- **Save as:** `streaming_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/streaming_replies_hints.md#hint-1) · [Hint 2](hints_and_solutions/streaming_replies_hints.md#hint-2) · [Show me the solution](hints_and_solutions/streaming_replies_solution.md)
 
 ### Edge cases — what actually happens when you go over the limit {: #ex-context_limit_error }
@@ -114,6 +117,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** reading about "context limit errors" is not the same as seeing the real exception type and message once, with your own eyes.
 - **When you'll hit this for real:** a long conversation, or someone pasting a huge document into your chat feature.
 - **How to code it:** build a message with tens of thousands of repeated words, send it, and wrap the call in `try/except` to see and print the exact error type you get back.
+- **Save as:** `context_limit_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/context_limit_error_hints.md#hint-1) · [Hint 2](hints_and_solutions/context_limit_error_hints.md#hint-2) · [Show me the solution](hints_and_solutions/context_limit_error_solution.md)
 
 ### Failure — a bad key, and a cost comparison {: #ex-auth_error_cost_compare }
@@ -122,6 +126,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** a bare `except` here would hide a config problem from you and your users forever — catching the specific error is what makes it fixable. The cost comparison builds the same intuition Doc03 started, now backed by a real, running script.
 - **When you'll hit this for real:** a `.env` typo that ships to production, or a system prompt that's grown 5x longer than it needs to be without anyone noticing the cost.
 - **How to code it:** temporarily set `OPENAI_API_KEY` to a fake string, catch `openai.AuthenticationError` specifically, print a clean message. Then run the same task twice — once with a 1-sentence system prompt, once with a 20-sentence one — and compare the token counts OpenAI reports back in the response.
+- **Save as:** `auth_and_cost_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/auth_error_cost_compare_hints.md#hint-1) · [Hint 2](hints_and_solutions/auth_error_cost_compare_hints.md#hint-2) · [Show me the solution](hints_and_solutions/auth_error_cost_compare_solution.md)
 
 ## Build Task — Project 1: Beginner LLM App

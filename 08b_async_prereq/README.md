@@ -74,6 +74,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you need to see, once, that `async def` alone doesn't run anything — `await` and `asyncio.run()` are what actually make it go.
 - **When you'll hit this for real:** the first time you write any async code at all, right here.
 - **How to code it:** `async def wait_and_return(): await asyncio.sleep(1); return "done"`, then `print(asyncio.run(wait_and_return()))`.
+- **Save as:** `coroutine_basics_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/first_coroutine_hints.md#hint-1) · [Hint 2](hints_and_solutions/first_coroutine_hints.md#hint-2) · [Show me the solution](hints_and_solutions/first_coroutine_solution.md)
 
 ### Intermediate — feel the speed difference {: #ex-gather_speed }
@@ -82,6 +83,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** the numbers, not the theory, are what actually make "running things at the same time" click — this is the exercise that matters most in this whole document.
 - **When you'll hit this for real:** any agent making 2+ independent tool calls — this exact pattern is what LangGraph's parallel node execution relies on.
 - **How to code it:** write 3 `async def` functions that each `await asyncio.sleep(2)`. Time `await f1(); await f2(); await f3()` with `time.perf_counter()`, then time `await asyncio.gather(f1(), f2(), f3())` — compare the two durations directly.
+- **Save as:** `gather_practice.py`, under an `# Intermediate` section (this file also holds the Edge cases exercise below, in its own `# Edge cases` section).
 - **Stuck?** [Hint 1](hints_and_solutions/gather_speed_hints.md#hint-1) · [Hint 2](hints_and_solutions/gather_speed_hints.md#hint-2) · [Show me the solution](hints_and_solutions/gather_speed_solution.md)
 
 ### Real-world — convert a real function to async {: #ex-async_client_conversion }
@@ -90,6 +92,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact conversion Doc12's FastAPI service needs for every route that calls the model — better to do it once here, deliberately, than for the first time under pressure later.
 - **When you'll hit this for real:** wrapping any agent behind a real API service (Project 5).
 - **How to code it:** replace `from openai import OpenAI` with `from openai import AsyncOpenAI`, make the function `async def`, and `await client.chat.completions.create(...)` instead of calling it directly.
+- **Save as:** `async_client_conversion_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/async_client_conversion_hints.md#hint-1) · [Hint 2](hints_and_solutions/async_client_conversion_hints.md#hint-2) · [Show me the solution](hints_and_solutions/async_client_conversion_solution.md)
 
 ### Edge cases — proving `gather` actually waits {: #ex-gather_waits_for_slowest }
@@ -98,6 +101,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** it's easy to assume `gather` returns as soon as the *first* task finishes — it doesn't, and you need to have watched it wait for the slowest one, on purpose.
 - **When you'll hit this for real:** any parallel-agent design (Doc11) where one agent is much slower than the others — the whole group waits for it.
 - **How to code it:** one coroutine sleeps 0.1s and returns immediately with a printed timestamp, the other sleeps 5s. Run both through `gather`, and print timestamps before/after to see the fast one finished long before `gather` actually returned.
+- **Save as:** `gather_practice.py`, under an `# Edge cases` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/gather_waits_for_slowest_hints.md#hint-1) · [Hint 2](hints_and_solutions/gather_waits_for_slowest_hints.md#hint-2) · [Show me the solution](hints_and_solutions/gather_waits_for_slowest_solution.md)
 
 ### Failure — accidentally blocking the event loop {: #ex-blocking_event_loop }
@@ -106,6 +110,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the single most common real async bug, and it fails *silently* — no error, just quietly-worse performance — so you need to have seen it once to recognize it later.
 - **When you'll hit this for real:** accidentally using the sync `OpenAI` client (instead of `AsyncOpenAI`) inside an async FastAPI route in Project 5.
 - **How to code it:** inside an `async def`, call `time.sleep(3)` (not `asyncio.sleep`) instead of awaiting something, run it alongside another coroutine with `gather`, and time it — confirm the total time is now the *sum*, not the max, proving concurrency broke.
+- **Save as:** `blocking_event_loop_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/blocking_event_loop_hints.md#hint-1) · [Hint 2](hints_and_solutions/blocking_event_loop_hints.md#hint-2) · [Show me the solution](hints_and_solutions/blocking_event_loop_solution.md)
 
 ## Expected Behavior

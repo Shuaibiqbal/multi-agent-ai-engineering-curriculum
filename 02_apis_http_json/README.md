@@ -77,6 +77,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you need to see, once, that a bad URL and a bad response are two completely different kinds of failure with different exception types — that distinction is the whole document.
 - **When you'll hit this for real:** the very first time you wire up any external API call, in any project, ever.
 - **How to code it:** `requests.get("https://api.github.com")`, print `.status_code` and `.json()`. Then change the URL to something malformed (like `"htp://broken"`) and wrap the call in `try/except` — print the exception's type with `type(e).__name__`.
+- **Save as:** `api_first_call_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/api_first_call_hints.md#hint-1) · [Hint 2](hints_and_solutions/api_first_call_hints.md#hint-2) · [Show me the solution](hints_and_solutions/api_first_call_solution.md)
 
 ### Intermediate — timeouts and retry-with-backoff {: #ex-timeout_retry_backoff }
@@ -85,6 +86,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this exact wrapper is what `02_apis_http_json`'s Build Task turns into `http_client.py` — every project after this one calls through it.
 - **When you'll hit this for real:** any time an outside service (including OpenAI) is slow or briefly down — without this, your whole program just hangs or crashes instead of recovering.
 - **How to code it:** `requests.get(url, timeout=(3, 5))` pointed at an address that won't respond (like `http://10.255.255.1`), catch `requests.Timeout`. Then write a `for attempt in range(max_attempts):` loop that retries with `time.sleep(2 ** attempt)` between tries.
+- **Save as:** `retry_backoff_practice.py`, under an `# Intermediate` section (this file also holds the Failure exercise below, in its own `# Failure` section).
 - **Stuck?** [Hint 1](hints_and_solutions/timeout_retry_backoff_hints.md#hint-1) · [Hint 2](hints_and_solutions/timeout_retry_backoff_hints.md#hint-2) · [Show me the solution](hints_and_solutions/timeout_retry_backoff_solution.md)
 
 ### Real-world — one reusable session instead of repeated headers {: #ex-session_reuse }
@@ -93,6 +95,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** repeating the same headers dict in five different functions is exactly how one of them ends up with a typo'd or missing header — a session object makes that impossible.
 - **When you'll hit this for real:** any client class you build for a real API (including your own `http_client.py`) — you'll set the auth header once, in one place.
 - **How to code it:** `session = requests.Session()`, `session.headers.update({"Authorization": "Bearer fake-token"})`, then make 2-3 calls through `session.get(...)` instead of `requests.get(...)` and confirm the header goes out on all of them.
+- **Save as:** `session_reuse_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/session_reuse_hints.md#hint-1) · [Hint 2](hints_and_solutions/session_reuse_hints.md#hint-2) · [Show me the solution](hints_and_solutions/session_reuse_solution.md)
 
 ### Edge cases — 200 doesn't mean safe to trust {: #ex-json_edge_cases }
@@ -101,6 +104,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** a status code only tells you the *transport* succeeded — it says nothing about whether the *content* is what you expected. Mixing up these two is a very common real bug.
 - **When you'll hit this for real:** an API having a bad day and returning an HTML error page with a 200 status, or an API changing its response shape without warning you.
 - **How to code it:** fake a `Response`-like object (or point at a URL that returns HTML) and call `.json()` inside a `try/except json.JSONDecodeError`. Separately, parse a real JSON dict and access a key that isn't there with `.get("missing_key")` vs. `["missing_key"]` — see the difference in what happens.
+- **Save as:** `response_validation_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/json_edge_cases_hints.md#hint-1) · [Hint 2](hints_and_solutions/json_edge_cases_hints.md#hint-2) · [Show me the solution](hints_and_solutions/json_edge_cases_solution.md)
 
 ### Failure — respecting a real rate limit {: #ex-rate_limit_handling }
@@ -109,6 +113,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** OpenAI (and most real APIs) rate-limit you, and a client that doesn't back off correctly makes the problem worse for itself and everyone sharing that API key.
 - **When you'll hit this for real:** the first time you run an agent loop (Doc07) fast enough to actually hit OpenAI's rate limit — this exact handling is what keeps that agent working instead of crashing.
 - **How to code it:** build a fake response object with `status_code = 429` and a `headers = {"Retry-After": "2"}`. Write a function that checks for that header, sleeps that long if present, or falls back to `2 ** attempt` seconds if not.
+- **Save as:** `retry_backoff_practice.py`, under a `# Failure` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/rate_limit_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/rate_limit_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/rate_limit_handling_solution.md)
 
 ## Build Task — HTTP Client Wrapper

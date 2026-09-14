@@ -331,6 +331,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact primitive every agent in this entire curriculum is built from — see it work once, standalone, before combining it with anything else.
 - **When you'll hit this for real:** the very first tool you ever register, in this document's own Build Task.
 - **How to code it:** `@tool def add(a: int, b: int) -> int: return a + b`, register it in `tools=[add]` on your model call, ask "what's 5 + 7?", and print the tool call the model requests.
+- **Save as:** `first_tool_call_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/first_tool_call_hints.md#hint-1) · [Hint 2](hints_and_solutions/first_tool_call_hints.md#hint-2) · [Show me the solution](hints_and_solutions/first_tool_call_solution.md)
 
 ### Intermediate — watch the model choose between two tools {: #ex-tool_selection_ambiguity }
@@ -339,6 +340,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is where "tool descriptions are prompts too" stops being an abstract idea and becomes something you watched happen.
 - **When you'll hit this for real:** any real tool library with more than one option — you will hit unreliable selection, and you need to know how to diagnose it.
 - **How to code it:** register both tools with deliberately similar descriptions, ask something ambiguous ("what's the weather like"), and print which one got picked across 5 runs.
+- **Save as:** `tool_selection_practice.py`, under an `# Intermediate` section (this file also holds the Failure exercise below, in its own `# Failure` section).
 - **Stuck?** [Hint 1](hints_and_solutions/tool_selection_ambiguity_hints.md#hint-1) · [Hint 2](hints_and_solutions/tool_selection_ambiguity_hints.md#hint-2) · [Show me the solution](hints_and_solutions/tool_selection_ambiguity_solution.md)
 
 ### Real-world — a tool backed by a real API call {: #ex-real_api_tool }
@@ -347,6 +349,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** a tool that only returns hardcoded data teaches you nothing about the failure modes real tools actually have — timeouts, bad responses, rate limits.
 - **When you'll hit this for real:** every real tool you'll ever build past this document.
 - **How to code it:** wrap Doc02's `request_with_retry()` inside a `@tool`-decorated function that calls a real public API (weather, currency conversion, anything free), and register it.
+- **Save as:** `real_api_tool_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/real_api_tool_hints.md#hint-1) · [Hint 2](hints_and_solutions/real_api_tool_hints.md#hint-2) · [Show me the solution](hints_and_solutions/real_api_tool_solution.md)
 
 ### Edge cases — a missing required argument {: #ex-missing_argument_handling }
@@ -355,6 +358,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this tells you whether you need to design your tool to ask a clarifying question, or handle a missing/default value gracefully.
 - **When you'll hit this for real:** any tool with a required field a user might reasonably forget to mention.
 - **How to code it:** give a tool a required `city: str` argument, then ask a question that needs the tool but never mentions a city — read what the model does (asks you, guesses, or fails).
+- **Save as:** `missing_argument_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/missing_argument_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/missing_argument_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/missing_argument_handling_solution.md)
 
 ### Failure — a crashing tool, and a bad description {: #ex-tool_error_and_description_fix }
@@ -363,6 +367,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** both of these are real production bugs you will cause yourself at least once — better to see them here, on purpose, where nothing's at stake.
 - **When you'll hit this for real:** a tool calling a real service that's briefly down (the crash case), and a tool library that's grown past 2-3 tools with descriptions that started overlapping (the vague-description case).
 - **How to code it:** wrap your tool's body in `try/except`, and on error `return f"Error: {e}"` as the tool's result instead of letting it raise. Then take a genuinely vague description, run the same ambiguous prompt 5 times, sharpen the description, and run it 5 more times — count how the split changed.
+- **Save as:** `tool_selection_practice.py`, under a `# Failure` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/tool_error_and_description_fix_hints.md#hint-1) · [Hint 2](hints_and_solutions/tool_error_and_description_fix_hints.md#hint-2) · [Show me the solution](hints_and_solutions/tool_error_and_description_fix_solution.md)
 
 ## Build Task — Tool Library

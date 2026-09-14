@@ -139,6 +139,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the one fact the entire rest of RAG rests on — you need to see it work with real numbers, not just accept it as a claim.
 - **When you'll hit this for real:** debugging any search result that looks wrong — you'll come back to "are these actually close in vector space" as your first check.
 - **How to code it:** get embeddings for 5 sentences (2 similar in meaning, 3 unrelated) via the OpenAI embeddings API, compute cosine similarity for every pair with a small function, and confirm the 2 similar ones score highest against each other.
+- **Save as:** `embedding_similarity_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/embedding_similarity_hints.md#hint-1) · [Hint 2](hints_and_solutions/embedding_similarity_hints.md#hint-2) · [Show me the solution](hints_and_solutions/embedding_similarity_solution.md)
 
 ### Intermediate — chunking method changes the answer {: #ex-chunking_methods }
@@ -147,6 +148,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this document's Core Concepts claim chunking is a real design decision, not a detail — this exercise is where you prove that to yourself with a real before/after.
 - **When you'll hit this for real:** the Build Task below, and any real knowledge base where naive fixed-size chunking quietly breaks an answer.
 - **How to code it:** write `chunk_by_chars()` and `chunk_by_paragraph()`, run the same document through both, embed and store both sets, then search both with the same question and compare which chunk actually surfaces.
+- **Save as:** `chunking_practice.py`, under an `# Intermediate` section (this file also holds the Edge cases exercise below, in its own `# Edge cases` section, and the Failure exercise below, in its own `# Failure` section).
 - **Stuck?** [Hint 1](hints_and_solutions/chunking_methods_hints.md#hint-1) · [Hint 2](hints_and_solutions/chunking_methods_hints.md#hint-2) · [Show me the solution](hints_and_solutions/chunking_methods_solution.md)
 
 ### Real-world — build and search a real knowledge base {: #ex-knowledge_base_search }
@@ -155,6 +157,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** made-up test documents you actually wrote are the fastest way to know, immediately, whether a search result is right or wrong — you already know the answer.
 - **When you'll hit this for real:** this document's own Build Task, which becomes Project 3's search tool.
 - **How to code it:** write 5-10 short `.txt`/`.md` files on one topic you know well, embed and store them with Chroma, then run 3 questions against them and check the results by eye.
+- **Save as:** `knowledge_base_search_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/knowledge_base_search_hints.md#hint-1) · [Hint 2](hints_and_solutions/knowledge_base_search_hints.md#hint-2) · [Show me the solution](hints_and_solutions/knowledge_base_search_solution.md)
 
 ### Edge cases — when the answer spans two chunks {: #ex-chunk_boundary_split }
@@ -163,6 +166,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is one of the most common real RAG failures, and it's invisible until you specifically construct a test case for it.
 - **When you'll hit this for real:** any document where a key fact is split across a chunk boundary by chance — you won't know it's happening until an answer comes back half-right.
 - **How to code it:** deliberately write one document where the answer to your test question spans across a chunk boundary you control, search for it, and check whether both chunks come back in your top-k.
+- **Save as:** `chunking_practice.py`, under an `# Edge cases` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section, and the Failure exercise below, in its own `# Failure` section).
 - **Stuck?** [Hint 1](hints_and_solutions/chunk_boundary_split_hints.md#hint-1) · [Hint 2](hints_and_solutions/chunk_boundary_split_hints.md#hint-2) · [Show me the solution](hints_and_solutions/chunk_boundary_split_solution.md)
 
 ### Failure — a bad split, and a `k` comparison {: #ex-bad_split_k_comparison }
@@ -171,6 +175,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you need to have caused this failure once, on purpose, so you recognize the *shape* of it immediately when it happens by accident later.
 - **When you'll hit this for real:** any time you reach for the simplest chunking method (fixed character count) without checking where the cuts actually land.
 - **How to code it:** force a chunk split in the middle of a sentence containing your test answer, search for it, and watch the result come back incomplete. Then run the same query at `k=1`, `k=3`, `k=10` and note both the results and how long each takes.
+- **Save as:** `chunking_practice.py`, under a `# Failure` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section, and the Edge cases exercise above, in its own `# Edge cases` section).
 - **Stuck?** [Hint 1](hints_and_solutions/bad_split_k_comparison_hints.md#hint-1) · [Hint 2](hints_and_solutions/bad_split_k_comparison_hints.md#hint-2) · [Show me the solution](hints_and_solutions/bad_split_k_comparison_solution.md)
 
 ## Build Task — Retriever Module

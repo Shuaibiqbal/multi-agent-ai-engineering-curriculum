@@ -78,6 +78,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this 3-piece chain is the atom every LangChain thing you'll ever build is made of — get comfortable with it before adding anything else.
 - **When you'll hit this for real:** this document's own Build Task, and every chain you write from here forward.
 - **How to code it:** `prompt = ChatPromptTemplate.from_template("Answer: {question}")`, `chain = prompt | ChatOpenAI() | StrOutputParser()`, then `chain.invoke({"question": "..."})`.
+- **Save as:** `lcel_chain_basics_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/lcel_chain_basics_hints.md#hint-1) · [Hint 2](hints_and_solutions/lcel_chain_basics_hints.md#hint-2) · [Show me the solution](hints_and_solutions/lcel_chain_basics_solution.md)
 
 ### Intermediate — swap in a structured parser {: #ex-structured_parser_swap }
@@ -86,6 +87,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is where you feel, directly, the difference between LCEL's after-the-fact parser checking and Doc04's during-generation structured output.
 - **When you'll hit this for real:** any time you're extracting data instead of just displaying text — which is most of what agents actually do.
 - **How to code it:** define a small Pydantic model, use `.with_structured_output(YourModel)` on the chat model, run it on a clearly-matching input, then a deliberately mismatched one — read the exact error.
+- **Save as:** `structured_output_practice.py`, under an `# Intermediate` section (this file also holds the Failure exercise below, in its own `# Failure` section).
 - **Stuck?** [Hint 1](hints_and_solutions/structured_parser_swap_hints.md#hint-1) · [Hint 2](hints_and_solutions/structured_parser_swap_hints.md#hint-2) · [Show me the solution](hints_and_solutions/structured_parser_swap_solution.md)
 
 ### Real-world — rebuild a Project 1 feature, LCEL-style {: #ex-lcel_vs_raw_sdk }
@@ -94,6 +96,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the only way to actually compare LangChain vs. raw SDK — reading about the trade-off isn't the same as having both versions of the same feature side by side.
 - **When you'll hit this for real:** this document's own Build Task asks for exactly this comparison.
 - **How to code it:** copy Project 1's structured-extraction feature into a new file, rewrite it as prompt → model → parser with `|`, then write a script that runs both on the same 3 inputs and diffs the outputs.
+- **Save as:** `lcel_vs_raw_sdk_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](hints_and_solutions/lcel_vs_raw_sdk_hints.md#hint-2) · [Show me the solution](hints_and_solutions/lcel_vs_raw_sdk_solution.md)
 
 ### Edge cases — a template with the wrong variables {: #ex-template_variable_errors }
@@ -102,6 +105,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** knowing whether a broken template fails *while building the prompt* or *only once the API call goes out* changes how fast you can debug it.
 - **When you'll hit this for real:** a refactor where you rename a variable in the template but forget to update where it's called from — a real, easy-to-make mistake.
 - **How to code it:** call `.invoke({})` on a template expecting `{question}` — read the exact error. Then call it with `{"question": "...", "extra": "..."}` and confirm whether it's silently ignored or errors.
+- **Save as:** `prompt_template_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/template_variable_errors_hints.md#hint-1) · [Hint 2](hints_and_solutions/template_variable_errors_hints.md#hint-2) · [Show me the solution](hints_and_solutions/template_variable_errors_solution.md)
 
 ### Failure — force the parser to actually fail {: #ex-parser_failure_handling }
@@ -110,6 +114,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you need to know, before it happens in production, exactly what kind of exception your code needs to catch here.
 - **When you'll hit this for real:** any structured-extraction feature, on an input ambiguous enough that the model can't cleanly produce your expected shape.
 - **How to code it:** ask a structured-output chain expecting a number field for something that's clearly a description, not a number — catch the resulting error and print its type.
+- **Save as:** `structured_output_practice.py`, under a `# Failure` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/parser_failure_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/parser_failure_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/parser_failure_handling_solution.md)
 
 ## Build Task — Reusable Chain Module

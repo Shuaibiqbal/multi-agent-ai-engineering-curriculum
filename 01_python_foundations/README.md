@@ -81,6 +81,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the single habit most beginner code is missing — a function whose signature already tells the reader what can go wrong, before they read the body.
 - **When you'll hit this for real:** every time you write a function another file will import. In this document's own Build Task below, `load_config()` does exactly this — it refuses to hand back a broken config instead of failing later, confusingly, three functions away.
 - **How to code it:** write `class InvalidAgeError(Exception): pass`. Write `def set_age(age: int) -> None:` that raises `InvalidAgeError` if `age < 0`. Call it once with a valid age, once with a negative one inside `try/except InvalidAgeError`, and print what happened each time.
+- **Save as:** `custom_errors_practice.py`, under a `# Basic` section (this file also holds the Failure handling exercise below, in its own `# Failure handling` section).
 - **Stuck?** [Hint 1](hints_and_solutions/basic1_hints.md#hint-1) · [Hint 2](hints_and_solutions/basic1_hints.md#hint-2) · [Show me the solution](hints_and_solutions/basic1_solution.md)
 
 ### Basic (part 2) — a real venv, start to finish {: #ex-venv_setup }
@@ -89,6 +90,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the very first thing you do on every single project from here on — get it into muscle memory now, not while also trying to debug something else later.
 - **When you'll hit this for real:** literally the "Setup" step at the top of every project in this curriculum.
 - **How to code it:** `python -m venv .venv` → `source .venv/bin/activate` → `pip install requests` → `pip freeze > requirements.txt` → open `requirements.txt` and confirm `requests` is listed with a version number.
+- **Save as:** `venv_setup_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/venv_setup_hints.md#hint-1) · [Hint 2](hints_and_solutions/venv_setup_hints.md#hint-2) · [Show me the solution](hints_and_solutions/venv_setup_solution.md)
 
 ### Intermediate — read `.env` by hand, then explain why not to {: #ex-env_parsing }
@@ -97,6 +99,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** doing it by hand once shows you exactly what the library saves you from (quoting, blank lines, comments, missing files) — a shortcut you should still understand under the hood.
 - **When you'll hit this for real:** any time you're debugging *why* a `.env` value isn't loading — knowing the manual version means you can check each step yourself instead of treating the library as a black box.
 - **How to code it:** open the file, read it line by line, split on the first `=`, and build a dict. Then rewrite the same thing in 2 lines using `python-dotenv`'s `load_dotenv()` + `os.getenv()`. Write one sentence on which version you'd actually ship.
+- **Save as:** `env_config_practice.py`, under an `# Intermediate` section (this file also holds the Edge cases exercise below, in its own `# Edge cases` section).
 - **Stuck?** [Hint 1](hints_and_solutions/env_parsing_hints.md#hint-1) · [Hint 2](hints_and_solutions/env_parsing_hints.md#hint-2) · [Show me the solution](hints_and_solutions/env_parsing_solution.md)
 
 ### Intermediate (part 2) — a logger with two output levels {: #ex-logger_levels }
@@ -105,6 +108,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact setup you want in production — quiet in the terminal, detailed in the file you check after something breaks.
 - **When you'll hit this for real:** this document's Build Task `get_logger()` function needs exactly this, and every later project reuses it.
 - **How to code it:** create a logger with `logging.getLogger(__name__)`, add a `StreamHandler` set to `INFO`, add a `FileHandler` set to `DEBUG`, and log one message at each level (`.debug()`, `.info()`, `.warning()`) to see the difference.
+- **Save as:** `logging_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/logger_levels_hints.md#hint-1) · [Hint 2](hints_and_solutions/logger_levels_hints.md#hint-2) · [Show me the solution](hints_and_solutions/logger_levels_solution.md)
 
 ### Real-world — wire config + logging together {: #ex-config_logging_wiring }
@@ -113,6 +117,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** config and logging are almost always used *together* — this is a small rehearsal of the real Build Task below, so the real one has no surprises.
 - **When you'll hit this for real:** this exact pattern (import config, get a logger, use both together) is the first three lines of every script you'll write for the rest of this curriculum.
 - **How to code it:** `main.py` calls `load_config()`, then `get_logger(__name__)`, then logs `f"Loaded config for {config.some_field}"` at `INFO` level. Run it and confirm the line appears on screen.
+- **Save as:** `config_logging_wiring_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/config_logging_wiring_hints.md#hint-1) · [Hint 2](hints_and_solutions/config_logging_wiring_hints.md#hint-2) · [Hint 3](hints_and_solutions/config_logging_wiring_hints.md#hint-3) · [Hint 4](hints_and_solutions/config_logging_wiring_hints.md#hint-4) · [Show me the solution](hints_and_solutions/config_logging_wiring_solution.md)
 
 ### Edge cases — is an empty value "missing" or "valid"? {: #ex-env_edge_cases }
@@ -121,6 +126,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is a real judgment call every config loader has to make, and getting it wrong silently is how a genuinely missing secret sails through as if it were fine.
 - **When you'll hit this for real:** someone on a team copies `.env.example` to `.env`, forgets to fill in a value, and your app has to decide right then whether that's a hard failure or not.
 - **How to code it:** test your Doc01 config loader against both cases directly. For each, write down — in a comment or a one-line note — whether your loader currently treats it as "missing" (raises `MissingConfigError`) or "valid" (returns an empty string), and whether that's actually the behavior you want.
+- **Save as:** `env_config_practice.py`, under an `# Edge cases` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/env_edge_cases_hints.md#hint-1) · [Hint 2](hints_and_solutions/env_edge_cases_hints.md#hint-2) · [Show me the solution](hints_and_solutions/env_edge_cases_solution.md)
 
 ### Failure handling — three different errors, three different reactions {: #ex-failure_handling }
@@ -129,6 +135,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** a single blanket `except Exception` treats a typo'd input the same as a real system failure — this exercise builds the habit of catching each error type separately, so your response actually fits the problem.
 - **When you'll hit this for real:** any function with more than one way to fail differently — like Doc04's chat client, which needs to react differently to a bad key vs. a rate limit vs. a network timeout.
 - **How to code it:** define 3 small custom error classes, write one function that raises a different one depending on its input, then write 3 separate `except` blocks (not one shared one) that each print something different.
+- **Save as:** `custom_errors_practice.py`, under a `# Failure handling` section (this file also holds the Basic exercise above, in its own `# Basic` section).
 - **Stuck?** [Hint 1](hints_and_solutions/failure_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/failure_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/failure_handling_solution.md)
 
 ## Build Task — Config & Logging Foundation

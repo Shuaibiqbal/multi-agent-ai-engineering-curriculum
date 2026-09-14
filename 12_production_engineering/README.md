@@ -85,6 +85,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** every real service needs a health check, and this is the smallest possible FastAPI app — get it running before anything more complex.
 - **When you'll hit this for real:** the literal first route of Project 5.
 - **How to code it:** `app = FastAPI()`, `@app.get("/health") def health() -> dict: return {"status": "ok"}`, run with `uvicorn main:app --reload`, and hit it with `curl localhost:8000/health`.
+- **Save as:** `health_route_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/health_route_hints.md#hint-1) · [Hint 2](hints_and_solutions/health_route_hints.md#hint-2) · [Show me the solution](hints_and_solutions/health_route_solution.md)
 
 ### Intermediate — wrap real logic behind a route {: #ex-chat_route }
@@ -93,6 +94,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact pattern — real logic behind a typed route with correct error handling — that Project 5's entire API layer is built from.
 - **When you'll hit this for real:** wrapping any of your projects behind a real API, starting with Project 5.
 - **How to code it:** a Pydantic `ChatRequest(BaseModel)` with a `message: str` field, a route that calls your Doc04 chat function and returns a `ChatResponse`, with a `try/except` translating internal errors to the right status code.
+- **Save as:** `chat_route_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/chat_route_hints.md#hint-1) · [Hint 2](hints_and_solutions/chat_route_hints.md#hint-2) · [Show me the solution](hints_and_solutions/chat_route_solution.md)
 
 ### Real-world — persist and read back real data {: #ex-sqlite_persistence }
@@ -101,6 +103,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact save-and-look-up pattern Project 5's run history needs — practice it here on something small first.
 - **When you'll hit this for real:** Project 5's Step 2, almost verbatim.
 - **How to code it:** a SQLite table with `id, input, output, created_at` columns, an `INSERT` on every `POST /chat` call, and a `GET /runs` route that `SELECT`s and returns them all as JSON.
+- **Save as:** `sqlite_persistence_practice.py`, under a `# Real-world` section (this file also holds the Edge cases exercise below, in its own `# Edge cases` section).
 - **Stuck?** [Hint 1](hints_and_solutions/sqlite_persistence_hints.md#hint-1) · [Hint 2](hints_and_solutions/sqlite_persistence_hints.md#hint-2) · [Show me the solution](hints_and_solutions/sqlite_persistence_solution.md)
 
 ### Edge cases — a request that fails validation {: #ex-validation_422 }
@@ -109,6 +112,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you need to know, concretely, that bad input never reaches your database — silent partial writes from bad requests are a real, hard-to-notice bug.
 - **When you'll hit this for real:** any public-facing route, the moment a client sends malformed JSON.
 - **How to code it:** send a request missing a required field with `curl` or `requests`, confirm you get 422 back, then check your database table row count didn't change.
+- **Save as:** `sqlite_persistence_practice.py`, under an `# Edge cases` section (this file also holds the Real-world exercise above, in its own `# Real-world` section).
 - **Stuck?** [Hint 1](hints_and_solutions/validation_422_hints.md#hint-1) · [Hint 2](hints_and_solutions/validation_422_hints.md#hint-2) · [Show me the solution](hints_and_solutions/validation_422_solution.md)
 
 ### Failure — a dead connection, and a real container {: #ex-db_failure_and_docker }
@@ -117,6 +121,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** both are real production requirements — an API that leaks internal errors to clients is a security problem, and an app that only runs "on your machine" isn't shippable.
 - **When you'll hit this for real:** Project 5's own break-scenario tests, almost exactly.
 - **How to code it:** point your database connection string at a nonexistent file/path temporarily, hit the route, confirm 500 with a generic message (check your terminal logs for the real detail). Then write the Dockerfile, `docker build`, and `docker run -e OPENAI_API_KEY=... your-image`, confirming it responds identically to the local version.
+- **Save as:** `db_failure_and_docker_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/db_failure_and_docker_hints.md#hint-1) · [Hint 2](hints_and_solutions/db_failure_and_docker_hints.md#hint-2) · [Show me the solution](hints_and_solutions/db_failure_and_docker_solution.md)
 
 ## Build Task — Project 4 as an API

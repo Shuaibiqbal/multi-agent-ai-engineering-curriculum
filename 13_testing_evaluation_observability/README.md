@@ -87,6 +87,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the foundation layer — get comfortable with ordinary, always-the-same testing before adding the harder, non-deterministic layer on top.
 - **When you'll hit this for real:** every pure-logic function in every project — tools' internal math, routing functions, chunking, anything with no model call inside it.
 - **How to code it:** `def test_chunk_by_paragraph(): chunks = chunk_by_paragraph(sample_text); assert len(chunks) == 3` — an exact, ordinary `assert`, run with `pytest`.
+- **Save as:** `chunking_unit_test_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/chunking_unit_test_hints.md#hint-1) · [Hint 2](hints_and_solutions/chunking_unit_test_hints.md#hint-2) · [Show me the solution](hints_and_solutions/chunking_unit_test_solution.md)
 
 ### Intermediate — test a tool without calling the LLM {: #ex-tool_test_no_llm }
@@ -95,6 +96,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this separates "does my tool's own logic work" from "does the model choose to call it" — two completely different questions that should be tested separately.
 - **When you'll hit this for real:** any tool with real logic worth testing on its own, independent of whether the model ever calls it correctly.
 - **How to code it:** call your tool function directly with hardcoded arguments (skip the model call entirely), and assert on its return value.
+- **Save as:** `tool_test_no_llm_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/tool_test_no_llm_hints.md#hint-1) · [Hint 2](hints_and_solutions/tool_test_no_llm_hints.md#hint-2) · [Show me the solution](hints_and_solutions/tool_test_no_llm_solution.md)
 
 ### Real-world — score an answer that isn't exact {: #ex-llm_judge_scoring }
@@ -103,6 +105,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the actual skill this whole document is about — everything before this exercise was preparation for this one.
 - **When you'll hit this for real:** this document's own Build Task, testing Project 4's real output quality.
 - **How to code it:** write down 2-3 concrete pass/fail rules first (e.g. "mentions the correct category," "under 100 words"), then write a test that checks the real output against those rules, not against one exact string.
+- **Save as:** `llm_output_testing_practice.py`, under a `# Real-world` section (this file also holds the Edge cases exercise below, in its own `# Edge cases` section).
 - **Stuck?** [Hint 1](hints_and_solutions/llm_judge_scoring_hints.md#hint-1) · [Hint 2](hints_and_solutions/llm_judge_scoring_hints.md#hint-2) · [Show me the solution](hints_and_solutions/llm_judge_scoring_solution.md)
 
 ### Edge cases — fix a flaky test {: #ex-flaky_test_fix }
@@ -111,6 +114,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** a test that fails randomly gets ignored by everyone eventually — "oh, that one's just flaky" — which means it stops protecting you at all.
 - **When you'll hit this for real:** the first time you write `assert response == "expected text"` against a real LLM call and it fails on a re-run with an equally correct answer.
 - **How to code it:** take a test asserting exact text equality, and rewrite it to assert a property instead — `assert "billing" in response.lower()`, or `assert is_valid_json(response)`.
+- **Save as:** `llm_output_testing_practice.py`, under an `# Edge cases` section (this file also holds the Real-world exercise above, in its own `# Real-world` section).
 - **Stuck?** [Hint 1](hints_and_solutions/flaky_test_fix_hints.md#hint-1) · [Hint 2](hints_and_solutions/flaky_test_fix_hints.md#hint-2) · [Show me the solution](hints_and_solutions/flaky_test_fix_solution.md)
 
 ### Failure — prove the suite actually catches a regression {: #ex-regression_catch }
@@ -119,6 +123,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** an eval suite you've never watched fail is a suite you don't actually know works — this is the one test of the tests themselves.
 - **When you'll hit this for real:** this document's own Build Task, and every time you'd otherwise just trust a green checkmark without questioning it.
 - **How to code it:** temporarily delete a key instruction from a working prompt, re-run your test suite, and confirm the score actually drops. If it doesn't, your test rules are too loose — tighten them until it does.
+- **Save as:** `regression_catch_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/regression_catch_hints.md#hint-1) · [Hint 2](hints_and_solutions/regression_catch_hints.md#hint-2) · [Show me the solution](hints_and_solutions/regression_catch_solution.md)
 
 ## Build Task — Test Suite for Project 4

@@ -95,6 +95,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this document's central skill is judgment, not syntax — practicing the judgment call *before* code exists is the only way to actually test your intuition against reality afterward.
 - **When you'll hit this for real:** the start of every real multi-agent project, including Project 4's own Architecture-Before-Code step.
 - **How to practice it:** write one paragraph per design (single/sequential/supervisor) describing the flow, then a one-line prediction for cost, speed, and reliability for each.
+- **Save as:** `architecture_comparison_practice.py`, under a `# Basic` section (this file also holds the Intermediate and Real-world exercises below, each in its own section).
 - **Stuck?** [Hint 1](hints_and_solutions/paper_design_hints.md#hint-1) · [Hint 2](hints_and_solutions/paper_design_hints.md#hint-2) · [Show me the solution](hints_and_solutions/paper_design_solution.md)
 
 ### Intermediate — measure the sequential version {: #ex-sequential_measure }
@@ -103,6 +104,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** comparing your prediction to the real number is what actually calibrates your judgment for next time — skipping this step means you never find out if your intuition was right.
 - **When you'll hit this for real:** any time you're deciding, for a real project, whether a fixed pipeline is the right shape.
 - **How to code it:** two functions chained directly (`write(research(topic))`), with token usage and wall-clock time printed for each stage and the total.
+- **Save as:** `architecture_comparison_practice.py`, under an `# Intermediate` section (this file also holds the Basic and Real-world exercises, each in its own section).
 - **Stuck?** [Hint 1](hints_and_solutions/sequential_measure_hints.md#hint-1) · [Hint 2](hints_and_solutions/sequential_measure_hints.md#hint-2) · [Show me the solution](hints_and_solutions/sequential_measure_solution.md)
 
 ### Real-world — build and compare the supervisor version {: #ex-supervisor_compare }
@@ -111,6 +113,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the direct, apples-to-apples comparison that lets you actually answer "why 4 agents and not 1" with real numbers instead of a guess.
 - **When you'll hit this for real:** this document's own Architecture-Before-Code step, which asks for exactly this comparison before Project 4 begins.
 - **How to code it:** a small LangGraph with a supervisor node routing to the same two functions as nodes, run on the same 3 test inputs as the sequential version, comparing cost/speed/output quality.
+- **Save as:** `architecture_comparison_practice.py`, under a `# Real-world` section (this file also holds the Basic and Intermediate exercises above, each in its own section).
 - **Stuck?** [Hint 1](hints_and_solutions/supervisor_compare_hints.md#hint-1) · [Hint 2](hints_and_solutions/supervisor_compare_hints.md#hint-2) · [Show me the solution](hints_and_solutions/supervisor_compare_solution.md)
 
 ### Edge cases — an ambiguous routing decision {: #ex-ambiguous_routing }
@@ -119,6 +122,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** ambiguous routing is where supervisor-pattern systems actually break in production — you need to have watched it happen once, deliberately.
 - **When you'll hit this for real:** Project 4's Research vs. Analysis boundary, where a task could plausibly need either first.
 - **How to code it:** write a supervisor with two specialists whose descriptions slightly overlap, run 5 ambiguous test prompts through it, and log which one got picked each time.
+- **Save as:** `supervisor_routing_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/ambiguous_routing_hints.md#hint-1) · [Hint 2](hints_and_solutions/ambiguous_routing_hints.md#hint-2) · [Show me the solution](hints_and_solutions/ambiguous_routing_solution.md)
 
 ### Failure — a loop that won't converge, and a cost-cutting pass {: #ex-convergence_and_cost_cutting }
@@ -127,6 +131,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** both are real production concerns — a revision loop that never converges is a direct threat to your uptime, and cost-cutting under a real constraint is a skill interviewers specifically ask about.
 - **When you'll hit this for real:** Project 4's Writer/Reviewer pair, and any real system operating under a cost budget.
 - **How to code it:** give the critic impossible-to-satisfy criteria, run the loop with a low hard limit, and confirm it exits with a clear "couldn't converge" report. Then profile a working 4-agent run for the most expensive step, and try cutting it (shorter prompts, a cheaper model for one agent, caching) while re-running your test set to confirm correctness held.
+- **Save as:** `convergence_and_cost_cutting_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](hints_and_solutions/convergence_and_cost_cutting_hints.md#hint-2) · [Show me the solution](hints_and_solutions/convergence_and_cost_cutting_solution.md)
 
 ## Build Task — Project 4: Multi-Agent System

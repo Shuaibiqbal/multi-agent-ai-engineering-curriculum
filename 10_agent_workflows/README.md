@@ -105,6 +105,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** connect the pieces one at a time — search-as-a-tool working, before search-as-conditionally-routed. Two problems at once is harder to debug than one.
 - **When you'll hit this for real:** the very first step of wiring RAG into any agent graph.
 - **How to code it:** wrap `08_rag`'s `retrieve()` as a `@tool`, register it on your Doc09 graph's model-calling node, and confirm the graph can call it when asked a question about your document set.
+- **Save as:** `search_tool_integration_practice.py`, under a `# Basic` section (this file also holds the Intermediate exercise below, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/search_as_tool_hints.md#hint-1) · [Hint 2](hints_and_solutions/search_as_tool_hints.md#hint-2) · [Show me the solution](hints_and_solutions/search_as_tool_solution.md)
 
 ### Intermediate — make search conditional {: #ex-conditional_search }
@@ -113,6 +114,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact mechanism that keeps your graph from wasting a search call (and its cost) on tasks that don't need grounding.
 - **When you'll hit this for real:** this document's own Build Task, and any real agent handling a mix of "needs my documents" and "doesn't" questions.
 - **How to code it:** write a routing function checking whether the task looks like it needs the knowledge base, wire it with `add_conditional_edges`, and run one test question that should search and one that shouldn't — confirm both paths.
+- **Save as:** `search_tool_integration_practice.py`, under an `# Intermediate` section (this file also holds the Basic exercise above, in its own `# Basic` section).
 - **Stuck?** [Hint 1](hints_and_solutions/conditional_search_hints.md#hint-1) · [Hint 2](hints_and_solutions/conditional_search_hints.md#hint-2) · [Show me the solution](hints_and_solutions/conditional_search_solution.md)
 
 ### Real-world — a real approval pause {: #ex-approval_pause }
@@ -121,6 +123,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the actual production pattern Project 3 needs — grounding an approval step in what was *found*, not just the original question.
 - **When you'll hit this for real:** Project 3's own Approval-style gate, and any real agent taking a consequential action based on retrieved data.
 - **How to code it:** after your reasoning node produces a draft, call `interrupt()` with the draft and its source chunks attached, then resume with a simulated "approved" input and confirm the graph continues correctly.
+- **Save as:** `approval_pause_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/approval_pause_hints.md#hint-1) · [Hint 2](hints_and_solutions/approval_pause_hints.md#hint-2) · [Show me the solution](hints_and_solutions/approval_pause_solution.md)
 
 ### Edge cases — search comes back empty {: #ex-empty_search }
@@ -129,6 +132,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact failure mode that turns into a hallucinated answer if you don't design for it — you need to see your own graph handle it correctly, or catch it not doing so.
 - **When you'll hit this for real:** any question genuinely outside your knowledge base's coverage.
 - **How to code it:** ask a question with no relevant documents in your set, and confirm your graph routes to an explicit "I don't have grounding for this" response instead of generating an ungrounded answer.
+- **Save as:** `empty_search_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/empty_search_hints.md#hint-1) · [Hint 2](hints_and_solutions/empty_search_hints.md#hint-2) · [Show me the solution](hints_and_solutions/empty_search_solution.md)
 
 ### Failure — search fails mid-run {: #ex-search_failure }
@@ -137,6 +141,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** an external search failure (a down vector store, a network blip) shouldn't corrupt or lose everything the graph had already done — this is a real production requirement, not a nice-to-have.
 - **When you'll hit this for real:** any real deployment where your vector store is a separate service that can be briefly unavailable.
 - **How to code it:** temporarily make your retrieval node raise an exception on purpose, run the graph, and confirm the checkpointed state from before the failure is still intact and inspectable afterward.
+- **Save as:** `search_failure_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/search_failure_hints.md#hint-1) · [Hint 2](hints_and_solutions/search_failure_hints.md#hint-2) · [Show me the solution](hints_and_solutions/search_failure_solution.md)
 
 ## Build Task — Project 3: LangGraph App

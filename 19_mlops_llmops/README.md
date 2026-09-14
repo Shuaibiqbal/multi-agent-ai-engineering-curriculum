@@ -77,6 +77,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you can't have a deploy gate without something to compare against first — this is the record that makes "which version was live when" an answerable question.
 - **When you'll hit this for real:** the very first time you change a prompt in a system you actually care about not breaking.
 - **How to code it:** a plain JSON or SQLite record with `{version_name, prompt_text, created_at}`, saved for two variants of one prompt, with your Doc13 suite run against each and the scores printed side by side.
+- **Save as:** `version_log_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/version_log_hints.md#hint-1) · [Hint 2](hints_and_solutions/version_log_hints.md#hint-2) · [Show me the solution](hints_and_solutions/version_log_solution.md)
 
 ### Intermediate — build the gate {: #ex-release_gate }
@@ -85,6 +86,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the actual mechanism that turns "we should test before releasing" from a policy people can forget into something the system enforces.
 - **When you'll hit this for real:** this document's own Build Task, protecting Project 5.
 - **How to code it:** a `deploy(version_name, threshold)` function that runs your test suite, and only updates a `live_version.txt` (or database row) if the score clears the threshold — otherwise it prints why and exits without updating anything.
+- **Save as:** `release_gate_practice.py`, under an `# Intermediate` section (this file also holds the Edge cases exercise below, in its own `# Edge cases` section).
 - **Stuck?** [Hint 1](hints_and_solutions/release_gate_hints.md#hint-1) · [Hint 2](hints_and_solutions/release_gate_hints.md#hint-2) · [Show me the solution](hints_and_solutions/release_gate_solution.md)
 
 ### Real-world — act out a canary release {: #ex-canary_release }
@@ -93,6 +95,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the actual pattern real companies use to de-risk a change — practicing it here, on your own project, is what makes it something you can describe concretely in an interview.
 - **When you'll hit this for real:** rolling out any real prompt or model change to a system already serving real traffic.
 - **How to code it:** loop over your test requests, route roughly 20% to v2 and the rest to v1 (`random.random() < 0.2`), log which version handled each one, and compare aggregate scores/cost between the two groups at the end.
+- **Save as:** `canary_release_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/canary_release_hints.md#hint-1) · [Hint 2](hints_and_solutions/canary_release_hints.md#hint-2) · [Show me the solution](hints_and_solutions/canary_release_solution.md)
 
 ### Edge cases — a bad release that slips past the gate {: #ex-gate_bypass }
@@ -101,6 +104,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** a gate that can be bypassed by editing a file directly isn't really a gate — you need to prove to yourself it can't happen by accident.
 - **When you'll hit this for real:** exactly the failure mode this document's Break-It section warns about — someone (possibly future you) editing the "live" pointer directly under time pressure.
 - **How to code it:** manually edit your `live_version.txt` to point at an untested version, bypassing `deploy()`. Confirm nothing in your system stops you — then add a check (a hash, or a "passed_gate: true" flag) that makes a manually-edited pointer detectable or impossible.
+- **Save as:** `release_gate_practice.py`, under an `# Edge cases` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/gate_bypass_hints.md#hint-1) · [Hint 2](hints_and_solutions/gate_bypass_hints.md#hint-2) · [Show me the solution](hints_and_solutions/gate_bypass_solution.md)
 
 ### Failure — a real rollback trigger {: #ex-rollback_trigger }
@@ -109,6 +113,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** a rollback plan that only exists as an idea, never tested, is not a rollback plan — you need to have watched the trigger actually fire once.
 - **When you'll hit this for real:** the day a released version turns out to be worse than it looked in testing — this is what makes recovery fast instead of panicked.
 - **How to code it:** write a function checking recent scores against a threshold, feed it a simulated sequence of scores that crosses the line partway through, and confirm it correctly calls your `rollback_to_previous()` function at the right moment.
+- **Save as:** `rollback_trigger_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/rollback_trigger_hints.md#hint-1) · [Hint 2](hints_and_solutions/rollback_trigger_hints.md#hint-2) · [Show me the solution](hints_and_solutions/rollback_trigger_solution.md)
 
 ## Build Task — Versioned Release Gate for Project 5

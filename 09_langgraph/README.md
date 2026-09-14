@@ -170,6 +170,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you need the simplest possible graph working, with a mental model you've checked by hand, before adding anything that could hide a misunderstanding.
 - **When you'll hit this for real:** the very first LangGraph code you'll ever write, right here.
 - **How to code it:** define a `TypedDict` state with one field, two node functions that each update it, `graph.add_node(...)` for both, `graph.add_edge(...)` connecting them, then `graph.compile().invoke({...})` and print the result.
+- **Save as:** `first_graph_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/first_graph_hints.md#hint-1) · [Hint 2](hints_and_solutions/first_graph_hints.md#hint-2) · [Show me the solution](hints_and_solutions/first_graph_solution.md)
 
 ### Intermediate — real branching {: #ex-conditional_routing }
@@ -178,6 +179,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the mechanism every "should I search / should I call this agent" decision in the rest of the curriculum is built from.
 - **When you'll hit this for real:** Project 3's "search or don't" routing, and Project 4's supervisor routing.
 - **How to code it:** write a function `def route(state): return "path_a" if state["flag"] else "path_b"`, wire it with `graph.add_conditional_edges("node", route, {"path_a": "...", "path_b": "..."})`, and invoke with both flag values.
+- **Save as:** `conditional_routing_practice.py`, under an `# Intermediate` section (this file also holds the Edge cases exercise below, in its own `# Edge cases` section).
 - **Stuck?** [Hint 1](hints_and_solutions/conditional_routing_hints.md#hint-1) · [Hint 2](hints_and_solutions/conditional_routing_hints.md#hint-2) · [Show me the solution](hints_and_solutions/conditional_routing_solution.md)
 
 ### Real-world — rebuild Project 2 as a graph {: #ex-agent_loop_to_graph }
@@ -186,6 +188,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this is the exact translation exercise (loop → graph) this document's Build Task needs — do a first pass here, on a system you already understand completely.
 - **When you'll hit this for real:** this document's own Build Task, feeding directly into Project 3.
 - **How to code it:** turn your Doc07 loop's think/act/observe steps into 2-3 nodes, with a conditional edge deciding "call a tool again" vs. "finish," and confirm it gives the same answers as your original loop on the same test prompts.
+- **Save as:** `agent_loop_to_graph_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/agent_loop_to_graph_hints.md#hint-1) · [Hint 2](hints_and_solutions/agent_loop_to_graph_hints.md#hint-2) · [Show me the solution](hints_and_solutions/agent_loop_to_graph_solution.md)
 
 ### Edge cases — an unhandled routing value {: #ex-unhandled_routing_value }
@@ -194,6 +197,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you want to know, before it happens in a real run, whether this fails loudly (good) or silently does something unexpected (bad) — and if it's the latter, you need to guard against it yourself.
 - **When you'll hit this for real:** a routing function with a bug, or a state value you didn't account for — this will happen to you eventually.
 - **How to code it:** deliberately have your routing function sometimes return a string not in your `add_conditional_edges` mapping, run it, and read exactly what LangGraph does.
+- **Save as:** `conditional_routing_practice.py`, under an `# Edge cases` section (this file also holds the Intermediate exercise above, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/unhandled_routing_value_hints.md#hint-1) · [Hint 2](hints_and_solutions/unhandled_routing_value_hints.md#hint-2) · [Show me the solution](hints_and_solutions/unhandled_routing_value_solution.md)
 
 ### Failure — an endless loop, and a real pause/resume {: #ex-loop_limit_and_interrupt_resume }
@@ -202,6 +206,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** both of these are things you need to have actually watched happen once — an endless graph loop, and a real, working pause that resumes correctly — before you trust yourself to build them safely in a real project.
 - **When you'll hit this for real:** Project 3's own `interrupt()` gate, and any generator↔critic loop in Project 4.
 - **How to code it:** build a 2-node cycle with no conditional exit, run it with a hard recursion limit set low so it fails fast instead of hanging. Then, separately, add `checkpointer=MemorySaver()`, call `interrupt()` in one node, invoke once (it pauses), then resume with the same thread ID and confirm it continues correctly.
+- **Save as:** `loop_limit_interrupt_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/loop_limit_and_interrupt_resume_hints.md#hint-1) · [Hint 2](hints_and_solutions/loop_limit_and_interrupt_resume_hints.md#hint-2) · [Show me the solution](hints_and_solutions/loop_limit_and_interrupt_resume_solution.md)
 
 ## Build Task — Graph Skeleton (feeds into Project 3)

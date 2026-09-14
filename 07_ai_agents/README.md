@@ -81,6 +81,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** if you can't trace it on paper, you can't debug it in code — this is the cheapest possible way to catch a wrong mental model.
 - **When you'll hit this for real:** any time an agent does something confusing and you need to reconstruct, step by step, why.
 - **How to practice it:** pick a 2-tool task, and write out each thought/action/observation pair by hand, exactly as you expect the model to produce it, before touching your editor.
+- **Save as:** `react_loop_practice.py`, under a `# Basic` section (this file also holds the Intermediate exercise below, in its own `# Intermediate` section).
 - **Stuck?** [Hint 1](hints_and_solutions/trace_loop_by_hand_hints.md#hint-1) · [Hint 2](hints_and_solutions/trace_loop_by_hand_hints.md#hint-2) · [Show me the solution](hints_and_solutions/trace_loop_by_hand_solution.md)
 
 ### Intermediate — build the loop yourself {: #ex-build_react_loop }
@@ -89,6 +90,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** this document's whole point is that you understand this loop isn't magic — building it once, yourself, is what makes that true instead of just something you read.
 - **When you'll hit this for real:** Project 2's core, and every custom agent behavior you'll ever need that a prebuilt library doesn't quite support.
 - **How to code it:** a `while` loop that calls the model with tools registered, checks if it requested a tool call, runs it if so and appends the result, or returns the final answer if not.
+- **Save as:** `react_loop_practice.py`, under an `# Intermediate` section (this file also holds the Basic exercise above, in its own `# Basic` section).
 - **Stuck?** [Hint 1](hints_and_solutions/build_react_loop_hints.md#hint-1) · [Hint 2](hints_and_solutions/build_react_loop_hints.md#hint-2) · [Show me the solution](hints_and_solutions/build_react_loop_solution.md)
 
 ### Real-world — compare your loop to the library's {: #ex-agent_executor_comparison }
@@ -97,6 +99,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** now that you've built the primitive, seeing the library's version side by side tells you exactly what it's doing for you, and what it's hiding.
 - **When you'll hit this for real:** reading someone else's `create_agent`-based code and needing to know what it's actually doing underneath.
 - **How to code it:** wire the same tools into both your loop and `create_agent`, run the same 3 test prompts through each, and diff the final answers and step counts.
+- **Save as:** `agent_executor_comparison_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/agent_executor_comparison_hints.md#hint-1) · [Hint 2](hints_and_solutions/agent_executor_comparison_hints.md#hint-2) · [Show me the solution](hints_and_solutions/agent_executor_comparison_solution.md)
 
 ### Edge cases — a task that needs no tool at all {: #ex-no_tool_needed }
@@ -105,6 +108,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** an agent that always reaches for a tool, even when it doesn't need one, wastes cost and time on every single call.
 - **When you'll hit this for real:** the Verifier-style checks in Project 2 — a question the Worker can answer directly shouldn't trigger an unnecessary tool call.
 - **How to code it:** ask something the model can answer from general knowledge alone, run it through your loop, and confirm zero tool calls happened.
+- **Save as:** `no_tool_needed_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/no_tool_needed_hints.md#hint-1) · [Hint 2](hints_and_solutions/no_tool_needed_hints.md#hint-2) · [Show me the solution](hints_and_solutions/no_tool_needed_solution.md)
 
 ### Failure — watch it loop, then measure the cost of looping at all {: #ex-infinite_loop_cost }
@@ -113,6 +117,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Why:** you need to have actually watched an agent loop forever once, so the step-limit requirement stops feeling like an abstract rule and starts feeling like something you're protecting yourself from.
 - **When you'll hit this for real:** an agent given a subtly confusing tool result that makes it repeat the same action — this happens in real systems, not just exercises.
 - **How to code it:** temporarily set `max_iterations=1000` (never fully unlimited) with a hard wall-clock timeout as a safety net, run an adversarial prompt, watch it loop, kill it, restore the real limit. Then compare token usage logged by the API for the looping run vs. a single direct call on an easy task.
+- **Save as:** `loop_safety_cost_practice.py`.
 - **Stuck?** [Hint 1](hints_and_solutions/infinite_loop_cost_hints.md#hint-1) · [Hint 2](hints_and_solutions/infinite_loop_cost_hints.md#hint-2) · [Show me the solution](hints_and_solutions/infinite_loop_cost_solution.md)
 
 ## Build Task — Project 2: Tool-Using Agent
