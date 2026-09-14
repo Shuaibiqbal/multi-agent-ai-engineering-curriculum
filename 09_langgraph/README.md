@@ -42,7 +42,7 @@ The **Build Task** ties all of this together: you rebuild Project 2's exact tool
 | Situation | What fits |
 |---|---|
 | One prompt, one model call, maybe a parser — no branching, no loop | LangChain (or just the raw SDK, per Doc02/04's own comparison) |
-| A single agent that calls tools in a loop, but never needs to pause or persist state across restarts | LangChain's `AgentExecutor` (Doc07) is enough |
+| A single agent that calls tools in a loop, but never needs to pause or persist state across restarts | LangChain's `create_agent` (Doc07) is enough |
 | Multiple steps that branch, loop on purpose, need to pause for human approval, or must survive a process restart | LangGraph — this is exactly why Doc10's search agent and every multi-agent project (4, 9, 10) are built on it, not on LangChain alone |
 | The model needs facts from your own documents, regardless of how the rest of the app is structured | RAG (Doc08) — build it as a plain function, then call that function from wherever you need it, LangChain chain or LangGraph node |
 
@@ -60,7 +60,7 @@ The **Build Task** ties all of this together: you rebuild Project 2's exact tool
 
 - **Running two things at once and merging results (parallel branches).** LCEL actually has a real answer here — `RunnableParallel` runs multiple chains concurrently and merges their outputs into one dict. *Where it stops being enough:* it merges results once, at one fixed point — it doesn't handle the more general graph case of several *different* nodes conditionally running in parallel some of the time, sequentially other times, based on runtime decisions, which is what LangGraph's fan-out/fan-in supports.
 
-- **Remembering a fact across separate, later conversations.** LangChain has no built-in long-term store — its memory classes (like `ConversationBufferMemory`) are scoped to one conversation, similar to a LangGraph checkpointer's per-thread state, not across threads. *How you'd hack it anyway:* build your own tiny key-value store (a JSON file, a SQLite table, a real database) keyed by user ID, write to it yourself when something worth remembering happens, and read from it yourself at the start of each new conversation — functionally similar to `langgraph.store`, just without the namespacing/search conveniences built in.
+- **Remembering a fact across separate, later conversations.** LangChain has no built-in long-term store. Its older memory classes (like the now-removed `ConversationBufferMemory`) were scoped to one conversation, similar to a LangGraph checkpointer's per-thread state, not across threads — and current LangChain code manages a conversation's messages directly as a plain list instead, which is still just per-conversation. *How you'd hack long-term memory anyway, without LangGraph:* build your own tiny key-value store (a JSON file, a SQLite table, a real database) keyed by user ID, write to it yourself when something worth remembering happens, and read from it yourself at the start of each new conversation — functionally similar to `langgraph.store`, just without the namespacing/search conveniences built in.
 
 **The same comparison, side by side:**
 | Capability | LangChain's answer | LangGraph's answer |
@@ -75,18 +75,18 @@ The **Build Task** ties all of this together: you rebuild Project 2's exact tool
 **The honest summary:** none of this is *impossible* in LangChain — every one of these patterns existed in real production code before LangGraph did, built the hard way, by hand, in plain Python around LangChain's chains. What LangGraph actually adds is turning each of those hand-built workarounds into a first-class, visible, reusable piece of the framework — which is why this document exists as its own thing, not as one more LangChain feature.
 
 ### Tool-calling inside a graph, and the path from one agent to many
-**The story — what we're actually doing here:** Project 2 built one agent that calls tools in a loop, using LangChain's `AgentExecutor`. Now imagine the task has grown — you don't need one generalist anymore, you need a researcher and a separate fact-checker, each with their own tools and their own job. This topic is the bridge between those two moments: what actually changes when you go from "one tool-calling agent" to "several," and — just as importantly — what *doesn't* change.
+**The story — what we're actually doing here:** Project 2 built one agent that calls tools in a loop, hand-built, and compared it to LangChain's `create_agent`. Now imagine the task has grown — you don't need one generalist anymore, you need a researcher and a separate fact-checker, each with their own tools and their own job. This topic is the bridge between those two moments: what actually changes when you go from "one tool-calling agent" to "several," and — just as importantly — what *doesn't* change.
 
-**What tool-calling inside a graph node actually looks like:** exactly the same mechanism Doc06 and Doc07 already taught — a model call with a list of registered tools, a check for `tool_calls` in the reply, running the tool, feeding the result back. The only difference is *where* that logic lives: instead of being the whole program (Doc07's `AgentExecutor` loop), it's the body of one node in a graph, using LangGraph's `ToolNode` helper or a small hand-written function that does the same job.
+**What tool-calling inside a graph node actually looks like:** exactly the same mechanism Doc06 and Doc07 already taught — a model call with a list of registered tools, a check for `tool_calls` in the reply, running the tool, feeding the result back. The only difference is *where* that logic lives: instead of being the whole program (Doc07's `create_agent` loop), it's the body of one node in a graph, using LangGraph's `ToolNode` helper or a small hand-written function that does the same job.
 
 **Why this matters — the one thing to really understand:** the tool-calling code itself does not get more complicated as you add more agents. `researcher_node` and `fact_checker_node` in a multi-agent graph (Doc11's territory) each look almost exactly like Doc07's single-agent loop, just shorter — one call, one tool-check, return an update. What grows is the graph *around* them: more nodes, more edges, a router deciding who goes next. Multi-agent isn't "harder tool-calling" — it's the same tool-calling, repeated, with a routing layer added on top.
 
 **When you actually need more than one tool-calling node:** exactly when Doc11's "The real question: one agent, or many?" topic says to — genuinely different specialties, or a task large enough that one system prompt covering everything gets confused. Not before. A single `ToolNode`-equipped agent, wrapped in the smallest possible graph (one node, no branching), is still the right answer for most tasks — this document's own Build Task is exactly that: one graph, one tool-calling step, no multi-agent complexity yet.
 
-**How this connects back to LangChain, concretely:** the tool list and the tool-calling logic you'd write are *identical* whether they end up inside a plain LangChain `AgentExecutor` (Doc07, one agent, no graph) or inside a LangGraph node (this document, one agent as a graph, or many agents as a bigger graph). Nothing about the tools changes — only the orchestration wrapped around them does, which is the exact same distinction the comparison above draws for every other capability.
+**How this connects back to LangChain, concretely:** the tool list and the tool-calling logic you'd write are *identical* whether they end up inside a plain LangChain `create_agent` (Doc07, one agent, no graph) or inside a LangGraph node (this document, one agent as a graph, or many agents as a bigger graph). Nothing about the tools changes — only the orchestration wrapped around them does, which is the exact same distinction the comparison above draws for every other capability.
 
 ### From a hidden loop to a clear graph
-Doc07's `AgentExecutor` loop hides how it decides what to do next, inside library code — you can't easily see, test, or change one single step without reading the library's internals. A **`StateGraph`** makes every step visible: you define nodes (units of work) and edges (what runs next) yourself, as code you own, can read, and can test one piece at a time. **Why this is the whole point of LangGraph, not just a style choice:** real systems need to be checkable (what actually happened during this run?), testable (does this one piece work correctly by itself?), and resumable (can we pause and pick up later?) — a hidden loop can't give you any of that. A clear graph can, because every step is a real, findable piece of code.
+Doc07's `create_agent` loop hides how it decides what to do next, inside library code — you can't easily see, test, or change one single step without reading the library's internals. A **`StateGraph`** makes every step visible: you define nodes (units of work) and edges (what runs next) yourself, as code you own, can read, and can test one piece at a time. **Why this is the whole point of LangGraph, not just a style choice:** real systems need to be checkable (what actually happened during this run?), testable (does this one piece work correctly by itself?), and resumable (can we pause and pick up later?) — a hidden loop can't give you any of that. A clear graph can, because every step is a real, findable piece of code.
 
 ### State: one typed object flowing through the graph
 The graph's **state** is one shape (a `TypedDict` or Pydantic model) that lists every piece of data that can move between steps — the current task, the conversation so far, anything found by searching, whatever the graph needs to track. Each step (node) gets the current state, and returns a small update to it, which LangGraph merges in before passing the updated state to the next step. **Why one typed shape matters:** it makes the whole graph's data flow visible in one place — you can read the state shape and know exactly what any step could possibly see or change, instead of tracing scattered variables through hidden loop code.
@@ -152,7 +152,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `09_langgraph/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install langgraph langchain-openai`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python env_config_practice.py`.
+
+For this document:
+- Basic (`first_graph`) is its own topic — save it as `first_graph_practice.py`.
+- Intermediate (`conditional_routing`) and Edge cases (`unhandled_routing_value`) are both about how conditional edges route between paths — save them together as `conditional_routing_practice.py`, with each level as its own section.
+- Real-world (`agent_loop_to_graph`) is its own topic — save it as `agent_loop_to_graph_practice.py`.
+- Failure (`loop_limit_and_interrupt_resume`) is its own topic — save it as `loop_limit_interrupt_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-first_graph) · [Intermediate](#ex-conditional_routing) · [Real-world](#ex-agent_loop_to_graph) · [Edge cases](#ex-unhandled_routing_value) · [Failure](#ex-loop_limit_and_interrupt_resume) · [Build Task](#build-task-graph-skeleton-feeds-into-project-3)
 
@@ -250,7 +258,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 - Full debugging drill in [14_debugging_lab](../14_debugging_lab/).
 
 ## Interview Topics Preview
-- Why clear state beats hidden agent memory · checkpointer trade-offs (in-memory vs. saved) · when a graph is overkill vs. actually needed vs. the older `AgentExecutor` loop is enough.
+- Why clear state beats hidden agent memory · checkpointer trade-offs (in-memory vs. saved) · when a graph is overkill vs. actually needed vs. a plain `create_agent` loop is enough.
 
 ## Move On When
 You can draw a graph's diagram from its code (or the other way), without running it, and the pause/resume cycle works. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-09-langgraph).

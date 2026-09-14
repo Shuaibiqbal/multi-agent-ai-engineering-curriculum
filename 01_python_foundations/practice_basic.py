@@ -92,6 +92,7 @@ def set_age(age: int) -> None:
         raise InvalidAgeError(age)
 
 try:
+    
     set_age(-5)
 except InvalidAgeError as e:
     print(f"Caught it: {e.message}")

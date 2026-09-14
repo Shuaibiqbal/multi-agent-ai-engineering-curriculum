@@ -101,7 +101,7 @@ Every project is a real multi-agent system — the number of agents grows 2→2�
 ## 3. Notes on today's tools (flagged now, taught in full when we get there)
 
 - **OpenAI's API:** the Chat Completions API is the steady foundation (still what LangChain's `langchain-openai` wraps underneath, and what most existing production code and tutorials use) — we start there in Doc04. OpenAI's newer **Responses API** is today's recommendation for new agent-style, tool-heavy apps (it keeps state built in, and is friendlier for tool use). We'll cover both, and I'll tell you which one a given piece of code is using and why, so you never stare at code that "looks wrong" just because it's a different generation of the API.
-- **LangChain agents:** the older `AgentExecutor` pattern is still common in real codebases and interview questions, but new work uses **LangGraph** directly (the `create_react_agent` shortcut, or your own `StateGraph`). Doc07 teaches `AgentExecutor` briefly so you recognize it; Doc09 onward is where you build for real.
+- **LangChain agents:** `create_agent` is the current standard way to get a ready-made tool-calling agent; its older predecessor `AgentExecutor` is still common in real codebases and interview questions, worth recognizing. New work involving a graph uses **LangGraph** directly (`create_agent`, or your own `StateGraph`). Doc07 teaches both `create_agent` and the older `AgentExecutor` so you recognize either; Doc09 onward is where you build for real.
 - **Multi-agent handoffs:** today's LangGraph pattern is the **`Command`** tool for handing work between agents and sharing/splitting state, replacing older, hand-made routing-text conventions. Taught in Doc11.
 - **Structured output:** Pydantic v2 plus OpenAI's own structured-output/tool-shape support is today's standard. We won't teach the older "manually parse JSON and hope" pattern, except as a "here's why we stopped doing this" example.
 
@@ -175,7 +175,7 @@ Jump straight to: [01](#document-01-python-engineering-foundations) · [02](#doc
 
 ### Document 07 — AI Agents   → **Project 2**
 - **Depends on:** Doc06.
-- **Topics:** the think→act→observe loop, LangChain's older `AgentExecutor` (worth knowing), the agent's step history, stopping conditions, hard step limits, common single-agent failures.
+- **Topics:** the think→act→observe loop, LangChain's `create_agent` and its older predecessor `AgentExecutor` (worth knowing), the agent's step history, stopping conditions, hard step limits, common single-agent failures.
 - **Learn:** an "agent" isn't magic — it's a loop around tool-calling with a stopping rule. Once that clicks, everything after this document is putting pieces together, not new magic.
 - **Practice:** trace an agent's steps by hand before writing code that automates it.
 - **Build — Project 2 (Tool-Using Agent):** a single agent with 3+ tools, checked inputs, and graceful handling of a tool failure without crashing the whole run.

@@ -8,7 +8,7 @@
 > The full build spec lives in [07_ai_agents/README.md](../07_ai_agents/README.md#build-task-project-2-tool-using-agent). This file is your workspace and checklist, not a second copy of that spec.
 
 ## Charter (what this project is)
-Two agents: a Worker (3+ real tools, a hard limit on steps, recovers cleanly from a tool failure) and a Verifier (a second, separate check that reviews the Worker's final answer against the original question before it goes out). This is where "agent" stops being just a buzzword — you build the loop yourself before ever using `AgentExecutor` — and where you get your first taste of a creator-and-checker pair, the same pattern Project 4's Writer/Reviewer builds on.
+Two agents: a Worker (3+ real tools, a hard limit on steps, recovers cleanly from a tool failure) and a Verifier (a second, separate check that reviews the Worker's final answer against the original question before it goes out). This is where "agent" stops being just a buzzword — you build the loop yourself before ever using `create_agent` — and where you get your first taste of a creator-and-checker pair, the same pattern Project 4's Writer/Reviewer builds on.
 
 **Jump to:** [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Step 2](#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Step 3](#step-3-scaling-to-3-tools-with-a-hard-step-limit-and-failure-recovery) · [Step 4](#step-4-a-verifier-agent-that-catches-the-workers-bad-answers-final-2-agents)
 
@@ -34,7 +34,7 @@ The Steps below build this up gradually: Step 1 proves the underlying LLM chain 
 
 ## Why This Project Is Good for Your Portfolio
 - **What problem it solves:** shows a model that can *act*, not just talk — the difference between a chatbot and something that can look things up, calculate, or take a real action for you.
-- **Why it matters:** this is the single most reused building block in AI work — supervisors, RAG agents, and every multi-agent pattern later are all built from this same basic piece, repeated. Someone reviewing your code sees a clean, hand-built agent loop — not just a one-line `AgentExecutor` call with no understanding behind it.
+- **Why it matters:** this is the single most reused building block in AI work — supervisors, RAG agents, and every multi-agent pattern later are all built from this same basic piece, repeated. Someone reviewing your code sees a clean, hand-built agent loop — not just a one-line `create_agent` call with no understanding behind it.
 - **When you'd build something like this at a real job:** any assistant that needs to check live data, call internal services, or do multi-step lookups before answering — support bots, internal tools, research helpers.
 - **How it's built:** a think→act→observe loop with a hard step limit, 3+ Pydantic-checked tools, and a step-by-step log — so every run can be checked afterward, not just a black-box final answer.
 
@@ -91,7 +91,7 @@ project_2_researchhand_tool_agent/
 *Project: **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — Step 2 of 4: One Tool, One Loop: the Smallest Possible Working Agent*
 
 **What this step does:** proves the think→act→observe loop actually works, with exactly one tool — the smallest possible thing you could really call "an agent." Keeps "does my loop work" separate from "do all my tools work" (Step 3's job).
-**Why this step matters:** a hand-built loop with one tool is small enough to fully understand line by line — that understanding is what makes Step 3's multi-tool loop (and every `AgentExecutor` you use afterward) clear instead of magic.
+**Why this step matters:** a hand-built loop with one tool is small enough to fully understand line by line — that understanding is what makes Step 3's multi-tool loop (and every library-provided agent function you use afterward, like `create_agent`) clear instead of magic.
 **What's new vs. Step 1:** one tool gets added; a loop you build by hand wraps Step 1's chain. **What stays the same:** Step 1's chain is still what generates the model's replies inside the loop — you're wrapping it with agent behavior, not throwing it away.
 **When you'll hit this for real:** this is the exact moment "chatbot" becomes "agent" in any project — the first time you give a model the ability to act, not just answer.
 **Read first:** [06_tools_function_calling Core Concepts](../06_tools_function_calling/README.md#core-concepts-read-this-first-everything-you-need-is-here), [07_ai_agents Core Concepts — "The think→act→observe loop"](../07_ai_agents/README.md#core-concepts-read-this-first-everything-you-need-is-here).
@@ -100,7 +100,7 @@ project_2_researchhand_tool_agent/
 
 What to do:
 1. Define exactly one tool with a Pydantic argument shape (see Doc06) — pick the simplest, pure-logic one.
-2. Build the loop yourself (think → act → observe → repeat) around Step 1's chain, now with that one tool added — **do this before** reaching for `AgentExecutor`, as Doc07 explains. There's deliberately no iteration limit yet (that's Step 3), but watch for the model calling the tool repeatedly with near-identical input — it usually means the tool's result isn't being fed back into the message history clearly enough for the model to recognize it already has an answer.
+2. Build the loop yourself (think → act → observe → repeat) around Step 1's chain, now with that one tool added — **do this before** reaching for `create_agent`, as Doc07 explains. There's deliberately no iteration limit yet (that's Step 3), but watch for the model calling the tool repeatedly with near-identical input — it usually means the tool's result isn't being fed back into the message history clearly enough for the model to recognize it already has an answer.
 3. Test it: a prompt that clearly needs the tool, and one that doesn't. Confirm the loop only calls the tool when it actually should.
 
 **Your files after Step 2:**

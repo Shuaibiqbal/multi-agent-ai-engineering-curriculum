@@ -8,10 +8,10 @@
 
 ```python
 # mcp_server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pipeline import run_pipeline
 
-mcp = FastMCP("deep-research-service")
+mcp = MCPServer("deep-research-service")
 
 
 @mcp.tool()
@@ -36,7 +36,7 @@ This works. It's missing type hints, a real docstring, config, and logging â€” a
 
 ```python
 # mcp_server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from pipeline import run_pipeline
 from config import load_config
@@ -45,7 +45,7 @@ from logging_setup import get_logger
 config = load_config()
 logger = get_logger(__name__)
 
-mcp = FastMCP("deep-research-service")
+mcp = MCPServer("deep-research-service")
 
 
 @mcp.tool()
@@ -116,7 +116,7 @@ This is the same `stdio_client`/`ClientSession` shape Project 7's Step 4 built â
 
 ```python
 # mcp_server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from pipeline import run_pipeline
 from config import load_config
@@ -130,7 +130,7 @@ logger = get_logger(__name__)
 # stray print() in ANY of those files corrupts every message the client reads
 # after it, not just ones written directly in this file.
 
-mcp = FastMCP("deep-research-service")
+mcp = MCPServer("deep-research-service")
 
 
 @mcp.tool()

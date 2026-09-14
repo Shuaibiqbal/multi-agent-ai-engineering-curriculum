@@ -94,12 +94,12 @@ The system prompt then tells the model, explicitly, that anything inside `<retri
 
 **Why this matters, specifically:** without MCP, "let someone else use my retriever" means writing a custom integration for every single client that wants it — a REST endpoint for one teammate's app, a different wrapper for an IDE plugin, something else again for a chatbot. Each one is separate work, and each one has to be maintained separately as your retriever changes. [06_tools_function_calling](../06_tools_function_calling/) covers MCP (Model Context Protocol) precisely because it removes this duplication: you expose your retriever *once*, as one MCP server, and every client — Claude Desktop, an IDE, an agent from Project 8, a teammate's own agent — connects to that same server the same standard way. You maintain one integration instead of N of them.
 
-**How it actually works, underneath:** the wrapping itself is thin — you are not rewriting `retrieve()`, you're placing a small, standard-shaped function around it. `FastMCP` is the official SDK's helper class that turns a plain Python function into something MCP clients can discover and call: the `@mcp.tool()` decorator registers the function under a name (`search_documents`) and a description (its docstring), which is exactly what a connecting client sees when it calls `list_tools()` — the same discovery mechanism covered in Doc06. The function body does nothing new; it just calls the `retrieve()` you already built and hands back the result, reshaped into the plain dict/list format MCP expects on the wire:
+**How it actually works, underneath:** the wrapping itself is thin — you are not rewriting `retrieve()`, you're placing a small, standard-shaped function around it. `MCPServer` is the official SDK's helper class that turns a plain Python function into something MCP clients can discover and call: the `@mcp.tool()` decorator registers the function under a name (`search_documents`) and a description (its docstring), which is exactly what a connecting client sees when it calls `list_tools()` — the same discovery mechanism covered in Doc06. The function body does nothing new; it just calls the `retrieve()` you already built and hands back the result, reshaped into the plain dict/list format MCP expects on the wire:
 ```python
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from retriever import retrieve
 
-mcp = FastMCP("knowledge-base")
+mcp = MCPServer("knowledge-base")
 
 @mcp.tool()
 def search_documents(query: str, k: int = 3) -> list[dict]:
@@ -122,7 +122,14 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `08_rag/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install langchain langchain-openai chromadb`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python chunking_practice.py`.
+
+**For this document, save your practice code as:**
+- **Basic** (see embeddings as geometry, not theory) is its own topic — save it as `embedding_similarity_practice.py`.
+- **Intermediate** (chunking method changes the answer), **Edge cases** (when the answer spans two chunks), and **Failure** (a bad split, and a `k` comparison) are all about how you split documents into chunks and what that does to search — save them together as `chunking_practice.py`, one section per level.
+- **Real-world** (build and search a real knowledge base) is its own topic — save it as `knowledge_base_search_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-embedding_similarity) · [Intermediate](#ex-chunking_methods) · [Real-world](#ex-knowledge_base_search) · [Edge cases](#ex-chunk_boundary_split) · [Failure](#ex-bad_split_k_comparison) · [Build Task](#build-task-retriever-module)
 

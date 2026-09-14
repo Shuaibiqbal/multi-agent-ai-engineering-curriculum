@@ -69,7 +69,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `13_testing_evaluation_observability/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install pytest`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python env_config_practice.py`.
+
+For this document:
+- Basic (`chunking_unit_test`) is its own topic — save it as `chunking_unit_test_practice.py`.
+- Intermediate (`tool_test_no_llm`) is its own topic — save it as `tool_test_no_llm_practice.py`.
+- Real-world (`llm_judge_scoring`) and Edge cases (`flaky_test_fix`) are both about testing LLM output that is never exactly the same twice — writing scoring rules, and rewriting an exact-match test into a property check — save them together as `llm_output_testing_practice.py`, with each level as its own section.
+- Failure (`regression_catch`) is its own topic — save it as `regression_catch_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-chunking_unit_test) · [Intermediate](#ex-tool_test_no_llm) · [Real-world](#ex-llm_judge_scoring) · [Edge cases](#ex-flaky_test_fix) · [Failure](#ex-regression_catch) · [Build Task](#build-task-test-suite-for-project-4)
 

@@ -78,7 +78,14 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `11_multi_agent_systems/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install langgraph langchain-openai`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python env_config_practice.py`.
+
+For this document:
+- Basic (`paper_design`), Intermediate (`sequential_measure`), and Real-world (`supervisor_compare`) are all the same running comparison — design the single/sequential/supervisor options on paper, then build and measure the sequential version, then build and measure the supervisor version against it — save all three together as `architecture_comparison_practice.py`, with each level as its own section.
+- Edge cases (`ambiguous_routing`) asks a different question (can the supervisor route correctly when two specialists overlap) — save it as its own topic, `supervisor_routing_practice.py`.
+- Failure (`convergence_and_cost_cutting`) is its own topic — save it as `convergence_and_cost_cutting_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-paper_design) · [Intermediate](#ex-sequential_measure) · [Real-world](#ex-supervisor_compare) · [Edge cases](#ex-ambiguous_routing) · [Failure](#ex-convergence_and_cost_cutting) · [Build Task](#build-task-project-4-multi-agent-system)
 

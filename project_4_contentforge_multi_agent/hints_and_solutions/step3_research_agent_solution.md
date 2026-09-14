@@ -10,7 +10,7 @@
 # agents/research_agent.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from pydantic import BaseModel
 
 @tool
@@ -23,7 +23,7 @@ class ResearchNotes(BaseModel):
     facts: list
 
 def run_research(topic):
-    agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
+    agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
     result = agent.invoke({"messages": [("user", f"Research this topic using the tool: {topic}")]})
     last_message = result["messages"][-1]
     return ResearchNotes(topic=topic, facts=[last_message.content])
@@ -43,7 +43,7 @@ This works and proves the mechanism — an agent decides to call `lookup_facts`,
 # agents/research_agent.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from pydantic import BaseModel
 
 
@@ -65,7 +65,7 @@ class ResearchNotes(BaseModel):
 
 
 def run_research(topic: str) -> ResearchNotes:
-    agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
+    agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
     result = agent.invoke(
         {"messages": [("user", f"Research this topic using the lookup_facts tool: {topic}")]}
     )
@@ -103,7 +103,7 @@ if __name__ == "__main__":
 # agents/research_agent.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from pydantic import BaseModel
 
 
@@ -129,7 +129,7 @@ class ResearchNotes(BaseModel):
 
 
 def run_research(topic: str) -> ResearchNotes:
-    agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
+    agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
     result = agent.invoke(
         {"messages": [("user", f"Research this topic using the lookup_facts tool: {topic}")]},
         {"recursion_limit": 8},
@@ -157,7 +157,7 @@ def run_research(topic: str, retries: int = 1) -> ResearchNotes:
     instruction = f"Research this topic using the lookup_facts tool: {topic}"
 
     for attempt in range(retries + 1):
-        agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
+        agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
         result = agent.invoke({"messages": [("user", instruction)]}, {"recursion_limit": 8})
 
         facts: list[str] = []

@@ -12,7 +12,7 @@
 - **How to practice:**
   1. Read the material once, especially the ReAct paper's example. Just get the shape of it.
   2. Trace a loop by hand on paper (**Basic**) before writing any code — this step is not optional.
-  3. Build the loop yourself (**Intermediate**) before using `AgentExecutor` — you need to build this basic piece once, yourself.
+  3. Build the loop yourself (**Intermediate**) before using `create_agent` — you need to build this basic piece once, yourself.
   4. Try **Project 2** without looking at any old solution. Let yourself get stuck before asking for a hint.
   5. Use **Hint 1 or Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, explain out loud why every agent loop needs a hard limit on steps. If you can't, you're not done.
@@ -56,14 +56,22 @@ Checking whether an agent's *final answer* is correct isn't enough to trust it i
 ## Go Deeper (Optional)
 _You don't need any of these to understand the Core Concepts above — use them if you want a second explanation or more detail._
 - [ReAct: Synergizing Reasoning and Acting in Language Models (arXiv)](https://arxiv.org/abs/2210.03629) — the paper behind the think→act→observe loop.
-- [LangChain — Agents concept](https://python.langchain.com/docs/concepts/agents/) — `AgentExecutor`, worth knowing (an older pattern, still common in real code and interviews).
+- [LangChain — Agents concept](https://python.langchain.com/docs/concepts/agents/) — `create_agent`, the current standard way to get a ready-made tool-calling agent. Its older predecessor, `AgentExecutor`, is now legacy, but still worth recognizing if you read older code.
 - [Anthropic — Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — read the "agents" section again now that you know tool-calling.
 
 ## Practice Exercises
 
 **Setup for this document's practice code:** work inside `07_ai_agents/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install langchain langchain-openai`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python react_loop_practice.py`.
+
+**For this document, save your practice code as:**
+- **Basic** (trace the loop on paper first) and **Intermediate** (build the loop yourself) are both about the ReAct loop itself, first by hand and then in code — save them together as `react_loop_practice.py`, one section per level.
+- **Real-world** (compare your loop to the library's) is its own topic — save it as `agent_executor_comparison_practice.py`.
+- **Edge cases** (a task that needs no tool at all) is its own topic — save it as `no_tool_needed_practice.py`.
+- **Failure** (watch it loop, then measure the cost of looping at all) is its own topic — save it as `loop_safety_cost_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-trace_loop_by_hand) · [Intermediate](#ex-build_react_loop) · [Real-world](#ex-agent_executor_comparison) · [Edge cases](#ex-no_tool_needed) · [Failure](#ex-infinite_loop_cost) · [Build Task](#build-task-project-2-tool-using-agent)
 
@@ -85,10 +93,10 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ### Real-world — compare your loop to the library's {: #ex-agent_executor_comparison }
 
-- **What:** switch to `AgentExecutor` with your Doc06 tools registered, and compare its behavior to your own hand-built loop.
+- **What:** switch to `create_agent` (the current standard library function for this) with your Doc06 tools registered, and compare its behavior to your own hand-built loop.
 - **Why:** now that you've built the primitive, seeing the library's version side by side tells you exactly what it's doing for you, and what it's hiding.
-- **When you'll hit this for real:** reading someone else's `AgentExecutor`-based code and needing to know what it's actually doing underneath.
-- **How to code it:** wire the same tools into both your loop and `AgentExecutor`, run the same 3 test prompts through each, and diff the final answers and step counts.
+- **When you'll hit this for real:** reading someone else's `create_agent`-based code and needing to know what it's actually doing underneath.
+- **How to code it:** wire the same tools into both your loop and `create_agent`, run the same 3 test prompts through each, and diff the final answers and step counts.
 - **Stuck?** [Hint 1](hints_and_solutions/agent_executor_comparison_hints.md#hint-1) · [Hint 2](hints_and_solutions/agent_executor_comparison_hints.md#hint-2) · [Show me the solution](hints_and_solutions/agent_executor_comparison_solution.md)
 
 ### Edge cases — a task that needs no tool at all {: #ex-no_tool_needed }

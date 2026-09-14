@@ -5,9 +5,9 @@
 All examples below assume this tiny server, saved as `example_server.py` in the same folder (the minimal shape from Doc06's Core Concepts):
 ```python
 # example_server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("example-server")
+mcp = MCPServer("example-server")
 
 
 @mcp.tool()

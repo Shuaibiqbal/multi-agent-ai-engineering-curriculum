@@ -60,7 +60,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `05_langchain_fundamentals/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install langchain langchain-openai langchain-core`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python structured_output_practice.py`.
+
+**For this document, save your practice code as:**
+- **Basic** (your first LCEL chain) is its own topic — save it as `lcel_chain_basics_practice.py`.
+- **Intermediate** (swap in a structured parser) and **Failure** (force the parser to actually fail) are both about structured-output parsing and its errors — save them together as `structured_output_practice.py`, one section per level.
+- **Real-world** (rebuild a Project 1 feature, LCEL-style) is its own topic — save it as `lcel_vs_raw_sdk_practice.py`.
+- **Edge cases** (a template with the wrong variables) is its own topic — save it as `prompt_template_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-lcel_chain_basics) · [Intermediate](#ex-structured_parser_swap) · [Real-world](#ex-lcel_vs_raw_sdk) · [Edge cases](#ex-template_variable_errors) · [Failure](#ex-parser_failure_handling) · [Build Task](#build-task-reusable-chain-module)
 

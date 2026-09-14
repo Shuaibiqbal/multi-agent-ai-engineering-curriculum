@@ -87,7 +87,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `10_agent_workflows/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install langgraph langchain-openai chromadb`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python env_config_practice.py`.
+
+For this document:
+- Basic (`search_as_tool`) and Intermediate (`conditional_search`) are both about wiring search into the graph — first as a plain tool, then routed conditionally — save them together as `search_tool_integration_practice.py`, with each level as its own section.
+- Real-world (`approval_pause`) is its own topic — save it as `approval_pause_practice.py`.
+- Edge cases (`empty_search`) is its own topic — save it as `empty_search_practice.py`.
+- Failure (`search_failure`) is its own topic — save it as `search_failure_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-search_as_tool) · [Intermediate](#ex-conditional_search) · [Real-world](#ex-approval_pause) · [Edge cases](#ex-empty_search) · [Failure](#ex-search_failure) · [Build Task](#build-task-project-3-langgraph-app)
 

@@ -69,7 +69,18 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `04_openai_api/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install openai python-dotenv pydantic`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python conversation_memory_practice.py`.
+
+**For this document, save your practice code as:**
+- **Basic** (your first real API call) is its own topic — save it as `chat_api_basics_practice.py`.
+- **Intermediate** (build real memory) is its own topic — save it as `conversation_memory_practice.py`.
+- **Real-world** (make it feel alive with streaming) is its own topic — save it as `streaming_practice.py`.
+- **Edge cases** (what happens when you go over the limit) is its own topic — save it as `context_limit_practice.py`.
+- **Failure** (a bad key, and a cost comparison) is its own topic — save it as `auth_and_cost_practice.py`.
+
+None of this document's exercises share the same underlying topic, so each one gets its own file this time — but the rule still stands: check every document for real overlaps first.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-first_chat_call) · [Intermediate](#ex-conversation_memory) · [Real-world](#ex-streaming_replies) · [Edge cases](#ex-context_limit_error) · [Failure](#ex-auth_error_cost_compare) · [Build Task](#build-task-project-1-beginner-llm-app)
 

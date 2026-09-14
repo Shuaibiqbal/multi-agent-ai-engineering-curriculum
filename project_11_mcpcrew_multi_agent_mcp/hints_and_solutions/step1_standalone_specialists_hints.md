@@ -18,7 +18,7 @@ Only 2 hints — work through them in order. Each hint has 3 depth levels: **Bas
 You're building 4 small pieces this step, and none of them know about each other yet: a notes server, a web server, a notes agent, and a web agent. Each server is its own separate Python file that runs as its own separate process. Each agent is its own separate Python file that starts one of those servers as a subprocess, asks it what it can do, and uses it.
 
 Things to use:
-- `FastMCP` to build each server — one tool function per server for the web server, two for the notes server.
+- `MCPServer` to build each server — one tool function per server for the web server, two for the notes server.
 - The same `stdio_client` / `ClientSession` / `initialize()` shape from Project 8's Step 1, once per agent.
 - A small in-memory Python list for the notes server's storage, and a small Python dict for the web server's mocked pages.
 
@@ -28,17 +28,17 @@ Things to use:
 
 ### Intermediate Version
 
-The two servers are both just `FastMCP` instances — the notes server is a smaller version of Project 7's MCPForge (no SQLite, no Resource, no Prompt, just the two Tools), and the web server is even smaller: one tool, backed by a plain dict lookup instead of a real network call.
+The two servers are both just `MCPServer` instances — the notes server is a smaller version of Project 7's MCPForge (no SQLite, no Resource, no Prompt, just the two Tools), and the web server is even smaller: one tool, backed by a plain dict lookup instead of a real network call.
 
 The exact pieces for `notes_server.py`:
-- `mcp = FastMCP("notes-server")`
+- `mcp = MCPServer("notes-server")`
 - A module-level list, seeded with 3-4 strings at import time, so `search_notes` has real data before any tool is ever called.
 - `@mcp.tool() def add_note(text: str) -> str:` — appends to the list, returns a confirmation.
 - `@mcp.tool() def search_notes(query: str) -> list[str]:` — loops over the list, keeps any note where `query.lower()` is a substring of `note.lower()`.
 - `mcp.run(transport="stdio")` at the bottom.
 
 The exact pieces for `web_server.py`:
-- `mcp = FastMCP("web-server")`
+- `mcp = MCPServer("web-server")`
 - A module-level dict, `MOCK_PAGES = {"https://...": "..."}`, with 2-3 entries.
 - `@mcp.tool() def fetch_page(url: str) -> str:` — looks up `url` in `MOCK_PAGES`, returns the canned text if found, or a clear `"No content available for this URL."` string if not. A comment right above this function should say plainly that this is a mocked stand-in for a real fetch/search MCP server.
 
@@ -60,7 +60,7 @@ Things to try before Hint 2:
 - Run `search_notes` against a query that matches nothing on purpose, and confirm your agent's answer says so clearly instead of hallucinating a note that doesn't exist.
 - Call `fetch_page` with a URL that isn't in `MOCK_PAGES` and confirm the agent reports "no content" instead of inventing page content.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the 4 pieces and what each roughly needs. Intermediate gives the real `FastMCP` decorators and tool bodies for both servers, and points at Project 8's reusable agent-loop pieces. Advanced is about what "proven standalone" really requires — a genuinely separate connection per specialist, seeded test data specific enough to catch a wrong-match bug, and confirming the agent doesn't quietly invent an answer when its tool legitimately found nothing.
+**Difference between Basic, Intermediate, and Advanced:** Basic names the 4 pieces and what each roughly needs. Intermediate gives the real `MCPServer` decorators and tool bodies for both servers, and points at Project 8's reusable agent-loop pieces. Advanced is about what "proven standalone" really requires — a genuinely separate connection per specialist, seeded test data specific enough to catch a wrong-match bug, and confirming the agent doesn't quietly invent an answer when its tool legitimately found nothing.
 
 <hr class="page-break">
 
@@ -102,9 +102,9 @@ Here's almost the whole `notes_server.py` and `web_server.py` — type them out 
 
 ```python
 # notes_server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("notes-server")
+mcp = MCPServer("notes-server")
 
 _NOTES = [
     "Project Atlas kickoff meeting notes: launch targeted for Q3.",
@@ -139,9 +139,9 @@ if __name__ == "__main__":
 # NOTE: fetch_page is mocked -- a real deployment would connect this tool
 # to a real fetch/search MCP server (e.g. the public reference fetch server)
 # instead of this hardcoded dict. Mocked here for reliable, repeatable teaching.
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("web-server")
+mcp = MCPServer("web-server")
 
 _MOCK_PAGES = {
     "https://intranet.example.com/atlas/status": "Project Atlas status: on track, 80% complete.",
@@ -201,7 +201,7 @@ Notice the split: `_run_notes_agent` is the real `async` logic, and `run_notes_a
 
 Compare your finished loop and both servers against the [Solution](step1_standalone_specialists_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic sketches both servers' data and both agents' loop in plain words. Intermediate gives the real, nearly-complete `FastMCP` server code for both. Advanced gives the sync/async split shape the agent functions need — not because Step 1 requires it yet, but because getting it right now saves you a rewrite in Step 2, when these same functions get called from inside a graph node.
+**Difference between Basic, Intermediate, and Advanced:** Basic sketches both servers' data and both agents' loop in plain words. Intermediate gives the real, nearly-complete `MCPServer` server code for both. Advanced gives the sync/async split shape the agent functions need — not because Step 1 requires it yet, but because getting it right now saves you a rewrite in Step 2, when these same functions get called from inside a graph node.
 
 <hr class="page-break">
 

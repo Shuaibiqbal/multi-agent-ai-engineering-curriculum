@@ -51,7 +51,7 @@ Think about what actually happens when the command you hand `StdioServerParamete
 
 Also worth knowing now: a server that connects and initializes successfully but genuinely has zero tools registered is not an error — `list_tools()` returns a `.tools` list, and an empty list is a completely valid, successful response. Don't write code that treats "no tools" the same as "connection failed" — they're different situations, and Step 4's fallback logic needs to be able to tell them apart later.
 
-If you don't have a real server yet, the minimal one from Doc06's Core Concepts is worth typing out yourself first — a `FastMCP` instance, one or two `@mcp.tool()`-decorated functions, and `mcp.run(transport="stdio")` at the bottom. That's a complete, real MCP server in well under 20 lines, and having one you wrote yourself makes it much easier to tell, when something goes wrong, whether the bug is in your client or your server.
+If you don't have a real server yet, the minimal one from Doc06's Core Concepts is worth typing out yourself first — a `MCPServer` instance, one or two `@mcp.tool()`-decorated functions, and `mcp.run(transport="stdio")` at the bottom. That's a complete, real MCP server in well under 20 lines, and having one you wrote yourself makes it much easier to tell, when something goes wrong, whether the bug is in your client or your server.
 
 Things to try before Hint 2:
 - Run your client against a working server, and separately against a deliberately broken command — compare what each one actually does (exception vs. hang) with your own eyes before reading further.

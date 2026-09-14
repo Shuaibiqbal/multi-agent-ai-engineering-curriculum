@@ -269,9 +269,9 @@ A single MCP server is free to expose all three at once — a "GitHub" MCP serve
 **A minimal server and client**, using the official `mcp` Python SDK:
 ```python
 # server.py -- exposes one tool over stdio
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("weather-server")
+mcp = MCPServer("weather-server")
 
 @mcp.tool()
 def get_weather(city: str, country_code: str) -> str:
@@ -313,7 +313,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `06_tools_function_calling/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install langchain langchain-openai pydantic`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python tool_selection_practice.py`.
+
+**For this document, save your practice code as:**
+- **Basic** (your first working tool) is its own topic — save it as `first_tool_call_practice.py`.
+- **Intermediate** (watch the model choose between two tools) and **Failure** (a crashing tool, and a bad description) are both about how tool descriptions drive the model's choices — save them together as `tool_selection_practice.py`, one section per level.
+- **Real-world** (a tool backed by a real API call) is its own topic — save it as `real_api_tool_practice.py`.
+- **Edge cases** (a missing required argument) is its own topic — save it as `missing_argument_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-first_tool_call) · [Intermediate](#ex-tool_selection_ambiguity) · [Real-world](#ex-real_api_tool) · [Edge cases](#ex-missing_argument_handling) · [Failure](#ex-tool_error_and_description_fix) · [Build Task](#build-task-tool-library)
 

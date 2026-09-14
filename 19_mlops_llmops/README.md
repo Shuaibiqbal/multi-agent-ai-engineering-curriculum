@@ -59,7 +59,15 @@ Your system depends on an outside provider (OpenAI) that can have outages, rate-
 
 **Setup for this document's practice code:** work inside `19_mlops_llmops/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install pytest`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python env_config_practice.py`.
+
+For this document:
+- Basic (`version_log`) is its own topic — save it as `version_log_practice.py`.
+- Intermediate (`release_gate`) and Edge cases (`gate_bypass`) are both about the same gate — building it, then trying to bypass it and locking that hole shut — save them together as `release_gate_practice.py`, with each level as its own section.
+- Real-world (`canary_release`) is its own topic — save it as `canary_release_practice.py`.
+- Failure (`rollback_trigger`) is its own topic — save it as `rollback_trigger_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-version_log) · [Intermediate](#ex-release_gate) · [Real-world](#ex-canary_release) · [Edge cases](#ex-gate_bypass) · [Failure](#ex-rollback_trigger) · [Build Task](#build-task-versioned-release-gate-for-project-5)
 

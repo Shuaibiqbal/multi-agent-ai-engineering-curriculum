@@ -59,7 +59,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `02_apis_http_json/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install requests`.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**How to run each exercise:** group your practice code by topic, not by difficulty level. If two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python retry_backoff_practice.py`.
+
+**For this document, save your practice code as:**
+- **Basic** (your first real API call) is its own topic — save it as `api_first_call_practice.py`.
+- **Intermediate** (timeouts and retry-with-backoff) and **Failure** (respecting a real rate limit) are both about retrying a failed call correctly — save them together as `retry_backoff_practice.py`, one section per level.
+- **Real-world** (one reusable session instead of repeated headers) is its own topic — save it as `session_reuse_practice.py`.
+- **Edge cases** (200 doesn't mean safe to trust) is its own topic — save it as `response_validation_practice.py`.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
 **Jump to an exercise:** [Basic](#ex-api_first_call) · [Intermediate](#ex-timeout_retry_backoff) · [Real-world](#ex-session_reuse) · [Edge cases](#ex-json_edge_cases) · [Failure](#ex-rate_limit_handling) · [Build Task](#build-task-http-client-wrapper)
 

@@ -2,7 +2,7 @@
 
 > [Back to this step](../README.md#step-3-multiple-mcp-servers-at-once-with-tool-namespacing) · [Hint 1](step3_multi_server_namespacing_hints.md#hint-1) · [Hint 2](step3_multi_server_namespacing_hints.md#hint-2) · [Solution](step3_multi_server_namespacing_solution.md)
 
-All examples below assume two small servers, `notes_server.py` (tools `search_notes`, `read_note`) and `filesystem_server.py` (tools `list_files`, `read_file`) — each a `FastMCP` server in the same shape as Step 1's `example_server.py`, and this config:
+All examples below assume two small servers, `notes_server.py` (tools `search_notes`, `read_note`) and `filesystem_server.py` (tools `list_files`, `read_file`) — each a `MCPServer` server in the same shape as Step 1's `example_server.py`, and this config:
 ```python
 # servers_config.py
 SERVERS = [

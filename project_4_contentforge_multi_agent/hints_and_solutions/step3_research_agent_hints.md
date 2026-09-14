@@ -45,7 +45,7 @@ The extra pieces:
 
 - After `agent.invoke(...)`, loop over `result["messages"]` and check whether any message's tool name matches your lookup tool — this is the same technique Step 3's Intermediate solution already uses to *extract* facts, just repurposed here to *verify* the tool ran at all, before trusting the result.
 - A custom exception, like `ToolNotCalledError`, raised if the check fails — naming the specific problem, the same "fail loudly and specifically" idea as the `.env` parsing exercise's `MissingEnvKeyError`.
-- Also cap the agent's `recursion_limit` (a `create_react_agent` / graph config option) — a tool-calling agent that keeps calling a tool in a loop without converging is a real failure mode worth bounding, the same "don't loop forever" idea Step 2's Writer↔Reviewer loop already had to solve.
+- Also cap the agent's `recursion_limit` (a `create_agent` / graph config option) — a tool-calling agent that keeps calling a tool in a loop without converging is a real failure mode worth bounding, the same "don't loop forever" idea Step 2's Writer↔Reviewer loop already had to solve.
 
 Sketch the tool-call verification yourself before checking Hint 2.
 
@@ -94,7 +94,7 @@ agents/research_agent.py:
         facts: list[str]
 
     def run_research(topic: str) -> ResearchNotes:
-        agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
+        agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[lookup_facts])
         result = agent.invoke({"messages": [("user", f"Research this topic: {topic}")]})
         facts = extract the tool's returned facts from result["messages"]
         return ResearchNotes(topic=topic, facts=facts)
@@ -116,7 +116,7 @@ class ToolNotCalledError(Exception):
 
 
 def run_research(topic: str) -> ResearchNotes:
-    agent = create_react_agent(
+    agent = create_agent(
         ChatOpenAI(model="gpt-4o-mini"),
         tools=[lookup_facts],
     )

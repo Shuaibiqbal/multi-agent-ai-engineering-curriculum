@@ -1,6 +1,6 @@
 # Step 2 — Project 2's Agent, Rebuilt as a Graph With Saved State — Solution
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 All examples below assume `tools.py` is reused as-is from `project_2_researchhand_tool_agent` (`calculator`, `lookup_weather`, `flaky_lookup`).
 
@@ -88,7 +88,7 @@ This works — same behavior as Project 2's Worker, now as a graph with a cycle 
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ## Intermediate Version
 
@@ -169,7 +169,7 @@ print(len(saved.values["messages"]), "messages saved")
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ## Advanced Version
 

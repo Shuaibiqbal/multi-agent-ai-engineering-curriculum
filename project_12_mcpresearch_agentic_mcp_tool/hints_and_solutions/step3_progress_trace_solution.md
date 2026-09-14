@@ -42,7 +42,7 @@ This works and includes the trace. It's missing type hints and a clearer, more s
 
 ```python
 # mcp_server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from pipeline import run_pipeline, PipelineResult
 from config import load_config
@@ -51,7 +51,7 @@ from logging_setup import get_logger
 config = load_config()
 logger = get_logger(__name__)
 
-mcp = FastMCP("deep-research-service")
+mcp = MCPServer("deep-research-service")
 
 
 def format_result(result: PipelineResult) -> str:

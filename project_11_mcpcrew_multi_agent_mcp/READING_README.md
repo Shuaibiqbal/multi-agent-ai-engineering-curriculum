@@ -101,8 +101,8 @@ Same process as every project (see [15_five_projects_index](../15_five_projects_
 **Stuck on this step?** [Hint 1](hints_and_solutions/step1_standalone_specialists_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_standalone_specialists_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step1_standalone_specialists_solution.md)
 
 What to do:
-1. Write `notes_server.py`: a `FastMCP` server (a simplified version of Project 7's MCPForge — you don't need SQLite or a Resource/Prompt here, just the two Tools) exposing `add_note(text: str) -> str` and `search_notes(query: str) -> list[str]`, backed by a plain in-memory list, seeded with 3-4 made-up notes at startup so `search_notes` has something real to find.
-2. Write `web_server.py`: a `FastMCP` server exposing exactly one tool, `fetch_page(url: str) -> str`. Make this a **mocked, stubbed fetch** — a small Python dict mapping 2-3 known URLs (like `"https://intranet.example.com/atlas/status"`) to canned page text, and a clear `"No content available for this URL."` string for anything else. Write a comment at the top of this file saying plainly that a real deployment would connect this tool to a real fetch/search MCP server (or the public reference fetch server) instead of a hardcoded dict — this project mocks it on purpose, for reliable, repeatable teaching.
+1. Write `notes_server.py`: a `MCPServer` server (a simplified version of Project 7's MCPForge — you don't need SQLite or a Resource/Prompt here, just the two Tools) exposing `add_note(text: str) -> str` and `search_notes(query: str) -> list[str]`, backed by a plain in-memory list, seeded with 3-4 made-up notes at startup so `search_notes` has something real to find.
+2. Write `web_server.py`: a `MCPServer` server exposing exactly one tool, `fetch_page(url: str) -> str`. Make this a **mocked, stubbed fetch** — a small Python dict mapping 2-3 known URLs (like `"https://intranet.example.com/atlas/status"`) to canned page text, and a clear `"No content available for this URL."` string for anything else. Write a comment at the top of this file saying plainly that a real deployment would connect this tool to a real fetch/search MCP server (or the public reference fetch server) instead of a hardcoded dict — this project mocks it on purpose, for reliable, repeatable teaching.
 3. Write `notes_agent.py`: `run_notes_agent(task: str) -> str`, which opens its own connection to `notes_server.py` (the same `stdio_client`/`ClientSession`/`initialize()` shape from Project 8's Step 1), discovers its tools, and runs a small ReAct-style loop (reuse Project 8's Step 2 pattern) to answer the task using `search_notes` and/or `add_note`.
 4. Write `web_agent.py`: `run_web_agent(task: str) -> str`, the same shape, connecting to `web_server.py` and using `fetch_page`.
 5. Write `main.py` that calls `run_notes_agent` and `run_web_agent` one after another, on tasks 1 and 2 from **A Real Example**, and prints both results — confirm each specialist works completely on its own before Step 2 puts a Supervisor in front of them.
@@ -113,8 +113,8 @@ project_11_mcpcrew_multi_agent_mcp/
 ├── .env / .env.example
 ├── config.py                  (reused pattern from Doc01)
 ├── logging_setup.py           (reused pattern from Doc01)
-├── notes_server.py            → FastMCP: add_note(text), search_notes(query) — simplified MCPForge, in-memory
-├── web_server.py               → FastMCP: fetch_page(url) — mocked/stubbed content, clearly commented as a stand-in for a real fetch server
+├── notes_server.py            → MCPServer: add_note(text), search_notes(query) — simplified MCPForge, in-memory
+├── web_server.py               → MCPServer: fetch_page(url) — mocked/stubbed content, clearly commented as a stand-in for a real fetch server
 ├── mcp_connection.py             → connect_stdio_server(command, args) -> ClientSession, opened + initialized (reused shape from Project 8)
 ├── notes_agent.py                  → run_notes_agent(task) -> str, standalone, connects to notes_server.py
 ├── web_agent.py                     → run_web_agent(task) -> str, standalone, connects to web_server.py
