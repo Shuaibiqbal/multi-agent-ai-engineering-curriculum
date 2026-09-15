@@ -91,6 +91,7 @@ curl localhost:8000/health   # should work the same as running it locally
 
 Here's almost the whole thing for the database half:
 ```python
+# db_failure_and_docker_practice.py
 import sqlite3
 from fastapi import FastAPI, HTTPException
 
@@ -138,7 +139,7 @@ after building and running:
 ```
 
 ```python
-# main.py
+# db_failure_and_docker_practice.py
 import sqlite3
 from fastapi import FastAPI, HTTPException
 
@@ -198,7 +199,7 @@ prove a missing required env var fails loudly at startup, not silently:
 
 Here's most of it — fill in the required-env-var check yourself:
 ```python
-# main.py
+# db_failure_and_docker_practice.py
 import os
 import sqlite3
 from fastapi import FastAPI, HTTPException
@@ -225,7 +226,7 @@ def get_runs():
         raise HTTPException(status_code=500, detail="Something went wrong.")
 ```
 ```python
-# kill_connection.py — run this against the same process to simulate a mid-run death
+# db_failure_and_docker_practice.py
 # (in practice: a debug route, or just conn.close() in a REPL attached to the process)
 conn.close()
 ```

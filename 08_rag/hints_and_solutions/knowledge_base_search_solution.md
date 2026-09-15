@@ -4,6 +4,7 @@
 
 Every example below assumes the same 6 sample documents (`docs/*.txt`):
 ```python
+# knowledge_base_search_practice.py
 DOCS: dict[str, str] = {
     "French press basics.txt": "A French press steeps coarse coffee grounds directly in hot water, then a mesh plunger separates the grounds. Steep for about 4 minutes before pressing. It produces a fuller-bodied, slightly gritty cup compared to filtered methods.",
     "Pour-over basics.txt": "Pour-over brewing means pouring hot water over grounds in a paper filter, in slow circular motions, letting it drip through into a cup or carafe below. It produces a clean, light-bodied cup because the paper filter traps most oils and fine particles.",
@@ -19,6 +20,7 @@ DOCS: dict[str, str] = {
 ### Approach 1 — raw `chromadb` client
 
 ```python
+# knowledge_base_search_practice.py
 from pathlib import Path
 import chromadb
 from openai import OpenAI
@@ -72,6 +74,7 @@ This version works correctly and meets every requirement of the exercise. Runnin
 ### Approach 1 — raw `chromadb`, factored into functions with type hints
 
 ```python
+# knowledge_base_search_practice.py
 from pathlib import Path
 import chromadb
 from openai import OpenAI
@@ -129,6 +132,7 @@ if __name__ == "__main__":
 ### Approach 2 — LangChain's `Chroma` wrapper
 
 ```python
+# knowledge_base_search_practice.py
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 
@@ -174,6 +178,7 @@ if __name__ == "__main__":
 ### Approach 1 — `get_or_create_collection`, safe to call more than once
 
 ```python
+# knowledge_base_search_practice.py
 from pathlib import Path
 import chromadb
 from openai import OpenAI
@@ -216,6 +221,7 @@ The second call doesn't crash, and doesn't double-add every document either — 
 ### Approach 2 — a score cutoff, so "no relevant match" is a real, checked outcome
 
 ```python
+# knowledge_base_search_practice.py
 SCORE_CUTOFF: float = 0.35   # tune this against your own embedding model + documents
 
 

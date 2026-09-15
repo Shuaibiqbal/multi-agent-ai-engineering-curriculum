@@ -91,6 +91,7 @@ step 6: restore the original prompt from the backup
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# regression_catch_practice.py
 baseline_score = run_eval_suite()
 print("baseline:", baseline_score)
 
@@ -127,6 +128,7 @@ restore the original prompt from the backup before moving on
 ```
 
 ```python
+# regression_catch_practice.py
 baseline_result = run_eval_suite()
 print(f"baseline: {baseline_result.overall_score} ({baseline_result.passed}/{baseline_result.total})")
 
@@ -169,6 +171,7 @@ restore the original prompt from the backup
 
 Here's almost the whole thing — fill in the decision logic yourself:
 ```python
+# regression_catch_practice.py
 def run_n_baselines(n: int = 3) -> list[float]:
     return [run_eval_suite().overall_score for _ in range(n)]
 

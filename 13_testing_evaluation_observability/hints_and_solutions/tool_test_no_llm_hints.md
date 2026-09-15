@@ -79,6 +79,7 @@ define test_tool_returns_expected_result():
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# tool_test_no_llm_practice.py
 from tools import get_weather
 
 def test_get_weather_returns_dict():
@@ -108,6 +109,7 @@ define test_<tool_name>_handles_bad_input():
 ```
 
 ```python
+# tool_test_no_llm_practice.py
 from tools import get_weather
 
 
@@ -142,6 +144,7 @@ define test_get_weather_api_failure(mocked requests.get):
 
 Here's almost the whole thing — fill in the failure case yourself:
 ```python
+# tool_test_no_llm_practice.py
 from unittest.mock import patch, Mock
 from tools import get_weather
 

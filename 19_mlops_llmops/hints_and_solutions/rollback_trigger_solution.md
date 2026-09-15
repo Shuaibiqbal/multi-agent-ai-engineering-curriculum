@@ -4,6 +4,7 @@
 
 Every example below plays back this same simulated score sequence — a healthy start, then a sustained drop partway through, acting out the exact situation this exercise asks for:
 ```python
+# rollback_trigger_practice.py
 scores = [0.95, 0.94, 0.96, 0.93, 0.95, 0.60, 0.55, 0.58, 0.52, 0.50]
 baseline = 0.95
 ```
@@ -13,6 +14,7 @@ baseline = 0.95
 ### Approach 1 — the direct way
 
 ```python
+# rollback_trigger_practice.py
 def should_rollback(scores_so_far, baseline, window_size=5, drop_threshold=0.2):
     if len(scores_so_far) < window_size:
         return False
@@ -53,6 +55,7 @@ It correctly waits until request 7 (the 8th score) before firing — that's the 
 ### Approach 1 — type hints, named parameters, same repeat-firing behavior
 
 ```python
+# rollback_trigger_practice.py
 def should_rollback(
     scores_so_far: list[float],
     baseline: float,
@@ -94,6 +97,7 @@ watch_and_rollback(scores, baseline=0.95)
 ### Approach 1 — a `RollbackMonitor` that fires once per decline
 
 ```python
+# rollback_trigger_practice.py
 class RollbackMonitor:
     def __init__(self, baseline: float, window_size: int = 5, drop_threshold: float = 0.2):
         self.baseline = baseline
@@ -140,6 +144,7 @@ Exactly one rollback, at the same request (7) both earlier approaches first caug
 ### Approach 2 — resetting the monitor after a fresh deploy
 
 ```python
+# rollback_trigger_practice.py
 def redeploy(monitor: RollbackMonitor, new_baseline: float) -> RollbackMonitor:
     """A new version was deployed after the rollback — start watching fresh."""
     return RollbackMonitor(

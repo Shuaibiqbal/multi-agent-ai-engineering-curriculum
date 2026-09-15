@@ -82,6 +82,7 @@ test:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# llm_output_testing_practice.py — Real-world section
 def build_judge_prompt(task, answer, rules):
     rules_text = "\n".join("- " + r for r in rules)
     return (
@@ -118,6 +119,7 @@ function score_output(task, answer, rules) -> JudgeResult:
 ```
 
 ```python
+# llm_output_testing_practice.py — Real-world section
 def build_judge_prompt(task: str, answer: str, rules: list[str]) -> str:
     rules_text = "\n".join(f"- {r}" for r in rules)
     return (
@@ -160,6 +162,7 @@ function test_judge_is_self_consistent():
 
 Here's almost the whole thing — fill in one obviously-bad calibration case yourself:
 ```python
+# llm_output_testing_practice.py — Real-world section
 CALIBRATION_SET = [
     {
         "task": "Summarize this ticket about a late delivery.",

@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# chunking_unit_test_practice.py
 from chunking import chunk_by_paragraph
 
 sample_text = "Paragraph one.\n\nParagraph two.\n\nParagraph three."
@@ -27,6 +28,7 @@ Run with `pytest test_chunking.py -v`. This is a correct, minimal test — it ju
 ### Approach 1 — count plus content, and a second test for the single-paragraph edge case
 
 ```python
+# chunking_unit_test_practice.py
 from chunking import chunk_by_paragraph
 
 sample_text = "Paragraph one.\n\nParagraph two.\n\nParagraph three."
@@ -48,6 +50,7 @@ def test_chunk_by_paragraph_single_paragraph():
 ### Approach 2 — using `pytest.mark.parametrize` to cover several inputs at once
 
 ```python
+# chunking_unit_test_practice.py
 import pytest
 from chunking import chunk_by_paragraph
 
@@ -76,6 +79,7 @@ def test_chunk_by_paragraph_count(text, expected_count):
 ### Approach 1 — a fixture, a wider parametrize table, and a no-content-lost property test
 
 ```python
+# chunking_unit_test_practice.py
 import pytest
 from chunking import chunk_by_paragraph
 
@@ -111,6 +115,7 @@ def test_no_content_lost(sample_text: str) -> None:
 ### Approach 2 — property-based testing with Hypothesis, instead of hand-picking edge cases
 
 ```python
+# chunking_unit_test_practice.py
 from hypothesis import given, strategies as st
 from chunking import chunk_by_paragraph
 

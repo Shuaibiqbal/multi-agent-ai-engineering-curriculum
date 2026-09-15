@@ -95,6 +95,7 @@ ask 3 real questions, one at a time:
 
 Here's almost the whole thing — try running it and reading it line by line:
 ```python
+# knowledge_base_search_practice.py
 import chromadb
 from openai import OpenAI
 
@@ -171,6 +172,7 @@ define:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# knowledge_base_search_practice.py
 SCORE_CUTOFF: float = 0.35
 
 

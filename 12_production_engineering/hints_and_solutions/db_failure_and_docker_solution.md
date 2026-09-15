@@ -9,7 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
-# main.py
+# db_failure_and_docker_practice.py
 import sqlite3
 from fastapi import FastAPI, HTTPException
 
@@ -62,7 +62,7 @@ This satisfies the exercise's core requirements. It doesn't yet have a `.dockeri
 ### Approach 1 — guarding connection creation itself, plus a `.dockerignore`
 
 ```python
-# main.py
+# db_failure_and_docker_practice.py
 import sqlite3
 from fastapi import FastAPI, HTTPException
 
@@ -118,7 +118,7 @@ __pycache__/
 ### Approach 2 — a startup check that fails the container immediately if a required env var is missing
 
 ```python
-# main.py
+# db_failure_and_docker_practice.py
 import os
 import sqlite3
 from fastapi import FastAPI, HTTPException
@@ -170,7 +170,7 @@ The container exits immediately with a clear, specific error — not a silent ha
 ### Approach 1 — a connection that dies mid-run, not just one that never worked
 
 ```python
-# main.py
+# db_failure_and_docker_practice.py
 import os
 import sqlite3
 from fastapi import FastAPI, HTTPException

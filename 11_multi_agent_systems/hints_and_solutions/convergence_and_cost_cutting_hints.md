@@ -104,6 +104,7 @@ report: percent saved, and whether outputs still look right
 ### Intermediate Version
 
 ```python
+# convergence_and_cost_cutting_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -188,6 +189,7 @@ cost-cutting, proven safe:
 
 Here's almost the whole thing for Part 1 — fill in the missing piece yourself:
 ```python
+# convergence_and_cost_cutting_practice.py
 class LoopState(TypedDict):
     draft: str
     revision_count: int

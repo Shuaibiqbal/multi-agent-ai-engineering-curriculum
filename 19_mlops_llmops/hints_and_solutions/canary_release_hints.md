@@ -78,6 +78,7 @@ print the average score for each group
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# canary_release_practice.py
 import random
 
 def route_and_score(test_requests, prompts):
@@ -121,6 +122,7 @@ function summarize(results, version) -> dict:
 ```
 
 ```python
+# canary_release_practice.py
 import random
 
 def route_and_score(test_requests: list, prompts: dict, canary_share: float = 0.2) -> list[dict]:
@@ -181,6 +183,7 @@ function evaluate_canary(control_summary, canary_summary, min_sample_size) -> st
 
 Here's almost the whole thing — fill in the printed verdict message yourself:
 ```python
+# canary_release_practice.py
 def evaluate_canary(control_summary: dict, canary_summary: dict, min_sample_size: int = 5) -> str:
     if canary_summary["count"] < min_sample_size:
         return "insufficient data"

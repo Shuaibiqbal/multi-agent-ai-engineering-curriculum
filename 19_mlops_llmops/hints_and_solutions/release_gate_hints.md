@@ -73,6 +73,7 @@ function deploy(version_name, threshold):
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# release_gate_practice.py — Intermediate section
 def deploy(version_name, threshold):
     versions = load_versions("versions.json")
     target = None
@@ -116,6 +117,7 @@ function deploy(version_name: str, threshold: float) -> None:
 ```
 
 ```python
+# release_gate_practice.py — Intermediate section
 def find_version(versions: list[dict], name: str) -> dict | None:
     for v in versions:
         if v["version_name"] == name:
@@ -166,6 +168,7 @@ function deploy(version_name, threshold) -> DeployResult:
 
 Here's almost the whole thing — fill in `DeployResult` yourself:
 ```python
+# release_gate_practice.py — Intermediate section
 class VersionNotFoundError(Exception):
     pass
 

@@ -166,6 +166,7 @@ in main.py:
 ### Basic Version
 
 ```python
+# config_logging_wiring_practice.py
 from config import load_config
 from logging_setup import get_logger
 
@@ -184,6 +185,7 @@ Run this file (`python main.py`) and check the line prints.
 ### Intermediate Version
 
 ```python
+# config_logging_wiring_practice.py
 import sys
 
 from config import load_config
@@ -210,6 +212,7 @@ Run this file directly (`python main.py`) and confirm the line prints. Then brea
 ### Advanced Version
 
 ```python
+# config_logging_wiring_practice.py
 import sys
 
 from config import load_config

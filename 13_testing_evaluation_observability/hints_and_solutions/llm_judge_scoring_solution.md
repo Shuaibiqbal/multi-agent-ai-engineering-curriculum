@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# llm_output_testing_practice.py — Real-world section
 def build_judge_prompt(task, answer, rules):
     rules_text = "\n".join("- " + r for r in rules)
     return (
@@ -41,6 +42,7 @@ This works, but note `call_model` is passed in directly — the test makes a rea
 ### Approach 1 — a dataclass result, judge prompt kept as a separate versioned string
 
 ```python
+# llm_output_testing_practice.py — Real-world section
 from dataclasses import dataclass
 
 
@@ -86,6 +88,7 @@ def test_real_task_passes_judge():
 ### Approach 2 — a numeric score instead of PASS/FAIL, with a chosen bar
 
 ```python
+# llm_output_testing_practice.py — Real-world section
 from dataclasses import dataclass
 
 
@@ -136,6 +139,7 @@ def test_real_task_scores_above_bar():
 ### Approach 1 — a calibration set: known-good and known-bad answers the judge must score correctly
 
 ```python
+# llm_output_testing_practice.py — Real-world section
 from dataclasses import dataclass
 
 
@@ -204,6 +208,7 @@ def test_judge_calibration() -> None:
 ### Approach 2 — self-consistency check
 
 ```python
+# llm_output_testing_practice.py — Real-world section
 def test_judge_is_self_consistent() -> None:
     task = "Summarize this ticket about a late delivery."
     answer = "The customer's order shipped late due to a warehouse delay; they were offered a refund."

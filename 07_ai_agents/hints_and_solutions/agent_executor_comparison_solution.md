@@ -7,6 +7,7 @@ All examples below reuse `get_weather` and `celsius_to_fahrenheit` from `build_r
 ## Basic Version
 
 ```python
+# agent_executor_comparison_practice.py
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
@@ -38,6 +39,7 @@ It's 18°C and cloudy in Paris right now.
 ### Approach 1 — 3 test questions, both loops, diffed
 
 ```python
+# agent_executor_comparison_practice.py
 test_questions = [
     "What's the weather in Paris?",
     "What's the weather in Paris, in Fahrenheit?",
@@ -73,6 +75,7 @@ QUESTION: What's the capital of France?
 ### Approach 2 — counting the library's steps directly, not just eyeballing the stream
 
 ```python
+# agent_executor_comparison_practice.py
 result = agent.invoke(
     {"messages": [("user", "What's the weather in Paris, in Fahrenheit?")]},
     {"recursion_limit": 11},
@@ -100,6 +103,7 @@ lib step count: 2
 ### Approach 1 — a failing tool, compared side by side
 
 ```python
+# agent_executor_comparison_practice.py
 call_count = {"n": 0}
 
 @tool
@@ -120,6 +124,7 @@ print(result["messages"][-1].content)
 ### Approach 2 — hitting the step limit, compared side by side
 
 ```python
+# agent_executor_comparison_practice.py
 try:
     result = agent.invoke(
         {"messages": [("user", "What's the weather in Paris, in Fahrenheit?")]},

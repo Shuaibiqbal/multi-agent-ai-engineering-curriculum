@@ -76,6 +76,7 @@ step 2 — fix it:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# release_gate_practice.py — Edge cases section
 import hashlib
 import json
 
@@ -125,6 +126,7 @@ function get_live_version() -> str | None:
 ```
 
 ```python
+# release_gate_practice.py — Edge cases section
 import hmac
 import hashlib
 import json
@@ -174,6 +176,7 @@ function get_live_version() -> str | None:
 
 Here's almost the whole thing — fill in `mark_passed` yourself:
 ```python
+# release_gate_practice.py — Edge cases section
 import json
 from pathlib import Path
 

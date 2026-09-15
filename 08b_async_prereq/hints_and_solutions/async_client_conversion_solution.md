@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# async_client_conversion_practice.py
 from openai import AsyncOpenAI
 import asyncio
 
@@ -39,6 +40,7 @@ This version works correctly. It's missing type hints and an `if __name__ == "__
 ### Approach 1 — typed, with a `main()` and a `__main__` guard
 
 ```python
+# async_client_conversion_practice.py
 from openai import AsyncOpenAI
 import asyncio
 
@@ -77,6 +79,7 @@ if __name__ == "__main__":
 ### Approach 1 — a client-level timeout, and the SDK's specific timeout error
 
 ```python
+# async_client_conversion_practice.py
 from openai import AsyncOpenAI, APITimeoutError
 import asyncio
 
@@ -115,6 +118,7 @@ the API call took too long and was cancelled
 ### Approach 2 — used from inside an already-async caller (a FastAPI route), the way it'll actually be used in Doc12
 
 ```python
+# async_client_conversion_practice.py
 from openai import AsyncOpenAI, APITimeoutError
 
 client = AsyncOpenAI(timeout=30.0)

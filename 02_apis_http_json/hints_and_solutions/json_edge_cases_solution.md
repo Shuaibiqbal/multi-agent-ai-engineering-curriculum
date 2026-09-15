@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# response_validation_practice.py
 import json
 
 # problem 1: invalid JSON
@@ -44,8 +45,13 @@ This covers both problems correctly. It's missing type hints and doesn't explain
 ### Approach 1 — two named functions, so the choice is explicit
 
 ```python
+# response_validation_practice.py
 import json
 from typing import Any
+
+
+class InvalidResponseBodyError(Exception):
+    """Raised when an API response body cannot be parsed as JSON."""
 
 
 def parse_body(raw_text: str) -> dict[str, Any]:
@@ -53,7 +59,7 @@ def parse_body(raw_text: str) -> dict[str, Any]:
     try:
         return json.loads(raw_text)
     except json.JSONDecodeError as e:
-        raise ValueError(f"response body is not valid JSON: {e}") from e
+        raise InvalidResponseBodyError(f"response body is not valid JSON: {e}") from e
 
 
 def get_required_field(data: dict[str, Any], key: str) -> Any:
@@ -71,7 +77,7 @@ def get_optional_field(data: dict[str, Any], key: str, default: Any = None) -> A
 if __name__ == "__main__":
     try:
         parse_body("<html>error page</html>")
-    except ValueError as e:
+    except InvalidResponseBodyError as e:
         print(f"caught: {e}")
 
     payload = {"choices": []}
@@ -89,7 +95,7 @@ optional field: no message
 caught: "expected field 'message' was missing from the response"
 ```
 
-**Difference from Basic:** wrapping the two behaviors in named functions (`get_required_field` vs. `get_optional_field`) turns an implicit choice (`[key]` vs `.get(key)`, easy to pick inconsistently across a codebase) into an explicit, self-documenting decision every caller makes on purpose. `parse_body()` also re-raises `json.JSONDecodeError` as a plain `ValueError` with `from e` — this keeps the original traceback attached while giving callers one predictable error type to catch, instead of needing to know about `requests`' or `json`'s specific exception classes.
+**Difference from Basic:** wrapping the two behaviors in named functions (`get_required_field` vs. `get_optional_field`) turns an implicit choice (`[key]` vs `.get(key)`, easy to pick inconsistently across a codebase) into an explicit, self-documenting decision every caller makes on purpose. `parse_body()` also re-raises `json.JSONDecodeError` as a named `InvalidResponseBodyError` with `from e` — this keeps the original traceback attached while giving callers one predictable, purpose-named error type to catch, instead of needing to know about `requests`' or `json`'s specific exception classes (or a generic `ValueError` that could mean anything in a bigger codebase).
 
 <hr class="page-break">
 
@@ -100,7 +106,13 @@ caught: "expected field 'message' was missing from the response"
 ### Approach 1 — a nested-path helper that checks type, not just presence
 
 ```python
+# response_validation_practice.py
 from typing import Any
+
+
+class ResponseShapeError(Exception):
+    """Raised when a response's shape doesn't match what the caller expected —
+    either a step in the path is missing, or a value is the wrong type."""
 
 
 def get_nested(data: Any, path: list[str | int], expected_type: type) -> Any:
@@ -117,10 +129,10 @@ def get_nested(data: Any, path: list[str | int], expected_type: type) -> Any:
         elif isinstance(key, int) and isinstance(current, list) and key < len(current):
             current = current[key]
         else:
-            raise ValueError(f"expected response shape missing at {walked_so_far}")
+            raise ResponseShapeError(f"expected response shape missing at {walked_so_far}")
 
     if not isinstance(current, expected_type):
-        raise ValueError(
+        raise ResponseShapeError(
             f"expected {expected_type.__name__} at {walked_so_far}, "
             f"got {type(current).__name__}"
         )
@@ -137,14 +149,14 @@ print(content)
 broken_payload = {"choices": []}
 try:
     get_nested(broken_payload, ["choices", 0, "message", "content"], str)
-except ValueError as e:
+except ResponseShapeError as e:
     print(f"caught: {e}")
 
 # present, but the wrong type
 wrong_type_payload = {"choices": "the server returned an error string here instead"}
 try:
     get_nested(wrong_type_payload, ["choices"], list)
-except ValueError as e:
+except ResponseShapeError as e:
     print(f"caught: {e}")
 ```
 **Expected output:**
@@ -158,6 +170,7 @@ Both failures name the exact spot in the path that broke — `.choices.0` for th
 ### Approach 2 — `pydantic`, the shape declared instead of hand-walked
 
 ```python
+# response_validation_practice.py
 from pydantic import BaseModel, ValidationError
 
 

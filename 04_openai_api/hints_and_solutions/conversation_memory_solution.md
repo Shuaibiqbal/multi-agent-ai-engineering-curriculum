@@ -9,6 +9,7 @@ All examples below assume `client = OpenAI()` with `.env` already loaded.
 ### Approach 1 — the direct way
 
 ```python
+# conversation_memory_practice.py
 history = [
     {"role": "system", "content": "You are a helpful assistant."}
 ]
@@ -48,6 +49,7 @@ This works correctly and proves memory. It has no error handling, and it never l
 ### Approach 1 — `get_reply()` pulled out, with type hints
 
 ```python
+# conversation_memory_practice.py
 def get_reply(history: list) -> str:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -90,6 +92,7 @@ if __name__ == "__main__":
 ### Approach 1 — a `ChatSession` class, so history belongs to an instance
 
 ```python
+# conversation_memory_practice.py
 from openai import OpenAI
 
 
@@ -128,6 +131,7 @@ I don't have access to that information — could you tell me your name?
 Answering the second Advanced question from Hint 1 — what happens once `history` gets too long — with the simplest possible real answer: once it passes a threshold, drop the oldest non-system turns, keeping the conversation going instead of growing forever toward the context-limit error you'll see on purpose in this document's Edge cases exercise.
 
 ```python
+# conversation_memory_practice.py
 from openai import OpenAI
 
 

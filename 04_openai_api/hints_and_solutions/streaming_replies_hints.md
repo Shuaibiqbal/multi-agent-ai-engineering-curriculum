@@ -44,6 +44,7 @@ There's a second real question worth thinking through, even without writing the 
 The chunk-safety fix is small and worth internalizing:
 
 ```python
+# streaming_practice.py
 for chunk in stream:
     if not chunk.choices:
         continue  # a usage-only chunk with no delta content
@@ -73,6 +74,7 @@ for each piece that comes back:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# streaming_practice.py
 stream = client.chat.completions.create(
     model="gpt-4o-mini",
     messages=messages,
@@ -108,6 +110,7 @@ function stream_reply(history) -> str:
 ```
 
 ```python
+# streaming_practice.py
 def stream_reply(history: list) -> str:
     stream = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -150,6 +153,7 @@ function stream_reply(history) -> str:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# streaming_practice.py
 import openai
 
 

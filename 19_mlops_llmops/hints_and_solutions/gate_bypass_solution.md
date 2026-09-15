@@ -9,6 +9,7 @@ Every approach below starts by proving the bypass is real, then fixes it a diffe
 ### Approach 1 — prove the bypass, then a plain hash check
 
 ```python
+# release_gate_practice.py — Edge cases section
 import hashlib
 import json
 
@@ -26,6 +27,7 @@ live (before any fix): v1
 Nothing checked whether `v1` actually passed the gate — it's just a text file, and text files don't know the difference.
 
 ```python
+# release_gate_practice.py — Edge cases section
 # --- step 2: a plain hash check ---
 def deploy_and_save_pointer(version_name):
     # imagine this only runs after deploy()'s score check passed
@@ -69,6 +71,7 @@ This version works correctly for what the exercise asks — a careless hand-edit
 ### Approach 1 — `hmac`, signed with a secret
 
 ```python
+# release_gate_practice.py — Edge cases section
 import hmac
 import hashlib
 import json
@@ -121,6 +124,7 @@ Unlike Basic, an attacker who has read this script still can't produce a matchin
 ### Approach 1 — remove the separate pointer file; the version log is the only source of truth
 
 ```python
+# release_gate_practice.py — Edge cases section
 import json
 import time
 from datetime import datetime, timezone
@@ -188,6 +192,7 @@ There's no `live_version.txt` or `live_version.json` left at all — `get_live_v
 ### Approach 2 — showing what a bypass attempt now actually requires
 
 ```python
+# release_gate_practice.py — Edge cases section
 # an attacker (or a careless teammate) hand-edits versions.json directly,
 # setting v1's passed_gate to True too — this is still *possible*, since
 # nothing here is cryptographically signed

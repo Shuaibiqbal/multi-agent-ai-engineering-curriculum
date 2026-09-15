@@ -42,10 +42,15 @@ Both cases above are things you discover *by calling* `.invoke(...)` and seeing 
 This turns "hope I remembered every key" into something you can check programmatically — the exact same "fail loudly, on purpose, before something bad happens" idea as Doc01's `require_env()`, applied to a prompt's inputs instead of environment variables.
 
 ```python
+# prompt_template_practice.py
+class MissingPromptVariableError(Exception):
+    """Raised when a prompt template is missing one or more required variables."""
+
+
 def validate_inputs(prompt, provided: dict) -> None:
     missing = set(prompt.input_variables) - set(provided.keys())
     if missing:
-        raise ValueError(f"Missing prompt variable(s): {sorted(missing)}")
+        raise MissingPromptVariableError(f"Missing prompt variable(s): {sorted(missing)}")
 ```
 
 The real, harder question underneath this: `validate_inputs()` catches a *missing* key just like `.invoke()` already does on its own — so what does checking `input_variables` yourself actually buy you that you don't already get for free? Think about it before checking Hint 2: the answer is about *when* you find out, and what you can check about the *extra*, silently-ignored keys that `.invoke()` never tells you about at all.
@@ -74,6 +79,7 @@ test 2 - extra:
 
 Here is almost the whole thing:
 ```python
+# prompt_template_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 
 prompt = ChatPromptTemplate.from_template("Answer: {question}")
@@ -123,6 +129,7 @@ function warn_about_extra_inputs(prompt, provided) -> None:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# prompt_template_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 
 prompt = ChatPromptTemplate.from_template("Answer: {question}")

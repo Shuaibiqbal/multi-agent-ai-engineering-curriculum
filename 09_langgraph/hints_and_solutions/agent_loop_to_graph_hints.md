@@ -54,6 +54,7 @@ The extra piece that answers that:
 - A small comparison harness: run the same list of test prompts through both your original Doc07 loop and your new graph, collect each one's final answer, and assert they match (or are equivalent in meaning, if the model's wording can legitimately vary). Log the step count from each too — a graph that reaches the right answer in *way* more steps than your original loop might be hiding a routing bug (looping unnecessarily) even though the final answer happens to look right.
 
 ```python
+# agent_loop_to_graph_practice.py
 test_prompts = [...]  # the same prompts you used to validate the Doc07 loop
 
 for prompt in test_prompts:
@@ -96,6 +97,7 @@ run it with a real task, with a recursion limit set so it can't run forever by m
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# agent_loop_to_graph_practice.py
 from typing import TypedDict, Annotated
 import operator
 from langgraph.graph import StateGraph, START, END
@@ -191,6 +193,7 @@ report any mismatches clearly, naming which prompt failed and how
 ```
 
 ```python
+# agent_loop_to_graph_practice.py
 test_prompts = [
     "What is 12 * 7?",
     "Search for the capital of France and tell me its population.",

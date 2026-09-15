@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# api_first_call_practice.py
 import requests
 
 response = requests.get("https://api.github.com")
@@ -35,6 +36,7 @@ This works. It catches `Exception` broadly rather than the specific `requests` e
 ### Approach 1 — the specific exception, wrapped in `main()`
 
 ```python
+# api_first_call_practice.py
 import requests
 
 
@@ -70,6 +72,7 @@ Caught a client-side request error: MissingSchema - Invalid URL 'htp://broken': 
 ### Approach 1 — `raise_for_status()`, and telling 3 real failures apart
 
 ```python
+# api_first_call_practice.py
 import requests
 
 

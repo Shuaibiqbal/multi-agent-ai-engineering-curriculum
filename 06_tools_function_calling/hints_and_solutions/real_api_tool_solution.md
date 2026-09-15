@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# real_api_tool_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from http_client import request_with_retry  # your Doc02 client
@@ -61,6 +62,7 @@ This version makes a real network call through your existing retry logic, and re
 ### Approach 1 — params-building split out, and checked
 
 ```python
+# real_api_tool_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -138,6 +140,7 @@ Called get_weather({'city': 'Lahore'}) -> Currently 34.2°C in Lahore
 ### Approach 1 — safe nested access instead of a `KeyError` crash
 
 ```python
+# real_api_tool_practice.py
 def get_weather(city: str) -> str:
     params = build_weather_params(city)
     if params is None:
@@ -164,6 +167,7 @@ This is the difference between a shape mismatch crashing your whole tool with a 
 ### Approach 2 — a real geocoding call instead of a 2-city lookup table
 
 ```python
+# real_api_tool_practice.py
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 

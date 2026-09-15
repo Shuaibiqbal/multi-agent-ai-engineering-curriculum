@@ -53,6 +53,7 @@ put max_iterations back to 5 (or whatever your real limit is)
 Here's almost the whole thing — fill in the adversarial tool yourself:
 
 ```python
+# loop_safety_cost_practice.py
 import time
 
 def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
@@ -81,6 +82,7 @@ function run_agent_with_timeout(task, max_iterations, timeout_seconds):
 ```
 
 ```python
+# loop_safety_cost_practice.py
 import time
 
 
@@ -129,6 +131,7 @@ print looping_total_tokens, direct_total_tokens, and the ratio between them
 ```
 
 ```python
+# loop_safety_cost_practice.py
 def run_agent_with_timeout_and_token_count(task, max_iterations=1000, timeout_seconds=30):
     start = time.time()
     messages: list[dict] = [{"role": "user", "content": task}]

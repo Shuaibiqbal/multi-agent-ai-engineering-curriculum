@@ -87,6 +87,7 @@ except any error as e:
 
 Here's almost the whole thing:
 ```python
+# api_first_call_practice.py
 import requests
 
 response = requests.get("https://api.github.com")
@@ -114,6 +115,7 @@ except requests.exceptions.RequestException as e:
 ```
 
 ```python
+# api_first_call_practice.py
 import requests
 
 response = requests.get("https://api.github.com")
@@ -154,6 +156,7 @@ for each broken url in [a bad schema, a URL with no such host, a URL that 404s]:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# api_first_call_practice.py
 import requests
 
 urls = [

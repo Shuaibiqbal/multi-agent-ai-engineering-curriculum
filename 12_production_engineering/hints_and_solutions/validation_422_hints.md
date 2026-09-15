@@ -68,6 +68,7 @@ check: before_count == after_count
 
 Here's almost the whole thing, as a small script against your already-running server:
 ```python
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 import requests
 
@@ -104,6 +105,7 @@ print the structured error FastAPI sent back, to see what a 422 actually looks l
 ```
 
 ```python
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 import requests
 
@@ -145,6 +147,7 @@ if your /chat route does more than one database write per request:
 
 Here's most of it — the transaction test needs your own route's shape filled in:
 ```python
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 import requests
 

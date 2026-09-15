@@ -88,6 +88,7 @@ part 2 - retry loop:
 
 Here is almost the whole retry loop — just try running it and reading it line by line:
 ```python
+# retry_backoff_practice.py — Intermediate section
 import time
 import requests
 
@@ -127,8 +128,12 @@ part 2:
 ```
 
 ```python
+# retry_backoff_practice.py — Intermediate section
+import logging
 import time
 import requests
+
+logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 5
 
@@ -137,7 +142,7 @@ for attempt in range(MAX_ATTEMPTS):
         response = requests.get("http://10.255.255.1", timeout=(1, 2))
         break
     except requests.exceptions.Timeout:
-        print(f"attempt {attempt} timed out")
+        logger.warning("attempt %s timed out", attempt)
         if attempt == MAX_ATTEMPTS - 1:
             ...  # what goes here, once you're truly out of attempts?
         time.sleep(2 ** attempt)
@@ -169,6 +174,7 @@ function get_with_retry(url, max_attempts=5) -> Response:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# retry_backoff_practice.py — Intermediate section
 import random
 import time
 import requests

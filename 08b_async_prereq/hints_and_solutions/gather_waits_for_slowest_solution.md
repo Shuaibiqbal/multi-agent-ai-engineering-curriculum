@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# gather_practice.py — Edge cases section
 import asyncio
 import time
 
@@ -50,6 +51,7 @@ This version works correctly. It's missing type hints and an `if __name__ == "__
 ### Approach 1 — typed, with a `__main__` guard
 
 ```python
+# gather_practice.py — Edge cases section
 import asyncio
 import time
 
@@ -99,6 +101,7 @@ results: ['fast', 'slow']
 ### Approach 1 — a genuinely unbounded task, capped with its own timeout
 
 ```python
+# gather_practice.py — Edge cases section
 import asyncio
 import time
 
@@ -141,6 +144,7 @@ a task timed out or failed:
 ### Approach 2 — the same fix applied to a whole list of tasks, not just one
 
 ```python
+# gather_practice.py — Edge cases section
 import asyncio
 
 

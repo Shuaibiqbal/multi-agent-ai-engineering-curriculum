@@ -99,6 +99,7 @@ compare: does one method's top chunk contain the whole answer,
 
 Here's almost the whole thing — try running it and reading it line by line:
 ```python
+# chunking_practice.py — Intermediate section
 import math
 from openai import OpenAI
 
@@ -158,6 +159,7 @@ main:
 ```
 
 ```python
+# chunking_practice.py — Intermediate section
 def find_best_chunk(chunks: list[str], question_vector: list[float]) -> tuple[str, float]:
     best_chunk = ""
     best_score = -1.0
@@ -196,6 +198,7 @@ function chunk_by_paragraph_safe(text):
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# chunking_practice.py — Intermediate section
 def chunk_by_chars_with_overlap(text: str, chunk_size: int = 200, overlap: int = 40) -> list[str]:
     chunks: list[str] = []
     i = 0

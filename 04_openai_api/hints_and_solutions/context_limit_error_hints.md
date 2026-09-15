@@ -40,6 +40,7 @@ Catching `BadRequestError` proves the limit exists, but it's a bad way to actual
 The real design question: **how do you count tokens locally, without an API call, using the exact same rules the model uses?** OpenAI publishes the tokenizer their models use as a separate library, `tiktoken` — the same text always produces the same token count, whether you count it locally or let the API count it for you and reject the request.
 
 ```python
+# context_limit_practice.py
 import tiktoken
 
 def count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
@@ -71,6 +72,7 @@ except (something went wrong):
 
 Here's almost the whole thing:
 ```python
+# context_limit_practice.py
 huge_input = "word " * 200_000
 
 try:
@@ -129,6 +131,7 @@ else:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# context_limit_practice.py
 import tiktoken
 
 

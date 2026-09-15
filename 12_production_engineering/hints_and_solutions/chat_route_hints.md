@@ -74,6 +74,7 @@ route POST /chat, takes a ChatRequest:
 
 Here's almost the whole thing — the `run_chat` stand-in is deliberately fake, swap in your Doc04 chat function later:
 ```python
+# chat_route_practice.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -123,6 +124,7 @@ route POST /chat, response_model=ChatResponse, takes a ChatRequest:
 ```
 
 ```python
+# chat_route_practice.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -178,6 +180,7 @@ route POST /chat:
 
 Here's most of it — wire up the logger call yourself:
 ```python
+# chat_route_practice.py
 import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel

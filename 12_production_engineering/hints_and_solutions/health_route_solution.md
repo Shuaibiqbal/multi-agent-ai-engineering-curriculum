@@ -9,6 +9,7 @@ Every version below is a complete `main.py` you can run with `uvicorn main:app -
 ### Approach 1 — the direct way
 
 ```python
+# health_route_practice.py
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -32,6 +33,7 @@ This works, is correct, and is genuinely how many real `/health` routes start ou
 ### Approach 1 — a typed response with `response_model`
 
 ```python
+# health_route_practice.py
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -54,7 +56,7 @@ The JSON reply looks identical to Basic's, but `http://localhost:8000/docs` now 
 ### Approach 2 — a test file using `TestClient`, instead of `curl`
 
 ```python
-# test_main.py
+# health_route_practice.py
 from fastapi.testclient import TestClient
 from main import app
 
@@ -82,6 +84,7 @@ def test_health_returns_ok():
 ### Approach 1 — separate liveness and readiness routes
 
 ```python
+# health_route_practice.py
 from fastapi import FastAPI, Response
 from pydantic import BaseModel
 
@@ -124,7 +127,7 @@ GET /ready  -> 503 {"status":"not ready"}
 Once you have more than one or two routes, grouping them with `APIRouter` instead of decorating straight onto `app` keeps `main.py` small — this is the pattern `chat_route` and the Build Task both lean on.
 
 ```python
-# routes.py
+# health_route_practice.py
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
 
@@ -147,7 +150,7 @@ def ready(response: Response) -> HealthResponse:
     return HealthResponse(status="ok")
 ```
 ```python
-# main.py
+# health_route_practice.py
 from fastapi import FastAPI
 from routes import router
 
@@ -155,7 +158,7 @@ app = FastAPI()
 app.include_router(router)
 ```
 ```python
-# test_main.py
+# health_route_practice.py
 from fastapi.testclient import TestClient
 from main import app
 import routes

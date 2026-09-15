@@ -93,6 +93,7 @@ look at the output:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# gather_practice.py — Edge cases section
 import asyncio
 import time
 
@@ -167,6 +168,7 @@ run gather(fast_task(), bounded_slow, return_exceptions=True):
 ```
 
 ```python
+# gather_practice.py — Edge cases section
 async def truly_slow_task() -> str:
     await asyncio.sleep(60)
     return "finally done"

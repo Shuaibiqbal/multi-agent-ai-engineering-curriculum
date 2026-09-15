@@ -31,6 +31,7 @@ The row count before and after is identical — `0` both times (or whatever it a
 ### Approach 1 — a scripted check with `requests` and real assertions
 
 ```python
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 import requests
 
@@ -59,7 +60,7 @@ print(response.json())
 ### Approach 2 — a pytest test, using `TestClient` instead of a running server
 
 ```python
-# test_validation.py
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 from fastapi.testclient import TestClient
 from main import app, conn
@@ -91,6 +92,7 @@ def test_missing_field_returns_422_and_writes_nothing():
 ### Approach 1 — a second bad-input shape: wrong type, not missing
 
 ```python
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 import requests
 
@@ -124,6 +126,7 @@ Pydantic checks both *presence* and *type* — a `message` that's an `int` inste
 This targets the case FastAPI's automatic validation *can't* catch: a request that's perfectly valid, but where your own logic fails partway through more than one database write.
 
 ```python
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -169,7 +172,7 @@ def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail="Something went wrong.")
 ```
 ```python
-# test_transaction.py
+# sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 import requests
 

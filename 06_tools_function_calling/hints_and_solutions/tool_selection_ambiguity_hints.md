@@ -89,6 +89,7 @@ print counts
 
 Here's almost the whole thing — just try running it:
 ```python
+# tool_selection_practice.py — Intermediate section
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -164,6 +165,7 @@ print("Registered [forecast, weather] first:", dict(split_b))
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# tool_selection_practice.py — Intermediate section
 from collections import Counter
 from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI

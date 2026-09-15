@@ -105,6 +105,7 @@ compare: total tokens, total seconds, routing_log length
 ### Intermediate Version
 
 ```python
+# architecture_comparison_practice.py — Real-world section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -155,6 +156,7 @@ Notice the supervisor itself, in this simplest version, uses plain `if` checks r
 
 Wire the nodes into a graph and run the same 3 topics you used in `sequential_measure`:
 ```python
+# architecture_comparison_practice.py — Real-world section
 builder = StateGraph(SupervisorState)
 builder.add_node("supervisor", supervisor)
 builder.add_node("research_node", research_node)
@@ -182,6 +184,7 @@ LLM-based supervisor node:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# architecture_comparison_practice.py — Real-world section
 import time
 
 def supervisor_llm(state: SupervisorState) -> Command:

@@ -79,6 +79,7 @@ fixed test:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# llm_output_testing_practice.py — Edge cases section
 def test_shipping_reply():
     response = call_model("Has my order shipped?")
     assert "shipped" in response.lower()
@@ -105,6 +106,7 @@ fixed test (checks the property that actually matters):
 ```
 
 ```python
+# llm_output_testing_practice.py — Edge cases section
 def test_shipping_reply() -> None:
     response = call_model("Has my order shipped?")
     # property, not exact wording: the key fact must be present
@@ -139,6 +141,7 @@ use this to diagnose a flaky test BEFORE deciding how to fix it:
 
 Here's almost the whole thing — fill in the diagnosis logic yourself:
 ```python
+# llm_output_testing_practice.py — Edge cases section
 def pass_rate_over_n_runs(test_input: str, n: int = 10) -> float:
     passed_count = 0
     for _ in range(n):

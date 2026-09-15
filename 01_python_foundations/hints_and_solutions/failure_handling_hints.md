@@ -80,6 +80,7 @@ for each of the 3 problem types:
 ```
 
 ```python
+# custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     pass
 
@@ -123,6 +124,7 @@ for each of the 3 problem types:
 ```
 
 ```python
+# custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     pass
 
@@ -166,6 +168,7 @@ for each of the 3 problem types:
 ```
 
 ```python
+# custom_errors_practice.py — Failure handling section
 class OrderError(Exception):
     pass
 

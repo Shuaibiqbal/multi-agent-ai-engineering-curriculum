@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
+# supervisor_routing_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -73,6 +74,7 @@ This works and shows real routing decisions on genuinely ambiguous prompts. It's
 ### Approach 1 — repeated runs, to check routing consistency
 
 ```python
+# supervisor_routing_practice.py
 def run_ambiguity_check(prompts: list[str], attempts: int = 3) -> dict:
     tally = {}
     for prompt in prompts:
@@ -117,6 +119,7 @@ if __name__ == "__main__":
 ### Approach 1 — a guard in each specialist, and a supervisor that can recover from a misroute
 
 ```python
+# supervisor_routing_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -181,6 +184,7 @@ graph = builder.compile()
 ```
 
 ```python
+# supervisor_routing_practice.py
 def run_full_tally(prompts: list[str], attempts: int = 3) -> None:
     first_pick_counts = {"research_agent": 0, "analysis_agent": 0}
     recovered_count = 0

@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# missing_argument_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -50,6 +51,7 @@ This shows you the real split across 5 runs. It doesn't save the results anywher
 ### Approach 1 — classified and returned as structured records
 
 ```python
+# missing_argument_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -115,6 +117,7 @@ if __name__ == "__main__":
 ### Approach 1 — a Pydantic `args_schema` that rejects an empty guess
 
 ```python
+# missing_argument_practice.py
 from pydantic import BaseModel, Field, ValidationError
 
 from langchain_core.tools import tool
@@ -179,6 +182,7 @@ if __name__ == "__main__":
 `min_length=1` catches an empty string, but it can't catch a *plausible-looking* guess like `"London"` when the user never said London. This approach doesn't try to fully solve that (nothing can, reliably) — it flags a small set of common demo/default values as suspicious, so at least the *known* guessing patterns get surfaced instead of silently passing as real input:
 
 ```python
+# missing_argument_practice.py
 SUSPICIOUS_DEFAULT_CITIES = {"london", "new york", "n/a", "unknown", "test"}
 
 

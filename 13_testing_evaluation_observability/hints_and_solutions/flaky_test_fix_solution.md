@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# llm_output_testing_practice.py — Edge cases section
 # broken (flaky)
 def test_shipping_reply():
     response = call_model("Has my order shipped?")
@@ -30,6 +31,7 @@ The broken version fails randomly on a re-run, even when the model gives an equa
 ### Approach 1 — plain property checks in code
 
 ```python
+# llm_output_testing_practice.py — Edge cases section
 def test_shipping_reply() -> None:
     response = call_model("Has my order shipped?")
     # property, not exact wording: the key fact must be present
@@ -41,6 +43,7 @@ def test_shipping_reply() -> None:
 ### Approach 2 — one-of-several-acceptable-phrasings, for facts with more than one correct wording
 
 ```python
+# llm_output_testing_practice.py — Edge cases section
 ACCEPTABLE_SHIPPED_PHRASES = ["shipped", "on its way", "sent out", "dispatched"]
 
 
@@ -64,6 +67,7 @@ def test_shipping_reply() -> None:
 ### Approach 1 — a repeated-run diagnostic, to confirm the cause before fixing it
 
 ```python
+# llm_output_testing_practice.py — Edge cases section
 def pass_rate_over_n_runs(test_input: str, n: int = 10) -> float:
     passed_count = 0
     for _ in range(n):
@@ -85,6 +89,7 @@ def test_shipping_reply_is_reliable() -> None:
 ### Approach 2 — separating infrastructure failures from scoring failures
 
 ```python
+# llm_output_testing_practice.py — Edge cases section
 import time
 from requests.exceptions import Timeout, ConnectionError
 

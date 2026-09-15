@@ -91,6 +91,7 @@ part 2 - missing key:
 
 Here is almost the whole thing:
 ```python
+# response_validation_practice.py
 import json
 
 try:
@@ -124,6 +125,7 @@ except KeyError as e:
 ```
 
 ```python
+# response_validation_practice.py
 import json
 
 try:
@@ -143,6 +145,8 @@ What's missing: the crashing version of the missing-key lookup, wrapped so it do
 ### Advanced Version
 
 ```
+class ResponseShapeError(Exception): pass  # a named error for "the shape was wrong"
+
 function get_nested(data, path, expected_type):
     current = data
     walked = ""
@@ -153,17 +157,22 @@ function get_nested(data, path, expected_type):
         elif key is an int and current is a list and key < len(current):
             current = current[key]
         else:
-            raise ValueError("missing at " + walked)
+            raise ResponseShapeError("missing at " + walked)
 
     if not isinstance(current, expected_type):
-        raise ValueError("wrong type at " + walked + ", expected " + str(expected_type))
+        raise ResponseShapeError("wrong type at " + walked + ", expected " + str(expected_type))
 
     return current
 ```
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# response_validation_practice.py
 from typing import Any
+
+
+class ResponseShapeError(Exception):
+    """Raised when a response's shape doesn't match what the caller expected."""
 
 
 def get_nested(data: Any, path: list, expected_type: type) -> Any:
@@ -177,10 +186,10 @@ def get_nested(data: Any, path: list, expected_type: type) -> Any:
         elif isinstance(key, int) and isinstance(current, list) and key < len(current):
             current = current[key]
         else:
-            raise ValueError(f"expected response shape missing at {walked_so_far}")
+            raise ResponseShapeError(f"expected response shape missing at {walked_so_far}")
 
     # your turn: check isinstance(current, expected_type) here, and raise
-    # a clear ValueError naming walked_so_far and expected_type if it's wrong
+    # a clear ResponseShapeError naming walked_so_far and expected_type if it's wrong
     ...
 
     return current

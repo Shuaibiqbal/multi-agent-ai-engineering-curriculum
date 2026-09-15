@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# tool_test_no_llm_practice.py
 from tools import get_weather
 
 def test_get_weather_returns_dict():
@@ -30,6 +31,7 @@ This is a correct, minimal pair of tests: one for the normal case, one for bad i
 ### Approach 1 — the tool returns an error dict on bad input (no exception)
 
 ```python
+# tool_test_no_llm_practice.py
 from tools import get_weather
 
 
@@ -49,6 +51,7 @@ def test_get_weather_bad_city_returns_error_field() -> None:
 ### Approach 2 — the tool raises a custom error on bad input
 
 ```python
+# tool_test_no_llm_practice.py
 import pytest
 from tools import get_weather
 from exceptions import InvalidToolInputError
@@ -77,6 +80,7 @@ def test_get_weather_bad_city_raises() -> None:
 ### Approach 1 — faking a real network call with `unittest.mock.patch`
 
 ```python
+# tool_test_no_llm_practice.py
 from unittest.mock import patch, Mock
 from tools import get_weather
 
@@ -118,6 +122,7 @@ def test_get_weather_timeout(mock_get: Mock) -> None:
 ### Approach 2 — a separate, explicitly-marked integration test for the real API
 
 ```python
+# tool_test_no_llm_practice.py
 import os
 import pytest
 from tools import get_weather

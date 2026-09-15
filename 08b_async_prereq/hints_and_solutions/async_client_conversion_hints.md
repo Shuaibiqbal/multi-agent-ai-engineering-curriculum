@@ -36,6 +36,7 @@ The exercise is really about three Python/OpenAI SDK pieces changing together, w
 
 The starting point (a simplified Doc04-style function):
 ```python
+# async_client_conversion_practice.py
 from openai import OpenAI
 
 client = OpenAI()
@@ -100,6 +101,7 @@ run it:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# async_client_conversion_practice.py
 from openai import AsyncOpenAI
 import asyncio
 
@@ -163,6 +165,7 @@ except Exception as e:
 ```
 
 ```python
+# async_client_conversion_practice.py
 from openai import AsyncOpenAI, APITimeoutError
 import asyncio
 

@@ -78,6 +78,7 @@ route GET /runs:
 
 Here's almost the whole thing:
 ```python
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI
@@ -117,6 +118,7 @@ route GET /runs:
 ```
 
 ```python
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI
@@ -167,6 +169,7 @@ route GET /runs/{run_id}:
 
 Here's most of it — fill in the single-row lookup yourself:
 ```python
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException

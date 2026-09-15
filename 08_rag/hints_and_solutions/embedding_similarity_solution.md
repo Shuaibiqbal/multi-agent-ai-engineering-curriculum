@@ -7,6 +7,7 @@
 ### Approach 1 — one embedding call per sentence
 
 ```python
+# embedding_similarity_practice.py
 import math
 from openai import OpenAI
 
@@ -59,6 +60,7 @@ This version works correctly. It makes 5 separate API calls (one per sentence) a
 ### Approach 1 — type hints, `itertools.combinations`, sorted output
 
 ```python
+# embedding_similarity_practice.py
 import math
 from itertools import combinations
 from openai import OpenAI
@@ -115,6 +117,7 @@ if __name__ == "__main__":
 ### Approach 1 — one batched call, and the unit-vector shortcut
 
 ```python
+# embedding_similarity_practice.py
 import math
 from itertools import combinations
 from openai import OpenAI
@@ -169,6 +172,7 @@ if __name__ == "__main__":
 ### Approach 2 — same idea, with a text-keyed cache to avoid re-embedding duplicates
 
 ```python
+# embedding_similarity_practice.py
 import math
 from itertools import combinations
 from openai import OpenAI

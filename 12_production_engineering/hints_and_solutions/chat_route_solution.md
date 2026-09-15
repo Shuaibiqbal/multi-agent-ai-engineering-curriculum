@@ -9,6 +9,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# chat_route_practice.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -50,6 +51,7 @@ This meets the exercise's core requirement — typed request in, typed response 
 ### Approach 1 — splitting 400 (bad input) from 500 (real failure)
 
 ```python
+# chat_route_practice.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -94,7 +96,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 Splitting request/response models into their own file is the layout the Build Task's `Suggested files` section uses — worth practicing here first, on something small.
 
 ```python
-# schemas.py
+# chat_route_practice.py
 from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
@@ -104,7 +106,7 @@ class ChatResponse(BaseModel):
     reply: str
 ```
 ```python
-# main.py
+# chat_route_practice.py
 from fastapi import FastAPI, HTTPException
 from schemas import ChatRequest, ChatResponse
 
@@ -140,6 +142,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 ### Approach 1 — logging the real error, leaking nothing to the client
 
 ```python
+# chat_route_practice.py
 import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -192,6 +195,7 @@ The client never sees the word "RuntimeError," the string `"boom"`, or a stack t
 This is the same idea the Build Task's middleware requires, shown small: tag every log line from one request with the same ID, so you can find every line that belongs to one failed call, even under concurrent traffic.
 
 ```python
+# chat_route_practice.py
 import logging
 import uuid
 from fastapi import FastAPI, HTTPException, Request

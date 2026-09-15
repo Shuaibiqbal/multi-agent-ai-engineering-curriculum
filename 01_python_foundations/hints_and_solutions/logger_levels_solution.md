@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# logging_practice.py
 import logging
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ This version works correctly. It's missing type hints and a reusable function ar
 ### Approach 1 — wrapped in a typed function
 
 ```python
+# logging_practice.py
 import logging
 
 
@@ -88,6 +90,7 @@ This also goes to both.
 ### Approach 2 — same result, built from a list of handler specs
 
 ```python
+# logging_practice.py
 import logging
 
 
@@ -136,6 +139,7 @@ This also goes to both.
 ### Approach 1 — two handlers directly, made safe to call twice
 
 ```python
+# logging_practice.py
 import logging
 
 
@@ -178,6 +182,7 @@ Printed once, not twice. Without the `if logger.handlers:` guard, the second `se
 A formatter makes your log lines useful later — timestamp, level, and module name, not just the bare message.
 
 ```python
+# logging_practice.py
 import logging
 
 
@@ -217,6 +222,7 @@ The date and time will be whatever it actually is when you run it (down to the m
 ### Approach 3 — declarative setup with `logging.config.dictConfig()` (production style)
 
 ```python
+# logging_practice.py
 import logging
 import logging.config
 

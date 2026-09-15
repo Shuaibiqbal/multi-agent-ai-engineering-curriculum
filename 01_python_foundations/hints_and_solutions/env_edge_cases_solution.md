@@ -7,6 +7,7 @@
 ### Approach 1 — the strict, direct way
 
 ```python
+# env_config_practice.py — Edge cases section
 import os
 
 
@@ -52,6 +53,7 @@ Both edge cases raise the same error here — that's the strict choice, and it's
 ### Approach 1 — strict: empty string counts as missing
 
 ```python
+# env_config_practice.py — Edge cases section
 import os
 
 
@@ -89,6 +91,7 @@ Case 2 - set but empty: Required environment variable is missing: OPENAI_API_KEY
 ### Approach 2 — lenient: only `None` counts as missing
 
 ```python
+# env_config_practice.py — Edge cases section
 import os
 
 
@@ -132,6 +135,7 @@ Case 2 - set but empty, returned: ''
 ### Approach 1 — strict, with structured error data and whitespace handling
 
 ```python
+# env_config_practice.py — Edge cases section
 import os
 
 
@@ -169,6 +173,7 @@ This treats a whitespace-only value as missing too (by `.strip()`-ing before the
 ### Approach 2 — one configurable function instead of two separate ones
 
 ```python
+# env_config_practice.py — Edge cases section
 import os
 from typing import Optional
 
@@ -211,6 +216,7 @@ Instead of maintaining two near-identical functions (Intermediate's Approach 1 a
 ### Approach 3 — declared with Pydantic, instead of an `if` check
 
 ```python
+# env_config_practice.py — Edge cases section
 import os
 from pydantic import BaseModel, Field, ValidationError
 

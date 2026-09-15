@@ -9,6 +9,7 @@ All examples below assume `versions.json` already has `v1` (score 0.6) and `v2` 
 ### Approach 1 — the direct way
 
 ```python
+# release_gate_practice.py — Intermediate section
 import json
 
 def load_versions(path):
@@ -54,6 +55,7 @@ And `live_version.txt` on disk after both calls contains just `v2` — the rejec
 ### Approach 1 — a not-found guard, and a way to read the pointer back
 
 ```python
+# release_gate_practice.py — Intermediate section
 import json
 
 def load_versions(path: str) -> list[dict]:
@@ -117,6 +119,7 @@ currently live: v2
 ### Approach 1 — a structured `DeployResult`, and a raised not-found error
 
 ```python
+# release_gate_practice.py — Intermediate section
 from dataclasses import dataclass, field
 
 class VersionNotFoundError(Exception):
@@ -169,6 +172,7 @@ Deploy failed: No saved version named: v9
 ### Approach 2 — same idea, plain-dict `DeployResult` (no `dataclasses` import)
 
 ```python
+# release_gate_practice.py — Intermediate section
 class VersionNotFoundError(Exception):
     pass
 

@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# regression_catch_practice.py
 baseline_score = run_eval_suite()
 print("baseline:", baseline_score)
 
@@ -34,6 +35,7 @@ This is a correct, minimal version of the check. It reports the result but doesn
 ### Approach 1 — compare overall score only
 
 ```python
+# regression_catch_practice.py
 def run_regression_check() -> None:
     baseline = run_eval_suite()
     print(f"baseline: {baseline.overall_score} ({baseline.passed}/{baseline.total})")
@@ -56,6 +58,7 @@ if __name__ == "__main__":
 ### Approach 2 — compare per-task results, to see exactly which test caught it
 
 ```python
+# regression_catch_practice.py
 def run_regression_check() -> None:
     baseline = run_eval_suite()  # returns a dict: {task_id: passed(bool)}
 
@@ -93,6 +96,7 @@ if __name__ == "__main__":
 ### Approach 1 — a noise floor from repeated baseline runs, plus per-task diffing
 
 ```python
+# regression_catch_practice.py
 def run_n_baselines(n: int = 3) -> list[dict]:
     return [run_eval_suite() for _ in range(n)]  # each returns {task_id: passed(bool)}
 

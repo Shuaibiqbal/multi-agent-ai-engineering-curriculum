@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# chat_api_basics_practice.py
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -48,6 +49,7 @@ This works fine and shows the change clearly. It repeats the call structure twic
 ### Approach 1 — a reusable `ask()` function
 
 ```python
+# chat_api_basics_practice.py
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -96,10 +98,15 @@ Pirate: Arrr, another day chained to this here API, matey...
 ### Approach 1 — a cached client, and a guard on the reply
 
 ```python
+# chat_api_basics_practice.py
 from dotenv import load_dotenv
 from openai import OpenAI
 
 _client: "OpenAI | None" = None
+
+
+class EmptyModelReplyError(Exception):
+    """Raised when the model's reply has no text content to return."""
 
 
 def get_client() -> OpenAI:
@@ -121,7 +128,7 @@ def ask(system_prompt: str, user_prompt: str) -> str:
     )
     choice = response.choices[0]
     if choice.message.content is None:
-        raise RuntimeError(
+        raise EmptyModelReplyError(
             f"Model reply had no text content (finish_reason={choice.finish_reason!r})"
         )
     return choice.message.content
@@ -142,15 +149,18 @@ As a formal, professional assistant, I do not experience days in the way a perso
 Arrr, another day chained to this here API, matey...
 Same client reused: True
 ```
-Every call to `ask()` now shares the exact same `OpenAI` client instead of rebuilding one, and a reply with no text content fails with a clear, named error instead of quietly returning `None` for the caller to trip over later.
+Every call to `ask()` now shares the exact same `OpenAI` client instead of rebuilding one, and a reply with no text content fails with a clear, named `EmptyModelReplyError` — a purpose-built exception (Doc01's pattern) instead of a generic `RuntimeError` that could mean anything — rather than quietly returning `None` for the caller to trip over later.
 
 ### Approach 2 — explicit timeouts and retries on the client itself
 
 The `openai` library already retries some failures for you (like a brief network hiccup), but its defaults are hidden unless you set them yourself. A production caller usually wants to decide this explicitly, not inherit whatever the library defaults to today.
 
 ```python
+# chat_api_basics_practice.py
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from config import load_config
 
 _client: "OpenAI | None" = None
 
@@ -159,11 +169,12 @@ def get_client() -> OpenAI:
     global _client
     if _client is None:
         load_dotenv()
-        _client = OpenAI(max_retries=2, timeout=30.0)
+        config = load_config()
+        _client = OpenAI(max_retries=config.max_retries, timeout=config.request_timeout_seconds)
     return _client
 ```
-`max_retries=2` means a transient failure (like `APITimeoutError`) gets retried automatically up to 2 times before the exception reaches your code at all — on top of, not instead of, the specific `except` blocks you'll write in this document's Edge cases and Failure exercises for the errors that *aren't* transient. `timeout=30.0` caps how long any single call will hang before giving up, instead of leaving your program stuck on the library's own default.
+`max_retries` means a transient failure (like `APITimeoutError`) gets retried automatically that many times before the exception reaches your code at all — on top of, not instead of, the specific `except` blocks you'll write in this document's Edge cases and Failure exercises for the errors that *aren't* transient. `request_timeout_seconds` caps how long any single call will hang before giving up, instead of leaving your program stuck on the library's own default. Both are settings, not constants — reading them from `config.py` (Doc01's pattern) instead of hardcoding `2` and `30.0` means changing them for a slower network or a stricter production budget doesn't require editing this function at all.
 
-**Difference from Intermediate, and between the 2 Advanced approaches:** Intermediate's `ask()` is correct but builds a brand-new client every time the module is re-run, and trusts `content` is always a string. Approach 1 fixes both: one shared client (via the same caching pattern as Doc01's `load_config()`), and a `finish_reason` check that turns a silent `None` into a loud, specific error. Approach 2 builds on Approach 1 by also being explicit about *how* the client handles transient failures — `max_retries` and `timeout` — instead of leaving both at the library's hidden defaults.
+**Difference from Intermediate, and between the 2 Advanced approaches:** Intermediate's `ask()` is correct but builds a brand-new client every time the module is re-run, and trusts `content` is always a string. Approach 1 fixes both: one shared client (via the same caching pattern as Doc01's `load_config()`), and a `finish_reason` check (`EmptyModelReplyError`) that turns a silent `None` into a loud, specific error. Approach 2 builds on Approach 1 by also being explicit about *how* the client handles transient failures — `max_retries` and a request timeout, loaded from `config.py` instead of hardcoded — instead of leaving both at the library's hidden defaults.
 
-**Which one should you actually write?** For this exercise alone, the Intermediate version is enough. Reach for Advanced Approach 1's caching the moment this code is called from more than one file — which happens almost immediately, in this document's own Intermediate and Real-world exercises below. Add Approach 2's explicit `max_retries`/`timeout` once you're building something meant to run unattended (like this document's Build Task) — a hung request with no timeout is exactly the kind of thing that turns into a confusing 3 AM incident.
+**Which one should you actually write?** For this exercise alone, the Intermediate version is enough. Reach for Advanced Approach 1's caching the moment this code is called from more than one file — which happens almost immediately, in this document's own Intermediate and Real-world exercises below. Add Approach 2's explicit, config-driven `max_retries`/timeout once you're building something meant to run unattended (like this document's Build Task) — a hung request with no timeout is exactly the kind of thing that turns into a confusing 3 AM incident.

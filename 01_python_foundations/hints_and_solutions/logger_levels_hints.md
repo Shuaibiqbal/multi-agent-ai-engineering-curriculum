@@ -89,6 +89,7 @@ send a WARNING message -> should show up on screen AND in the file
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# logging_practice.py
 import logging
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,7 @@ log one WARNING message -> should appear on screen AND in the file
 ```
 
 ```python
+# logging_practice.py
 import logging
 
 
@@ -177,6 +179,7 @@ log messages same as before, now formatted with timestamp + level + logger name
 ```
 
 ```python
+# logging_practice.py
 import logging
 
 

@@ -37,6 +37,7 @@ Check: does `os.getenv("OPENAI_API_KEY")` give you `None`, or does it give you `
 
 Python's `os.getenv()` already treats these two cases differently, on its own — spotting that is the whole exercise:
 ```python
+# env_config_practice.py — Edge cases section
 os.getenv("OPENAI_API_KEY")   # key never set at all       -> returns None
 os.getenv("OPENAI_API_KEY")   # file has "OPENAI_API_KEY="  -> returns ""
 ```
@@ -44,6 +45,7 @@ os.getenv("OPENAI_API_KEY")   # file has "OPENAI_API_KEY="  -> returns ""
 
 Test both situations against your own `require_env()` (or equivalent) from the Build Task, and inspect the value precisely instead of guessing:
 ```python
+# env_config_practice.py — Edge cases section
 value = os.getenv("OPENAI_API_KEY")
 print(repr(value))   # None -> prints: None
                       # ""   -> prints: ''
@@ -85,6 +87,7 @@ test 2: .env has "OPENAI_API_KEY=" (nothing after the =)
 
 Treats empty text as "missing" (usually right for a secret):
 ```python
+# env_config_practice.py — Edge cases section
 value = os.getenv("OPENAI_API_KEY")
 if value is None or value == "":
     raise MissingConfigError("...")
@@ -92,6 +95,7 @@ if value is None or value == "":
 
 Treats empty text as "okay, just empty" (fine for some settings, not usually for a key):
 ```python
+# env_config_practice.py — Edge cases section
 value = os.getenv("OPENAI_API_KEY")
 if value is None:
     raise MissingConfigError("...")
@@ -121,6 +125,7 @@ test 2: .env contains "OPENAI_API_KEY=" (empty value)
 If your current `require_env()` only checks `if value is None`, an empty string will slip through as "valid" — is that the behavior you actually want for a secret like an API key?
 
 ```python
+# env_config_practice.py — Edge cases section
 def require_env(key: str) -> str:
     value = os.getenv(key)
     if value is None or value == "":
@@ -147,6 +152,7 @@ test 4 (optional): instead of writing an if-check at all,
 ```
 
 ```python
+# env_config_practice.py — Edge cases section
 from pydantic import BaseModel, Field
 
 class Config(BaseModel):

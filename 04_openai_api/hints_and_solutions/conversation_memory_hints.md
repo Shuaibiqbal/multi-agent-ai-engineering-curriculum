@@ -46,6 +46,7 @@ The other real question: `history` grows forever, by design, in this exercise. N
 The fix for the first problem is to stop using a bare list at module or global scope, and instead bundle `history` *and* the behavior that mutates it together — in a small class, so each conversation gets its own instance instead of sharing one list:
 
 ```python
+# conversation_memory_practice.py
 class ChatSession:
     def __init__(self, client, system_prompt):
         self.client = client
@@ -83,6 +84,7 @@ loop forever:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# conversation_memory_practice.py
 history = [
     {"role": "system", "content": "You are a helpful assistant."}
 ]
@@ -127,6 +129,7 @@ function run_chat():
 ```
 
 ```python
+# conversation_memory_practice.py
 def get_reply(history: list) -> str:
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -178,6 +181,7 @@ usage:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# conversation_memory_practice.py
 from openai import OpenAI
 
 

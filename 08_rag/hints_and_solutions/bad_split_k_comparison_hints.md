@@ -98,6 +98,7 @@ compare: does the completeness of the fact improve as k grows?
 
 Here are the core functions, almost complete — try running them and reading them line by line:
 ```python
+# chunking_practice.py — Failure section
 import math
 from openai import OpenAI
 
@@ -140,6 +141,7 @@ What's missing: your `TEST_DOCUMENT`, building `chunks_with_embeddings`, and the
 ### Intermediate Version
 
 ```python
+# chunking_practice.py — Failure section
 import math
 import time
 from openai import OpenAI
@@ -200,6 +202,7 @@ run retrieve() at k=1 against the overlapping chunks
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# chunking_practice.py — Failure section
 def chunk_by_chars_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
     chunks: list[str] = []
     step = chunk_size - overlap

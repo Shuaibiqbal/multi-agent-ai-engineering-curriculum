@@ -37,6 +37,7 @@ The exercise is really about two Python features working together: a custom exce
 
 A custom exception is a class that inherits from `Exception`:
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 ```
@@ -44,6 +45,7 @@ class InvalidAgeError(Exception):
 
 The function's type hints should describe its contract precisely:
 ```python
+# custom_errors_practice.py — Basic section
 def set_age(age: int) -> None:
 ```
 This tells any reader — without looking at the function body — that it takes an `int` and returns nothing (`None`).
@@ -66,6 +68,7 @@ That means the *real* design question isn't just "make a custom exception" — i
 
 To make the exception actually carry data, you override `__init__`:
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     def __init__(self, age: int) -> None:
         self.age = age
@@ -98,6 +101,7 @@ test it:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -135,6 +139,7 @@ test:
 Notice there's no `else` branch needed — if the `if` condition is false, the function just falls through and returns `None` naturally.
 
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -145,6 +150,7 @@ def set_age(age: int) -> None:
 ```
 What's missing: the two test calls. Write them yourself:
 ```python
+# custom_errors_practice.py — Basic section
 set_age(25)  # should run with no output
 
 try:
@@ -179,6 +185,7 @@ test, using both pieces of the caught exception:
 ```
 
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     def __init__(self, age: int) -> None:
         self.age = age

@@ -31,6 +31,7 @@ The exercise has three moving parts: fixed-size chunking, embedding + cosine-sim
 
 Fixed-size chunking with plain slicing looks like this:
 ```python
+# chunking_practice.py — Edge cases section
 for i in range(0, len(text), chunk_size):
     chunk = text[i:i + chunk_size]
 ```
@@ -54,6 +55,7 @@ A bigger `k` isn't actually a fix — it's a workaround. Even at `k=len(chunks)`
 The real fix is **chunking with overlap**: instead of cutting the document into non-overlapping blocks, each new chunk starts a little *before* where the previous one ended, so a fact sitting near a boundary usually ends up whole inside at least one chunk — not permanently split in two, regardless of `k`.
 
 ```python
+# chunking_practice.py — Edge cases section
 def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
     chunks = []
     step = chunk_size - overlap   # smaller than chunk_size -- chunks now overlap
@@ -103,6 +105,7 @@ search with k=2 (all chunks):
 
 Here is almost the whole thing — try running it and reading it line by line:
 ```python
+# chunking_practice.py — Edge cases section
 import math
 from openai import OpenAI
 
@@ -137,6 +140,7 @@ def cosine_similarity(a, b):
 ### Intermediate Version
 
 ```python
+# chunking_practice.py — Edge cases section
 DOCUMENT: str = (
     "The quarterly meeting will be held at 3 PM on Friday in Room 204, "
     "and everyone from the product and engineering teams is expected "
@@ -177,6 +181,7 @@ search with k=1 against the overlapping chunks:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# chunking_practice.py — Edge cases section
 def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
     chunks: list[str] = []
     step = chunk_size - overlap

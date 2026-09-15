@@ -9,6 +9,7 @@ Every version below creates `runs.db` in the current folder the first time it ru
 ### Approach 1 — the direct way
 
 ```python
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI
@@ -60,6 +61,7 @@ This saves and reads back real data — the core requirement — but `GET /runs`
 ### Approach 1 — `sqlite3.Row`, real dicts back out
 
 ```python
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI
@@ -104,7 +106,7 @@ def get_runs():
 ### Approach 2 — a small `db.py` helper instead of a bare module-level `conn`
 
 ```python
-# db.py
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 
 def get_connection():
@@ -132,7 +134,7 @@ def fetch_all_runs(conn):
     return [dict(row) for row in rows]
 ```
 ```python
-# main.py
+# sqlite_persistence_practice.py — Real-world section
 from datetime import datetime, timezone
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -168,6 +170,7 @@ def get_runs():
 ### Approach 1 — a typed `response_model`, and a real `GET /runs/{id}` with a 404
 
 ```python
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
@@ -232,6 +235,7 @@ Note the `?` placeholder and `(run_id,)` tuple — even with a single value, it 
 Opening the connection as a bare module-level `conn = sqlite3.connect(...)` (every approach above) works for this exercise, but ties database setup to *import time*, which makes it awkward to test (you can't easily swap in a test database) and doesn't give you a clean shutdown hook. FastAPI's `lifespan` runs setup once at startup and teardown once at shutdown.
 
 ```python
+# sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone

@@ -35,6 +35,7 @@ Things to use:
 LangGraph checkpoints state *between* node executions, not just at the very end. So if node A finished and wrote to state, then node B raises an exception, the checkpointer already has node A's write saved — you can inspect it with `graph.get_state(config)` even though the overall run failed.
 
 ```python
+# search_failure_practice.py
 def search_node(state: dict) -> dict:
     raise RuntimeError("simulated vector store outage")  # temporary, for this test
 ```
@@ -92,6 +93,7 @@ check the saved state:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# search_failure_practice.py
 from langgraph.checkpoint.memory import MemorySaver
 
 def search_node(state):
@@ -139,6 +141,7 @@ assert "task" in snapshot.values
 ```
 
 ```python
+# search_failure_practice.py
 config: dict = {"configurable": {"thread_id": "failure-test-1"}}
 
 try:
@@ -178,6 +181,7 @@ test:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# search_failure_practice.py
 import time
 
 TRANSIENT_ERRORS = (TimeoutError, ConnectionError)

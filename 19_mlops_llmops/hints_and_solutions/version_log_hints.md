@@ -77,6 +77,7 @@ for each version in versions:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# version_log_practice.py
 import json
 from datetime import datetime
 
@@ -127,6 +128,7 @@ for version in load_versions("versions.json"):
 ```
 
 ```python
+# version_log_practice.py
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -172,6 +174,7 @@ everything else same as Intermediate, plus:
 
 Here's almost the whole thing — fill in the missing dedupe warning yourself:
 ```python
+# version_log_practice.py
 import hashlib
 import json
 from datetime import datetime, timezone

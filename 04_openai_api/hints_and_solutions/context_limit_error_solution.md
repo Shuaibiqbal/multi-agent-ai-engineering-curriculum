@@ -9,6 +9,7 @@ All examples below assume `client = OpenAI()` with `.env` already loaded.
 ### Approach 1 — send it, catch whatever happens
 
 ```python
+# context_limit_practice.py
 huge_input = "word " * 200_000
 
 try:
@@ -37,6 +38,7 @@ This works and shows the real error. Catching the broad `Exception` finds it, bu
 ### Approach 1 — catch the specific error type
 
 ```python
+# context_limit_practice.py
 import openai
 
 huge_input = "word " * 200_000
@@ -67,6 +69,7 @@ Message: Error code: 400 - {'error': {'message': "This model's maximum context l
 ### Approach 1 — check the size before sending, using `tiktoken`
 
 ```python
+# context_limit_practice.py
 import tiktoken
 
 MAX_TOKENS = 120_000  # leave headroom below the model's real limit
@@ -99,6 +102,7 @@ No API call happens at all — the script finishes instantly instead of waiting 
 Refusing outright is the safest default, but a real chat feature usually wants to keep the conversation going by trimming the oldest content instead of stopping cold — the same trade-off `ChatSession.send()`'s `max_turns` from the previous exercise makes for turn count, applied here directly to token count.
 
 ```python
+# context_limit_practice.py
 import tiktoken
 
 MAX_TOKENS = 120_000
@@ -125,4 +129,4 @@ def fit_to_budget(history: list[dict], model: str = "gpt-4o-mini") -> list[dict]
 
 **Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate only finds out about the problem *after* wasting a network round-trip on a request that was always going to fail. Approach 1 catches it locally, instantly, for free — but its answer to "the input is too big" is simply "refuse." Approach 2 builds on the same `count_tokens()` function but answers the harder design question from Hint 1: instead of refusing, it actively shrinks `history` to fit, dropping the oldest turns first, so the conversation keeps going. Neither Approach 1 nor 2 is "more correct" than the other — they're different policies for the same measured fact, and the right one depends on whether losing the oldest context silently is acceptable for your feature.
 
-**Which one should you actually ship?** Real chat apps almost always do both, layered: Approach 1's local `tiktoken` check as the first, free line of defense (catching the common case before ever calling the API), Approach 2's trimming so a long conversation degrades gracefully instead of hard-failing, and Intermediate's `except openai.BadRequestError` kept as a safety net underneath both — for anything the local count got wrong, or a limit that changed since your `tiktoken` encoding was last updated.
+**Which one should you actually ship?** Real chat apps almost always do both, layered: Approach 1's local `tiktoken` check as the first, free line of defense (catching the common case before ever calling the API), Approach 2's trimming so a long conversation degrades gracefully instead of hard-failing, and Intermediate's `except openai.BadRequestError` kept as a safety net underneath both — for anything the local count got wrong, or a limit that changed since your `tiktoken` encoding was last updated. `MAX_TOKENS` itself is a good `config.py` value rather than a hardcoded module constant — it's a threshold you'd reasonably want to tune per model or per environment without editing this code.

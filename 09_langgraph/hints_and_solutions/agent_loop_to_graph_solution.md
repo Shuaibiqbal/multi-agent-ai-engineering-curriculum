@@ -5,6 +5,7 @@
 The `call_model_with_tools` and `run_tool` functions below stand in for your real Doc07 functions — in your own rebuild, import and call your actual Project 2 code instead of these. They're written as small, deterministic stubs here so the whole example is runnable and its output is predictable, without needing a live API key.
 
 ```python
+# agent_loop_to_graph_practice.py
 # stand-ins for your real Doc07 code — replace with your actual imports
 def call_model_with_tools(task: str, scratchpad: list[str]) -> dict:
     if not scratchpad and "*" in task:
@@ -24,6 +25,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct translation
 
 ```python
+# agent_loop_to_graph_practice.py
 from typing import TypedDict, Annotated
 import operator
 from langgraph.graph import StateGraph, START, END
@@ -96,6 +98,7 @@ This traces exactly like the Doc07 loop would: `think` decides a tool is needed,
 ### Approach 1 — type hints, and reusing real tool dispatch
 
 ```python
+# agent_loop_to_graph_practice.py
 from typing import TypedDict, Annotated
 import operator
 from langgraph.graph import StateGraph, START, END
@@ -175,6 +178,7 @@ answer: 84
 ### Approach 1 — a real equivalence check against the original loop
 
 ```python
+# agent_loop_to_graph_practice.py
 def run_original_loop(task: str) -> str:
     """Stand-in for your actual Doc07 while-loop function — same signature,
     same behavior, just imported from your Project 2 code in the real version."""
@@ -221,6 +225,7 @@ All test prompts matched.
 ### Approach 2 — comparing step counts too, not just final answers
 
 ```python
+# agent_loop_to_graph_practice.py
 def run_graph_with_step_count(task: str) -> tuple[str, int]:
     step_count = 0
     result = graph.invoke(

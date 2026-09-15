@@ -5,6 +5,7 @@
 All examples below use this shared setup — 20 fake test requests, and a `run_eval_suite` stub where `"v2"`'s prompt scores better than `"v1"`'s:
 
 ```python
+# canary_release_practice.py
 import random
 
 prompts = {
@@ -26,6 +27,7 @@ Each example below calls `random.seed(...)` with a fixed number so the "random" 
 ### Approach 1 — the direct way
 
 ```python
+# canary_release_practice.py
 random.seed(0)
 
 def route_and_score(test_requests, prompts):
@@ -66,6 +68,7 @@ This version works correctly for what the exercise asks. It's missing type hints
 ### Approach 1 — a `canary_share` parameter, cost tracking, and a `summarize()` function
 
 ```python
+# canary_release_practice.py
 random.seed(1)
 
 def route_and_score(test_requests: list, prompts: dict, canary_share: float = 0.2) -> list[dict]:
@@ -126,6 +129,7 @@ print(canary)
 ### Approach 1 — an applied promotion rule, with a sample-size guard
 
 ```python
+# canary_release_practice.py
 def evaluate_canary(control_summary: dict, canary_summary: dict, min_sample_size: int = 5) -> str:
     if canary_summary["count"] < min_sample_size:
         return "insufficient data"
@@ -156,6 +160,7 @@ The canary group (`v2`) scores strictly better (`+0.40`) — on quality alone it
 ### Approach 2 — a stricter rule, and a realistic small-sample "insufficient data" result
 
 ```python
+# canary_release_practice.py
 def evaluate_canary(control_summary: dict, canary_summary: dict, min_sample_size: int = 5) -> str:
     if canary_summary["count"] < min_sample_size:
         return "insufficient data"

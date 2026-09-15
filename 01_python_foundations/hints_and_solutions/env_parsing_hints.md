@@ -90,6 +90,7 @@ return env_vars
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# env_config_practice.py — Intermediate section
 def parse_env_by_hand(path):
     env_vars = {}
     for line in open(path):
@@ -128,6 +129,7 @@ compare against:
 ```
 
 ```python
+# env_config_practice.py — Intermediate section
 def parse_env_by_hand(path: str) -> dict:
     env_vars = {}
     for line in open(path):
@@ -171,6 +173,7 @@ function parse_env_by_hand(path, required_keys) -> dict:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# env_config_practice.py — Intermediate section
 class MissingEnvKeyError(Exception):
     pass
 

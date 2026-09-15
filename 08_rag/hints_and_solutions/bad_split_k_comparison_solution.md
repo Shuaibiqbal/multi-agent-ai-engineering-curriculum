@@ -4,6 +4,7 @@
 
 All examples below use:
 ```python
+# chunking_practice.py — Failure section
 TEST_DOCUMENT = (
     "Our team ships a small internal newsletter every month. "
     "The Treaty of Lisbon was signed on 13 December 2007 in Lisbon, Portugal, "
@@ -18,6 +19,7 @@ QUESTION = "When and where was the Treaty of Lisbon signed?"
 ### Approach 1 — the direct way
 
 ```python
+# chunking_practice.py — Failure section
 import math
 import time
 from openai import OpenAI
@@ -84,6 +86,7 @@ for k in (1, 3, 10):
 ### Approach 1 — `build_index()` / `retrieve()`, factored apart
 
 ```python
+# chunking_practice.py — Failure section
 import math
 import time
 from openai import OpenAI
@@ -161,6 +164,7 @@ if __name__ == "__main__":
 ### Approach 1 — timing at real scale, not toy scale
 
 ```python
+# chunking_practice.py — Failure section
 def build_large_corpus(document: str, repeats: int) -> str:
     return document * repeats
 
@@ -181,6 +185,7 @@ for k in (1, 3, 10):
 ### Approach 2 — the real fix for the split fact: overlap, not a bigger k
 
 ```python
+# chunking_practice.py — Failure section
 def chunk_by_chars_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
     chunks: list[str] = []
     step = chunk_size - overlap

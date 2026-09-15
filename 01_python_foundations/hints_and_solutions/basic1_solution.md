@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -38,6 +39,7 @@ This version works correctly. It's missing type hints, and it builds the message
 ### Approach 1 — f-string message
 
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -62,6 +64,7 @@ Caught it: age cannot be negative: -5
 ### Approach 2 — a guard clause with an early return check, and a docstring
 
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     """Raised when an age value is negative."""
     pass
@@ -97,6 +100,7 @@ Caught it: age cannot be negative: -5
 ### Approach 1 — the exception carries its own data
 
 ```python
+# custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     def __init__(self, age: int) -> None:
         self.age = age
@@ -125,6 +129,7 @@ The bad value was: -5
 ### Approach 2 — a base `ValidationError` other checks can share
 
 ```python
+# custom_errors_practice.py — Basic section
 class ValidationError(Exception):
     """Base class for any input-validation problem in this module."""
     pass
@@ -154,6 +159,7 @@ Validation failed: age cannot be negative: -5
 ### Approach 3 — a dataclass-based exception with a `__post_init__` check (production style)
 
 ```python
+# custom_errors_practice.py — Basic section
 from dataclasses import dataclass, field
 
 class ValidationError(Exception):

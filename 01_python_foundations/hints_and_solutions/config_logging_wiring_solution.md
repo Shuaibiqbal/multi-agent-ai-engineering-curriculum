@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# config_logging_wiring_practice.py
 from config import load_config
 from logging_setup import get_logger
 
@@ -30,6 +31,7 @@ The exact text depends on what's actually in your config file — this shows the
 ### Approach 1 — f-string, no failure handling yet
 
 ```python
+# config_logging_wiring_practice.py
 from config import load_config
 from logging_setup import get_logger
 
@@ -48,6 +50,7 @@ Loaded config with log level: DEBUG
 If config loading can fail, catch that and stop the program with a clear message instead of a scary error dump.
 
 ```python
+# config_logging_wiring_practice.py
 import sys
 
 from config import load_config
@@ -85,6 +88,7 @@ and the process exits with status code `1` — no traceback, no logger involved 
 Shown again here so all 3 Advanced approaches sit side by side — this is the same wiring as Intermediate Approach 1, with no failure handling yet, included as the baseline the next two approaches build on.
 
 ```python
+# config_logging_wiring_practice.py
 from config import load_config
 from logging_setup import get_logger
 
@@ -101,6 +105,7 @@ Loaded config with log level: DEBUG
 ### Approach 2 — clean startup-failure handling, one line
 
 ```python
+# config_logging_wiring_practice.py
 import sys
 
 from config import load_config
@@ -125,6 +130,7 @@ printed to stderr, process exits with status `1` — same user-visible result as
 ### Approach 3 — wrapped in `main()`, with the startup event itself logged
 
 ```python
+# config_logging_wiring_practice.py
 import sys
 
 from config import load_config

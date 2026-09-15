@@ -89,6 +89,7 @@ print the tool call, then actually run it and print the real result
 
 Here is almost the whole thing, missing the actual API call:
 ```python
+# real_api_tool_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from http_client import request_with_retry  # your Doc02 client
@@ -111,6 +112,7 @@ Fill in the `TODO`, then run it and check against the [Solution](real_api_tool_s
 
 One piece to get you unstuck — the shape of the params dict and the return value:
 ```python
+# real_api_tool_practice.py
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 
 CITY_COORDINATES = {
@@ -140,6 +142,7 @@ Finish the `TODO` yourself, wire it up to a model with `@tool` and `bind_tools`,
 
 Fill in the missing safe-access piece yourself — this version defends against a response that doesn't have the key you expected:
 ```python
+# real_api_tool_practice.py
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 
 CITY_COORDINATES = {

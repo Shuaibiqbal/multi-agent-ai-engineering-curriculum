@@ -9,6 +9,7 @@ All examples below use a stand-in for Doc13's real test suite, `run_eval_suite(p
 ### Approach 1 — the direct way
 
 ```python
+# version_log_practice.py
 import json
 from datetime import datetime
 
@@ -52,6 +53,7 @@ This version works correctly for what the exercise asks. It rebuilds `versions.j
 ### Approach 1 — reusable save/load functions
 
 ```python
+# version_log_practice.py
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -93,6 +95,7 @@ v2 1.0
 ### Approach 2 — same idea, printed as a readable table
 
 ```python
+# version_log_practice.py
 def print_score_table(versions: list[dict]) -> None:
     print(f"{'version':<10}{'score':<8}{'created_at'}")
     for version in versions:
@@ -119,6 +122,7 @@ v2        1.0     2026-09-11T14:03:00.234567+00:00
 ### Approach 1 — append-only, with a duplicate-prompt warning
 
 ```python
+# version_log_practice.py
 import hashlib
 import json
 from datetime import datetime, timezone
@@ -162,6 +166,7 @@ Warning: prompt text for 'v3' matches existing version 'v1'
 ### Approach 2 — SQLite instead of a flat JSON file
 
 ```python
+# version_log_practice.py
 import sqlite3
 from datetime import datetime, timezone
 

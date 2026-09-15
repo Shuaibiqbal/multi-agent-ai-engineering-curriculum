@@ -76,6 +76,7 @@ the moment it returns True, call rollback_to_previous() and print when it happen
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# rollback_trigger_practice.py
 def should_rollback(scores_so_far, baseline, window_size=5, drop_threshold=0.2):
     if len(scores_so_far) < window_size:
         return False
@@ -118,6 +119,7 @@ function rollback_to_previous() -> str:
 ```
 
 ```python
+# rollback_trigger_practice.py
 def should_rollback(
     scores_so_far: list[float],
     baseline: float,
@@ -164,6 +166,7 @@ class RollbackMonitor:
 
 Here's almost the whole thing — fill in `record_score`'s body yourself:
 ```python
+# rollback_trigger_practice.py
 class RollbackMonitor:
     def __init__(self, baseline: float, window_size: int = 5, drop_threshold: float = 0.2):
         self.baseline = baseline

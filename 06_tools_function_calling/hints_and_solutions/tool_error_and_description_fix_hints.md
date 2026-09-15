@@ -90,6 +90,7 @@ Half 2:
 
 Here's the tricky part for Half 1 — turning a crash into a clean returned string:
 ```python
+# tool_selection_practice.py — Failure section
 from langchain_core.tools import tool
 
 @tool
@@ -111,6 +112,7 @@ For Half 2, the trickiest part is making the "before" and "after" comparison fai
 
 One small piece to get you unstuck for Half 2 — a description-swappable tool factory, so "change nothing but the docstring" is actually enforced by the code, not just by discipline:
 ```python
+# tool_selection_practice.py — Failure section
 def make_tool_with_description(description: str):
     def get_weather(city: str) -> str:
         return f"Sunny in {city}"
@@ -127,6 +129,7 @@ Use this to build the "before" and "after" versions of the same tool from one sh
 
 Fill in the missing generic-fallback branch yourself — this is the piece that keeps an unexpected bug from looking exactly like an expected failure:
 ```python
+# tool_selection_practice.py — Failure section
 import logging
 
 from langchain_core.tools import tool

@@ -85,6 +85,7 @@ confirm: print session.headers, check "Authorization" is there
 
 Here is almost the whole thing:
 ```python
+# session_reuse_practice.py
 import requests
 
 session = requests.Session()
@@ -113,6 +114,7 @@ print(session.headers["Authorization"])
 ```
 
 ```python
+# session_reuse_practice.py
 import requests
 
 session = requests.Session()
@@ -146,6 +148,7 @@ never touch client.session.headers again after __init__
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# session_reuse_practice.py
 import requests
 
 

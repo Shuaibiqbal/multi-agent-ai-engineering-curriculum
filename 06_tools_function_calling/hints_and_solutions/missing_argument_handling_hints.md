@@ -84,6 +84,7 @@ repeat 5 times:
 
 Here is almost the whole thing:
 ```python
+# missing_argument_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -103,6 +104,7 @@ What's missing: the loop of 5 runs, and printing what actually happened each tim
 ### Intermediate Version
 
 ```python
+# missing_argument_practice.py
 def classify_response(response) -> str:
     if not response.tool_calls:
         return "asked_or_answered_directly"
@@ -122,6 +124,7 @@ Wire this into a 5-run loop yourself, printing each run's outcome (and the model
 
 Fill in the missing Pydantic constraint yourself — this is the piece that turns an empty-string guess into a caught validation error instead of a silently accepted one:
 ```python
+# missing_argument_practice.py
 from pydantic import BaseModel, Field, ValidationError
 from langchain_core.tools import tool
 

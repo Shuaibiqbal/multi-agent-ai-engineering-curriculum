@@ -14,6 +14,7 @@ LOG_LEVEL=DEBUG
 ### Approach 1 — the direct way
 
 ```python
+# env_config_practice.py — Intermediate section
 def parse_env_by_hand(path):
     env_vars = {}
     for line in open(path):
@@ -46,6 +47,7 @@ This version works correctly for what the exercise asks. It's missing type hints
 ### Approach 1 — type hints and tuple unpacking
 
 ```python
+# env_config_practice.py — Intermediate section
 def parse_env_by_hand(path: str) -> dict[str, str]:
     env_vars: dict[str, str] = {}
     for line in open(path):
@@ -70,6 +72,7 @@ DEBUG
 ### Approach 2 — a docstring, and using `with` to open the file properly
 
 ```python
+# env_config_practice.py — Intermediate section
 def parse_env_by_hand(path: str) -> dict[str, str]:
     """Read a simple KEY=value file and return it as a dict."""
     env_vars: dict[str, str] = {}
@@ -104,6 +107,7 @@ DEBUG
 ### Approach 1 — hardened for comments and quotes
 
 ```python
+# env_config_practice.py — Intermediate section
 def parse_env_by_hand(path: str) -> dict[str, str]:
     env_vars: dict[str, str] = {}
     for line in open(path):
@@ -130,6 +134,7 @@ This time `OPENAI_API_KEY` prints without quote marks — `value.strip('"').stri
 ### Approach 2 — same parser, plus required-key validation
 
 ```python
+# env_config_practice.py — Intermediate section
 class MissingEnvKeyError(Exception):
     pass
 
@@ -176,6 +181,7 @@ Startup failed: Missing required key(s) in .env: ['DATABASE_URL']
 ### Approach 3 — skip writing this at all: `python-dotenv`
 
 ```python
+# env_config_practice.py — Intermediate section
 import os
 from dotenv import load_dotenv
 

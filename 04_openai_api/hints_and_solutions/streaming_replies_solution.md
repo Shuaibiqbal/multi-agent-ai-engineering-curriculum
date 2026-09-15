@@ -9,6 +9,7 @@ All examples below assume `client = OpenAI()` with `.env` already loaded.
 ### Approach 1 — the direct way
 
 ```python
+# streaming_practice.py
 messages = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "Explain what a REST API is, in 3 sentences."},
@@ -40,6 +41,7 @@ This works and shows the streaming effect clearly. It doesn't keep track of the 
 ### Approach 1 — `stream_reply()` returns the accumulated text
 
 ```python
+# streaming_practice.py
 def stream_reply(history: list) -> str:
     stream = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -83,6 +85,7 @@ if __name__ == "__main__":
 ### Approach 1 — guarded against an empty-`choices` chunk, and a mid-stream failure
 
 ```python
+# streaming_practice.py
 import openai
 
 
@@ -115,6 +118,7 @@ def stream_reply(history: list[dict]) -> str:
 This is the scenario the `chunk.choices` guard exists for: turning on `stream_options={"include_usage": True}` gets you a token count for a streamed reply (the streaming equivalent of `response.usage` from the Failure exercise), but only because the final chunk carries no `choices` at all.
 
 ```python
+# streaming_practice.py
 def stream_reply_with_usage(history: list[dict]) -> tuple[str, int | None]:
     stream = client.chat.completions.create(
         model="gpt-4o-mini",

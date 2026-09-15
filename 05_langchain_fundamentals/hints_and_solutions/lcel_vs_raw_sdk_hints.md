@@ -47,6 +47,7 @@ Two things are worth actually measuring, not assuming:
 - **Token usage** — do the two versions send the *exact* same prompt to the model, or does LangChain's prompt template add any wrapping text of its own that changes the token count, and therefore the cost, even when the final answer matches?
 
 ```python
+# lcel_vs_raw_sdk_practice.py
 import time
 
 start = time.perf_counter()
@@ -86,6 +87,7 @@ for each input:
 
 Here is almost the whole thing — fill in your own project's real names:
 ```python
+# lcel_vs_raw_sdk_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from project_1 import extract_raw, ExtractedData   # your real Project 1 names
@@ -139,6 +141,7 @@ after the loop:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# lcel_vs_raw_sdk_practice.py
 import time
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI

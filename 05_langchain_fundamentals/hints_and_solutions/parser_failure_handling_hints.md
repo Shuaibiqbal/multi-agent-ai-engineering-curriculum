@@ -72,6 +72,7 @@ catch whatever error happens
 
 Here is almost the whole thing:
 ```python
+# structured_output_practice.py — Failure section
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 
@@ -115,6 +116,7 @@ What's missing to finish: the actual `except <SpecificClass>:` clause once you k
 Write the version you'd actually ship, not just the version that demonstrates the failure: wrap the chain in a function, catch the specific class with a real recovery path (not just a print), and keep the broad fallback that logs the actual class it caught.
 
 ```python
+# structured_output_practice.py — Failure section
 def get_rating(question: str) -> "Rating | None":
     try:
         return structured_model.invoke(question)

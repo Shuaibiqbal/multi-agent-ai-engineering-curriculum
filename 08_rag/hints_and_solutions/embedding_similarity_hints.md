@@ -85,6 +85,7 @@ check: does the pair (sentence_1, sentence_2) score higher than every other pair
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# embedding_similarity_practice.py
 import math
 from openai import OpenAI
 
@@ -128,6 +129,7 @@ main:
 ```
 
 ```python
+# embedding_similarity_practice.py
 import math
 from itertools import combinations
 from openai import OpenAI
@@ -175,6 +177,7 @@ sanity check once, don't just assume:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# embedding_similarity_practice.py
 import math
 from itertools import combinations
 from openai import OpenAI
