@@ -2,6 +2,24 @@
 
 > [Back to the Build Task](../README.md#build-task-config-logging-foundation) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
+**Where this Build Task is saved:** its own folder, `practice/build_task/` — the reusable foundation every later document copies:
+
+```
+practice/build_task/
+├── exceptions.py        MissingConfigError
+├── config.py            load_config() -> Config
+├── logging_setup.py     get_logger(name)
+├── test_config.py       proves the 4 Test Cases from the README
+├── .env.example         key names only, no real values (committed)
+└── .env                 your real values (never committed)
+```
+
+**Run it:** `cd practice/build_task && python test_config.py` — from inside the folder, so `from config import load_config` finds the file next to it.
+
+**Builds on:** `practice/config_logging_wiring/` ([Real-world exercise](../README.md#ex-config_logging_wiring)) — **copy** that whole folder to `practice/build_task/`, then upgrade it: typed `Config`, a `.env.example`, a duplicate-handler guard in `get_logger()`, and `test_config.py` in place of `main.py`.
+
+**Used later by:** every later document imports these two files — `practice/build_task/config.py` (`load_config()`) and `practice/build_task/logging_setup.py` (`get_logger(name)`). [Doc02](../../02_apis_http_json/) is the first to say so out loud, and copies both into its own project folder. The names `load_config()`, `Config`, `MissingConfigError` and `get_logger(name)` are fixed for exactly that reason.
+
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
@@ -16,7 +34,7 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 ### Basic Version
 
-You're building two small files that work together: one that loads settings (a config loader), and one that sets up logging.
+You're building two small files that do the real work: `practice/build_task/config.py`, which loads settings, and `practice/build_task/logging_setup.py`, which sets up logging. Two more keep them honest: a one-line `practice/build_task/exceptions.py`, and `practice/build_task/test_config.py`, which proves the whole thing works.
 
 The config loader's job: read some values from the environment, and either hand back something you can trust, or stop with a clear error message if something needed is missing. Fail early — right at startup — not later when it's confusing.
 
@@ -36,7 +54,7 @@ Here are the exact pieces you need to look up and use:
 
 ### Intermediate Version
 
-You're building two small, separate things that get used together: a **config loader** and a **logger factory**. Keep them as two separate files, doing two separate jobs.
+You're building two small, separate things that get used together: a **config loader** (`practice/build_task/config.py`) and a **logger factory** (`practice/build_task/logging_setup.py`). Keep them as two separate files, doing two separate jobs.
 
 Think about the config loader first. Its whole job is: read some environment variables, and either hand back an object you can trust, or fail loudly with a clear reason. The key idea is **fail at startup, not later** — if `OPENAI_API_KEY` is missing, you want to know *immediately*, with a message that names the missing key, not five minutes later as a confusing `AuthenticationError` from OpenAI.
 
@@ -66,6 +84,7 @@ Two extra pieces answer that design question:
 - **A module-level cache for config**, e.g. a single `_config: Config | None = None` variable at the top of `config.py`, checked at the start of `load_config()` — if it's already set, return it immediately instead of re-reading `.env` and re-validating. This is the same idea as `logger.handlers`, applied to config instead of logging: do the expensive/careful work once, reuse the result everywhere.
 
 ```python
+# practice/build_task/config.py
 _config: "Config | None" = None
 
 def load_config() -> "Config":
@@ -89,10 +108,10 @@ def load_config() -> "Config":
 ### Basic Version
 
 ```
-exceptions.py:
+practice/build_task/exceptions.py:
     make a MissingConfigError, it's a kind of Exception
 
-config.py:
+practice/build_task/config.py:
     make a Config holder with fields: openai_api_key, log_level
 
     function load_config():
@@ -102,7 +121,7 @@ config.py:
         read LOG_LEVEL, use "INFO" if it isn't set
         return a Config built from these
 
-logging_setup.py:
+practice/build_task/logging_setup.py:
     function get_logger(name):
         get (or make) a logger for this name
         if it doesn't have a screen handler yet:
@@ -114,6 +133,7 @@ logging_setup.py:
 The trickiest part of turning that plan into real code — checking a required key is really missing, not just empty:
 
 ```python
+# practice/build_task/config.py
 import os
 
 def require_env(key):
@@ -126,6 +146,7 @@ def require_env(key):
 
 Use this same idea for every required key. For the logger's double-handler problem:
 ```python
+# practice/build_task/logging_setup.py
 if not logger.handlers:
     # only set up a handler the first time
     ...
@@ -139,12 +160,14 @@ Try finishing the rest yourself before looking at the Solution.
 
 ### Intermediate Version
 
-**`exceptions.py`:**
+**`practice/build_task/exceptions.py`:**
+
 ```
 class MissingConfigError is an Exception
 ```
 
-**`config.py`:**
+**`practice/build_task/config.py`:**
+
 ```
 define a Config data holder with fields: openai_api_key, log_level
 
@@ -157,7 +180,8 @@ function load_config():
     return a Config built from these values
 ```
 
-**`logging_setup.py`:**
+**`practice/build_task/logging_setup.py`:**
+
 ```
 function get_logger(name):
     get (or create) a logger for this name
@@ -173,6 +197,7 @@ The "if this logger doesn't already have a handler" check matters — without it
 Turning that plan into real code, here's the one piece worth seeing on its own first — this is *not* the full solution, just the trickiest part (checking a required key is genuinely missing, not just falsy):
 
 ```python
+# practice/build_task/config.py
 import os
 
 def require_env(key: str) -> str:
@@ -187,6 +212,7 @@ Use this same pattern for every required key in `load_config()`, instead of writ
 For the logger's duplicate-handler problem, the check looks like this:
 
 ```python
+# practice/build_task/logging_setup.py
 if not logger.handlers:
     # only attach a handler the first time this logger is configured
     ...
@@ -201,10 +227,10 @@ Try finishing the rest yourself before looking at the full Solution below.
 ### Advanced Version
 
 ```
-exceptions.py:
+practice/build_task/exceptions.py:
     class MissingConfigError is an Exception
 
-config.py:
+practice/build_task/config.py:
     module-level: _config = None   # cache, so load_config() only does real work once
 
     function require_env(key):
@@ -219,7 +245,7 @@ config.py:
         log_level = read LOG_LEVEL, default "INFO"
         build Config, store it in _config, return it
 
-logging_setup.py:
+practice/build_task/logging_setup.py:
     function get_logger(name):
         logger = logging.getLogger(name)
         if logger.handlers is not empty: return logger immediately (already configured)
@@ -232,6 +258,7 @@ Notice both files now follow the *same* shape: check a cheap condition first ("i
 The caching piece from that pseudocode, made real — this is the one part that's genuinely easy to get wrong, so it's worth seeing on its own before the full Solution:
 
 ```python
+# practice/build_task/config.py
 _config: "Config | None" = None
 
 
@@ -261,18 +288,44 @@ Fill in `require_env` and the logger's handler check yourself, this time combine
 
 Every code block below shows the exact output you'd see if you ran it, right after the code, on a machine with a `.env` file containing `OPENAI_API_KEY=sk-test-123` (and no `LOG_LEVEL`, unless a block says otherwise). Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
 
+Everything below lives in one folder, and every code block names its file on the first line:
+
+```
+practice/build_task/
+├── exceptions.py        MissingConfigError
+├── config.py            load_config() -> Config
+├── logging_setup.py     get_logger(name)
+├── test_config.py       proves the Test Cases — run this one
+├── .env.example         key names only, no real values (committed)
+└── .env                 your real values (never committed)
+```
+
+Files appear in the order you create them: `.env.example`, `.env`, `exceptions.py`, `config.py`, `logging_setup.py`, `test_config.py`. Run everything from inside the folder — `cd practice/build_task && python test_config.py` — so `from config import load_config` resolves.
+
 ### Basic Version
 
 #### Approach 1 — the direct way
 
+```bash
+# practice/build_task/.env.example
+# Copy this file to .env and fill in the real values. Never commit .env.
+OPENAI_API_KEY=
+LOG_LEVEL=INFO
+```
+
+```bash
+# practice/build_task/.env
+OPENAI_API_KEY=sk-test-123
+```
+
 ```python
-# exceptions.py
+# practice/build_task/exceptions.py
 class MissingConfigError(Exception):
     pass
 ```
 
 ```python
-# config.py
+# practice/build_task/config.py
 import os
 from dotenv import load_dotenv
 from exceptions import MissingConfigError
@@ -296,7 +349,7 @@ def load_config():
 ```
 
 ```python
-# logging_setup.py
+# practice/build_task/logging_setup.py
 import logging
 import os
 
@@ -313,7 +366,7 @@ def get_logger(name):
 ```
 
 ```python
-# main.py — proving it works
+# practice/build_task/test_config.py — proving it works
 from config import load_config
 from logging_setup import get_logger
 
@@ -343,15 +396,17 @@ This version works correctly and meets every Build Task requirement. It's missin
 
 #### Approach 1 — a dataclass-based config
 
-**`exceptions.py`**
+`practice/build_task/.env.example` and `practice/build_task/.env` are exactly as shown in Basic Approach 1 above — keep both files as they are.
+
 ```python
+# practice/build_task/exceptions.py
 class MissingConfigError(Exception):
     """Raised when a required setting is missing from the environment."""
     pass
 ```
 
-**`config.py`**
 ```python
+# practice/build_task/config.py
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -378,8 +433,8 @@ def load_config() -> Config:
     return Config(openai_api_key=api_key, log_level=log_level)
 ```
 
-**`logging_setup.py`**
 ```python
+# practice/build_task/logging_setup.py
 import logging
 import os
 
@@ -403,18 +458,77 @@ def get_logger(name: str) -> logging.Logger:
 ```
 
 ```python
-# main.py
+# practice/build_task/test_config.py
+"""Runs the four Test Cases from the README against config.py and logging_setup.py.
+
+Run it from inside this folder:  python test_config.py
+It rewrites .env as it goes, so it backs your real one up first and restores it at the end.
+"""
+import os
+from pathlib import Path
+
 from config import load_config
+from exceptions import MissingConfigError
 from logging_setup import get_logger
 
-config = load_config()
-logger = get_logger(__name__)
-logger.info(f"Loaded config for {config.openai_api_key}")
+ENV_PATH = Path(".env")
+BACKUP_PATH = Path(".env.backup")
+
+
+def set_env_file(contents: str | None) -> None:
+    """Put .env into a known state for one case, and clear os.environ first.
+
+    load_dotenv() never overwrites a variable that is already set, so without
+    these pop() calls every case after the first would inherit the one before it.
+    """
+    os.environ.pop("OPENAI_API_KEY", None)
+    os.environ.pop("LOG_LEVEL", None)
+    if contents is None:
+        ENV_PATH.unlink(missing_ok=True)
+    else:
+        ENV_PATH.write_text(contents)
+
+
+def main() -> None:
+    if ENV_PATH.exists():
+        ENV_PATH.rename(BACKUP_PATH)
+    try:
+        set_env_file(None)
+        try:
+            load_config()
+        except MissingConfigError as e:
+            print(f"case 1 (.env missing)     -> MissingConfigError: {e}")
+
+        set_env_file("LOG_LEVEL=INFO\n")
+        try:
+            load_config()
+        except MissingConfigError as e:
+            print(f"case 2 (key missing)      -> MissingConfigError: {e}")
+
+        set_env_file("OPENAI_API_KEY=sk-test-123\n")
+        config = load_config()
+        print(f"case 3 (valid .env)       -> Config loaded, log level {config.log_level}")
+
+        get_logger("x")
+        logger = get_logger("x")
+        logger.info("case 4 (get_logger twice) -> printed exactly once")
+    finally:
+        ENV_PATH.unlink(missing_ok=True)
+        if BACKUP_PATH.exists():
+            BACKUP_PATH.rename(ENV_PATH)
+
+
+if __name__ == "__main__":
+    main()
 ```
 **Expected output** (the exact timestamp will differ on your machine — `%(asctime)s` always prints the current time):
 ```
-2026-09-10 09:00:00,123 __main__ INFO Loaded config for sk-test-123
+case 1 (.env missing)     -> MissingConfigError: Required environment variable is missing: OPENAI_API_KEY
+case 2 (key missing)      -> MissingConfigError: Required environment variable is missing: OPENAI_API_KEY
+case 3 (valid .env)       -> Config loaded, log level INFO
+2026-09-10 09:00:00,123 x INFO case 4 (get_logger twice) -> printed exactly once
 ```
+The last line is the only one that goes through the logger, so it's the only one carrying the timestamp/name/level prefix — and it appears once, not twice, which is the whole point of the `if not logger.handlers:` guard. One thing that surprises people: a `StreamHandler` writes to **stderr**, while `print()` writes to stdout. In a terminal they interleave in the order shown; pipe the output to a file (`python test_config.py > out.txt`) and the logger line can jump ahead of the others, because the two streams are buffered differently. Nothing is wrong when that happens.
 
 **Why this approach:** a `@dataclass` gives you a typed, readable `Config` object with almost no extra code. This is a very common, standard pattern in real Python projects.
 
@@ -422,8 +536,10 @@ logger.info(f"Loaded config for {config.openai_api_key}")
 
 This version uses a plain class instead of a dataclass (more explicit, a bit more typing), and adds a file handler alongside the console one, since some projects want both.
 
-**`config.py`**
+`practice/build_task/exceptions.py`, `.env.example` and `.env` are unchanged from Approach 1 above — keep those three files exactly as they are. Only `config.py`, `logging_setup.py` and `test_config.py` change.
+
 ```python
+# practice/build_task/config.py
 import os
 from dotenv import load_dotenv
 from exceptions import MissingConfigError
@@ -446,8 +562,8 @@ def load_config() -> Config:
     return Config(openai_api_key=api_key, log_level=log_level)
 ```
 
-**`logging_setup.py`**
 ```python
+# practice/build_task/logging_setup.py
 import logging
 import os
 
@@ -479,7 +595,7 @@ def get_logger(name: str) -> logging.Logger:
 ```
 
 ```python
-# main.py
+# practice/build_task/test_config.py
 from config import load_config
 from logging_setup import get_logger
 
@@ -508,15 +624,17 @@ logger.info(f"Loaded config for {config.openai_api_key}")
 
 #### Approach 1 — dataclass + file handler + a config cache (the Hint 2 pattern, completed)
 
-**`exceptions.py`**
+`practice/build_task/.env.example` and `practice/build_task/.env` are unchanged from Basic Approach 1 above — keep both as they are.
+
 ```python
+# practice/build_task/exceptions.py
 class MissingConfigError(Exception):
     """Raised when a required setting is missing from the environment."""
     pass
 ```
 
-**`config.py`**
 ```python
+# practice/build_task/config.py
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -552,8 +670,8 @@ def load_config() -> Config:
     return _config
 ```
 
-**`logging_setup.py`**
 ```python
+# practice/build_task/logging_setup.py
 import logging
 import os
 
@@ -582,7 +700,7 @@ def get_logger(name: str) -> logging.Logger:
 ```
 
 ```python
-# main.py
+# practice/build_task/test_config.py
 from config import load_config
 
 first = load_config()
@@ -595,12 +713,16 @@ True
 ```
 The second `load_config()` call skips `load_dotenv()` and `require_env()` entirely — it returns the cached `Config` object from the first call.
 
+One consequence worth knowing before you paste this over Intermediate Approach 1's `test_config.py`: the four-case script there rewrites `.env` between cases, and with this cache in place every call after the first would hand back the *first* `Config` regardless. That's the cache working as promised, not a bug — run the four cases against the uncached version, or reset `config._config = None` between them.
+
 #### Approach 2 — `pydantic-settings`, validation declared instead of hand-written
 
 Instead of writing `require_env()` yourself, you describe your config's shape, and a library reads and validates the environment for you.
 
-**`config.py`**
+This approach's folder has no `exceptions.py` at all, and `practice/build_task/logging_setup.py` is unchanged from Advanced Approach 1 above — keep that file as it is. `.env.example` and `.env` are unchanged from Basic Approach 1.
+
 ```python
+# practice/build_task/config.py
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -617,10 +739,11 @@ def load_config() -> Config:
 There's no `exceptions.py` needed for the missing-key case here — `BaseSettings` reads `.env` and the real environment automatically (no separate `load_dotenv()` call), and if `openai_api_key` isn't set anywhere, creating `Config()` raises `pydantic_core.ValidationError` on its own, without you writing a check for it.
 
 ```python
-# main.py, with OPENAI_API_KEY missing from .env
+# practice/build_task/test_config.py — run with OPENAI_API_KEY missing from .env
 from config import load_config
 
 config = load_config()
+print(config.openai_api_key)
 ```
 **Expected output:**
 ```
@@ -630,11 +753,8 @@ pydantic_core._pydantic_core.ValidationError: 1 validation error for Config
 openai_api_key
   Field required [type=missing, input_value={}, input_type=dict]
 ```
-And with `OPENAI_API_KEY=sk-test-123` present:
-```python
-config = load_config()
-print(config.openai_api_key)
-```
+And with `OPENAI_API_KEY=sk-test-123` present in `.env`, that same `test_config.py` file prints:
+
 ```
 sk-test-123
 ```
@@ -643,8 +763,10 @@ sk-test-123
 
 The first two Advanced approaches trust that whatever string is in `LOG_LEVEL` is a real logging level — `getattr(logging, "INFO", logging.INFO)` silently falls back to `INFO` for *any* typo (`"INFOO"`, `"debug"` lowercase without `.upper()` handled right, etc.), which hides mistakes instead of catching them. This approach catches that at config-load time, and configures logging from one settings dictionary instead of building handlers by hand.
 
-**`exceptions.py`**
+`practice/build_task/.env.example` and `practice/build_task/.env` are unchanged from Basic Approach 1 above.
+
 ```python
+# practice/build_task/exceptions.py
 class MissingConfigError(Exception):
     pass
 
@@ -654,9 +776,8 @@ class InvalidConfigError(Exception):
     pass
 ```
 
-**`config.py`**
 ```python
-import logging
+# practice/build_task/config.py
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -691,8 +812,8 @@ def load_config() -> Config:
     return Config(openai_api_key=api_key, log_level=log_level)
 ```
 
-**`logging_setup.py`**
 ```python
+# practice/build_task/logging_setup.py
 import logging
 import logging.config
 
@@ -721,20 +842,7 @@ def get_logger(name: str) -> logging.Logger:
 ```
 
 ```python
-# main.py, with a bad value: LOG_LEVEL=VERBOSE in .env
-from config import load_config
-
-config = load_config()
-```
-**Expected output:**
-```
-Traceback (most recent call last):
-  ...
-exceptions.InvalidConfigError: LOG_LEVEL must be one of ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'), got: 'VERBOSE'
-```
-And with a valid `.env` (`LOG_LEVEL=INFO` or unset):
-```python
-# main.py
+# practice/build_task/test_config.py — run with a bad value, LOG_LEVEL=VERBOSE, in .env
 from config import load_config
 from logging_setup import configure_logging, get_logger
 
@@ -744,6 +852,12 @@ logger = get_logger(__name__)
 logger.info(f"Loaded config for {config.openai_api_key}")
 ```
 **Expected output:**
+```
+Traceback (most recent call last):
+  ...
+exceptions.InvalidConfigError: LOG_LEVEL must be one of ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'), got: 'VERBOSE'
+```
+`load_config()` raises before it returns, so `configure_logging()` and the log line are never reached. And with a valid `.env` (`LOG_LEVEL=INFO` or unset), that same `test_config.py` file runs all the way through — **expected output:**
 ```
 2026-09-10 09:00:00,789 __main__ INFO Loaded config for sk-test-123
 ```

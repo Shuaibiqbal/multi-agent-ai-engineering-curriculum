@@ -9,6 +9,7 @@ All examples below assume `client = OpenAI()` with `.env` already loaded.
 ### Approach 1 — the direct way
 
 ```python
+# auth_and_cost_practice.py
 import openai
 from openai import OpenAI
 
@@ -61,6 +62,7 @@ Long prompt tokens: 168
 ### Approach 1 — the same comparison, in named functions
 
 ```python
+# auth_and_cost_practice.py
 import openai
 from openai import OpenAI
 
@@ -116,6 +118,7 @@ Long system prompt:  187 tokens
 ### Approach 1 — a computed dollar cost per call
 
 ```python
+# auth_and_cost_practice.py
 import openai
 from openai import OpenAI
 
@@ -160,6 +163,7 @@ Long system prompt:  187 tokens, ~$0.000032
 ### Approach 2 — a `BudgetTracker` that enforces a spending cap across many calls
 
 ```python
+# auth_and_cost_practice.py
 class BudgetExceededError(Exception):
     """Raised when a call would push cumulative spend over the configured limit."""
     pass
@@ -217,4 +221,4 @@ Notice the second call already *happened* by the time `record()` raises — this
 
 **Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate compares 2 calls' token counts side by side and stops there. Approach 1 turns those same counts into an actual dollar estimate — meaningful because input and output tokens are priced differently, so a bare token count can be misleading about actual cost. Approach 2 builds on Approach 1's `estimate_cost()` but answers the bigger design question: instead of reporting cost after one call, it accumulates cost *across* calls and refuses once a limit would be crossed — the difference between "here's what that cost" and "this literally cannot happen again until you raise the limit."
 
-**Which one should you actually ship?** Approach 1's per-call cost estimate is worth logging in any real app — it's cheap, and it's the number you'd actually put in a report. Reach for Approach 2's `BudgetTracker` once a feature runs unattended or is exposed to many users, where "someone left a loop running overnight" or "one user hammered a feature" is a real, foreseeable risk, not a hypothetical one — exactly the situation this document's Build Task's chatbot will eventually be used in.
+**Which one should you actually ship?** Approach 1's per-call cost estimate is worth logging in any real app — it's cheap, and it's the number you'd actually put in a report. Reach for Approach 2's `BudgetTracker` once a feature runs unattended or is exposed to many users, where "someone left a loop running overnight" or "one user hammered a feature" is a real, foreseeable risk, not a hypothetical one — exactly the situation this document's Build Task's chatbot will eventually be used in. `PRICE_PER_1M_INPUT`/`PRICE_PER_1M_OUTPUT` are also good candidates for `config.py` rather than module constants once you ship this for real — OpenAI's pricing changes over time, and a stale hardcoded rate would silently under- or over-estimate every cost this code reports.

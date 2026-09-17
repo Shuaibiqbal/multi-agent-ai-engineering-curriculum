@@ -2,11 +2,14 @@
 
 > [Back to the exercise](../README.md#ex-venv_setup) · [Hint 1](venv_setup_hints.md#hint-1) · [Hint 2](venv_setup_hints.md#hint-2) · [Solution](venv_setup_solution.md)
 
+**Where this exercise is saved:** `practice/venv_setup_practice.md` — notes, not a script. Every block below is a terminal command, so there is nothing to `python`-run: keep a Markdown file with each command you ran and the output you got back, and you will have your own record of the sequence the next time you start a project. (The `Makefile` and `setup.sh` in the Advanced section are real files you create at your project root — paste them into the notes too.)
+
 ## Basic Version
 
 ### Approach 1 — the direct way (macOS / Linux)
 
 ```bash
+# → practice/venv_setup_practice.md
 python -m venv .venv
 source .venv/bin/activate
 pip install requests
@@ -35,6 +38,7 @@ This version is correct and complete for the exercise as stated.
 
 macOS / Linux:
 ```bash
+# → practice/venv_setup_practice.md
 python -m venv .venv
 source .venv/bin/activate
 pip install requests
@@ -43,6 +47,7 @@ pip freeze > requirements.txt
 
 Windows (PowerShell):
 ```powershell
+# → practice/venv_setup_practice.md
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install requests
@@ -53,6 +58,7 @@ pip freeze > requirements.txt
 ### Approach 2 — verifying each step as you go
 
 ```bash
+# → practice/venv_setup_practice.md
 python -m venv .venv
 ls .venv
 # bin/  include/  lib/  pyvenv.cfg
@@ -86,6 +92,7 @@ wc -l requirements.txt
 ### Approach 1 — a `Makefile` that automates the 4 commands
 
 ```makefile
+# Makefile (project root) — also paste this recipe into practice/venv_setup_practice.md
 .PHONY: setup
 setup:
 	python -m venv .venv
@@ -96,6 +103,7 @@ setup:
 
 Run it with:
 ```bash
+# → practice/venv_setup_practice.md
 make setup
 ```
 **Expected output:**
@@ -115,6 +123,7 @@ Notice it calls `.venv/bin/pip` directly rather than activating first — each l
 
 ```bash
 #!/usr/bin/env bash
+# setup.sh (project root) — also paste this script into practice/venv_setup_practice.md
 set -e
 
 python -m venv .venv
@@ -127,6 +136,7 @@ echo "Done. requirements.txt has $(wc -l < requirements.txt) package(s)."
 
 Run it with:
 ```bash
+# → practice/venv_setup_practice.md
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -139,6 +149,7 @@ Done. requirements.txt has 5 package(s).
 ### Approach 3 — `uv`, a modern all-in-one tool
 
 ```bash
+# → practice/venv_setup_practice.md
 uv init myproject
 cd myproject
 uv add requests

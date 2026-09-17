@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# first_tool_call_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -42,6 +43,7 @@ This version works correctly. It doesn't handle the case where the model calls s
 ### Approach 1 — checked, and wrapped in real functions
 
 ```python
+# first_tool_call_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -92,6 +94,7 @@ Called add({'a': 5, 'b': 7}) -> 12
 ### Approach 1 — the full round trip, handling every tool call in the response
 
 ```python
+# first_tool_call_practice.py
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -149,6 +152,7 @@ Both tool calls get run and both get tagged back with their own `call["id"]` —
 Core Concepts mentions tool-choice settings (`auto`/`required`/forced). For an exercise like this one, where you already know the question needs `add`, forcing the call removes the "what if it just answers directly" branch entirely, instead of defensively coding around it:
 
 ```python
+# first_tool_call_practice.py
 def get_model_forced_to_call_add() -> ChatOpenAI:
     return ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools(
         [add], tool_choice="add"

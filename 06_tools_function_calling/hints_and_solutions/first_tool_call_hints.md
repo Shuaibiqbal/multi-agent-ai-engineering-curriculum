@@ -92,6 +92,7 @@ print the real result
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# first_tool_call_practice.py
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -157,6 +158,7 @@ print(final_response.content)   # the model's real final answer
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# first_tool_call_practice.py
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI

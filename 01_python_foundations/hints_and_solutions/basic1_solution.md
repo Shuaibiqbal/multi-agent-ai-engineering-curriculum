@@ -2,11 +2,16 @@
 
 > [Back to the exercise](../README.md#ex-basic1) · [Hint 1](basic1_hints.md#hint-1) · [Hint 2](basic1_hints.md#hint-2) · [Solution](basic1_solution.md)
 
+**Where this exercise is saved:** `practice/custom_errors_practice.py`, under its `# Basic` section — the same file also holds the [Failure handling exercise](../README.md#ex-failure_handling), under a `# Failure handling` section. Run it with `cd practice && python custom_errors_practice.py`.
+
+**Used later by:** the [Real-world wiring exercise](../README.md#ex-config_logging_wiring) and the [Build Task](../README.md#build-task-config-logging-foundation). Neither imports this file — they re-write the same one-line custom-error pattern as `MissingConfigError` in `practice/config_logging_wiring/exceptions.py` and `practice/build_task/exceptions.py`.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -38,6 +43,7 @@ This version works correctly. It's missing type hints, and it builds the message
 ### Approach 1 — f-string message
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -62,6 +68,7 @@ Caught it: age cannot be negative: -5
 ### Approach 2 — a guard clause with an early return check, and a docstring
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     """Raised when an age value is negative."""
     pass
@@ -97,6 +104,7 @@ Caught it: age cannot be negative: -5
 ### Approach 1 — the exception carries its own data
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     def __init__(self, age: int) -> None:
         self.age = age
@@ -125,6 +133,7 @@ The bad value was: -5
 ### Approach 2 — a base `ValidationError` other checks can share
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 class ValidationError(Exception):
     """Base class for any input-validation problem in this module."""
     pass
@@ -154,6 +163,7 @@ Validation failed: age cannot be negative: -5
 ### Approach 3 — a dataclass-based exception with a `__post_init__` check (production style)
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 from dataclasses import dataclass, field
 
 class ValidationError(Exception):

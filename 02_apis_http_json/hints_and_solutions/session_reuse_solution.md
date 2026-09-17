@@ -7,6 +7,7 @@
 ### Approach 1 — a module-level session
 
 ```python
+# session_reuse_practice.py
 import requests
 
 session = requests.Session()
@@ -43,6 +44,7 @@ This works and proves the header sticks across calls. It doesn't yet confirm the
 ### Approach 1 — a typed factory function
 
 ```python
+# session_reuse_practice.py
 import requests
 
 
@@ -92,6 +94,7 @@ header actually sent on the last request: Bearer fake-token
 ### Approach 1 — a class that owns the session, headers set once and never touched again
 
 ```python
+# session_reuse_practice.py
 import requests
 
 
@@ -136,6 +139,7 @@ if __name__ == "__main__":
 ### Approach 2 — the same class, used as a context manager
 
 ```python
+# session_reuse_practice.py
 import requests
 
 

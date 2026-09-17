@@ -7,6 +7,7 @@
 ### Approach 1 — see the split, and the k=1 vs k=2 gap
 
 ```python
+# chunking_practice.py — Edge cases section
 import math
 from openai import OpenAI
 
@@ -70,6 +71,7 @@ The boundary lands mid-word, mid-fact: chunk 0 has the time and room, chunk 1 ha
 ### Approach 1 — a reusable `search(..., k)` function
 
 ```python
+# chunking_practice.py — Edge cases section
 import math
 from openai import OpenAI
 
@@ -146,6 +148,7 @@ if __name__ == "__main__":
 ### Approach 1 — overlap removes the need for a bigger `k` at all
 
 ```python
+# chunking_practice.py — Edge cases section
 def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
     chunks: list[str] = []
     step = chunk_size - overlap
@@ -178,6 +181,7 @@ if __name__ == "__main__":
 ### Approach 2 — proving `k` alone never fully solves this, at any size
 
 ```python
+# chunking_practice.py — Edge cases section
 # same fact, but now buried inside a much longer document with lots of
 # other, unrelated sentences before and after it
 padding = "This is unrelated filler text about the cafeteria menu. " * 20

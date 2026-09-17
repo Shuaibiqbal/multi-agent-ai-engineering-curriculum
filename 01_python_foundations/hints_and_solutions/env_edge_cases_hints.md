@@ -2,6 +2,10 @@
 
 > [Back to the exercise](../README.md#ex-env_edge_cases) · [Hint 1](env_edge_cases_hints.md#hint-1) · [Hint 2](env_edge_cases_hints.md#hint-2) · [Solution](env_edge_cases_solution.md)
 
+**Where this exercise is saved:** `practice/env_config_practice.py`, under its `# Edge cases` section — the same file also holds the [Intermediate exercise](../README.md#ex-env_parsing), under an `# Intermediate` section. Run it with `cd practice && python env_config_practice.py`.
+
+**Builds on:** the `# Intermediate` section of that same file — you are testing *that* loader against the two tricky `.env` states, so keep both sections in the one file. The `MissingConfigError` used below is the same class the [Build Task](../README.md#build-task-config-logging-foundation) ends up with in `practice/build_task/exceptions.py`.
+
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and try it yourself](#hint-1)
@@ -37,6 +41,7 @@ Check: does `os.getenv("OPENAI_API_KEY")` give you `None`, or does it give you `
 
 Python's `os.getenv()` already treats these two cases differently, on its own — spotting that is the whole exercise:
 ```python
+# practice/env_config_practice.py — Edge cases section
 os.getenv("OPENAI_API_KEY")   # key never set at all       -> returns None
 os.getenv("OPENAI_API_KEY")   # file has "OPENAI_API_KEY="  -> returns ""
 ```
@@ -44,6 +49,7 @@ os.getenv("OPENAI_API_KEY")   # file has "OPENAI_API_KEY="  -> returns ""
 
 Test both situations against your own `require_env()` (or equivalent) from the Build Task, and inspect the value precisely instead of guessing:
 ```python
+# practice/env_config_practice.py — Edge cases section
 value = os.getenv("OPENAI_API_KEY")
 print(repr(value))   # None -> prints: None
                       # ""   -> prints: ''
@@ -85,6 +91,7 @@ test 2: .env has "OPENAI_API_KEY=" (nothing after the =)
 
 Treats empty text as "missing" (usually right for a secret):
 ```python
+# practice/env_config_practice.py — Edge cases section
 value = os.getenv("OPENAI_API_KEY")
 if value is None or value == "":
     raise MissingConfigError("...")
@@ -92,6 +99,7 @@ if value is None or value == "":
 
 Treats empty text as "okay, just empty" (fine for some settings, not usually for a key):
 ```python
+# practice/env_config_practice.py — Edge cases section
 value = os.getenv("OPENAI_API_KEY")
 if value is None:
     raise MissingConfigError("...")
@@ -121,6 +129,7 @@ test 2: .env contains "OPENAI_API_KEY=" (empty value)
 If your current `require_env()` only checks `if value is None`, an empty string will slip through as "valid" — is that the behavior you actually want for a secret like an API key?
 
 ```python
+# practice/env_config_practice.py — Edge cases section
 def require_env(key: str) -> str:
     value = os.getenv(key)
     if value is None or value == "":
@@ -147,6 +156,7 @@ test 4 (optional): instead of writing an if-check at all,
 ```
 
 ```python
+# practice/env_config_practice.py — Edge cases section
 from pydantic import BaseModel, Field
 
 class Config(BaseModel):

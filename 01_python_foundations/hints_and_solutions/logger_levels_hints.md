@@ -2,6 +2,10 @@
 
 > [Back to the exercise](../README.md#ex-logger_levels) · [Hint 1](logger_levels_hints.md#hint-1) · [Hint 2](logger_levels_hints.md#hint-2) · [Solution](logger_levels_solution.md)
 
+**Where this exercise is saved:** `practice/logging_practice.py`. Run it with `cd practice && python logging_practice.py`.
+
+**Used later by:** the [Real-world wiring exercise](../README.md#ex-config_logging_wiring) **copies** the `get_logger()` you write here into `practice/config_logging_wiring/logging_setup.py`, and the [Build Task](../README.md#build-task-config-logging-foundation) writes the same function again in `practice/build_task/logging_setup.py`. A copy, not an import — each of those folders stands alone. Keep the name and signature exactly as they are: `get_logger(name: str) -> logging.Logger`.
+
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
@@ -45,7 +49,7 @@ Here are the exact pieces, with the calls you'll actually need:
 - `handler.setLevel(logging.INFO)` / `handler.setLevel(logging.DEBUG)` — each handler's own cutoff.
 - `logger.addHandler(handler)` — attach a handler (call this twice, once per handler).
 - `logger.setLevel(logging.DEBUG)` — the logger's own level must be at least as permissive as its most permissive handler.
-- Wrapping all of this in a function like `def setup_logger(name: str) -> logging.Logger:` that returns the finished logger is worth doing the moment you need this more than once.
+- Wrapping all of this in a function named exactly `def get_logger(name: str) -> logging.Logger:` — keep that name, the Real-world wiring exercise and the Build Task both import `get_logger` by it.
 
 <hr class="page-break">
 
@@ -53,7 +57,7 @@ Here are the exact pieces, with the calls you'll actually need:
 
 ### Advanced Version
 
-Think about what happens the *second* time this setup code runs. If `setup_logger()` (or whatever you call it) gets called twice — because a module got imported twice, or a function that wires up logging gets called more than once by accident — `logging.getLogger(name)` returns the *same* logger object both times, but a naive setup function will happily call `addHandler()` again, giving that logger two screen handlers and two file handlers. Every log line then prints twice, then three times, then four — a real, common bug.
+Think about what happens the *second* time this setup code runs. If `get_logger()` gets called twice — because a module got imported twice, or a function that wires up logging gets called more than once by accident — `logging.getLogger(name)` returns the *same* logger object both times, but a naive setup function will happily call `addHandler()` again, giving that logger two screen handlers and two file handlers. Every log line then prints twice, then three times, then four — a real, common bug.
 
 That raises the actual design question: **should each module set up its own handlers, or should there be one place in the whole program that configures logging once, and every other module just calls `logging.getLogger(__name__)` to get a logger that already has handlers attached (via the root logger)?** Most real applications pick the second option — one central logging setup at startup — precisely to avoid the duplicate-handler problem, and because it's the only way to guarantee every module's logs are formatted and routed consistently.
 
@@ -89,6 +93,7 @@ send a WARNING message -> should show up on screen AND in the file
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# practice/logging_practice.py
 import logging
 
 logger = logging.getLogger(__name__)
@@ -109,7 +114,7 @@ logger.addHandler(screen_handler)
 ### Intermediate Version
 
 ```
-define a function setup_logger(name: str) -> logging.Logger:
+define a function get_logger(name: str) -> logging.Logger:
     get a logger named after this module
     set the logger's own level to DEBUG (the lowest, most permissive)
 
@@ -119,7 +124,7 @@ define a function setup_logger(name: str) -> logging.Logger:
     attach both handlers to the logger
     return the logger
 
-logger = setup_logger(__name__)
+logger = get_logger(__name__)
 
 log one DEBUG message   -> should appear in the file only
 log one INFO message    -> should appear on screen AND in the file
@@ -127,10 +132,11 @@ log one WARNING message -> should appear on screen AND in the file
 ```
 
 ```python
+# practice/logging_practice.py
 import logging
 
 
-def setup_logger(name: str) -> logging.Logger:
+def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
@@ -140,7 +146,7 @@ def setup_logger(name: str) -> logging.Logger:
 
     # add the file handler yourself, the same way, then return logger
 
-logger = setup_logger(__name__)
+logger = get_logger(__name__)
 # add the three log calls yourself — see the Solution if stuck
 ```
 
@@ -151,7 +157,7 @@ logger = setup_logger(__name__)
 ### Advanced Version
 
 ```
-define a function setup_logger(name: str) -> logging.Logger:
+define a function get_logger(name: str) -> logging.Logger:
     get a logger named after this module
     if the logger already has handlers attached:
         return it as-is (don't add handlers a second time)
@@ -166,8 +172,8 @@ define a function setup_logger(name: str) -> logging.Logger:
     attach both handlers to the logger
     return the logger
 
-logger = setup_logger(__name__)
-logger = setup_logger(__name__)   # calling it again is safe now — no duplicate handlers
+logger = get_logger(__name__)
+logger = get_logger(__name__)   # calling it again is safe now — no duplicate handlers
 
 log messages same as before, now formatted with timestamp + level + logger name
 
@@ -177,10 +183,11 @@ log messages same as before, now formatted with timestamp + level + logger name
 ```
 
 ```python
+# practice/logging_practice.py
 import logging
 
 
-def setup_logger(name: str) -> logging.Logger:
+def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
@@ -197,7 +204,7 @@ def setup_logger(name: str) -> logging.Logger:
     # add a file handler the same way, with the same formatter, then return logger
 ```
 
-Finish the function, call `setup_logger(__name__)` twice in a row to prove the guard works (only one set of handlers gets attached), then compare all 3 of your finished versions against the [Solution](logger_levels_solution.md) — including its `dictConfig` version, which does the same job a completely different way.
+Finish the function, call `get_logger(__name__)` twice in a row to prove the guard works (only one set of handlers gets attached), then compare all 3 of your finished versions against the [Solution](logger_levels_solution.md) — including its `dictConfig` version, which does the same job a completely different way.
 
 **Difference between Basic, Intermediate, and Advanced:** Basic's pseudocode is a flat script that proves the mechanism works — two handlers, two levels — run it once, it works. Intermediate wraps the same steps in a reusable, typed function with a return value. Advanced adds the guard that makes the function safe to call more than once, a shared formatter so the output is actually readable in a real log file, and a second path (`dictConfig`) that describes the whole setup declaratively instead of imperatively — which is what most production apps actually use.
 

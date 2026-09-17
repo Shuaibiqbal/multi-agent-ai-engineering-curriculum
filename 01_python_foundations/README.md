@@ -6,120 +6,284 @@
 None. Start here.
 
 ## How to Read & Practice This Document
+
 - **What:** solid Python basics — typed functions, config loading, logging, handling errors properly.
-- **Why:** every later document assumes you know this. Skip it, and future bugs will feel confusing when they're really just a missing type hint or a swallowed error.
-- **When:** you'll use this in every script from here on.
-- **How to practice:**
-  1. Read the material once, just to get the shape of it. Don't try to memorize it.
-  2. Do the **Basic** exercises with no notes open. This shows you what you actually remember.
-  3. Do the **Intermediate/Real-world** exercises with notes open — that's normal, not cheating.
-  4. Try the **Build Task** without looking at any old solution. Let yourself get stuck before asking for a hint.
-  5. Use the hint system (**Hint 1 → Hint 4**) only after you've really tried. Ask for the full solution only if you say **"Show me the solution."**
-  6. Before moving on, explain out loud (or write a paragraph) what you built and why. If you can't, you're not done yet.
+- **Why:** every later document assumes this. Skip it, and future bugs will feel confusing when they are really a missing type hint or a swallowed error.
+- **How to practice:** this page is reading material; the code lives in the exercises. Do the **Basic** ones with no notes open and the rest with notes open, then try the **Build Task** without looking at any old solution. Use the hints (**Hint 1 → Hint 4**) only after a real try, and ask for the full solution only by saying **"Show me the solution."**
 
 **Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises-before-the-build-task) · [Build Task](#build-task-config-logging-foundation)
 
 ## The Story — what this document is actually building
 
-Picture this: you're about to build your first AI agent. Before it can do anything smart, it needs three boring but critical things to be right — or it will fail in confusing ways later.
+Your first AI agent needs three boring things to be right. A secret key (like `OPENAI_API_KEY`) that can never sit in code, because code is shared and pushed to git — so it lives in a `.env` file. A check that the key actually arrived, so the program stops with a clear message instead of failing five minutes later with a confusing error from someone else's server. And a record of what it did while running unattended at 3 AM, which `print()` cannot give you.
 
-**First**, it needs a secret key (like `OPENAI_API_KEY`) to talk to an AI service. That key can never be typed directly into your code, because code gets shared, backed up, and pushed to git — and a leaked key is a real security incident. So the key lives in a separate `.env` file on your own computer, and your program reads it at startup.
-
-**Second**, your program needs to check that the key (and any other required setting) actually showed up. If it's missing, you want your program to stop immediately with a clear message — "OPENAI_API_KEY is missing" — not five minutes later with a confusing error from OpenAI's servers. This is what a **custom error** and a **config loader** are for: they turn "something vague went wrong somewhere" into "this exact thing is missing, right here, right now."
-
-**Third**, once your program is running, you need to know what it's doing — especially later, when it's running unattended (a server, a scheduled job) and something breaks while you're not watching. `print()` isn't enough for that. A **logger** keeps a running record you can check afterward, and can be as quiet or as detailed as you want, without touching the code.
-
-That's the whole story of this document: **type hints and custom errors** teach you to build a function that fails loudly and clearly instead of silently and confusingly. **Virtual environments** keep this project's tools separate from every other project on your computer. **`.env` files** keep your secrets out of your code. **Logging** gives you a record of what happened. And the **Build Task** at the end asks you to put all four of these together into one small, real thing: a config loader and a logger that any later project in this whole curriculum can reuse as its starting point. Every project you build from here on — a chatbot, a multi-agent system, anything — starts by copying this exact Build Task's two files.
+So: **type hints and custom errors** make a function fail loudly and clearly, **virtual environments** keep this project's packages separate, **`.env` files** keep secrets out of the code, and **logging** keeps the record. The **Build Task** puts all four into two small files that every later project here starts by copying.
 
 ## Core Concepts (read this first — everything you need is here)
 
+**Topics on this page:** [Functions, types, and why they matter](#functions-types-and-why-they-matter) · [Errors: a clean way to say "something specific went wrong"](#errors-a-clean-way-to-say-something-specific-went-wrong) · [Virtual environments: keeping projects separate](#virtual-environments-keeping-projects-separate) · [`.env` files: keeping secrets out of your code](#env-files-keeping-secrets-out-of-your-code) · [Logging: better than `print()`](#logging-better-than-print)
+
 ### Functions, types, and why they matter
-A function is a named, reusable piece of code — but the part that matters most for real projects (not just quick scripts) is the **signature**: what goes in, what comes out, and what it promises never to do. `def load_config() -> Config:` tells any reader — including you, months later — exactly what to expect, without reading the whole function. Without types (`def load_config():`), the code still runs the same, but now every reader has to guess or dig through the code to understand it. **Why this matters:** once more than one file uses another file's code, mismatched guesses about what a function does become the most common source of bugs — not bad logic, but a misunderstanding about the *interface*. **When to bother with types:** always, in any code meant to last longer than a script you'll delete tomorrow. **How it works:** Python doesn't actually check type hints while your program runs — tools like `mypy` or your editor read them and warn you *before* you run the code. A wrong type hint won't crash your program; it just stops protecting you, so keep your hints accurate.
+
+A **function**'s signature — `def load_config() -> Config:` — is the label on the machine: what goes in, what comes out. **Type hints** are the `int`, `str`, `Config` words in it. Without them, reading a project means reading every function body instead of every first line.
+
+**How it really works**
+
+- Python stores the hints in `__annotations__` and then **ignores them while running**. `greet(123)` runs fine although the signature says `name: str`.
+- `mypy`, `pyright` or your editor read the source **without running it** and report where two files disagree, so a hint is checked before you run. A **wrong** hint is worse than none: the code still runs and the one tool that could have warned you was told a lie.
+- Hints nobody checks drift within weeks — put `mypy src/` in CI.
+- `X | None` says a value may be absent and forces the caller to check, instead of a later `'NoneType' object has no attribute ...`.
+- A default is created **once**, when Python reads the `def`, so `def f(bag: list = [])` shares one list across every call — in agents, one agent seeing another's messages. Use `= None`, or `field(default_factory=list)`.
+- Hints cannot police outside data. An HTTP body, an environment value and **anything an AI model produced** need a run-time validator (Pydantic, in Doc04 and Doc06); behind that edge plain hints are enough.
+- `Protocol` is a shape, not a family: any object with `def run(self, task: AgentInput) -> AgentResult: ...` counts as an agent, so agents fit a pipeline without a shared base class.
+
+| Hint | What it promises | Use it when |
+|---|---|---|
+| `name: str`, `age: int` | Text / a whole number | Any parameter another file passes in |
+| `-> None` | No return value; a side effect | Writing a file, sending, raising |
+| `value: int \| None` | A number **or** nothing | Optional values — the caller must check |
+| `data: dict[str, Any]` | "Shape unknown" | Raw JSON, at the edge only |
+| `fn: Callable[[str], str]` | A function as an argument | Callbacks, retries, tool registries |
+
+**Common mistakes:**
+
+- *Mistake:* changing what a function returns but not its hint. → *Symptom:* a crash far away, `'NoneType' object has no attribute ...`. → *Fix:* re-read the signature whenever you edit a `return`.
+- *Mistake:* a mutable default, `def collect(items: list[str] = []):`. → *Symptom:* the second call sees leftovers from the first. → *Fix:* `= None`, then build the list inside.
+
+**Where you'll meet it:** the [Basic exercise](#ex-basic1) and the [Build Task](#build-task-config-logging-foundation) need full hints. Pydantic models in [Doc04](../04_openai_api/) and [Doc06](../06_tools_function_calling/) are built from hints, and Doc06's tools use them to tell the model what to send. In [Doc11](../11_multi_agent_systems/) and [Project 4](../project_4_contentforge_multi_agent/), typed data stops one agent sending the wrong shape to the next.
+
+**Quick cheat sheet:**
+
+- Anything another file imports gets full hints; a throwaway shell line does not.
+- Never `= []` or `= {}` as a default.
+- Hints inside your code; a validator where untrusted data enters.
 
 ### Errors: a clean way to say "something specific went wrong"
-An error (called an "exception" in Python) is how your code stops normal execution when something breaks an assumption — a missing file, a slow network, a bad value. **Why errors exist instead of just returning a special value:** an error can't be silently ignored the way a return value can. If you don't handle it, it travels up and crashes loudly — which is actually a good thing, because a loud crash is easier to notice and fix than a silent wrong answer. **When to catch an error:** only when you can actually do something useful about it — retry, fall back to something else, or give the caller a clearer message. **When not to:** don't catch an error just to make it disappear. `except: pass` is exactly how real bugs stay invisible until a user reports something with no logs to explain it. **How it works:** Python's errors form a family tree (`Exception` is the base most custom errors come from). Catching the broad `Exception` is usually still too broad — catch the *specific* error you know how to handle. A custom error, like `MissingConfigError(Exception)`, lets other code catch exactly that one problem without accidentally hiding something unrelated.
+
+An **error** (an "exception") is the delivery driver phoning to say "house 17 does not exist on this street", instead of leaving the parcel at some door and saying nothing. A **custom error** is that call with a specific subject line: `raise MissingConfigError(f"Required environment variable is missing: {key}")`.
+
+**How it really works**
+
+- `raise` creates an error object and stops the function there; nothing after it runs.
+- Python looks in the current **frame** (one running function, with its own local variables) for a `try` with a matching `except`. No match: it discards the frame, adds a line to the traceback and moves up to the caller. The traceback is that ladder of frames, ending at the `raise`.
+- `finally:` runs in each frame as the error passes through, which is how files and connections still get closed. If nothing catches it, Python prints the traceback to stderr and exits with status `1`.
+- Matching is by family: `except AppError:` catches `MissingConfigError` when it inherits from it. One base class per project lets the top level catch anticipated problems and let real bugs crash.
+- A returned `None` can be ignored by accident and quietly become a wrong answer; an unhandled error cannot. Loud and early beats quiet and wrong.
+- Never put a secret in an error message — messages reach tracebacks, logs and error-tracking services. Name the variable, never the value.
+- Mark `retryable: bool` on the class: a `429` or timeout may work next time, a `400` never will, and Doc02's backoff loop reads that flag. Keep errors to a plain message string, because `multiprocessing` pickles them and extra constructor arguments often fail to unpickle.
+- Python 3.11+: agents failing together under `asyncio.TaskGroup` arrive as one `ExceptionGroup`, caught with `except*`; a plain `except Exception` misses it.
+
+| Tool | What it does | Use it when | Trap |
+|---|---|---|---|
+| `raise MyError("msg")` | Stops with a named problem | The value cannot be used | Bare `Exception` — nobody can catch just that |
+| `except SpecificError:` | Handles one problem | You can retry or skip | `except Exception:` swallows typos |
+| no `except` | Lets it crash | It is a real bug | "To be safe" hides bugs for weeks |
+| `raise ... from e` | Keeps the cause | Wrapping a library error | Without it, the cause is lost |
+| `return {"ok": False, ...}` | Failure **as data** | An agent tool, an HTTP handler | Inside, nobody must check it |
+
+Rule of thumb: **exceptions inside your code, error values at the edges** — and in an agent loop count the failures, or a broken tool loops forever.
+
+**Common mistakes:**
+
+- *Mistake:* `except Exception: pass` around a big block. → *Symptom:* a typo or failed API call vanishes, and a wrong answer appears later with nothing in the logs. → *Fix:* every `except` names a specific error and acts on it, or goes.
+- *Mistake:* `raise ConfigError(str(e))` without `from e`, or `raise e` instead of a bare `raise`. → *Symptom:* the traceback starts at your own line and the real cause is gone. → *Fix:* `... from e` when wrapping; plain `raise` when re-raising.
+
+**Where you'll meet it:** the [Basic](#ex-basic1) and [Failure handling](#ex-failure_handling) exercises write error classes and react to each differently; the [Build Task](#build-task-config-logging-foundation) requires `MissingConfigError`. [Doc02](../02_apis_http_json/) retries timeouts, [Doc06](../06_tools_function_calling/) turns a failed tool call into a message the model can read, [Doc11](../11_multi_agent_systems/) makes that choice for a whole agent, and [Doc14](../14_debugging_lab/) is a whole document on these tracebacks.
+
+**Quick cheat sheet:**
+
+- Catch only what you know how to handle; never a bare `except:`.
+- One base class (`AppError`) splits "expected" from "real bug".
+- No secret, key or token inside an error message — ever.
 
 ### Virtual environments: keeping projects separate
-A virtual environment ("venv") is a separate, isolated copy of Python just for one project — its own folder of installed packages, kept apart from your system Python and every other project's venv. **Why it exists:** sooner or later, two projects on the same computer will need different, incompatible versions of the same package. Without separation, installing one project's packages can quietly break another project. **When to make one:** at the very start of every project, before installing anything. **How it works:** `python -m venv .venv` creates the isolated folder. Running `source .venv/bin/activate` tells your terminal to use that folder's Python and pip instead of the system ones. `pip freeze > requirements.txt` writes down exactly what's installed, so anyone (including future you) can rebuild the same setup with `pip install -r requirements.txt`. The `.venv` folder itself never gets added to git — only the requirements file does, because the venv can be rebuilt any time, and its contents can be large.
+
+A **virtual environment** ("venv") is one toolbox per job: a private folder holding this project's own packages. Without it, installing for one project silently changes a version another project depends on — no error at install time, just a confusing crash later. The cycle: `python -m venv .venv`, `source .venv/bin/activate` (Windows: `.venv\Scripts\activate`), `pip install <package>`, `pip freeze > requirements.txt`.
+
+**How it really works**
+
+- `python -m venv .venv` creates `bin/`, `lib/pythonX.Y/site-packages/` and a five-line `pyvenv.cfg`. It does **not** copy Python; `bin/python` is normally a symlink to the real one.
+- Running `.venv/bin/python`, the interpreter sees `pyvenv.cfg` beside it, sets `sys.prefix` to the venv and leaves `sys.base_prefix` at the real Python. **`sys.prefix != sys.base_prefix` is how Python knows it is in a venv**, and why imports come from the venv's `site-packages`. That is the whole isolation mechanism.
+- `activate` starts nothing: it is a shell script that puts `.venv/bin` at the **front of `PATH`**, sets `VIRTUAL_ENV`, changes the prompt and defines `deactivate`. So `.venv/bin/python script.py` works unactivated — the reliable form for cron, CI and Docker.
+- A venv cannot be moved or renamed: `bin/` and `pyvenv.cfg` hold absolute paths. Delete and recreate — nothing of yours lives inside, which is also why `.venv/` is never committed.
+- `pip freeze` is a snapshot, not a specification: it records everything installed now, including packages you no longer use. The careful pattern is a hand-written `requirements.in` compiled into a pinned `requirements.txt` by `pip-compile` or `uv pip compile`.
+- Pin exact versions for anything that ships (`openai==1.54.3`); `>=1.0` means your March and September builds install different code.
+- Inside Docker skip the venv — the container is the isolation. Copy `requirements.txt` and install it *before* your source, so Docker caches that slow layer.
+- All the agents of one app share one venv. Two agents needing incompatible versions is a sign to split them into separate *services*, not two venvs.
+
+| Situation | What to do | Why |
+|---|---|---|
+| Starting any project | `python -m venv .venv` first | The first `pip install` is where the mess starts |
+| Two projects, different versions | One venv each, always | `openai==1.2.0` vs `2.0.0` — the problem venvs solve |
+| A teammate or server runs it | `activate` → `pip install -r requirements.txt` | Works only if you ran `pip freeze` last time |
+| A cron job or CI step | `/srv/app/.venv/bin/python job.py` | Cron has no shell profile; no state can go wrong |
+| Inside Docker | No venv; install `requirements.txt` | The container is already isolated |
+
+**Common mistakes:**
+
+- *Mistake:* `pip install` without activating. → *Symptom:* the install succeeds, the import fails next run, or the package lands in another project. → *Fix:* check for `(.venv)` in the prompt, or use `.venv/bin/pip install ...`.
+- *Mistake:* committing `.venv/`, or renaming a folder that holds one. → *Symptom:* a huge repository that still fails for teammates; or `bad interpreter: No such file or directory`. → *Fix:* `.gitignore` it and commit `requirements.txt`; delete and recreate the venv.
+
+**Where you'll meet it:** you create one here, and every later document starts with "if it is not active, `source .venv/bin/activate`". The [Basic (part 2) exercise](#ex-venv_setup) walks the full cycle. Each project ships its own `requirements.txt` — including [Project 4](../project_4_contentforge_multi_agent/), the first multi-agent one — and in [Doc12](../12_production_engineering/) that same file is what your `Dockerfile` installs.
+
+**Quick cheat sheet:**
+
+- One venv per project; commit `requirements.txt`, never `.venv/`.
+- `.venv/bin/python` needs no activation — use it for cron, CI and Docker.
+- Never move or rename a folder holding a venv; delete and recreate.
 
 ### `.env` files: keeping secrets out of your code
-An environment variable is a piece of information (like a password or API key) that lives outside your code, in the running program's environment, and is read with `os.getenv()`. **Why this matters:** secrets like API keys must never be typed directly into your code and committed to git. Git history basically lasts forever, and a private repo today might get shared or leaked tomorrow — with the secret still sitting in an old commit. A `.env` file holds these secret values on your own computer. It gets loaded at startup (usually with `python-dotenv`'s `load_dotenv()`), and — this part matters — it's listed in `.gitignore` so it never gets committed. **When to use this:** any value that's different on your computer vs. a teammate's, or that would cause harm if it leaked, belongs in an environment variable, not in code. **How a good config loader should work:** check that every required value is present the moment your program starts, and fail immediately with a clear message naming exactly what's missing. Don't let a missing secret show up later as some confusing error three functions deep — like a strange "401 Unauthorized" from OpenAI, when the real problem was a typo in your `.env` file.
+
+Your code is a recipe — copied, shared, pushed to git. Your API keys are the combination to the safe. An **environment variable** lives outside the code, in the environment the program runs in, read with `os.getenv("NAME")`; a **`.env` file** holds those values on your machine while you develop, and is never committed.
+
+**How it really works**
+
+- Every program is handed an **environment**: `NAME=value` text pairs from your shell, Docker or the CI runner. Python copies them into `os.environ` at startup, and `os.getenv("X")` is a lookup there with `None` as the default.
+- The operating system knows nothing about `.env`. It is an ordinary text file that a library reads: `load_dotenv()` (from `python-dotenv`) finds it, parses each `KEY=value` line — skipping blanks and `#` comments, stripping quotes — and writes the pairs into `os.environ`.
+- With no argument it walks **up** the directory tree from the calling file, so a script in a sub-folder can pick up a parent's file you had forgotten. `load_dotenv("/exact/path/.env")` removes that surprise.
+- **`load_dotenv()` never overwrites a variable that already exists.** The real environment always wins; `override=True` reverses that, which is fine locally and dangerous in production.
+- That is why the same code works everywhere: **in production there is usually no `.env` at all**. The platform injects the real secrets, `load_dotenv()` finds nothing and does nothing, and `os.getenv()` reads the platform's values.
+- Every value is a **string** — no numbers, no booleans. `DEBUG_MODE=False` gives `"False"`, and `bool("False")` is `True`. That is the whole story behind "why is debug mode always on?".
+- Module-level code runs at import, so `API_KEY = os.getenv(...)` at the top of `config.py` runs *before* `main.py` calls `load_dotenv()`. Load first, read second — inside the loader function is the safe place. (Child processes inherit `os.environ`, which is how a subprocess gets its configuration.)
+- Load and validate **once**, into one frozen config object every agent shares: required keys through a helper that raises, optional ones with a default, each type converted there (`int(os.getenv("MAX_RETRIES", "3"))`) so a bad value fails at startup, not mid-job. Mark the secret `field(repr=False)` and give the object a `safe_dict()`, so nobody prints the key by accident.
+- A leaked key is not fixed by a new commit; git keeps every version. Revoke it at the provider, then add `.env` to `.gitignore` **and** `.dockerignore`. `COPY .env .` bakes the secret into an image layer that deleting it later does not remove — pass values at run time with `docker run --env-file .env`.
+
+| Value or tool | Verdict | Why |
+|---|---|---|
+| API keys, passwords, webhook secrets | **In `.env`, always** | Leaking one costs real money or real data |
+| Anything differing laptop vs production | **In `.env`** | `LOG_LEVEL=DEBUG` locally, `INFO` in production |
+| A prompt template, a routing table | A `.py`, `.yaml` or `.json` in git | `.env` is flat: no lists, no nesting, no review |
+| `os.getenv("KEY", "default")` | Optional settings only | A secret with a default fails later as a 401 |
+| A `_require("KEY")` helper that raises | Required settings | Fails in the first second, naming what is missing |
+| `.env.example` (key names, fake values) | **Committed** | It tells a new teammate what to fill in |
+
+**Common mistakes:**
+
+- *Mistake:* reading a variable before `load_dotenv()` runs. → *Symptom:* the key is clearly right in `.env`, but the program says it is missing. → *Fix:* call `load_dotenv()` at the very start, or inside the loader.
+- *Mistake:* treating an environment value as a boolean or number. → *Symptom:* `DEBUG_MODE=False` and debug mode is still on. → *Fix:* convert in the loader — `os.getenv("DEBUG", "false").lower() in ("1", "true", "yes")`.
+- *Mistake:* committing `.env`, or copying it into a Docker image. → *Symptom:* nothing, until the key is found by someone else or a scan. → *Fix:* `.gitignore` **and** `.dockerignore`, commit `.env.example`, revoke a pushed key.
+
+**Where you'll meet it:** the [Intermediate exercise](#ex-env_parsing) parses a `.env` by hand so the library stops being magic, and the [Edge cases exercise](#ex-env_edge_cases) makes you decide what an empty value means. The [Build Task](#build-task-config-logging-foundation) is this topic plus the error topic together. In [Doc04](../04_openai_api/), `OpenAI()` reads the key from the environment itself, so `load_dotenv()` must run first; and in [Doc11](../11_multi_agent_systems/) and [Project 4](../project_4_contentforge_multi_agent/) one config is checked once, then shared by every agent.
+
+**Quick cheat sheet:**
+
+- `.env` is never committed; `.env.example` always is.
+- `load_dotenv()` first — before any `os.getenv()`, including at module top level.
+- Every environment value is a string; convert it once, in the loader.
+- Never log, print or `repr()` a whole config object.
 
 ### Logging: better than `print()`
-`print()` just writes text to the screen — no severity level, no timestamp, and no way to turn it off later without editing your code. A **logger** gives you levels (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`), so you can leave detailed messages in your code forever, and just control — through settings, not code changes — how much of it you actually see at any given time. **Why this matters for anything that runs on its own** (a server, a scheduled job, an agent): when it fails at 3 AM, `print()` output that scrolled off a terminal that no longer exists is just gone. Log lines written to a file (or sent to a logging service) are how you piece together what actually happened. **When to use logging:** from the very first line of any code that runs outside your own terminal session. **How it works:** Python's built-in `logging` module gives every file its own named logger (`logging.getLogger(__name__)`), so every log line shows exactly where it came from. "Handlers" decide *where* logs go (screen, file, remote service) separately from *what* gets logged — which is why the same code can stay quiet in production and get noisy while you're debugging, just by changing settings, not code.
+
+`print()` is shouting across the room; logging is the shop's book. A logger writes each message with a **time**, a **severity level** and the **name of the part of the program** that wrote it, and how much detail is kept is a setting you change, not code you edit. That matters most when nobody is watching: a job at 3 AM, a server, an agent running on its own.
+
+**How it really works**
+
+- `logging.getLogger("agent.writer")` returns the **one** logger with that name, from anywhere in the program. The dots make a family: `agent.writer`'s parent is `agent`, whose parent is **root**.
+- `logger.info(...)` first checks the **effective level**: with no level of its own, Python walks up the family and uses the first one it finds. Below that level the call returns immediately, building and formatting nothing — which is why leaving `logger.debug()` calls in is cheap, and why `logger.info("x=%s", x)` beats an f-string that is built even when the line is thrown away.
+- If it passes, a **`LogRecord`** is built (message, arguments, level, name, time, file, line) and goes through this logger's **filters**, which can drop it or add fields — that is how a request id lands on every line. It then goes to each **handler**: `StreamHandler`, `FileHandler`, `RotatingFileHandler` (rolls over at a size, so a service cannot fill the disk).
+- **Each handler has its own level.** A handler at `INFO` throws away a `DEBUG` record the logger let through — that is how one logger gives a quiet screen and a detailed file at once.
+- The formatter turns the record into text. Then, unless `logger.propagate = False`, it also goes to the parent's handlers, up to root — which is how one message prints twice.
+- With no handler configured anywhere, `logging.lastResort` prints `WARNING` and above to stderr, unformatted; anything below disappears silently.
+- **Five reasons a line never appears**, in the order to check: logger level too high; handler level too high; no handlers at all; a filter dropped it; `propagate=False` cut it off from your handler.
+- Configure logging in **exactly one place**, called once from `main()`. A library must only call `getLogger(__name__)` and log; adding handlers there hijacks every program that imports it. Real applications use `dictConfig`, so switching production to `DEBUG` is a config change, not a deploy.
+- For an agent, the log is the only record of what it did: which agent ran, which tool it called with which arguments (redacted), how long it took, how many tokens it used. Give each agent its own named logger and put `%(name)s` in the formatter, plus a request id through a `Filter` and a `ContextVar`, or a multi-agent log is unreadable.
+
+| Level | When to use it | Example |
+|---|---|---|
+| `DEBUG` | Detail only useful while troubleshooting | `logger.debug("Routes: %s", routes)` |
+| `INFO` | Normal, important progress | `logger.info("Loaded %s rows", n)` |
+| `WARNING` | Unusual, but there is a fallback | `logger.warning("Region column missing")` |
+| `ERROR` | One operation failed | `logger.error("Failed to reach the API")` |
+| `CRITICAL` | The program cannot continue | `logger.critical("Database down")` |
+| `logger.exception(...)` | `ERROR` plus traceback — **only** in an `except` | `logger.exception("Job failed")` |
+
+**Common mistakes:**
+
+- *Mistake:* `logger.debug("Config: %s", config)` — the whole object, API key included. → *Symptom:* nothing, until the log is shared or scanned and the key `.env` protected is in a file kept for months. → *Fix:* log safe fields only, and search old logs for `sk-`, `key`, `token`.
+- *Mistake:* `basicConfig()` or `addHandler()` called more than once, often at import *and* in `main()`. → *Symptom:* every message printed two or three times. → *Fix:* configure once, in the entry point; guard helpers with `if not logger.handlers:`.
+
+**Where you'll meet it:** the [Intermediate (part 2) exercise](#ex-logger_levels) builds a two-handler setup and the [Real-world exercise](#ex-config_logging_wiring) wires it to your config loader — the [Build Task](#build-task-config-logging-foundation)'s `get_logger()` in miniature, copied into every later project. In [Doc06](../06_tools_function_calling/) and [Doc07](../07_ai_agents/), logging each tool call is how you see what the agent tried; in [Doc11](../11_multi_agent_systems/) and [Project 4](../project_4_contentforge_multi_agent/) the result must come with a log of which agents ran and why; [Doc13](../13_testing_evaluation_observability/) turns these lines into measurable data.
+
+**Quick cheat sheet:**
+
+- `logging.getLogger(__name__)` in every module; configure handlers **once**.
+- Logger level and handler level are two gates — a message must pass both.
+- Duplicate lines almost always mean handlers added twice, or `propagate`.
+- Never log a secret — not even at `DEBUG`.
 
 ## Go Deeper (Optional)
-_You don't need any of these to understand the Core Concepts above — use them if you want a second explanation or more detail._
+_Optional second explanations — not needed to understand the Core Concepts above._
 
-- [Python official tutorial](https://docs.python.org/3/tutorial/) — functions, modules, errors, classes. Skim what you know, read closely what you don't.
-- [typing module docs](https://docs.python.org/3/library/typing.html) — type hints, and why they're more than "nice to have."
-- [Errors tutorial](https://docs.python.org/3/tutorial/errors.html) — the official docs on try/except/raise.
-- [Real Python — Python Logging](https://realpython.com/python-logging/) — proper logging vs. `print()`.
-- [Real Python — Virtual Environments Primer](https://realpython.com/python-virtual-environments-a-primer/) — why venvs exist, how to use one.
-- [The Twelve-Factor App — Config](https://12factor.net/config) — why secrets and settings never live in code. Short read — worth re-reading before Doc12 too.
+- [Python official tutorial](https://docs.python.org/3/tutorial/) — functions, modules, errors.
+- [typing module docs](https://docs.python.org/3/library/typing.html) — type hints in depth.
+- [Errors tutorial](https://docs.python.org/3/tutorial/errors.html) — official try/except/raise.
+- [Real Python — Python Logging](https://realpython.com/python-logging/) — logging vs. `print()`.
+- [Real Python — Virtual Environments](https://realpython.com/python-virtual-environments-a-primer/) — why venvs exist.
+- [Twelve-Factor App — Config](https://12factor.net/config) — why secrets never live in code.
 
 ## Practice Exercises (before the build task)
 
-**Setup for this document's practice code:** work inside `01_python_foundations/` (same venv as before — if it's not active, `source .venv/bin/activate`). New package for this document: `pip install python-dotenv pydantic`.
+**Setup:** you create the virtual environment here, in `01_python_foundations/`: `python3 -m venv .venv`, `source .venv/bin/activate`, `pip install python-dotenv pydantic`. Every later document reuses it.
 
-**How to run each exercise:** save it as its own small script — `practice_basic.py`, `practice_intermediate.py`, and so on, matching the levels below — and run it directly: `python practice_basic.py`. Keep each one runnable on its own; don't chain them into one file.
+**Where your code lives:** all of it under `01_python_foundations/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — two of them share one file, each in its own labelled section — and any exercise with two or more files gets its own folder, run from inside that folder so imports and `.env` resolve the way the solutions assume.
 
 **Jump to an exercise:** [Basic](#ex-basic1) · [Basic part 2](#ex-venv_setup) · [Intermediate](#ex-env_parsing) · [Intermediate part 2](#ex-logger_levels) · [Real-world](#ex-config_logging_wiring) · [Edge cases](#ex-env_edge_cases) · [Failure handling](#ex-failure_handling) · [Build Task](#build-task-config-logging-foundation)
 
 ### Basic — typed function + custom error {: #ex-basic1 }
 
-- **What:** one function with full type hints, and one custom error class it raises on bad input.
-- **Why:** this is the single habit most beginner code is missing — a function whose signature already tells the reader what can go wrong, before they read the body.
-- **When you'll hit this for real:** every time you write a function another file will import. In this document's own Build Task below, `load_config()` does exactly this — it refuses to hand back a broken config instead of failing later, confusingly, three functions away.
-- **How to code it:** write `class InvalidAgeError(Exception): pass`. Write `def set_age(age: int) -> None:` that raises `InvalidAgeError` if `age < 0`. Call it once with a valid age, once with a negative one inside `try/except InvalidAgeError`, and print what happened each time.
+- **What:** `def set_age(age: int) -> None:` with full hints, raising your own `InvalidAgeError` when `age < 0`.
+- **Why:** a signature that already tells the reader what can go wrong is the habit most beginner code is missing.
+- **Save as:** `practice/custom_errors_practice.py`, under a `# Basic` section (this file also holds the [Failure handling exercise](#ex-failure_handling), in its own section).
+- **Used later by:** the [Real-world wiring exercise](#ex-config_logging_wiring) and the [Build Task](#build-task-config-logging-foundation) — you **re-write** this `class SomeError(Exception)` pattern into their `exceptions.py` as `MissingConfigError`, rather than importing this file.
 - **Stuck?** [Hint 1](hints_and_solutions/basic1_hints.md#hint-1) · [Hint 2](hints_and_solutions/basic1_hints.md#hint-2) · [Show me the solution](hints_and_solutions/basic1_solution.md)
 
 ### Basic (part 2) — a real venv, start to finish {: #ex-venv_setup }
 
-- **What:** create a virtual environment, install one real package, freeze it.
-- **Why:** this is the very first thing you do on every single project from here on — get it into muscle memory now, not while also trying to debug something else later.
-- **When you'll hit this for real:** literally the "Setup" step at the top of every project in this curriculum.
-- **How to code it:** `python -m venv .venv` → `source .venv/bin/activate` → `pip install requests` → `pip freeze > requirements.txt` → open `requirements.txt` and confirm `requests` is listed with a version number.
+- **What:** the full cycle by hand — `venv` → `activate` → `pip install requests` → `pip freeze > requirements.txt` → confirm `requests` is listed with a version.
+- **Why:** this is the first thing you do on every project from here on; get it into muscle memory now.
+- **Save as:** `practice/venv_setup_practice.md` — notes, not a script, since it is all shell commands: paste each command and its output as your own record. (Keep `.venv/` out of git.)
 - **Stuck?** [Hint 1](hints_and_solutions/venv_setup_hints.md#hint-1) · [Hint 2](hints_and_solutions/venv_setup_hints.md#hint-2) · [Show me the solution](hints_and_solutions/venv_setup_solution.md)
 
 ### Intermediate — read `.env` by hand, then explain why not to {: #ex-env_parsing }
 
-- **What:** parse a `.env` file's `KEY=value` lines yourself, without `python-dotenv`.
-- **Why:** doing it by hand once shows you exactly what the library saves you from (quoting, blank lines, comments, missing files) — a shortcut you should still understand under the hood.
-- **When you'll hit this for real:** any time you're debugging *why* a `.env` value isn't loading — knowing the manual version means you can check each step yourself instead of treating the library as a black box.
-- **How to code it:** open the file, read it line by line, split on the first `=`, and build a dict. Then rewrite the same thing in 2 lines using `python-dotenv`'s `load_dotenv()` + `os.getenv()`. Write one sentence on which version you'd actually ship.
+- **What:** parse a `.env` file's `KEY=value` lines yourself, then rewrite it in two lines with `load_dotenv()` + `os.getenv()` and say which you would ship.
+- **Why:** doing it once by hand shows what the library saves you from — quoting, blanks, comments, missing files.
+- **Save as:** `practice/env_config_practice.py`, under an `# Intermediate` section (this file also holds the [Edge cases exercise](#ex-env_edge_cases), in its own section).
+- **Used later by:** the [Build Task](#build-task-config-logging-foundation)'s `load_config()`, which ships the two-line `load_dotenv()` version **re-written** into `practice/build_task/config.py`, because that one also returns a typed `Config`.
 - **Stuck?** [Hint 1](hints_and_solutions/env_parsing_hints.md#hint-1) · [Hint 2](hints_and_solutions/env_parsing_hints.md#hint-2) · [Show me the solution](hints_and_solutions/env_parsing_solution.md)
 
 ### Intermediate (part 2) — a logger with two output levels {: #ex-logger_levels }
 
-- **What:** a logger that prints `INFO` and above to the screen, but writes `DEBUG` and above to a file.
-- **Why:** this is the exact setup you want in production — quiet in the terminal, detailed in the file you check after something breaks.
-- **When you'll hit this for real:** this document's Build Task `get_logger()` function needs exactly this, and every later project reuses it.
-- **How to code it:** create a logger with `logging.getLogger(__name__)`, add a `StreamHandler` set to `INFO`, add a `FileHandler` set to `DEBUG`, and log one message at each level (`.debug()`, `.info()`, `.warning()`) to see the difference.
+- **What:** a `get_logger(name: str) -> logging.Logger` with a `StreamHandler` at `INFO` and a `FileHandler` at `DEBUG`, then one message at each level.
+- **Why:** this is the setup you want in production — quiet in the terminal, detailed in the file you read after something breaks.
+- **Save as:** `practice/logging_practice.py`.
+- **Used later by:** the [Real-world wiring exercise](#ex-config_logging_wiring), which **copies** this `get_logger()` into `practice/config_logging_wiring/logging_setup.py`; the [Build Task](#build-task-config-logging-foundation)'s version adds a duplicate-handler guard. Keep the name `get_logger` exactly — every later document calls it by that name.
 - **Stuck?** [Hint 1](hints_and_solutions/logger_levels_hints.md#hint-1) · [Hint 2](hints_and_solutions/logger_levels_hints.md#hint-2) · [Show me the solution](hints_and_solutions/logger_levels_solution.md)
 
 ### Real-world — wire config + logging together {: #ex-config_logging_wiring }
 
-- **What:** a 3-file mini project (`config.py`, `logging_setup.py`, `main.py`) where `main.py` imports both and prints one log line using a value loaded from config.
-- **Why:** config and logging are almost always used *together* — this is a small rehearsal of the real Build Task below, so the real one has no surprises.
-- **When you'll hit this for real:** this exact pattern (import config, get a logger, use both together) is the first three lines of every script you'll write for the rest of this curriculum.
-- **How to code it:** `main.py` calls `load_config()`, then `get_logger(__name__)`, then logs `f"Loaded config for {config.some_field}"` at `INFO` level. Run it and confirm the line appears on screen.
+- **What:** a mini project whose `main.py` calls `load_config()`, then `get_logger(__name__)`, then logs one line using a value from config.
+- **Why:** config and logging are almost always used together, and this is the first three lines of every script you write from here on.
+- **Save as:** its own folder `practice/config_logging_wiring/`, with four files — `exceptions.py` (`MissingConfigError`), `config.py` (`load_config() -> Config`), `logging_setup.py` (`get_logger(name)`) and `main.py`.
+- **Run it:** `cd practice/config_logging_wiring && python main.py` — from inside the folder, so `from config import load_config` finds the file next to it.
+- **Builds on:** `practice/logging_practice.py` ([Intermediate part 2](#ex-logger_levels)) — **copy** its `get_logger()` into `logging_setup.py`, same name and signature; and `practice/custom_errors_practice.py` ([Basic](#ex-basic1)) — the same error pattern, re-written here as `MissingConfigError`. Copies, not imports. `load_config()` is the `.env`-reading idea from [Intermediate](#ex-env_parsing), returning a small `Config` object.
+- **Used later by:** the [Build Task](#build-task-config-logging-foundation) — the same wiring, one level more serious. Get this running first and the Build Task has no surprises left in it.
 - **Stuck?** [Hint 1](hints_and_solutions/config_logging_wiring_hints.md#hint-1) · [Hint 2](hints_and_solutions/config_logging_wiring_hints.md#hint-2) · [Hint 3](hints_and_solutions/config_logging_wiring_hints.md#hint-3) · [Hint 4](hints_and_solutions/config_logging_wiring_hints.md#hint-4) · [Show me the solution](hints_and_solutions/config_logging_wiring_solution.md)
 
 ### Edge cases — is an empty value "missing" or "valid"? {: #ex-env_edge_cases }
 
-- **What:** two tricky `.env` states: a file that exists but is completely empty, and a key present with an empty string as its value.
-- **Why:** this is a real judgment call every config loader has to make, and getting it wrong silently is how a genuinely missing secret sails through as if it were fine.
-- **When you'll hit this for real:** someone on a team copies `.env.example` to `.env`, forgets to fill in a value, and your app has to decide right then whether that's a hard failure or not.
-- **How to code it:** test your Doc01 config loader against both cases directly. For each, write down — in a comment or a one-line note — whether your loader currently treats it as "missing" (raises `MissingConfigError`) or "valid" (returns an empty string), and whether that's actually the behavior you want.
+- **What:** two tricky `.env` states — a file that exists but is empty, and a key present with an empty string as its value. Test your loader against both.
+- **Why:** getting this wrong silently is how a genuinely missing secret sails through as if it were fine.
+- **Save as:** `practice/env_config_practice.py`, under an `# Edge cases` section (this file also holds the [Intermediate exercise](#ex-env_parsing), in its own section).
+- **Builds on:** the `load_config()` / `require_env()` you wrote in the [Intermediate](#ex-env_parsing) section of this same file — keep both sections side by side.
 - **Stuck?** [Hint 1](hints_and_solutions/env_edge_cases_hints.md#hint-1) · [Hint 2](hints_and_solutions/env_edge_cases_hints.md#hint-2) · [Show me the solution](hints_and_solutions/env_edge_cases_solution.md)
 
 ### Failure handling — three different errors, three different reactions {: #ex-failure_handling }
 
-- **What:** one function that raises 3 different kinds of errors depending on the input, and a caller that handles each one differently — not one big catch-all `except`.
-- **Why:** a single blanket `except Exception` treats a typo'd input the same as a real system failure — this exercise builds the habit of catching each error type separately, so your response actually fits the problem.
-- **When you'll hit this for real:** any function with more than one way to fail differently — like Doc04's chat client, which needs to react differently to a bad key vs. a rate limit vs. a network timeout.
-- **How to code it:** define 3 small custom error classes, write one function that raises a different one depending on its input, then write 3 separate `except` blocks (not one shared one) that each print something different.
+- **What:** three small custom error classes, one function that raises a different one depending on its input, and three separate `except` blocks — not one catch-all.
+- **Why:** a blanket `except Exception` treats a typo'd input the same as a real system failure.
+- **Save as:** `practice/custom_errors_practice.py`, under a `# Failure handling` section (this file also holds the [Basic exercise](#ex-basic1), in its own section).
+- **Builds on:** the [Basic](#ex-basic1) section of this same file — same habit, three errors instead of one. Nothing to copy: scroll up in the file you already have.
 - **Stuck?** [Hint 1](hints_and_solutions/failure_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/failure_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/failure_handling_solution.md)
 
 ## Build Task — Config & Logging Foundation
@@ -130,55 +294,51 @@ _You don't need any of these to understand the Core Concepts above — use them 
 **Requirements:**
 
 - Loads required settings (at least `OPENAI_API_KEY`) from a `.env` file.
-- Fails fast with a clear, custom error if something required is missing — never quietly uses a fake default for a secret.
-- Gives you a typed config object (not a plain dictionary), so your editor can help with autocomplete and catch typos.
-- Has a `get_logger(name)` function that returns a ready-to-use logger (at least a console handler; level set by an environment variable).
+- Fails fast with a clear, custom error if something required is missing — never a fake default for a secret.
+- Gives you a typed config object, not a plain dictionary, so your editor can autocomplete and catch typos.
+- Has a `get_logger(name)` returning a ready-to-use logger (console handler; level set by an environment variable).
 
-**Inputs:** a `.env` file (you create it), and a `.env.example` with no real values.
+**Inputs:** `practice/build_task/.env` (you create it, never committed) and `practice/build_task/.env.example` with the same key names and no real values. **Outputs:** `from config import load_config`, `from logging_setup import get_logger`. **Constraints:** no secrets in code, not even in `.env.example`; no bare `except:`; full type hints everywhere.
 
-**Outputs:** a config object and a logger that any script in this project can import.
-
-**Constraints:**
-
-- No secrets typed directly in code — not even in `.env.example`.
-- No bare `except:`.
-- Every function has full type hints.
-
-**Suggested files:**
 ```
-01_python_foundations/
-├── config.py
-├── logging_setup.py
-├── exceptions.py
-├── .env.example
-└── test_config.py
+01_python_foundations/practice/build_task/
+├── exceptions.py        MissingConfigError
+├── config.py            load_config() -> Config
+├── logging_setup.py     get_logger(name)
+├── test_config.py       proves all 4 Test Cases below
+└── .env.example         key names only, no real values
 ```
 
-**Functions/Components to build (you write the code):**
+**Run it:** `cd practice/build_task && python test_config.py` — from inside the folder, so `from config import load_config` finds the file next to it.
 
-- `exceptions.py` → `MissingConfigError(Exception)`
-- `config.py` → `load_config() -> Config` (a dataclass or similar)
-- `logging_setup.py` → `get_logger(name: str) -> logging.Logger`
+**Builds on:** the [Real-world wiring exercise](#ex-config_logging_wiring). **Copy** `practice/config_logging_wiring/` to `practice/build_task/`, then upgrade it: make `Config` a typed dataclass, add the `.env.example`, guard `get_logger()` against duplicate handlers, and replace `main.py` with `test_config.py`.
+
+**Used later by:** every later document imports these two files — `practice/build_task/config.py` (`load_config()`) and `practice/build_task/logging_setup.py` (`get_logger(name)`). [Doc02](../02_apis_http_json/) is the first to say so and copies both into its own project folder. The names are fixed: rename one here and you rename it in every document that follows.
 
 ## Expected Behavior
-- Missing `.env`, or a missing key inside it → `MissingConfigError`, with a message naming exactly what's missing — not a generic `KeyError`.
-- Valid `.env` → `load_config()` returns a working object. Accessing a field that doesn't exist should be caught by your editor/type-checker, not surprise you while running.
-- Calling `get_logger("my_module")` from two different files should produce log lines you can tell apart (the module name should be visible).
+
+- Missing `.env`, or a missing key inside it → `MissingConfigError` naming exactly what is missing, not a generic `KeyError`.
+- Valid `.env` → `load_config()` returns a working object, and a field that does not exist is caught by your type checker, not at run time.
+- `get_logger("my_module")` called from two different files produces log lines you can tell apart.
 
 ## Test Cases
+
 | Scenario | Expected |
 |---|---|
-| `.env` missing entirely | `MissingConfigError`, message names the missing file |
+| `.env` missing entirely | `MissingConfigError` naming the missing key (`OPENAI_API_KEY`) — the file only matters because the key ends up unset; on a server there is no `.env` and the key comes from the real environment |
 | `.env` exists, but `OPENAI_API_KEY` is missing | `MissingConfigError`, message names the missing key |
 | `.env` exists and is valid | `Config` object returned, `config.openai_api_key` works |
 | `get_logger("x")` called twice with the same name | Works both times, no duplicate log lines per message |
+| All four rows above, run in one go | `cd practice/build_task && python test_config.py` prints one line per case |
 
 ## Break-It / Debug Preview
+
 - An empty `.env` file (exists, but has nothing in it).
 - `.env` has the key, but its value is an empty string — is that "missing" or "valid"? Decide, and be ready to defend your answer.
 - Full guided debugging happens in [14_debugging_lab](../14_debugging_lab/).
 
 ## Interview Topics Preview
+
 - venv vs. installing globally · mutable default arguments · the error family tree · why logging beats `print()` in production · what `__init__.py` does.
 
 ## Move On When

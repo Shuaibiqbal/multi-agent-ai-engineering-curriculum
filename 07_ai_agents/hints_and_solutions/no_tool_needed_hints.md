@@ -46,6 +46,7 @@ print result.steps       -- should be empty
 
 Here's almost the whole thing — fill in your own prompt:
 ```python
+# no_tool_needed_practice.py
 result = run_agent("...", max_iterations=5)
 print(result.final_answer)
 print(result.steps)
@@ -62,6 +63,7 @@ function test_no_tool_call_for_general_knowledge():
 ```
 
 ```python
+# no_tool_needed_practice.py
 def test_no_tool_call_for_general_knowledge():
     result = run_agent("What's the capital of France?", max_iterations=5)
     assert len(result.steps) == 0
@@ -83,6 +85,7 @@ for a couple of clearly-no-tool prompts:
 ```
 
 ```python
+# no_tool_needed_practice.py
 def test_borderline_prompt():
     result = run_agent("Is Paris generally a warm city?", max_iterations=5)
     print("tool calls made:", len(result.steps))

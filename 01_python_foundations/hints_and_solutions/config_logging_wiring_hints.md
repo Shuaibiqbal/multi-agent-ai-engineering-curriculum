@@ -4,6 +4,21 @@
 
 Work through in order — don't jump ahead until you've genuinely tried. Each hint now has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
+**Where this exercise is saved:** its own folder, `practice/config_logging_wiring/`, because it needs more than one file:
+
+```
+practice/config_logging_wiring/
+├── exceptions.py        MissingConfigError
+├── config.py            load_config() -> Config
+├── logging_setup.py     get_logger(name)
+├── main.py              wires the two together
+└── .env                 you create this; never committed
+```
+
+**Run it:** `cd practice/config_logging_wiring && python main.py` — from inside the folder, so `from config import load_config` finds the file sitting next to it.
+
+**Builds on:** `practice/logging_practice.py` ([Intermediate part 2](../README.md#ex-logger_levels)) — **copy** its `get_logger()` into `logging_setup.py`, same name, same signature. And `practice/custom_errors_practice.py` ([Basic](../README.md#ex-basic1)) — the same custom-error pattern, re-written here as `MissingConfigError` in `exceptions.py`. Copies, not imports: this folder runs on its own. The hints below are about `main.py`, the one genuinely new file; the [Solution](config_logging_wiring_solution.md) shows all four in full.
+
 - [Hint 1](#hint-1)
 - [Hint 2](#hint-2)
 - [Hint 3](#hint-3)
@@ -17,7 +32,7 @@ Work through in order — don't jump ahead until you've genuinely tried. Each hi
 
 ### Basic Version
 
-This exercise is not about writing new code — you already built a config loader and a logger. Now `main.py` just needs to use both together: load the config, get a logger, then print a log message that includes something from the config.
+This exercise is not about writing new code — you already built a config loader and a logger. Now `practice/config_logging_wiring/main.py` just needs to use both together: load the config, get a logger, then print a log message that includes something from the config.
 
 Think about which one you should call first.
 
@@ -27,7 +42,7 @@ Think about which one you should call first.
 
 ### Intermediate Version
 
-This exercise is about **wiring**, not new logic — you already built `load_config()` and `get_logger()` separately. Now `main.py` just needs to call both, and use them together: get the config, get a logger, then log something that includes a value from config.
+This exercise is about **wiring**, not new logic — you already built `load_config()` and `get_logger()` separately. Now `practice/config_logging_wiring/main.py` just needs to call both, and use them together: get the config, get a logger, then log something that includes a value from config.
 
 Think about the order: which one do you call first, and why does that order matter?
 
@@ -51,10 +66,10 @@ Think about the other side of the same coin, too: once startup *succeeds*, is th
 
 ### Basic Version
 
-At the top of `main.py`, bring in both functions you already wrote:
+At the top of `practice/config_logging_wiring/main.py`, bring in both functions, each from the file sitting next to it in that folder:
 
-- `load_config()` from your `config.py`
-- `get_logger()` from your `logging_setup.py`
+- `load_config()` from `practice/config_logging_wiring/config.py`
+- `get_logger()` from `practice/config_logging_wiring/logging_setup.py` — the copy of `practice/logging_practice.py`'s function
 
 Call `load_config()` first, before anything else — if a setting is missing, you want to find out right away.
 
@@ -66,7 +81,7 @@ Then use an f-string to put a config value inside your log message.
 
 ### Intermediate Version
 
-`from config import load_config` and `from logging_setup import get_logger` at the top of `main.py`. Call `load_config()` first — if it's going to fail (a missing key), you want that to happen before you've done anything else, including setting up logging.
+`from config import load_config` and `from logging_setup import get_logger` at the top of `practice/config_logging_wiring/main.py`. Call `load_config()` first — if it's going to fail (a missing key), you want that to happen before you've done anything else, including setting up logging.
 
 Use an f-string to build your log message with a value from the config object: `logger.info(f"...{config.some_field}...")`.
 
@@ -95,7 +110,7 @@ Three more pieces:
 ### Basic Version
 
 ```
-in main.py:
+in practice/config_logging_wiring/main.py:
     bring in load_config and get_logger
 
     config = load_config()      # do this first
@@ -113,7 +128,7 @@ run the file and check the message shows up with the config value in it
 ### Intermediate Version
 
 ```
-in main.py:
+in practice/config_logging_wiring/main.py:
     import load_config from config.py
     import get_logger from logging_setup.py
     import sys and MissingConfigError
@@ -139,7 +154,7 @@ one-line error instead of a Python traceback
 ### Advanced Version
 
 ```
-in main.py:
+in practice/config_logging_wiring/main.py:
     import load_config, get_logger, sys, MissingConfigError
 
     define main() -> None:
@@ -166,6 +181,7 @@ in main.py:
 ### Basic Version
 
 ```python
+# practice/config_logging_wiring/main.py
 from config import load_config
 from logging_setup import get_logger
 
@@ -175,7 +191,7 @@ logger = get_logger("main")
 logger.info("Loaded config with log level: " + config.log_level)
 ```
 
-Run this file (`python main.py`) and check the line prints.
+Run it with `cd practice/config_logging_wiring && python main.py` and check the line prints.
 
 <hr class="page-break">
 
@@ -184,6 +200,7 @@ Run this file (`python main.py`) and check the line prints.
 ### Intermediate Version
 
 ```python
+# practice/config_logging_wiring/main.py
 import sys
 
 from config import load_config
@@ -201,7 +218,7 @@ logger = get_logger(__name__)
 logger.info(f"Loaded config with log level: {config.log_level}")
 ```
 
-Run this file directly (`python main.py`) and confirm the line prints. Then break your config on purpose (delete a required value) and confirm you get the clean one-line "Startup failed: ..." message instead of a traceback.
+Run it with `cd practice/config_logging_wiring && python main.py` and confirm the line prints. Then break your config on purpose (delete a required value) and confirm you get the clean one-line "Startup failed: ..." message instead of a traceback.
 
 <hr class="page-break">
 
@@ -210,6 +227,7 @@ Run this file directly (`python main.py`) and confirm the line prints. Then brea
 ### Advanced Version
 
 ```python
+# practice/config_logging_wiring/main.py
 import sys
 
 from config import load_config

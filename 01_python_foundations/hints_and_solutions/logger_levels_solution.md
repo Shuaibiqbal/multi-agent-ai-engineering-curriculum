@@ -2,11 +2,16 @@
 
 > [Back to the exercise](../README.md#ex-logger_levels) · [Hint 1](logger_levels_hints.md#hint-1) · [Hint 2](logger_levels_hints.md#hint-2) · [Solution](logger_levels_solution.md)
 
+**Where this exercise is saved:** `practice/logging_practice.py`. Run it with `cd practice && python logging_practice.py`.
+
+**Used later by:** the [Real-world wiring exercise](../README.md#ex-config_logging_wiring) **copies** the `get_logger()` you write here into `practice/config_logging_wiring/logging_setup.py`, and the [Build Task](../README.md#build-task-config-logging-foundation) writes the same function again in `practice/build_task/logging_setup.py`. A copy, not an import — each of those folders stands alone. Keep the name and signature exactly as they are: `get_logger(name: str) -> logging.Logger`.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
 
 ```python
+# practice/logging_practice.py
 import logging
 
 logger = logging.getLogger(__name__)
@@ -49,10 +54,11 @@ This version works correctly. It's missing type hints and a reusable function ar
 ### Approach 1 — wrapped in a typed function
 
 ```python
+# practice/logging_practice.py
 import logging
 
 
-def setup_logger(name: str) -> logging.Logger:
+def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
@@ -67,7 +73,7 @@ def setup_logger(name: str) -> logging.Logger:
     return logger
 
 
-logger = setup_logger(__name__)
+logger = get_logger(__name__)
 
 logger.debug("This only goes to the file.")
 logger.info("This goes to both the screen and the file.")
@@ -88,10 +94,11 @@ This also goes to both.
 ### Approach 2 — same result, built from a list of handler specs
 
 ```python
+# practice/logging_practice.py
 import logging
 
 
-def setup_logger(name: str) -> logging.Logger:
+def get_logger(name: str) -> logging.Logger:
     """Create a logger that prints INFO+ to the screen and DEBUG+ to a file."""
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
@@ -107,7 +114,7 @@ def setup_logger(name: str) -> logging.Logger:
     return logger
 
 
-logger = setup_logger(__name__)
+logger = get_logger(__name__)
 
 logger.debug("This only goes to the file.")
 logger.info("This goes to both the screen and the file.")
@@ -125,7 +132,7 @@ This goes to both the screen and the file.
 This also goes to both.
 ```
 
-**Difference from Basic:** both Intermediate approaches move the setup into a typed function, `setup_logger(name: str) -> logging.Logger`, so it can be reused for more than one logger without copy-pasting the whole block. Approach 2 also adds a docstring and loops over a list of `(handler, level)` pairs instead of writing out `.setLevel()` / `.addHandler()` twice by hand — purely a style choice for avoiding repetition, not a behavior difference from Approach 1.
+**Difference from Basic:** both Intermediate approaches move the setup into a typed function, `get_logger(name: str) -> logging.Logger`, so it can be reused for more than one logger without copy-pasting the whole block. Approach 2 also adds a docstring and loops over a list of `(handler, level)` pairs instead of writing out `.setLevel()` / `.addHandler()` twice by hand — purely a style choice for avoiding repetition, not a behavior difference from Approach 1.
 
 <hr class="page-break">
 
@@ -136,10 +143,11 @@ This also goes to both.
 ### Approach 1 — two handlers directly, made safe to call twice
 
 ```python
+# practice/logging_practice.py
 import logging
 
 
-def setup_logger(name: str) -> logging.Logger:
+def get_logger(name: str) -> logging.Logger:
     """Create (or reuse) a logger with a screen handler and a file handler.
 
     Safe to call more than once — if this logger already has handlers,
@@ -162,8 +170,8 @@ def setup_logger(name: str) -> logging.Logger:
     return logger
 
 
-logger = setup_logger(__name__)
-logger = setup_logger(__name__)  # called again — no duplicate handlers added
+logger = get_logger(__name__)
+logger = get_logger(__name__)  # called again — no duplicate handlers added
 
 logger.info("This goes to both the screen and the file.")
 ```
@@ -171,17 +179,18 @@ logger.info("This goes to both the screen and the file.")
 ```
 This goes to both the screen and the file.
 ```
-Printed once, not twice. Without the `if logger.handlers:` guard, the second `setup_logger()` call would attach a second screen handler and a second file handler, and this line would print twice.
+Printed once, not twice. Without the `if logger.handlers:` guard, the second `get_logger()` call would attach a second screen handler and a second file handler, and this line would print twice.
 
 ### Approach 2 — with a shared formatter (what you'd actually ship)
 
 A formatter makes your log lines useful later — timestamp, level, and module name, not just the bare message.
 
 ```python
+# practice/logging_practice.py
 import logging
 
 
-def setup_logger(name: str) -> logging.Logger:
+def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
@@ -203,7 +212,7 @@ def setup_logger(name: str) -> logging.Logger:
     return logger
 
 
-logger = setup_logger(__name__)
+logger = get_logger(__name__)
 
 logger.debug("This only goes to the file.")
 logger.info("This goes to both.")
@@ -217,6 +226,7 @@ The date and time will be whatever it actually is when you run it (down to the m
 ### Approach 3 — declarative setup with `logging.config.dictConfig()` (production style)
 
 ```python
+# practice/logging_practice.py
 import logging
 import logging.config
 
@@ -261,6 +271,6 @@ logger.info("This goes to both.")
 ```
 Same line as Approach 2 — `dictConfig` builds the exact same two handlers and formatter, just from one dictionary instead of several lines of Python. Note the `"loggers": {"__main__": {...}}` key only matches when this file is run directly; a real multi-module app usually configures the **root** logger instead (the key `""` in place of `"__main__"`), so every module's `logging.getLogger(__name__)` inherits the same handlers automatically.
 
-**Difference from Intermediate, and between these 3 Advanced approaches:** Intermediate's `setup_logger()` works the first time but breaks if it's ever called twice — every handler gets duplicated, and every log line prints multiple times. Approach 1 fixes exactly that, with a 2-line guard. Approach 2 adds a shared formatter, so log lines carry a timestamp and level instead of being bare text — the difference between a log file you can actually debug from and one you can't. Approach 3 does the same job as Approach 2 but describes it *declaratively*, as one dictionary (which in a real app is usually loaded from a JSON or YAML config file) instead of *imperatively* building handler objects in Python — the advantage being that ops or another developer can change log levels or add a handler by editing config, without touching code.
+**Difference from Intermediate, and between these 3 Advanced approaches:** Intermediate's `get_logger()` works the first time but breaks if it's ever called twice — every handler gets duplicated, and every log line prints multiple times. Approach 1 fixes exactly that, with a 2-line guard. Approach 2 adds a shared formatter, so log lines carry a timestamp and level instead of being bare text — the difference between a log file you can actually debug from and one you can't. Approach 3 does the same job as Approach 2 but describes it *declaratively*, as one dictionary (which in a real app is usually loaded from a JSON or YAML config file) instead of *imperatively* building handler objects in Python — the advantage being that ops or another developer can change log levels or add a handler by editing config, without touching code.
 
-**Which one should you actually write?** For an exercise or a small script, Intermediate Approach 1 (a typed `setup_logger` function, no extra machinery) is completely correct and what most people should default to. Advanced Approach 1's re-entry guard is worth adding the moment this function might run more than once — which, in a real app with multiple modules importing each other, is more common than it sounds. Advanced Approach 2's formatter is worth it the moment anyone other than you will read the log file. Advanced Approach 3's `dictConfig` is worth it specifically once logging configuration needs to change without a code change (different levels in production vs. development, for example) — don't reach for it by default, it's solving a problem a small script usually doesn't have yet.
+**Which one should you actually write?** For an exercise or a small script, Intermediate Approach 1 (a typed `get_logger` function, no extra machinery) is completely correct and what most people should default to. Advanced Approach 1's re-entry guard is worth adding the moment this function might run more than once — which, in a real app with multiple modules importing each other, is more common than it sounds. Advanced Approach 2's formatter is worth it the moment anyone other than you will read the log file. Advanced Approach 3's `dictConfig` is worth it specifically once logging configuration needs to change without a code change (different levels in production vs. development, for example) — don't reach for it by default, it's solving a problem a small script usually doesn't have yet.

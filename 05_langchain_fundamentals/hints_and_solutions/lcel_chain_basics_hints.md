@@ -46,6 +46,7 @@ Try `chain.batch([{"question": "..."}, {"question": "..."}, {"question": "..."}]
 The real design question `.batch()` raises immediately: **what happens if one input in the batch fails while the others succeed?** By default, `.batch()` raises on the first failure and you lose every result, even the ones that already finished — which is often not what you want for, say, processing 50 rows of a spreadsheet where 1 bad row shouldn't throw away 49 good answers.
 
 ```python
+# lcel_chain_basics_practice.py
 results = chain.batch(
     [{"question": q} for q in questions],
     return_exceptions=True,
@@ -77,6 +78,7 @@ print the answer that comes back
 
 Here is almost the whole thing — just try running it and reading it line by line:
 ```python
+# lcel_chain_basics_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -105,6 +107,7 @@ print(result)
 ```
 
 ```python
+# lcel_chain_basics_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -134,6 +137,7 @@ for each (question, result) pair:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# lcel_chain_basics_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser

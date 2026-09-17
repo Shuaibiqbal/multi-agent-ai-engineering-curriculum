@@ -7,6 +7,7 @@ All examples below use an `always_ask_again_tool` that never gives the model wha
 ## Basic Version
 
 ```python
+# loop_safety_cost_practice.py
 import time
 
 
@@ -67,6 +68,7 @@ Shown above — `time.time() - start > timeout_seconds` checked at the top of ev
 ### Approach 2 — a timeout wrapped around the whole call, using a thread
 
 ```python
+# loop_safety_cost_practice.py
 import concurrent.futures
 
 
@@ -100,6 +102,7 @@ This version doesn't touch `run_agent()`'s internals at all — it runs the *who
 ### Approach 1 — real token counts, looping run vs. one direct call
 
 ```python
+# loop_safety_cost_practice.py
 def run_agent_with_timeout_and_tokens(task, max_iterations=1000, timeout_seconds=30):
     start = time.time()
     messages = [{"role": "user", "content": task}]
@@ -153,6 +156,7 @@ ratio: 303x
 
 Add one print statement inside Approach 1's loop, right after the `messages.append(...)` calls:
 ```python
+# loop_safety_cost_practice.py
 print(f"step {step}: messages list now has {len(messages)} items")
 ```
 **Expected pattern once that line is added:**

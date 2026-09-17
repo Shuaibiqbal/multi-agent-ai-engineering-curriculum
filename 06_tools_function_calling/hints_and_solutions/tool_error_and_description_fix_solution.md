@@ -7,6 +7,7 @@
 ### Approach 1 — both halves, the direct way
 
 ```python
+# tool_selection_practice.py — Failure section
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -72,6 +73,7 @@ This shows both halves working: an error string instead of a crash, and a measur
 ### Approach 1 — the model's reaction to the error, and a swappable-description factory
 
 ```python
+# tool_selection_practice.py — Failure section
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -161,6 +163,7 @@ Precise description: called 5/5 times
 ### Approach 1 — separating expected failures from unexpected bugs
 
 ```python
+# tool_selection_practice.py — Failure section
 import logging
 
 from langchain_core.tools import tool
@@ -205,6 +208,7 @@ The first line is the expected, specific failure — safe to show as-is. The sec
 ### Approach 2 — a larger sample for the description comparison, reported as a percentage
 
 ```python
+# tool_selection_practice.py — Failure section
 def count_tool_calls_large(weather_tool, prompt: str, runs: int = 20) -> tuple[int, int]:
     model_with_tools = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([weather_tool])
     called = 0

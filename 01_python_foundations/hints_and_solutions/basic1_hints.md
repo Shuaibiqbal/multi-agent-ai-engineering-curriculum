@@ -2,6 +2,10 @@
 
 > [Back to the exercise](../README.md#ex-basic1) · [Hint 1](basic1_hints.md#hint-1) · [Hint 2](basic1_hints.md#hint-2) · [Solution](basic1_solution.md)
 
+**Where this exercise is saved:** `practice/custom_errors_practice.py`, under its `# Basic` section — the same file also holds the [Failure handling exercise](../README.md#ex-failure_handling), under a `# Failure handling` section. Run it with `cd practice && python custom_errors_practice.py`.
+
+**Used later by:** the [Real-world wiring exercise](../README.md#ex-config_logging_wiring) and the [Build Task](../README.md#build-task-config-logging-foundation). Neither imports this file — they re-write the same one-line custom-error pattern as `MissingConfigError` in `practice/config_logging_wiring/exceptions.py` and `practice/build_task/exceptions.py`.
+
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
@@ -37,6 +41,7 @@ The exercise is really about two Python features working together: a custom exce
 
 A custom exception is a class that inherits from `Exception`:
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 ```
@@ -44,6 +49,7 @@ class InvalidAgeError(Exception):
 
 The function's type hints should describe its contract precisely:
 ```python
+# practice/custom_errors_practice.py — Basic section
 def set_age(age: int) -> None:
 ```
 This tells any reader — without looking at the function body — that it takes an `int` and returns nothing (`None`).
@@ -66,6 +72,7 @@ That means the *real* design question isn't just "make a custom exception" — i
 
 To make the exception actually carry data, you override `__init__`:
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     def __init__(self, age: int) -> None:
         self.age = age
@@ -98,6 +105,7 @@ test it:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -135,6 +143,7 @@ test:
 Notice there's no `else` branch needed — if the `if` condition is false, the function just falls through and returns `None` naturally.
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     pass
 
@@ -145,6 +154,7 @@ def set_age(age: int) -> None:
 ```
 What's missing: the two test calls. Write them yourself:
 ```python
+# practice/custom_errors_practice.py — Basic section
 set_age(25)  # should run with no output
 
 try:
@@ -179,6 +189,7 @@ test, using both pieces of the caught exception:
 ```
 
 ```python
+# practice/custom_errors_practice.py — Basic section
 class InvalidAgeError(Exception):
     def __init__(self, age: int) -> None:
         self.age = age

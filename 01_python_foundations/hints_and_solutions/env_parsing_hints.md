@@ -2,6 +2,10 @@
 
 > [Back to the exercise](../README.md#ex-env_parsing) · [Hint 1](env_parsing_hints.md#hint-1) · [Hint 2](env_parsing_hints.md#hint-2) · [Solution](env_parsing_solution.md)
 
+**Where this exercise is saved:** `practice/env_config_practice.py`, under its `# Intermediate` section — the same file also holds the [Edge cases exercise](../README.md#ex-env_edge_cases), under an `# Edge cases` section. Run it with `cd practice && python env_config_practice.py`.
+
+**Used later by:** the [Build Task](../README.md#build-task-config-logging-foundation)'s `load_config()` in `practice/build_task/config.py` — it ships the short `load_dotenv()` + `os.getenv()` version you land on here, re-written (not imported) so it can return a typed `Config` object.
+
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real config parser handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
@@ -90,6 +94,7 @@ return env_vars
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# practice/env_config_practice.py — Intermediate section
 def parse_env_by_hand(path):
     env_vars = {}
     for line in open(path):
@@ -128,6 +133,7 @@ compare against:
 ```
 
 ```python
+# practice/env_config_practice.py — Intermediate section
 def parse_env_by_hand(path: str) -> dict:
     env_vars = {}
     for line in open(path):
@@ -171,6 +177,7 @@ function parse_env_by_hand(path, required_keys) -> dict:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# practice/env_config_practice.py — Intermediate section
 class MissingEnvKeyError(Exception):
     pass
 

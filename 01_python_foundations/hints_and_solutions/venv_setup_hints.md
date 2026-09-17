@@ -4,6 +4,8 @@
 
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (the proper terminal workflow), **Advanced** (how a real project automates it so nobody has to remember these steps by hand). Read Basic first even if you already know venvs — it's the fastest way to spot exactly what each deeper level adds.
 
+**Where this exercise is saved:** `practice/venv_setup_practice.md` — notes, not a script. Every block below is a terminal command, so there is nothing to `python`-run: keep a Markdown file with each command you ran and the output you got back, and you will have your own record of the sequence the next time you start a project. (The `Makefile` and `setup.sh` in the Advanced section are real files you create at your project root — paste them into the notes too.)
+
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
@@ -82,6 +84,7 @@ open requirements.txt and look for "requests" in it
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```bash
+# → practice/venv_setup_practice.md
 python -m venv .venv
 source .venv/bin/activate
 pip install requests
@@ -109,6 +112,7 @@ confirm:
 
 The commands, plus how to check each result:
 ```bash
+# → practice/venv_setup_practice.md
 python -m venv .venv
 ls .venv                      # should show bin/, lib/, etc.
 
@@ -154,6 +158,7 @@ now the whole exercise becomes:
 
 A start on the `Makefile` version — deliberately incomplete, fill in the rest yourself:
 ```makefile
+# Makefile (project root) — also paste this recipe into practice/venv_setup_practice.md
 .PHONY: setup
 setup:
 	python -m venv .venv

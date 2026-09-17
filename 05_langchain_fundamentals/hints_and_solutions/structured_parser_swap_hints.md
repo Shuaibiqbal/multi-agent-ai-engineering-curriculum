@@ -49,6 +49,7 @@ Catching the mismatch and printing an error is the minimum — but think about w
 LangChain gives you a direct tool for the "fall back to something simpler" option: `.with_fallbacks([...])`. You attach one or more backup `Runnable`s to try, in order, if the first one raises.
 
 ```python
+# structured_output_practice.py — Intermediate section
 from langchain_core.output_parsers import StrOutputParser
 
 primary = ChatOpenAI().with_structured_output(Person)
@@ -84,6 +85,7 @@ test 2: ask it something that doesn't have a name and age in it
 
 Here is almost the whole thing:
 ```python
+# structured_output_practice.py — Intermediate section
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 
@@ -140,6 +142,7 @@ for each result:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# structured_output_practice.py — Intermediate section
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser

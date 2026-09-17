@@ -51,6 +51,7 @@ Two extra pieces answer both problems:
 - **A `finish_reason` check** — `response.choices[0].finish_reason` tells you *why* the model stopped (`"stop"` is the normal case). Checking it, and raising a clear error when `content` is `None`, turns a confusing `TypeError` somewhere downstream into an obvious, immediate one naming exactly what happened.
 
 ```python
+# chat_api_basics_practice.py
 _client = None
 
 def get_client():
@@ -94,6 +95,7 @@ print the new reply text
 
 Here's almost the whole thing for the first call — just try running it and reading it line by line:
 ```python
+# chat_api_basics_practice.py
 from openai import OpenAI
 
 client = OpenAI()
@@ -164,10 +166,15 @@ function ask(system_prompt, user_prompt) -> str:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# chat_api_basics_practice.py
 from dotenv import load_dotenv
 from openai import OpenAI
 
 _client: "OpenAI | None" = None
+
+
+class EmptyModelReplyError(Exception):
+    """Raised when the model's reply has no text content to return."""
 
 
 def get_client() -> OpenAI:
@@ -189,7 +196,7 @@ def ask(system_prompt: str, user_prompt: str) -> str:
     )
     choice = response.choices[0]
     # your turn: if choice.message.content is None, raise a clear
-    # RuntimeError naming choice.finish_reason instead of returning None
+    # EmptyModelReplyError naming choice.finish_reason instead of returning None
     ...
     return choice.message.content
 ```

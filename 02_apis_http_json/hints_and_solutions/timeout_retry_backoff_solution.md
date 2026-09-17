@@ -7,6 +7,7 @@
 ### Approach 1 — a plain retry loop
 
 ```python
+# retry_backoff_practice.py — Intermediate section
 import time
 import requests
 
@@ -51,8 +52,12 @@ This works. It's missing type hints and re-raises nothing — a caller of this s
 ### Approach 1 — a typed, reusable function that re-raises
 
 ```python
+# retry_backoff_practice.py — Intermediate section
+import logging
 import time
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
@@ -63,7 +68,7 @@ def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
             if attempt == max_attempts - 1:
                 raise
             wait_seconds = 2 ** attempt
-            print(f"attempt {attempt} timed out, waiting {wait_seconds}s")
+            logger.warning("attempt %s timed out, waiting %ss", attempt, wait_seconds)
             time.sleep(wait_seconds)
     raise RuntimeError("unreachable")  # loop always returns or raises above
 
@@ -83,7 +88,7 @@ timed out, as expected
 200
 ```
 
-**Difference from Basic:** pulling the loop into `get_with_retry()` means a caller gets back either a real `Response` or a real, propagated `requests.exceptions.Timeout` — never a silent `None` they have to remember to check. Type hints (`url: str`, `-> requests.Response`) also turn the function signature into documentation.
+**Difference from Basic:** pulling the loop into `get_with_retry()` means a caller gets back either a real `Response` or a real, propagated `requests.exceptions.Timeout` — never a silent `None` they have to remember to check. Type hints (`url: str`, `-> requests.Response`) also turn the function signature into documentation. The retry notice also moves from `print()` to `logger.warning()` (Doc01's `logging_setup.py` pattern) — this is a diagnostic about the program's own internal state, not output the reader is meant to see, so it belongs on the logger, not stdout.
 
 <hr class="page-break">
 
@@ -94,6 +99,7 @@ timed out, as expected
 ### Approach 1 — jitter, and the backoff math split into its own testable function
 
 ```python
+# retry_backoff_practice.py — Intermediate section
 import random
 import time
 import requests
@@ -134,6 +140,7 @@ The first line proves `compute_backoff_delay(3)` works entirely on its own, with
 ### Approach 2 — skip writing the loop at all: `urllib3`'s built-in `Retry`
 
 ```python
+# retry_backoff_practice.py — Intermediate section
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry

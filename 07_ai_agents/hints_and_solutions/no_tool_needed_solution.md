@@ -7,6 +7,7 @@ All examples below assume `run_agent()` from `build_react_loop`'s Advanced Versi
 ## Basic Version
 
 ```python
+# no_tool_needed_practice.py
 result = run_agent("What's the capital of France?", max_iterations=5)
 print(result.final_answer)
 print(result.steps)
@@ -27,6 +28,7 @@ The capital of France is Paris.
 ### Approach 1 — one real assertion
 
 ```python
+# no_tool_needed_practice.py
 def test_no_tool_call_for_general_knowledge():
     result = run_agent("What's the capital of France?", max_iterations=5)
     assert len(result.steps) == 0
@@ -40,6 +42,7 @@ def test_no_tool_call_for_general_knowledge():
 ### Approach 2 — a small list of clearly-no-tool prompts
 
 ```python
+# no_tool_needed_practice.py
 NO_TOOL_PROMPTS = [
     "What's the capital of France?",
     "What year did World War II end?",
@@ -68,6 +71,7 @@ def test_clear_prompts_never_call_a_tool():
 ### Approach 1 — a genuinely borderline prompt, observed rather than forced
 
 ```python
+# no_tool_needed_practice.py
 def test_borderline_prompt_is_observed_not_forced():
     result = run_agent("Is Paris generally a warm city?", max_iterations=5)
     print("tool calls made:", len(result.steps))
@@ -87,6 +91,7 @@ answer: Yes, Paris generally has a temperate climate with mild summers.
 ### Approach 2 — catching a vague tool description on purpose
 
 ```python
+# no_tool_needed_practice.py
 from unittest.mock import patch
 
 

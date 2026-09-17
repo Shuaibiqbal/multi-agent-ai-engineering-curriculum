@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# structured_output_practice.py — Intermediate section
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 
@@ -42,6 +43,7 @@ This version works correctly and shows the difference clearly. It catches the br
 ### Approach 1 — catching the specific `ValidationError`
 
 ```python
+# structured_output_practice.py — Intermediate section
 from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
 
@@ -89,6 +91,7 @@ Caught a validation error, as expected: 1 validation error for Person...
 ### Approach 1 — `.with_fallbacks(...)`, so a mismatch never raises
 
 ```python
+# structured_output_practice.py — Intermediate section
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -137,9 +140,13 @@ Neither call raises. The caller has to check `isinstance(result, Person)` to kno
 Instead of falling back to something weaker, this approach tells the model exactly what went wrong and asks it to try again — a "self-correcting" retry, worth it when you'd rather get a real `Person` on the second try than silently accept plain text on the first failure.
 
 ```python
+# structured_output_practice.py — Intermediate section
+import logging
 from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+
+logger = logging.getLogger(__name__)
 
 
 class Person(BaseModel):
@@ -160,7 +167,7 @@ def extract_with_retry(text: str, max_attempts: int = 2) -> Person | None:
             last_error = e
             text = f"{text}\n\n(Previous attempt failed: {e}. Make sure to include a clear name and a numeric age.)"
 
-    print(f"Gave up after {max_attempts} attempts: {last_error}")
+    logger.warning("Gave up after %s attempts: %s", max_attempts, last_error)
     return None
 
 
@@ -172,7 +179,7 @@ print(result)
 Gave up after 2 attempts: 1 validation error for Person...
 None
 ```
-On an input that's genuinely missing a name/age (like this one), retrying doesn't magically create data that was never there — this pattern is most useful for inputs the model *could* extract correctly but phrased its first answer ambiguously, not for inputs missing the required information entirely.
+On an input that's genuinely missing a name/age (like this one), retrying doesn't magically create data that was never there — this pattern is most useful for inputs the model *could* extract correctly but phrased its first answer ambiguously, not for inputs missing the required information entirely. Giving up after the last attempt is logged with `logger.warning(...)` rather than `print(...)` — it's a diagnostic about the function's own retry behavior, not part of the answer `extract_with_retry()` hands back to its caller.
 
 **Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate detects and reports a mismatch, then stops. Approach 1 (`.with_fallbacks`) makes the chain never raise at all, trading a guaranteed `Person` for a guaranteed *some* result — at the cost of the caller needing a type check afterward. Approach 2 goes the other direction: it keeps trying to get a real `Person`, feeding the validation error back to the model as extra context, and only gives up (returning `None`) after a fixed number of attempts.
 

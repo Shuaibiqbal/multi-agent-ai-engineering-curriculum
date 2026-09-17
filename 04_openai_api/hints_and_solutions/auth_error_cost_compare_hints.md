@@ -42,6 +42,7 @@ A token count is meaningful to you, right now, while you're reading it — but a
 The harder, real design question underneath this exercise: **should your app just measure cost after the fact, or actively enforce a limit on it?** A single call's cost difference between a short and long system prompt looks tiny in isolation — but multiply either one by a million real requests, and a bloated system prompt becomes a real, ongoing expense that nobody notices until a bill arrives. A production system often tracks *cumulative* spend across a session (or a day), not just per-call cost, and refuses new calls once a budget is hit — the same "fail loudly, on purpose, before something bad happens" idea as Doc01's `require_env()`, applied to money instead of missing config.
 
 ```python
+# auth_and_cost_practice.py
 PRICE_PER_1M_INPUT = 0.15
 PRICE_PER_1M_OUTPUT = 0.60
 
@@ -78,6 +79,7 @@ part 2:
 
 Here's almost the whole thing for part 1:
 ```python
+# auth_and_cost_practice.py
 import openai
 from openai import OpenAI
 
@@ -112,6 +114,7 @@ function compare_prompt_cost(question):
 ```
 
 ```python
+# auth_and_cost_practice.py
 import openai
 from openai import OpenAI
 
@@ -172,6 +175,7 @@ usage:
 
 Turning that into real code — fill in the missing piece yourself:
 ```python
+# auth_and_cost_practice.py
 class BudgetExceededError(Exception):
     pass
 

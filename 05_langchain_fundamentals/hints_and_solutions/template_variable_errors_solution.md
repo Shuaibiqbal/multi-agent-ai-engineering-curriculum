@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# prompt_template_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 
 prompt = ChatPromptTemplate.from_template("Answer: {question}")
@@ -38,6 +39,7 @@ This version works and shows both cases clearly. It catches the broad `Exception
 ### Approach 1 — the specific `KeyError`, in named functions
 
 ```python
+# prompt_template_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 
 
@@ -79,19 +81,27 @@ Extra variable -> no error, result: messages=[HumanMessage(content='Answer: What
 ### Approach 1 — check `input_variables` before ever calling `.invoke()`
 
 ```python
+# prompt_template_practice.py
+import logging
 from langchain_core.prompts import ChatPromptTemplate
+
+logger = logging.getLogger(__name__)
+
+
+class MissingPromptVariableError(Exception):
+    """Raised when a prompt template is missing one or more required variables."""
 
 
 def validate_inputs(prompt: ChatPromptTemplate, provided: dict) -> None:
     missing = set(prompt.input_variables) - set(provided.keys())
     if missing:
-        raise ValueError(f"Missing prompt variable(s): {sorted(missing)}")
+        raise MissingPromptVariableError(f"Missing prompt variable(s): {sorted(missing)}")
 
 
 def warn_about_extra_inputs(prompt: ChatPromptTemplate, provided: dict) -> None:
     extra = set(provided.keys()) - set(prompt.input_variables)
     if extra:
-        print(f"Warning: {sorted(extra)} will be silently ignored by this template")
+        logger.warning("%s will be silently ignored by this template", sorted(extra))
 
 
 def main() -> None:
@@ -100,7 +110,7 @@ def main() -> None:
     typo_inputs = {"questoin": "What is LCEL?"}  # typo, not "question"
     try:
         validate_inputs(prompt, typo_inputs)
-    except ValueError as e:
+    except MissingPromptVariableError as e:
         print(f"Caught before calling invoke(): {e}")
     warn_about_extra_inputs(prompt, typo_inputs)
 
@@ -108,28 +118,36 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 ```
-**Expected output:**
+**Expected output** (the logged warning's exact formatting depends on your logging setup — see Doc01's `logging_setup.py`):
 ```
 Caught before calling invoke(): Missing prompt variable(s): ['question']
-Warning: ['questoin'] will be silently ignored by this template
+WARNING:__main__:['questoin'] will be silently ignored by this template
 ```
-Both problems get caught here — `validate_inputs` catches the required `question` genuinely being missing, and `warn_about_extra_inputs` catches that `questoin` (the typo) would otherwise vanish silently, with no error at all, exactly the gap Hint 1's Advanced question pointed at.
+Both problems get caught here — `validate_inputs` catches the required `question` genuinely being missing (with a purpose-named `MissingPromptVariableError`, not a generic `ValueError`), and `warn_about_extra_inputs` logs that `questoin` (the typo) would otherwise vanish silently, with no error at all, exactly the gap Hint 1's Advanced question pointed at.
 
 ### Approach 2 — build the check into a reusable `safe_invoke()` wrapper
 
 ```python
+# prompt_template_practice.py
+import logging
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable
+
+logger = logging.getLogger(__name__)
+
+
+class MissingPromptVariableError(Exception):
+    """Raised when a prompt template is missing one or more required variables."""
 
 
 def safe_invoke(chain: Runnable, prompt: ChatPromptTemplate, inputs: dict):
     missing = set(prompt.input_variables) - set(inputs.keys())
     if missing:
-        raise ValueError(f"Missing prompt variable(s): {sorted(missing)}")
+        raise MissingPromptVariableError(f"Missing prompt variable(s): {sorted(missing)}")
 
     extra = set(inputs.keys()) - set(prompt.input_variables)
     if extra:
-        print(f"Warning: {sorted(extra)} will be silently ignored by this template")
+        logger.warning("%s will be silently ignored by this template", sorted(extra))
 
     return chain.invoke(inputs)
 ```

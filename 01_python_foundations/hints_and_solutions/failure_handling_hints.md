@@ -2,6 +2,10 @@
 
 > [Back to the exercise](../README.md#ex-failure_handling) · [Hint 1](failure_handling_hints.md#hint-1) · [Hint 2](failure_handling_hints.md#hint-2) · [Solution](failure_handling_solution.md)
 
+**Where this exercise is saved:** `practice/custom_errors_practice.py`, under its `# Failure handling` section — the same file also holds the [Basic exercise](../README.md#ex-basic1), under a `# Basic` section. Run it with `cd practice && python custom_errors_practice.py`.
+
+**Builds on:** the `# Basic` section of that same file — same habit, three error classes instead of one. Nothing to copy or import: scroll up in the file you already have.
+
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
@@ -80,6 +84,7 @@ for each of the 3 problem types:
 ```
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     pass
 
@@ -123,6 +128,7 @@ for each of the 3 problem types:
 ```
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     pass
 
@@ -166,6 +172,7 @@ for each of the 3 problem types:
 ```
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OrderError(Exception):
     pass
 

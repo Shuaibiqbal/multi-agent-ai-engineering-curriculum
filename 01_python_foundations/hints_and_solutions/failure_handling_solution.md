@@ -2,11 +2,16 @@
 
 > [Back to the exercise](../README.md#ex-failure_handling) · [Hint 1](failure_handling_hints.md#hint-1) · [Hint 2](failure_handling_hints.md#hint-2) · [Solution](failure_handling_solution.md)
 
+**Where this exercise is saved:** `practice/custom_errors_practice.py`, under its `# Failure handling` section — the same file also holds the [Basic exercise](../README.md#ex-basic1), under a `# Basic` section. Run it with `cd practice && python custom_errors_practice.py`.
+
+**Builds on:** the `# Basic` section of that same file — same habit, three error classes instead of one. Nothing to copy or import: scroll up in the file you already have.
+
 ## Basic Version
 
 ### Approach 1 — three separate `except` blocks, each reacting differently
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     pass
 
@@ -54,6 +59,7 @@ This is correct and is exactly what the exercise asks for: 3 error types, each w
 ### Approach 1 — three separate, differently-reacting `except` blocks
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     pass
 
@@ -95,6 +101,7 @@ Asking the customer to fix their address: shipping address is invalid
 ### Approach 2 — a shared base class, for when some handling really is shared
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OrderError(Exception):
     pass
 
@@ -147,6 +154,7 @@ Order problem, logging and notifying support: shipping address is invalid
 ### Approach 1 — separate handler functions, and errors that carry structured data
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     def __init__(self, item_id: str) -> None:
         self.item_id = item_id
@@ -208,6 +216,7 @@ Each exception now carries the actual data a handler needs (`e.item_id`, `e.reas
 ### Approach 2 — one shared base class, with the reaction chosen by data, not by type
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OrderError(Exception):
     def __init__(self, message: str, *, recoverable: bool) -> None:
         self.recoverable = recoverable
@@ -262,6 +271,7 @@ There's only **one** `except` clause here (`except OrderError as e:`), for all 3
 ### Approach 3 — a dispatch table, for many error types
 
 ```python
+# practice/custom_errors_practice.py — Failure handling section
 class OutOfStockError(Exception):
     pass
 

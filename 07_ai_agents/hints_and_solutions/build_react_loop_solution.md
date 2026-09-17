@@ -5,6 +5,7 @@
 ## Basic Version
 
 ```python
+# react_loop_practice.py — Intermediate section
 class MaxIterationsExceeded(Exception):
     pass
 
@@ -42,6 +43,7 @@ This version works correctly for one tool that always succeeds. It's missing typ
 ### Approach 1 — one tool, minimal structure
 
 ```python
+# react_loop_practice.py — Intermediate section
 def run_tool(call) -> str:
     import json
     try:
@@ -77,6 +79,7 @@ def run_agent(task: str, max_iterations: int = 5) -> str:
 ### Approach 2 — logging every step, and returning the full trace
 
 ```python
+# react_loop_practice.py — Intermediate section
 from dataclasses import dataclass, field
 
 
@@ -132,6 +135,7 @@ def run_agent(task: str, max_iterations: int = 5) -> AgentResult:
 ### Approach 1 — every tool call handled, every tool failure recovered from
 
 ```python
+# react_loop_practice.py — Intermediate section
 import json
 from dataclasses import dataclass, field
 
@@ -199,6 +203,7 @@ def run_agent(task: str, max_iterations: int = 5) -> AgentResult:
 ### Approach 2 — a step-limit test that actually proves the guarantee
 
 ```python
+# react_loop_practice.py — Intermediate section
 def make_adversarial_tool_call_response():
     """A stand-in model response that always asks for another tool call,
     used to prove the loop truly stops at max_iterations."""

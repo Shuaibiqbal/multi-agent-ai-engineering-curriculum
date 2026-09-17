@@ -68,6 +68,7 @@ function run_agent(task, max_iterations) -> answer:
 
 Here's almost the whole thing — fill in the tool-running part yourself:
 ```python
+# react_loop_practice.py — Intermediate section
 def run_agent(task, max_iterations=5):
     messages = [{"role": "user", "content": task}]
     for step in range(max_iterations):
@@ -110,6 +111,7 @@ function run_agent(task: str, max_iterations: int = 5) -> str:
 ```
 
 ```python
+# react_loop_practice.py — Intermediate section
 def run_agent(task: str, max_iterations: int = 5) -> str:
     messages: list[dict] = [{"role": "user", "content": task}]
 
@@ -138,6 +140,7 @@ Finish both marked parts yourself, then compare against the [Solution](build_rea
 The piece worth seeing on its own before the full Solution — `run_tool()` catching a failure instead of letting it crash the loop:
 
 ```python
+# react_loop_practice.py — Intermediate section
 import json
 
 def run_tool(call) -> str:

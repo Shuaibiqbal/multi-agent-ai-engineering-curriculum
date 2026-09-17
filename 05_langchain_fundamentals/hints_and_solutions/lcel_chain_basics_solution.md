@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# lcel_chain_basics_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -36,6 +37,7 @@ This version works correctly. It's missing an explicit model name and temperatur
 ### Approach 1 — a small `build_chain()` function, with explicit settings
 
 ```python
+# lcel_chain_basics_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -69,6 +71,7 @@ Answer: 5 + 7 = 12
 ### Approach 1 — `.batch()` with `return_exceptions=True`, reporting each result
 
 ```python
+# lcel_chain_basics_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -112,6 +115,7 @@ On a real failure (a bad input, a transient API error on just one item), that on
 `.batch()` isn't just a shorter way to write a loop — for a provider whose SDK supports it, requests in a batch can run concurrently. This is worth actually measuring, not just trusting.
 
 ```python
+# lcel_chain_basics_practice.py
 import time
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI

@@ -5,6 +5,7 @@
 ## Basic Version
 
 ```python
+# structured_output_practice.py — Failure section
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 
@@ -29,6 +30,7 @@ This version works and shows you the failure. Catching the broad `Exception` fin
 ## Intermediate Version
 
 ```python
+# structured_output_practice.py — Failure section
 from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
 
@@ -68,6 +70,7 @@ if __name__ == "__main__":
 ### Approach 1 — a caller-friendly function, expected failure returns `None`
 
 ```python
+# structured_output_practice.py — Failure section
 import logging
 from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
@@ -97,6 +100,7 @@ The design choice here: an expected parsing failure (`ValidationError`) is a nor
 ### Approach 2 — retry once with a clarified prompt before giving up
 
 ```python
+# structured_output_practice.py — Failure section
 def get_rating_with_retry(question: str) -> Rating | None:
     result = get_rating(question)
     if result is not None:

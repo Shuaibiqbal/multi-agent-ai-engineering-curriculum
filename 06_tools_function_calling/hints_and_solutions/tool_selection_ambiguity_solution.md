@@ -7,6 +7,7 @@
 ### Approach 1 — a plain counting loop
 
 ```python
+# tool_selection_practice.py — Intermediate section
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -50,6 +51,7 @@ This version works and gives you a real split. It doesn't print per-run detail, 
 ### Approach 1 — a reusable trial function with per-run logging
 
 ```python
+# tool_selection_practice.py — Intermediate section
 from collections import Counter
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -110,6 +112,7 @@ Final split: {'get_weather': 3, 'get_forecast': 2}
 ### Approach 1 — checking whether registration order biases the split
 
 ```python
+# tool_selection_practice.py — Intermediate section
 from collections import Counter
 
 from langchain_core.tools import BaseTool, tool
@@ -167,6 +170,7 @@ If both lines land close together, order isn't the driver — the wording is, wh
 ### Approach 2 — a bigger sample, to tell signal from noise
 
 ```python
+# tool_selection_practice.py — Intermediate section
 def run_selection_trial_large(prompt: str, tool_order: list[BaseTool], runs: int = 50) -> Counter:
     model_with_tools = get_model_with_tools(tool_order)
     tally: Counter = Counter()

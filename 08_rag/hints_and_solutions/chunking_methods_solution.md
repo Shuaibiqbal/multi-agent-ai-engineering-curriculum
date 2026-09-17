@@ -18,6 +18,7 @@ QUESTION = "What water temperature should be avoided when brewing coffee?"
 ### Approach 1 — the direct way
 
 ```python
+# chunking_practice.py — Intermediate section
 import math
 from openai import OpenAI
 
@@ -85,6 +86,7 @@ This version works correctly for what the exercise asks. It's missing type hints
 ### Approach 1 — type hints and a `find_best_chunk` helper
 
 ```python
+# chunking_practice.py — Intermediate section
 import math
 from openai import OpenAI
 
@@ -163,6 +165,7 @@ if __name__ == "__main__":
 ### Approach 1 — overlapping fixed-size chunks
 
 ```python
+# chunking_practice.py — Intermediate section
 def chunk_by_chars_with_overlap(text: str, chunk_size: int = 200, overlap: int = 40) -> list[str]:
     chunks: list[str] = []
     step = chunk_size - overlap
@@ -177,6 +180,7 @@ Run this against `DOCUMENT` with `chunk_size=200, overlap=40` and look at the ch
 ### Approach 2 — a paragraph chunker that doesn't silently give up
 
 ```python
+# chunking_practice.py — Intermediate section
 def chunk_by_paragraph_safe(text: str) -> list[str]:
     pieces = chunk_by_paragraph(text)
     if len(pieces) <= 1:

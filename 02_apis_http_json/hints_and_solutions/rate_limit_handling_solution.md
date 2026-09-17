@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# retry_backoff_practice.py — Failure section
 class FakeResponse:
     def __init__(self, status_code, headers):
         self.status_code = status_code
@@ -45,6 +46,7 @@ This is correct and covers both cases. It's missing type hints and doesn't guard
 ### Approach 1 — a dataclass fake, and a safe conversion
 
 ```python
+# retry_backoff_practice.py — Failure section
 from dataclasses import dataclass, field
 
 
@@ -93,6 +95,7 @@ if __name__ == "__main__":
 ### Approach 1 — the HTTP-date form, and a hard cap
 
 ```python
+# retry_backoff_practice.py — Failure section
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -151,6 +154,7 @@ The last line is the important one: a server claiming you should wait for over 3
 ### Approach 2 — the same idea, factored so the cap and the parsing are independently testable
 
 ```python
+# retry_backoff_practice.py — Failure section
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -194,4 +198,4 @@ None
 
 **Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate trusts `Retry-After` to always be a plain integer string from a well-behaved server — a date-formatted header or a deliberately huge number either crashes it or makes it wait an absurd amount of time. Approach 1 fixes both in one function. Approach 2 splits the parsing (`parse_retry_after`) from the capping-and-fallback decision (`decide_wait_seconds`), so the trickiest part — turning a raw header string into a number of seconds, in either of its two legal forms — can be tested directly with plain string inputs, the same "pull the risky logic into its own pure function" idea from the timeout/retry exercise's `compute_backoff_delay`.
 
-**Which one should you actually write?** For `http_client.py` in this document's Build Task, Approach 2's split is worth it — `parse_retry_after()` is exactly the kind of function you want a handful of quick unit tests for (a plain number, an HTTP-date, garbage, `None`), and testing it doesn't require constructing a fake response object at all. The hard cap (`MAX_RETRY_AFTER_SECONDS`) is worth keeping in any version of this code that talks to a server you don't fully control — which, for an external API, is always.
+**Which one should you actually write?** For `http_client.py` in this document's Build Task, Approach 2's split is worth it — `parse_retry_after()` is exactly the kind of function you want a handful of quick unit tests for (a plain number, an HTTP-date, garbage, `None`), and testing it doesn't require constructing a fake response object at all. The hard cap (`MAX_RETRY_AFTER_SECONDS`) is worth keeping in any version of this code that talks to a server you don't fully control — which, for an external API, is always. It's also exactly the kind of number that belongs in `config.py` (Doc01) rather than hardcoded here — a cap you might reasonably want to raise or lower per environment without editing this function.

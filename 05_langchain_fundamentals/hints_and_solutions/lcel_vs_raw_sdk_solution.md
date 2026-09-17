@@ -9,6 +9,7 @@ All examples below assume `from project_1 import extract_raw, ExtractedData` nam
 ### Approach 1 — print and eyeball
 
 ```python
+# lcel_vs_raw_sdk_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from project_1 import extract_raw, ExtractedData
@@ -37,6 +38,7 @@ This shows both results side by side. It leaves the comparing to your own eyes, 
 ### Approach 1 — actually assert the match
 
 ```python
+# lcel_vs_raw_sdk_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from project_1 import extract_raw, ExtractedData
@@ -88,6 +90,7 @@ if __name__ == "__main__":
 ### Approach 1 — timing both versions, per input and averaged
 
 ```python
+# lcel_vs_raw_sdk_practice.py
 import time
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
@@ -145,6 +148,7 @@ The LCEL version is a little slower here, consistently — a small, close-to-neg
 ### Approach 2 — a reusable comparison table, with mismatches and timings saved for review
 
 ```python
+# lcel_vs_raw_sdk_practice.py
 from dataclasses import dataclass
 import time
 from langchain_core.prompts import ChatPromptTemplate

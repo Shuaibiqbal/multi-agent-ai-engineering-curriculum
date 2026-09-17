@@ -89,6 +89,7 @@ test it:
 
 Here is almost the whole thing:
 ```python
+# retry_backoff_practice.py — Failure section
 def decide_wait_seconds(response, attempt):
     retry_after = response.headers.get("Retry-After")
     if retry_after is not None:
@@ -123,6 +124,7 @@ test:
 ```
 
 ```python
+# retry_backoff_practice.py — Failure section
 class FakeResponse:
     def __init__(self, status_code: int, headers: dict) -> None:
         self.status_code = status_code
@@ -163,6 +165,7 @@ function decide_wait_seconds(response, attempt):
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# retry_backoff_practice.py — Failure section
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
 
