@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — trigger it and read what happens
 
 ```python
+# conditional_routing_practice.py — Edge cases section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
@@ -72,6 +73,7 @@ Two things to notice: `builder.compile()` never raises anything — LangGraph do
 ### Approach 1 — confirming exactly when it fails, with type hints
 
 ```python
+# conditional_routing_practice.py — Edge cases section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
@@ -134,13 +136,18 @@ flag=None: FAILED LOUDLY -> KeyError('path_c')
 
 ## Advanced Version
 
-### Approach 1 — a self-checking routing function with a clear custom message
+### Approach 1 — a self-checking routing function with a clear custom exception
 
 ```python
+# conditional_routing_practice.py — Edge cases section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
 VALID_PATHS = {"path_a", "path_b"}
+
+
+class UnhandledRouteError(Exception):
+    """Raised when route() produces a value the graph's mapping doesn't handle."""
 
 
 class GraphState(TypedDict):
@@ -167,7 +174,7 @@ def route(state: GraphState) -> str:
         result = "path_a" if state["flag"] else "path_b"
 
     if result not in VALID_PATHS:
-        raise ValueError(
+        raise UnhandledRouteError(
             f"route() returned {result!r} for state {state!r}, "
             f"which isn't one of the handled paths: {VALID_PATHS}"
         )
@@ -187,20 +194,26 @@ graph = builder.compile()
 
 try:
     graph.invoke({"flag": None, "message": ""})
-except ValueError as e:
-    print(f"ValueError: {e}")
+except UnhandledRouteError as e:
+    print(f"UnhandledRouteError: {e}")
 ```
 **Expected output:**
 ```
-ValueError: route() returned 'path_c' for state {'flag': None, 'message': ''}, which isn't one of the handled paths: {'path_a', 'path_b'}
+UnhandledRouteError: route() returned 'path_c' for state {'flag': None, 'message': ''}, which isn't one of the handled paths: {'path_a', 'path_b'}
 ```
-Compare this to Intermediate's `KeyError: 'path_c'` — both fail immediately, at the same point in execution. This one's message names the actual routing function, shows the full state that caused the problem, and lists every path that *would* have worked — everything you'd want to know to fix it, in one line, instead of a bare `KeyError` you'd have to trace back to `route()` yourself.
+Compare this to Intermediate's `KeyError: 'path_c'` — both fail immediately, at the same point in execution. This one uses a specific, named exception class (not a generic `ValueError`) whose message names the actual routing function, shows the full state that caused the problem, and lists every path that *would* have worked — everything you'd want to know to fix it, in one line, and a type you can catch specifically without also catching unrelated value errors elsewhere in the same `try` block.
 
 ### Approach 2 — a fallback path instead of a hard failure, used deliberately
 
 Sometimes failing loudly isn't actually what you want in production — you might prefer routing anything unexpected to a dedicated "unhandled" node that logs the problem and gives a safe response, rather than crashing the whole run. This is a real design choice, not a shortcut — it should be a decision you make on purpose, not something that happens because you forgot to handle a case.
 
 ```python
+# conditional_routing_practice.py — Edge cases section
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def route_with_fallback(state: GraphState) -> str:
     if state["flag"] is None:
         return "unhandled"
@@ -208,6 +221,7 @@ def route_with_fallback(state: GraphState) -> str:
 
 
 def unhandled_node(state: GraphState) -> dict:
+    logger.warning("Unhandled routing case for state: %s", state)
     return {"message": f"Unhandled routing case for state: {state}"}
 
 
@@ -230,12 +244,12 @@ graph = builder.compile()
 result = graph.invoke({"flag": None, "message": ""})
 print(result["message"])
 ```
-**Expected output:**
+**Expected output** (the `print` line; the `logger.warning` line lands on stderr via your logging config, not shown here):
 ```
 Unhandled routing case for state: {'flag': None, 'message': ''}
 ```
-Notice this isn't "silently doing something unexpected" the way the exercise warns against — `"unhandled"` is a real, named node in the mapping, chosen on purpose, that visibly records what happened. That's different from a routing value falling through to some default by accident.
+Notice this isn't "silently doing something unexpected" the way the exercise warns against — `"unhandled"` is a real, named node in the mapping, chosen on purpose, that visibly records what happened. `unhandled_node` calls `logger.warning(...)` for the internal diagnostic (this is exactly the "this didn't work as expected" signal ops should see in logs, not a `print`), and separately returns a plain, user-facing `message` for the graph's actual result — the two are different audiences, so they use different channels.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate confirms the failure happens and reads the library's own `KeyError`. Approach 1 keeps the same fail-loudly behavior but gives it a message written for a human, by validating inside `route()` before returning. Approach 2 changes the actual behavior — instead of failing, unexpected values route to a real, visible `"unhandled"` node — which is a legitimate choice for production code, as long as it's a deliberate mapping entry, not a missing one.
+**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate confirms the failure happens and reads the library's own `KeyError`. Approach 1 keeps the same fail-loudly behavior but gives it a message written for a human, and a specific `UnhandledRouteError` type, by validating inside `route()` before returning. Approach 2 changes the actual behavior — instead of failing, unexpected values route to a real, visible `"unhandled"` node — which is a legitimate choice for production code, as long as it's a deliberate mapping entry, not a missing one.
 
-**Which one should you actually write?** During development, let it fail loudly — Intermediate's default `KeyError`, or better, Approach 1's clearer `ValueError`, so a routing bug gets caught immediately while you're building, not buried. Approach 2's fallback node is worth adding once a graph is heading to production and you've decided, on purpose, that an unexpected state value should degrade safely (log it, give a generic response) instead of taking down the whole run — but that's a decision to make deliberately, with a real node behind it, never a default you fall into by not handling a case.
+**Which one should you actually write?** During development, let it fail loudly — Intermediate's default `KeyError`, or better, Approach 1's specific `UnhandledRouteError`, so a routing bug gets caught immediately while you're building, not buried. Approach 2's fallback node is worth adding once a graph is heading to production and you've decided, on purpose, that an unexpected state value should degrade safely (log it, give a generic response) instead of taking down the whole run — but that's a decision to make deliberately, with a real node behind it, never a default you fall into by not handling a case.

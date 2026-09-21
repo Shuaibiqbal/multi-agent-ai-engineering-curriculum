@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
+# empty_search_practice.py
 def has_results(state):
     if not state.get("sources"):
         return "no_grounding"
@@ -36,6 +37,7 @@ This works and correctly catches a completely empty result list. It doesn't catc
 ### Approach 1 — type hints, a `grounded` flag, and testing both paths
 
 ```python
+# empty_search_practice.py
 def has_results(state: dict) -> str:
     sources = state.get("sources", [])
     if not sources:
@@ -77,6 +79,7 @@ print("Both paths behave correctly.")
 ### Approach 1 — a relevance-score threshold, not just an empty-list check
 
 ```python
+# empty_search_practice.py
 import logging
 
 logger = logging.getLogger("grounding")
@@ -119,6 +122,7 @@ graph.add_conditional_edges(
 Sometimes search finds *something* relevant, but only a small slice of what the question is actually asking — a partial match, not a miss. Treating that identically to "no grounding at all" throws away something real; treating it identically to "fully grounded" risks answering the unmatched part anyway. This approach adds a third path.
 
 ```python
+# empty_search_practice.py
 PARTIAL_THRESHOLD = 0.55
 RELEVANCE_THRESHOLD = 0.75
 

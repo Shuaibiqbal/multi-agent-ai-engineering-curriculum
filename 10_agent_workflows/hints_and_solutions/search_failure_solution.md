@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
+# search_failure_practice.py
 from langgraph.checkpoint.memory import MemorySaver
 
 def search_node(state):
@@ -40,6 +41,7 @@ This confirms state survives the crash and prints it. It doesn't assert anything
 ### Approach 1 — real assertions, and a test that fails loudly if the crash stops happening
 
 ```python
+# search_failure_practice.py
 from langgraph.checkpoint.memory import MemorySaver
 
 
@@ -78,7 +80,11 @@ test_state_survives_search_failure()
 ### Approach 1 — a retry with backoff, transient errors only
 
 ```python
+# search_failure_practice.py
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 TRANSIENT_ERRORS = (TimeoutError, ConnectionError)
 MAX_ATTEMPTS = 3
@@ -93,18 +99,24 @@ def search_node(state: dict) -> dict:
             if attempt == MAX_ATTEMPTS - 1:
                 raise
             wait_seconds = 2 ** attempt
-            print(f"Search attempt {attempt + 1} failed ({exc}); retrying in {wait_seconds}s")
+            logger.warning(
+                "Search attempt %d failed (%s); retrying in %ds",
+                attempt + 1, exc, wait_seconds,
+            )
             time.sleep(wait_seconds)
     # unreachable: the loop above always returns or raises
     raise RuntimeError("search_node exited its retry loop unexpectedly")
 ```
 A `TimeoutError` or `ConnectionError` gets up to `MAX_ATTEMPTS` tries, with a growing delay between them (1s, then 2s), so a brief network blip is absorbed automatically. Anything else — a malformed query, a programming bug — is not in `TRANSIENT_ERRORS`, so it propagates immediately on the first attempt; retrying a bug five times just wastes five times as long finding out it still doesn't work.
 
+`MAX_ATTEMPTS` is written here as a plain module constant so the retry logic is easy to follow — in a real deployment, a retry count like this is exactly the kind of value that belongs in `config.py` (loaded from `.env`, per Doc01) instead of a hardcoded literal, since how aggressively to retry is an operational tuning knob, not something tied to the code's logic.
+
 ### Approach 2 — retry plus proving both outcomes with a real test
 
 Approach 1 is the retry logic itself; this approach tests it the way `search_failure`'s own lesson demands — proving both that a transient failure recovers, and that state still survives when retries are genuinely exhausted.
 
 ```python
+# search_failure_practice.py
 import time
 from langgraph.checkpoint.memory import MemorySaver
 

@@ -34,6 +34,7 @@ Things to use:
 This exercise is about adding an explicit check, not a new capability. After your search node runs, check whether it actually found anything worth using — and if not, route to a distinct "can't answer" response instead of letting the reasoning node try anyway with nothing to work from.
 
 ```python
+# empty_search_practice.py
 def has_results(state: dict) -> str:
     if not state.get("sources"):
         return "no_grounding"
@@ -98,6 +99,7 @@ test:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# empty_search_practice.py
 def has_results(state):
     if not state.get("sources"):
         return "no_grounding"
@@ -140,6 +142,7 @@ test:
 ```
 
 ```python
+# empty_search_practice.py
 def has_results(state: dict) -> str:
     sources = state.get("sources", [])
     if not sources:
@@ -175,6 +178,7 @@ function has_results(state):
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# empty_search_practice.py
 import logging
 
 logger = logging.getLogger("grounding")

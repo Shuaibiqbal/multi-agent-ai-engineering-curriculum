@@ -9,6 +9,7 @@ This exercise has two independent parts — read both. Read all three depths of 
 ### Approach 1 — the direct way, Part 1: a loop that hits its limit
 
 ```python
+# convergence_and_cost_cutting_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -58,6 +59,7 @@ Couldn't converge after 3 attempts.
 ### Approach 1 — Part 2: find the expensive stage, cut it, remeasure
 
 ```python
+# convergence_and_cost_cutting_practice.py
 def profile_pipeline(topic: str) -> dict:
     return run_supervisor(topic)  # from supervisor_compare, reused unchanged
 
@@ -78,6 +80,7 @@ Both work: the loop correctly stops instead of running forever, and the pipeline
 ### Approach 1 — Part 1: a real rejection reason on every attempt
 
 ```python
+# convergence_and_cost_cutting_practice.py
 class LoopState(TypedDict):
     draft: str
     revision_count: int
@@ -131,6 +134,7 @@ Couldn't converge after 3 attempts: draft must be under 10 words and cite 3 sour
 ### Approach 1 — Part 2: per-stage profiling, then one real cut
 
 ```python
+# convergence_and_cost_cutting_practice.py
 def profile_stages(topic: str) -> dict:
     research_result = research(topic)
     write_result = write(research_result.text)
@@ -156,6 +160,7 @@ most expensive stage: research
 ```
 
 ```python
+# convergence_and_cost_cutting_practice.py
 def research_shorter_prompt(topic: str) -> StageResult:
     start = time.perf_counter()
     response = model.invoke(f"List the top 3 causes of {topic}.")  # shorter than the original
@@ -184,6 +189,7 @@ before: 210t, after: 152t, saved: 28%
 ### Approach 1 — Part 1: a full rejection history, diagnosing the failure
 
 ```python
+# convergence_and_cost_cutting_practice.py
 class LoopState(TypedDict):
     draft: str
     revision_count: int
@@ -240,6 +246,7 @@ This is the report a reader can actually act on: the repeated identical reason t
 ### Approach 1 — Part 2: proving the cut against a real test set
 
 ```python
+# convergence_and_cost_cutting_practice.py
 def compare_before_after(test_inputs: list[str]) -> None:
     before_total_tokens = 0
     after_total_tokens = 0

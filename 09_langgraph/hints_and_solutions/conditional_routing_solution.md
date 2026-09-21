@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
+# conditional_routing_practice.py — Intermediate section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
@@ -63,6 +64,7 @@ print(graph.invoke({"flag": False, "message": ""}))
 ### Approach 1 — type hints, and a routing function name that reads clearly
 
 ```python
+# conditional_routing_practice.py — Intermediate section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
@@ -120,6 +122,7 @@ flag=False -> went down path B
 ### Approach 1 — `Literal`-typed routing
 
 ```python
+# conditional_routing_practice.py — Intermediate section
 from typing import TypedDict, Literal
 from langgraph.graph import StateGraph, START, END
 
@@ -170,6 +173,7 @@ Same runtime behavior as Intermediate. The difference only shows up if you break
 ### Approach 2 — routing on more than one field
 
 ```python
+# conditional_routing_practice.py — Intermediate section
 from typing import TypedDict, Literal
 from langgraph.graph import StateGraph, START, END
 

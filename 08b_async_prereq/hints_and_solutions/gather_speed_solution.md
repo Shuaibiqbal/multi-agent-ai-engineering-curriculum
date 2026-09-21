@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# gather_practice.py — Intermediate section
 import asyncio
 import time
 
@@ -55,6 +56,7 @@ This version works correctly. It's missing type hints and an `if __name__ == "__
 ### Approach 1 — typed, with a `__main__` guard
 
 ```python
+# gather_practice.py — Intermediate section
 import asyncio
 import time
 
@@ -109,6 +111,7 @@ parallel: 2.01
 ### Approach 1 — one task fails, and it costs you every result
 
 ```python
+# gather_practice.py — Intermediate section
 import asyncio
 
 
@@ -146,6 +149,7 @@ ValueError: f2 failed on purpose
 ### Approach 2 — `return_exceptions=True`, so one failure doesn't cost the other two
 
 ```python
+# gather_practice.py — Intermediate section
 import asyncio
 
 

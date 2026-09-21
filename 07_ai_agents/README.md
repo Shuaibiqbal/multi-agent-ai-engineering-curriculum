@@ -38,6 +38,30 @@ An agent, with the fancy language stripped away, is Doc06's tool round-trip wrap
 
 **How it really works**
 
+**What/Why/When, named directly:**
+- **What:** Doc06's tool round trip (register → model asks → you run it → you hand the result back → ask again) wrapped in a loop that keeps repeating until the model's reply carries no more tool calls.
+- **Why:** a single round trip only works when one tool call is the whole job. The moment step two depends on what step one's *real* result actually was, the model needs to see that result before it can decide the real next step — there is no way to write that decision down in advance.
+- **When:** any task where the number and order of steps can't be known before the first tool result comes back. If you already know the fixed order today, skip the loop entirely — see [When NOT to use an agent](#when-not-to-use-an-agent).
+
+**Two real ways to get this loop running, and why you build one before reaching for the other:**
+- **A hand-built loop, written by you.** **What:** the plain `while`/`for` loop below — call the model, check for tool calls, run them, append the results, ask again. **Why:** it's the only way to actually see what "a step," "a tool call," and "a final answer" are, in code you wrote and can read start to finish — every later library shortcut in this curriculum (`create_agent`, Doc09's graphs) is this exact loop with the wiring hidden, and hidden wiring only makes sense once you've seen it unhidden. **When:** always, at least once, before touching `create_agent` — this document's own Intermediate exercise requires it, and the Build Task only lets you pick a shape *after* you've built this by hand.
+- **`create_agent` (LangChain 1.0+).** **What:** a library function that compiles the identical loop into a small LangGraph graph and runs it for you — one line instead of a `while` loop. **Why:** far less code for the same behavior, once you already know what that code is doing underneath — Doc09's own ["tool-calling inside a graph"](../09_langgraph/README.md#tool-calling-inside-a-graph-and-the-path-from-one-agent-to-many) topic draws the graph this compiles to. **When:** real work, once the hand-built version has actually been built once — this document's Real-world exercise runs both side by side on the same prompts specifically so the diff teaches you something.
+
+```python
+# create_agent — the same loop as the hand-built one below, library-shortened
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="gpt-4o-mini",
+    tools=[get_weather, get_forecast],          # Doc06-style @tool functions
+    system_prompt=SYSTEM_PROMPT,
+)
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": "Should I bring an umbrella in Lahore tomorrow?"}]},
+    config={"recursion_limit": 14},              # ~2 graph steps per ReAct turn — see the step-limit topic
+)
+```
+
 - This is Doc06's ["Seeing the whole thing three ways"](../06_tools_function_calling/README.md#seeing-the-whole-thing-three-ways-analogy-trace-and-code-side-by-side) round trip, repeated: register → model asks → you execute → you hand back → ask again. Doc06's [chaining topic](../06_tools_function_calling/README.md#chaining-tool-calls-across-multiple-turns) names this exact pattern — "adding the `while` makes it Doc07's agent, which names this pattern ReAct." Nothing new is invented here.
 - The model API is stateless. Every turn re-sends the **whole** `messages` list from the start — the same fact as Doc06's round trip, just repeated N times instead of once.
 - The model replies one of two shapes: plain text (`content` filled, `tool_calls` empty) — the final answer, stop the loop — or a tool request (`tool_calls` a list, `content` usually `None`) — run it and continue.
@@ -46,8 +70,10 @@ An agent, with the fancy language stripped away, is Doc06's tool round-trip wrap
 - A tool failing mid-loop is not a special case: catch it and convert it to a clear string result exactly as Doc06's ["Getting a tool's failure back to the model"](../06_tools_function_calling/README.md#getting-a-tools-failure-back-to-the-model-correctly) topic requires, using Doc01's named-exception discipline to catch something specific rather than a bare `except:`.
 - Use `temperature=0` for agents. A "creative" agent picks a different tool on different runs for the identical task, and an unrepeatable path is a path you cannot debug.
 - Cost does not grow linearly with steps — each turn re-sends a longer history, so an 8-step run costs roughly the *sum* of a growing context, not 8× one call. This is Doc03's [cost topic](../03_llm_fundamentals/README.md#cost-input-and-output-tokens-are-priced-differently) multiplied by every step of the loop.
-- `create_agent` (LangChain 1.0+) builds this exact loop as a small LangGraph graph and runs it for you; `recursion_limit` is its hard stop, counting roughly **two** graph steps per ReAct turn — the mechanism itself belongs to [Doc09](../09_langgraph/), not repeated here.
+- `recursion_limit` is `create_agent`'s hard stop, counting roughly **two** graph steps per ReAct turn — the mechanism itself belongs to [Doc09](../09_langgraph/), not repeated here; the counting trap is covered in full in [Setting a limit on the number of steps](#setting-a-limit-on-the-number-of-steps) below.
 - Older tutorials use `AgentExecutor` or `create_tool_calling_agent` — both are legacy on LangChain 1.0+. `from langchain.agents import create_agent` is the current constructor; everything else about tool calling is unchanged.
+- **A concrete trace, on Doc06's own weather tools:** task = *"Should I bring an umbrella in Lahore tomorrow?"* Step 1: the model has no `content`, one `tool_calls` entry — `get_forecast(city="Lahore", day="tomorrow")`. Your code runs it, gets back `"60% chance of rain"`, appends it as a `tool` message. Step 2: the model now has everything it needs — `content` = *"Yes, bring an umbrella — 60% chance of rain in Lahore tomorrow."*, `tool_calls` empty. The loop sees the empty list and returns. Nothing about this trace is special-cased; it's the general loop above, run twice.
+- **Applied to Project 2's Worker:** this loop, unchanged, *is* the Worker's whole engine — Project 2's Step 2 has you build exactly the code above around one tool, and Step 3 grows it to 3+ tools with the limit and failure-recovery the next two topics cover.
 
 | Situation | What to do | Why |
 |---|---|---|
@@ -94,7 +120,7 @@ def run_agent(client, task, tools, registry, max_steps=6):
 - *Mistake:* appending only the `tool` result, forgetting the model's own tool-call reply first. → *Symptom:* a `400` error about an unmatched `tool_call_id`, or the model repeats the same call forever. → *Fix:* `messages.append(msg)` first, always, then one `tool` message per call.
 - *Mistake:* copying an old tutorial's `AgentExecutor` or `create_tool_calling_agent`. → *Symptom:* `ImportError`, or a deprecation warning, on LangChain 1.0+. → *Fix:* `from langchain.agents import create_agent` — everything else about tool calling still applies.
 
-**Where you'll meet it:** this loop is the Build Task of this document and the heart of [Project 2](../project_2_researchhand_tool_agent/). Doc06's [round-trip](../06_tools_function_calling/README.md#seeing-the-whole-thing-three-ways-analogy-trace-and-code-side-by-side) and [failure-handling](../06_tools_function_calling/README.md#getting-a-tools-failure-back-to-the-model-correctly) topics are exactly what runs inside each turn. [Doc09](../09_langgraph/) rebuilds the same behavior as an explicit graph you can pause and resume. [Doc10](../10_agent_workflows/) wraps it in routing and reflection patterns; [Doc11](../11_multi_agent_systems/) runs several of these loops side by side; [Doc13](../13_testing_evaluation_observability/) traces each turn; [Doc14](../14_debugging_lab/) breaks it on purpose.
+**Where you'll meet it:** this loop is the Build Task of this document and the heart of [Project 2](../project_2_researchhand_tool_agent/)'s Worker. Doc06's [round-trip](../06_tools_function_calling/README.md#seeing-the-whole-thing-three-ways-analogy-trace-and-code-side-by-side) and [failure-handling](../06_tools_function_calling/README.md#getting-a-tools-failure-back-to-the-model-correctly) topics are exactly what runs inside each turn. [Doc09](../09_langgraph/README.md#tool-calling-inside-a-graph-and-the-path-from-one-agent-to-many) rebuilds the same behavior as an explicit graph you can pause and resume. [Doc10](../10_agent_workflows/) wraps it in routing and reflection patterns; [Doc11](../11_multi_agent_systems/) runs several of these loops side by side; [Doc13](../13_testing_evaluation_observability/) traces each turn; [Doc14](../14_debugging_lab/) breaks it on purpose.
 
 **Quick cheat sheet:**
 
@@ -102,7 +128,7 @@ def run_agent(client, task, tools, registry, max_steps=6):
 - The model only *asks*; your code is the only thing that *does*.
 - Stop when `message.tool_calls` is empty, or when your own step counter runs out — whichever comes first.
 - Append the model's reply **before** the tool result, and loop over **all** `tool_calls`, every turn.
-- `create_agent` is this same loop, ready-made; `recursion_limit` is its hard stop (Doc09 explains the graph underneath).
+- Build it by hand once (Project 2's Worker); use `create_agent` once you know what it's hiding — `recursion_limit` is its hard stop (Doc09 explains the graph underneath).
 
 ### The scratchpad: how the loop remembers its own steps
 
@@ -110,14 +136,45 @@ As the loop runs, every request and result gets added to the growing `messages` 
 
 **How it really works**
 
-- The scratchpad is a plain list — of dicts, or in LangChain, typed message objects (`SystemMessage`, `HumanMessage`, `AIMessage` with `.tool_calls`, `ToolMessage` with `.tool_call_id`) — re-sent in full on every model call. Nothing about it is special beyond that.
+**What/Why/When, named directly:**
+- **What:** the growing `messages` list one run keeps — every request and every result, in order — re-sent in full on every model call.
+- **Why:** the model has no memory of its own (Doc03's [no-memory fact](../03_llm_fundamentals/README.md#no-memory-theres-nothing-remembered-inside-the-model)). Without this list re-sent every turn, the model would not know it already asked for a tool, or what that tool returned — it would ask again, forever.
+- **When:** every ReAct loop, always. This is not an optional or advanced feature — it is the loop's only memory, and there is no working version of the loop without it.
+
+**Two real ways to structure a growing scratchpad, and when each earns its cost:**
+- **Full raw history — keep every message.** **What:** append every request and result, verbatim, and never remove or shorten anything; re-send the whole list every turn. **Why:** the simplest possible correct behavior — nothing is ever lost, and the `tool_call_id` pairing below never has anything torn out from under it. **When:** short runs, or runs whose tool results stay small — most of this document's own exercises, and most of Project 2's Worker runs, never come close to a real context problem.
+- **A summarized/compressed history.** **What:** once the scratchpad gets long, replace older, already-acted-on turns with a short summary (model-written or rule-written), keeping the system prompt, the original task, and the most recent turns raw. **Why:** keeps a long run inside the context window, and keeps the model's attention on what's still relevant instead of buried under dozens of old, already-used tool results — the same "lost in the middle" risk [Doc08's RAG topic](../08_rag/README.md#lost-in-the-middle-more-text-isnt-automatically-better) names for retrieved text. **When:** long-running agents — many steps, or a Doc09-checkpointed run spanning minutes or hours — where a raw history would either blow the context window or bury the one fact a later step needs under noise nobody re-reads.
+
+```python
+# Approach 1 — full raw history: simplest, correct, enough for most short runs
+messages.append(model_reply)
+messages.append({"role": "tool", "tool_call_id": call.id, "content": tool_result})
+# nothing removed, ever — fine as long as the run stays short and results stay small
+
+# Approach 2 — summarize older, already-acted-on turns once the scratchpad gets long
+def compress_if_needed(messages, keep_raw=6):
+    system, task = messages[0], messages[1]
+    recent = messages[-keep_raw:]                 # NEVER summarize these — still in play
+    older = messages[2:-keep_raw]
+    if not older:
+        return messages
+    summary = summarize_model.invoke(
+        "Summarize what happened in these agent steps, in 3-5 sentences, "
+        "keeping any concrete facts, numbers, or IDs found:\n" + format_for_summary(older)
+    ).content
+    return [system, task, {"role": "system", "content": f"Earlier steps so far: {summary}"}, *recent]
+```
+
+Approach 1 costs nothing extra to write and never loses a detail — but it eventually hits the context wall below on a long enough run. Approach 2 buys headroom, at the real cost of one more model call per compression pass and a small risk the summary drops a detail a later step still needed — which is exactly why the most recent turns stay raw and untouched, never summarized.
+
 - `tool_call_id` is the glue: it is how a `tool` message is understood as *the answer to* a specific earlier request, not a floating fact. Break that pairing — an orphaned `tool` message, or a request with no matching reply — and the model loses the thread, or the API rejects the call outright.
 - The context window is a hard wall you hit from **inside**: nothing is removed by itself, so a run that worked fine at step 5 can die at step 12 with a context-length error.
 - Models attend most to the start and end of a long prompt. A fact buried in the middle of a very long scratchpad can be *present but ignored* — trimming is not only about cost.
 - Tool results are untrusted text the moment a tool touches an outside source — a web page, a document, an email. That text enters the model's prompt through the scratchpad exactly like Doc06's [prompt-injection topic](../06_tools_function_calling/README.md#prompt-injection-when-the-attack-comes-from-content-not-the-user) describes; label tool results as data, never as instructions.
-- Trim before the model call, not while appending: keep system + first user message, drop older turns in **pairs** from the oldest end (never leave an orphaned `tool` message), and cap each tool result's length. Log the full, untrimmed version — a cheap prompt and a complete record are not the same file.
+- Trimming and summarizing are the same family of fix, one cheaper and one smarter: trim before the model call, not while appending — keep system + first user message, drop older turns in **pairs** from the oldest end (never leave an orphaned `tool` message), cap each tool result's length. Summarize instead of trimming once even the dropped turns hold a fact a later step actually needs. Either way, log the full, untrimmed version — a cheap prompt and a complete record are not the same file.
 - Scratchpads leak: they hold whatever the customer typed and whatever your tools returned, often names and IDs. If you log the scratchpad for debugging — and you should — redact first, and keep a short retention time.
-- In a multi-agent system, "who owns the scratchpad?" is a real design choice — isolated scratchpads per agent (the usual default), one shared list every agent sees, or shared structured state plus private scratchpads. [Doc11](../11_multi_agent_systems/) is where this gets decided.
+- In a multi-agent system, "who owns the scratchpad?" is a real design choice — isolated scratchpads per agent (the usual default), one shared list every agent sees, or shared structured state plus private scratchpads. [Doc11](../11_multi_agent_systems/README.md#shared-state-design-what-goes-in-the-shared-state-and-what-doesnt) is where this gets decided.
+- **Applied to Project 2:** the Worker's `messages` list is this scratchpad, full stop. The Verifier (Step 4) deliberately never sees it — only the original question and the Worker's final answer — exactly so it judges the actual answer, not how hard the Worker "tried." That's the single-agent seed of Doc11's own "share the finding, not the scratchpad" rule.
 
 | Situation | What to do | Why |
 |---|---|---|
@@ -148,14 +205,68 @@ The loop needs a way to know it's done: the model gives a final answer with no m
 
 **How it really works**
 
-- The loop ends only two ways: **natural** — the model replies with text and no `tool_calls` — or **forced** — your counter runs out. Relying only on the natural end bets production on a system that also hallucinates.
+**What/Why/When, named directly:**
+- **What:** a hard, code-enforced ceiling on how much one agent run is allowed to spend — checked in your own code, never left to the model's own judgment about when it's done.
+- **Why:** the model is *supposed* to notice it has a final answer and stop. "Supposed to" is not a guarantee — the limit exists for the day it doesn't, the same reasoning as Doc02's [retry cap](../02_apis_http_json/README.md#retrying-with-exponential-backoff-and-jitter): a plan that only works when nothing goes wrong is not a plan.
+- **When:** every agent loop, no exceptions. There is no safe agent loop without one, the same way there is no safe retry loop without a max-attempts cap.
+
+**Three real ways to measure "has this run had enough," and why you layer all three instead of picking one:**
+- **A simple step counter.** **What:** `for step in range(1, max_steps + 1):` — count model calls, stop cold at the number. **Why:** free, instant, exactly predictable — you always know the worst case, and it needs no extra measurement, just the loop's own counter. **When:** the always-on default layer, for every agent loop, including this document's Build Task — a fast loop making cheap calls hits this one first.
+- **A wall-clock (time) budget.** **What:** a `time.monotonic()` deadline checked at the top of each loop iteration, stopping once real elapsed time crosses a limit — regardless of how many steps that took. **Why:** a step counter alone never catches one slow tool call — 6 steps can still take 10 minutes if a single call hangs, and the same "never one call without a timeout" discipline Doc02's [timeouts topic](../02_apis_http_json/README.md#timeouts-the-failure-that-never-tells-you-its-happening) teaches for one HTTP call applies to a whole run. **When:** any agent behind a live user request (nobody waits happily past a few seconds) or any background/scheduled job (it must finish, or fail, inside its window).
+- **A token/cost budget.** **What:** accumulate `response.usage.total_tokens` (or a $ estimate from it) across the run, and stop once a set budget is spent. **Why:** a scratchpad that grows every step (the previous topic) means every later step costs more than the one before it, at a *fixed* step count — Doc03's [cost topic](../03_llm_fundamentals/README.md#cost-input-and-output-tokens-are-priced-differently) is exactly why cost can blow past a sane number long before the step counter does, especially once tool results get large. **When:** any paid API in front of real traffic, or any agent whose tool results vary a lot in size (search results, whole documents).
+
+```python
+# Approach 1 — a simple step counter: free, instant, the always-on base layer
+def run_agent(client, task, tools, registry, max_steps=6):
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": task}]
+    for step in range(1, max_steps + 1):
+        resp = client.chat.completions.create(model=config.model_name, messages=messages, tools=tools)
+        # ...same THINK/ACT/OBSERVE body as the ReAct loop's code above...
+    raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
+```
+
+```python
+# Approach 2 — layer a wall-clock deadline under the step counter
+import time
+
+def run_agent(client, task, tools, registry, max_steps=6, max_seconds=30):
+    deadline = time.monotonic() + max_seconds
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": task}]
+    for step in range(1, max_steps + 1):
+        if time.monotonic() > deadline:
+            raise MaxIterationsExceeded(f"wall-clock budget ({max_seconds}s) exceeded at step {step}")
+        resp = client.chat.completions.create(model=config.model_name, messages=messages, tools=tools)
+        # ...same THINK/ACT/OBSERVE body...
+    raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
+```
+
+```python
+# Approach 3 — add a token/cost budget, the layer a growing scratchpad actually needs
+def run_agent(client, task, tools, registry, max_steps=6, max_seconds=30, max_tokens=20_000):
+    deadline = time.monotonic() + max_seconds
+    total_tokens = 0
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": task}]
+    for step in range(1, max_steps + 1):
+        if time.monotonic() > deadline:
+            raise MaxIterationsExceeded(f"wall-clock budget exceeded at step {step}")
+        if total_tokens > max_tokens:
+            raise MaxIterationsExceeded(f"token budget ({max_tokens}) exceeded at step {step}")
+        resp = client.chat.completions.create(model=config.model_name, messages=messages, tools=tools)
+        total_tokens += resp.usage.total_tokens
+        # ...same THINK/ACT/OBSERVE body...
+    raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
+```
+
+All three raise the same `MaxIterationsExceeded`, carrying the partial log — the *shape* of hitting a budget never changes, only which measurement tripped it. A step counter costs nothing and catches a stuck loop; a wall-clock deadline costs one `time.monotonic()` check and catches a hung call the counter misses entirely; a token budget costs reading `.usage` off every response and catches an expensive scratchpad the other two never notice. None of the three replaces the other two — that's why production code layers all three, not the "pick the best one" instinct a first pass usually reaches for.
+
+- The loop ends only two ways: **natural** — the model replies with text and no `tool_calls` — or **forced** — one of the budgets above runs out. Relying only on the natural end bets production on a system that also hallucinates.
 - The counter wraps the **model call**, not the tool call. One reply can carry zero tool calls or several, so counting tool calls does not match the number of paid round trips you are actually making.
 - When the limit fires you have three honest choices: raise a **named error carrying the partial log** (best default — loud and debuggable), return a **partial result marked incomplete** (user-facing chat), or spend **one last call with `tool_choice="none"`** to force a real answer from whatever was already gathered. Catching the error and returning a generic "something went wrong" with nothing logged is not a fourth choice — it turns a fixable bug into an invisible one.
 - `recursion_limit` in `create_agent` counts graph steps, roughly **two per ReAct turn** — `recursion_limit=10` is about 5 tool rounds, not 10. The graph mechanics behind this number belong to [Doc09](../09_langgraph/).
-- Layer three limits, not one: steps, a wall-clock deadline, and a token/cost budget. Each catches a failure the others miss — a fast loop with cheap calls blows the step limit first, one hanging tool blows the deadline first, huge tool results blow the token budget first. Same defense-in-depth idea as Doc02's timeout **plus** retry cap, not either alone.
 - Duplicate-call detection — hash `(tool_name, arguments)` — catches the "asking for the exact same thing again" stutter, often before the step cap even fires.
-- In a multi-agent system, budgets must be **global**, not per agent. A 5-agent system with a 10-step cap each has an effective ceiling of 50 model calls, and if one agent can call another as a tool, that ceiling multiplies instead of adding. [Doc11](../11_multi_agent_systems/) is where the shared budget lives.
+- In a multi-agent system, budgets must be **global**, not per agent. A 5-agent system with a 10-step cap each has an effective ceiling of 50 model calls, and if one agent can call another as a tool, that ceiling multiplies instead of adding. [Doc11](../11_multi_agent_systems/README.md#cost-and-latency-multi-agent-is-not-free) is where the shared budget lives.
 - "Limit hit" is a metric to track, not just an exception. A healthy agent should trip it rarely (well under 1% of runs); a high rate means a tool description or system prompt needs fixing, not that the number should go up.
+- **Applied to Project 2's Worker:** the Build Task's requirement is Approach 1 at minimum — a step counter, always. Add Approach 2 (a wall-clock deadline) the moment a real user is waiting on the Worker, and Approach 3 (a token budget) once the tool set includes anything that can return a large, unpredictable amount of text.
 
 | Option | What it does | Mandatory? |
 |---|---|---|
@@ -168,16 +279,17 @@ The loop needs a way to know it's done: the model gives a final answer with no m
 **Common mistakes:**
 
 - *Mistake:* catching the limit error and returning a friendly message with nothing logged. → *Symptom:* users report "the bot gives up sometimes," and the logs show nothing at all. → *Fix:* log the full step log at `ERROR` (Doc01's logger), *then* show the friendly message.
+- *Mistake:* shipping only a step counter and calling that "the" step limit. → *Symptom:* one slow tool call turns a 3-step run into a 4-minute run, with the step counter never close to firing. → *Fix:* layer a wall-clock deadline (Approach 2 above) under the step counter — they catch two different failures, not the same one twice.
 - *Mistake:* assuming `recursion_limit=10` in `create_agent` means 10 tool rounds. → *Symptom:* `GraphRecursionError` after only about five tool calls. → *Fix:* one ReAct turn costs roughly two graph steps — set `recursion_limit` to about `2 × desired_rounds + 2`.
 
-**Where you'll meet it:** Doc02's [retry-limit discipline](../02_apis_http_json/README.md#retrying-with-exponential-backoff-and-jitter) is the same rule one layer down. The Build Task requires a `MaxIterationsExceeded` error with the partial log attached, and the [Failure exercise](#ex-infinite_loop_cost) makes you watch a loop run before restoring the limit. [Doc09](../09_langgraph/) has the same guard as `recursion_limit`; [Doc11](../11_multi_agent_systems/) turns it into a shared budget across agents; [Doc12](../12_production_engineering/) pairs it with request timeouts and rate limits; [Doc13](../13_testing_evaluation_observability/) makes "share of runs that hit the limit" a dashboard number.
+**Where you'll meet it:** Doc02's [retry-limit discipline](../02_apis_http_json/README.md#retrying-with-exponential-backoff-and-jitter) and [timeout discipline](../02_apis_http_json/README.md#timeouts-the-failure-that-never-tells-you-its-happening) are the same two rules, one layer down. Doc03's [cost topic](../03_llm_fundamentals/README.md#cost-input-and-output-tokens-are-priced-differently) is exactly why a token budget earns its own layer instead of just a bigger step count. The Build Task requires a `MaxIterationsExceeded` error with the partial log attached, and the [Failure exercise](#ex-infinite_loop_cost) makes you watch a loop run before restoring the limit. [Doc09](../09_langgraph/) has the same guard as `recursion_limit`; [Doc11](../11_multi_agent_systems/README.md#cost-and-latency-multi-agent-is-not-free) turns it into a shared budget across agents; [Doc12](../12_production_engineering/) pairs it with request timeouts and rate limits; [Doc13](../13_testing_evaluation_observability/) makes "share of runs that hit the limit" a dashboard number.
 
 **Quick cheat sheet:**
 
 - Every loop gets a hard limit in your code. The model's judgment is not a stopping condition — same rule as Doc02's retry cap.
 - Count model calls, not tool calls.
 - Raise a **named** error and attach the partial step log — "it hung" is not a bug report.
-- Layer three limits: steps, wall-clock time, and tokens/cost.
+- Layer three budgets: a step counter (free, always on), a wall-clock deadline (catches a hung call), a token/cost budget (catches an expensive scratchpad — Doc03's cost fact is why).
 - `recursion_limit` counts graph steps: roughly two per ReAct turn.
 - A high "limit hit" rate is a prompt/tool bug, not a reason to raise the limit.
 
@@ -187,11 +299,17 @@ Once a loop runs many steps, three failures show up again and again, and naming 
 
 **How it really works**
 
+**Each failure, named directly — what it is, why it happens, when to expect it:**
+- **Wrong tool arguments.** **What:** the model calls the right tool, with arguments that pass Pydantic's shape check but are still factually wrong — `get_weather(city="Lahroe")`, a real-looking typo, or an order ID that's one digit off. **Why:** Doc06's [Pydantic contract](../06_tools_function_calling/README.md#checking-arguments-pydantic-as-the-contract) only proves the *shape* is right — a string where a string belongs — it has no way to know "Lahroe" isn't a real city. **When:** any tool whose arguments come from parsing free-text input rather than a fixed, closed set of choices — the vaguer the input, the more this shows up.
+- **Ignoring a tool failure.** **What:** a tool call fails, the model receives the error text, and it carries on anyway, stating a made-up result as if the call had worked. **Why:** if the error string reads like a plausible result (`""`, `"ok"`, or nothing at all), the model has nothing that clearly says "this failed" — Doc06's rule to return a clear, sentence-shaped error exists specifically to give it that signal, though even a clear error is a chance to react correctly, not a guarantee. **When:** any tool that can genuinely fail at runtime (a flaky API, a timeout, a bad lookup).
+- **The infinite loop.** **What:** the model keeps calling tools — often the identical call — with no final answer ever arriving. **Why:** nothing in the model's own reasoning forces it to notice "I'm not making progress"; that recognition is exactly the job [Setting a limit on the number of steps](#setting-a-limit-on-the-number-of-steps) does from the outside. **When:** an ambiguous task with no clean stopping signal, or a tool result that doesn't obviously answer the question it was asked.
+
 - Each of these three has a distinct symptom, which is the fastest way to tell them apart from a log: a confidently wrong answer usually means bad arguments; a confidently *invented* success usually means a swallowed tool error; a spinning step count or a hit step limit means the loop.
 - Wrong arguments pass Pydantic because shape and correctness are different guarantees — Doc06's ["Checking arguments"](../06_tools_function_calling/README.md#checking-arguments-pydantic-as-the-contract) topic states this directly: shape ≠ safety, and here, shape ≠ correctness either.
 - An ignored failure is a scratchpad problem as much as a tool problem — if the tool's error string reads like a real answer (`""`, `"ok"`), the model has nothing to tell the two apart with.
 - Logging every step — tool name, arguments, result, step number — is what turns "it doesn't work" into "step 3 called `refund` with the wrong order ID." The Build Task's step log exists specifically for this.
 - These three are exactly what [Doc14](../14_debugging_lab/)'s debugging lab will have you diagnose from symptoms alone, once you have a working agent to break on purpose.
+- **Applied to Project 2:** Step 3 deliberately requires a tool "set up to sometimes fail on purpose" — that requirement exists specifically to force you to watch failure #2 happen live and confirm your recovery path actually works, not just reads correctly on paper.
 
 | Failure | Typical symptom | Where the fix lives |
 |---|---|---|
@@ -217,6 +335,11 @@ Once a loop runs many steps, three failures show up again and again, and naming 
 The scratchpad is short-term memory only — it lives for one run and disappears the instant that run ends. A real assistant often needs to remember something *across* separate conversations — a name, a past preference, a fact from last week — and the scratchpad genuinely cannot do that, because a brand-new run starts with a brand-new, empty `messages` list.
 
 **How it really works**
+
+**What/Why/When, named directly:**
+- **What:** the real question here isn't "does the agent remember" — it's "where does that memory live, and does it survive the process ending." The scratchpad (previous topic) *is* real memory, just for one run only.
+- **Why:** a brand-new run starts with a brand-new, empty `messages` list — Doc03's [no-memory fact](../03_llm_fundamentals/README.md#no-memory-theres-nothing-remembered-inside-the-model) means nothing survives inside the model itself, and nothing survives inside a Python list once the process holding it ends.
+- **When:** the moment a product needs to remember something *across* separate conversations — a returning user's name, a stated preference, a fact from last week — a scratchpad-only design cannot do this, no matter how long the scratchpad is allowed to grow.
 
 - This is Doc03's ["no memory inside the model"](../03_llm_fundamentals/README.md#no-memory-theres-nothing-remembered-inside-the-model) fact again: the model never remembers anything on its own, whether it's this run's scratchpad or a fact from last week — both are context your code has to re-inject.
 - A longer scratchpad is not memory. It still dies with the process; real memory has to survive a restart, which means it lives somewhere outside your running program — a database, a file, a vector store.
@@ -247,6 +370,10 @@ The scratchpad is short-term memory only — it lives for one run and disappears
 The ReAct loop decides one step at a time — think, act, observe, then decide the *next* step only once the real result is in. An alternative has the model write a multi-step plan up front, before doing anything, then execute that plan step by step.
 
 **How it really works**
+
+**What/Why/When for each of the two shapes:**
+- **ReAct — decide as you go (this document's approach).** **What:** think, act, observe the real result, then decide only the next step. **Why:** naturally adapts the moment a result surprises you — nothing planned in advance ever needs to be thrown away. **When:** the default, whenever a task's steps genuinely can't be fully known before the first real result comes back.
+- **Plan-first.** **What:** the model writes a full multi-step plan before running anything, then that plan gets executed step by step. **Why:** a plan written down is a plan a human can read and approve *before* anything real happens — genuinely more reviewable than a loop that starts acting immediately. **When:** review-before-action matters more than adapting on the fly — often paired with Doc10's [`interrupt()`](../10_agent_workflows/README.md#when-human-approval-should-block-vs-just-notify) for the actual human check.
 
 - Deciding one step at a time reacts well to surprises — an unexpected tool result naturally changes what happens next — but it can wander, taking a longer, less predictable path.
 - Planning first is more predictable and reviewable: a human can read the plan before any tool actually runs. It costs an extra model call up front, and a plan made before seeing any real result can turn out wrong the moment the first result arrives, needing a re-plan anyway.
@@ -280,11 +407,47 @@ An agent loop earns its complexity only when the number and order of steps genui
 
 **How it really works**
 
+**Two real ways to decide this for a whole task, before any loop starts — and when to pick each:**
+- **A fixed rule, decided at design time.** **What:** you, the developer, look at a task type and decide in advance — "invoice reconciliation is always fetch → compare → format, write it as a function" — no runtime check at all; the decision is baked into which code path a request even reaches. **Why:** free, instant, and fully testable — there's no routing decision that can itself be wrong, because there's no routing. **When:** a system that only ever serves one or a few known task types, where real examples today show the step order never varies — the common case, and the default.
+- **A routing model, decided per request at runtime.** **What:** a small, cheap model call (structured output, the same shape as Doc10's [routing topic](../10_agent_workflows/README.md#search-as-a-routed-step-not-something-that-always-runs)) classifies an incoming request as `"fixed_pipeline"` or `"needs_agent"` before either path runs. **Why:** a system serving a genuine mix of request types can't hard-code the split in advance, because the split depends on what each request actually asks for. **When:** a real product surface where you can't fully enumerate task types ahead of time, and misrouting a fixed-shape task into an expensive loop (or the reverse) shows up often enough in your logs to be worth a routing call.
+
+```python
+# Approach 1 — a fixed rule, decided once, at design time (no runtime check at all)
+def handle_request(task: str) -> str:
+    # invoice reconciliation is ALWAYS fetch -> compare -> format; decided by
+    # looking at real past tasks, not guessed
+    return run_invoice_pipeline(task)      # a plain function / Doc05's LCEL chain, no loop
+```
+
+```python
+# Approach 2 — a small routing model decides per request, at runtime
+from pydantic import BaseModel
+from langchain_openai import ChatOpenAI
+
+class ShapeDecision(BaseModel):
+    needs_agent: bool
+    reason: str
+
+router_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(ShapeDecision)
+
+def handle_request(task: str) -> str:
+    decision = router_model.invoke(
+        "Can this task's steps be written down today, in a fixed order, with confidence "
+        f"they won't change based on what happens along the way? Task: {task}"
+    )
+    if decision.needs_agent:
+        return run_agent(task, tools, registry, max_steps=6)   # this document's loop
+    return run_fixed_pipeline(task)                             # Doc05's LCEL chain
+```
+
+Approach 1 costs nothing and can never misroute, but only works once real traffic has actually confirmed the task type never varies. Approach 2 costs one small model call per request and can itself be wrong — the same "silent wrong decision, not a crash" risk Doc10's own router carries — but it's the only real option once traffic is a genuine, unpredictable mix.
+
 - If a task always takes the same fixed sequence — always tool A, then always tool B, then format the result — that's not a job for a loop deciding each step on its own. Write it as a plain function or a fixed pipeline, the same "no loop, no model in charge" case as Doc05's [LCEL chains](../05_langchain_fundamentals/README.md#lcel-chaining-pieces-together-with).
 - An agent loop costs more (each step is its own paid model call), is slower, and is less predictable than code that runs the same steps in the same order every time — and none of that cost buys anything if the order was never actually in question.
 - One tool, one call, then answer needs no loop at all — that's just Doc06's single round.
 - The simple test: if you can write the sequence of steps down today, confident it won't change based on what happens along the way, write that sequence as code. Reach for a loop only once you genuinely can't.
 - Wrapping an already-deterministic pipeline in an agent "to be flexible" is a real anti-pattern — it buys nondeterminism and cost for a task that never varies.
+- **Applied to Project 2's Worker:** each individual tool the Worker calls (a lookup, a calculator) could be one Doc06 single call on its own — the Worker as a whole still earns the loop, because *which* tool runs next, and how many times, genuinely isn't fixed in advance for the questions Project 2 is built to answer.
 
 | Situation | Use | Why |
 |---|---|---|
@@ -297,13 +460,15 @@ An agent loop earns its complexity only when the number and order of steps genui
 
 - *Mistake:* giving every task an agent loop "to be safe." → *Symptom:* a task that never varies costs 3-8× more and runs slower for zero benefit. → *Fix:* if the order is always the same, write it as code.
 - *Mistake:* reaching for an agent because it sounds more advanced. → *Symptom:* a deterministic job becomes harder to test and its output stops being repeatable. → *Fix:* the simple test — can you write the steps down today with confidence they won't change.
+- *Mistake:* using an LLM router (Approach 2) for a decision that's really just a fixed rule dressed up as a judgment call. → *Symptom:* paying for a classification call on every request, for a routing decision that was always going to land the same way. → *Fix:* try Approach 1 first — only reach for Approach 2 once real traffic actually shows a task-type mix a fixed rule can't capture.
 
-**Where you'll meet it:** Doc05's [LCEL chains](../05_langchain_fundamentals/README.md#lcel-chaining-pieces-together-with) are the fixed-pipeline alternative; Doc06's single round is the one-call alternative. [Doc10](../10_agent_workflows/) is an entire document about choosing the right shape for a task.
+**Where you'll meet it:** Doc05's [LCEL chains](../05_langchain_fundamentals/README.md#lcel-chaining-pieces-together-with) are the fixed-pipeline alternative; Doc06's single round is the one-call alternative. Doc10's [routing topic](../10_agent_workflows/README.md#search-as-a-routed-step-not-something-that-always-runs) is this exact rules-vs-model-call choice, one level down, deciding "should I search" instead of "does this whole task need a loop." [Doc10](../10_agent_workflows/) as a whole is an entire document about choosing the right shape for a task; [Doc11](../11_multi_agent_systems/README.md#the-real-question-one-agent-or-many) asks the same question again, one level up, about whether a task needs *several* agents.
 
 **Quick cheat sheet:**
 
 - An agent loop earns its cost only when the step order genuinely can't be known in advance.
 - Fixed order → plain code (Doc05's chains). One call → Doc06's single round. Unknown order → this document's loop.
+- Decide the shape with a fixed rule (free, the default) or a small routing model (for a genuine, unpredictable mix) — the same choice Doc10's own search-router makes one level down.
 - "Sounds more advanced" is not a reason to add a loop.
 
 ### Evaluating an agent, not just a single call
@@ -312,11 +477,53 @@ Checking whether an agent's *final answer* is correct isn't enough to trust it i
 
 **How it really works**
 
+**Two real ways to check a run beyond its final answer, and when to pick each:**
+- **A rule-based checker.** **What:** plain code checks — did the run call the *expected* tool for this fixture prompt? Was the step count inside a normal range? Did any `(tool, arguments)` pair repeat? **Why:** free, instant, fully deterministic — the same run always gets the same verdict, nothing to disagree about. **When:** you can write down, in advance, what "right" looks like for a fixture prompt — the common case for a stable, well-understood task.
+- **An LLM-judge.** **What:** a separate model call is shown the task, the step log, and the final answer, and asked a structured question — did this take a reasonable path to a correct answer, yes or no, and why? **Why:** some quality judgments genuinely resist a fixed rule — "was this a *sensible* path" is a judgment call, not a checklist, the same reason Doc11's Reviewer agent exists at all. **When:** the thing you're checking is closer to judgment than fact — reasonableness, tone, whether an explanation actually makes sense — not something a rule can check directly.
+
+```python
+# Approach 1 — a rule-based checker: deterministic, no extra model call
+def check_run(log: list[dict], expected_tool: str, max_reasonable_steps: int) -> dict:
+    tools_used = [entry["tool"] for entry in log]
+    seen, repeats = set(), 0
+    for entry in log:
+        key = (entry["tool"], str(entry["arguments"]))
+        if key in seen:
+            repeats += 1
+        seen.add(key)
+    return {
+        "used_expected_tool": expected_tool in tools_used,
+        "step_count_ok": len(log) <= max_reasonable_steps,
+        "repeats": repeats,
+    }
+```
+
+```python
+# Approach 2 — an LLM-judge, for judgment calls a rule can't express
+from pydantic import BaseModel
+from langchain_openai import ChatOpenAI
+
+class RunJudgment(BaseModel):
+    took_reasonable_path: bool
+    reason: str
+
+judge_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(RunJudgment)
+
+def judge_run(task: str, log: list[dict], final_answer: str) -> RunJudgment:
+    return judge_model.invoke(
+        f"Task: {task}\nSteps taken: {log}\nFinal answer: {final_answer}\n"
+        "Was this a reasonable, non-wasteful path to a correct answer? Explain briefly."
+    )
+```
+
+Rule-based catches exactly what you thought to check, for free, every time. An LLM-judge catches the vaguer "this technically worked but the path was bad" case a rule can't state — at the cost of one more model call per evaluation, and a judge that can itself be inconsistent unless pinned at `temperature=0`. Most real eval suites run both: rules for the facts (tool choice, step count), a judge for the judgment call (was this actually a good answer).
+
 - A wrong intermediate step that happens to get corrected later still cost real time and money, and a run like that is more likely to fail outright on the next similar task.
 - Check beyond the final answer: did it use the **right tools**, not a wrong one that happened to still work; did it take a **reasonable number of steps**, not an inflated one; did it avoid **looping** — the same or a very similar action repeated with no progress.
 - Tool-use accuracy (right tool, right arguments) is the same measurement idea as Doc06's ["selection accuracy is a metric, not a vibe"](../06_tools_function_calling/README.md#choosing-between-multiple-tools) fixture — a small set of prompts with the expected tool for each, re-run on every change.
 - Step-count sanity is simple but effective: a 2-step task that took 15 steps is a red flag even when the final answer happened to be right.
 - This is exactly what [Doc13](../13_testing_evaluation_observability/)'s eval suite scores in production, turning "feels flaky" into a measured number.
+- **Applied to Project 2:** the requirement to "confirm the Verifier actually catches at least one bad Worker answer" is Approach 2 in miniature — the Verifier agent in Step 4 *is* an LLM-judge, just judging one Worker run instead of a whole eval suite judging many.
 
 | What to check | How | Red flag |
 |---|---|---|
@@ -329,13 +536,15 @@ Checking whether an agent's *final answer* is correct isn't enough to trust it i
 
 - *Mistake:* grading only the final answer. → *Symptom:* a fragile, expensive path looks fine until the next input trips it. → *Fix:* log and check tool choice and step count, not just the answer, the same log this document's Build Task already requires.
 - *Mistake:* no baseline to compare against. → *Symptom:* "it got slower" or "it got worse" with nothing to point to. → *Fix:* keep a small fixture of prompts with expected tool/step-count ranges — Doc06's selection-accuracy idea, applied to a whole run.
+- *Mistake:* running an LLM-judge at a nonzero temperature and treating its verdict as ground truth. → *Symptom:* the identical run gets graded "good" one day and "bad" the next, with nothing about the run having changed. → *Fix:* `temperature=0` for any judge model, and treat its verdict as one more signal, not an infallible score.
 
-**Where you'll meet it:** Doc06's [tool-selection accuracy fixture](../06_tools_function_calling/README.md#choosing-between-multiple-tools) is the same idea one level down. The Build Task's step log is the raw data these checks run over. [Doc13](../13_testing_evaluation_observability/) is the full document on evaluation and observability; [Doc14](../14_debugging_lab/) has you diagnose a bad run from its logs alone.
+**Where you'll meet it:** Doc06's [tool-selection accuracy fixture](../06_tools_function_calling/README.md#choosing-between-multiple-tools) is the same idea one level down. The Build Task's step log is the raw data these checks run over. Project 2's Verifier (Step 4) is Approach 2 built for real, one run at a time; [Doc11](../11_multi_agent_systems/README.md#every-pattern-below-what-why-when-trade-off)'s Generator → Critic → Revision pattern is the same LLM-judge idea, now inside the loop instead of after it. [Doc13](../13_testing_evaluation_observability/) is the full document on evaluation and observability; [Doc14](../14_debugging_lab/) has you diagnose a bad run from its logs alone.
 
 **Quick cheat sheet:**
 
 - A correct final answer is not proof of a good run — check the path too.
 - Check tool choice, step count, and repeats, not just the answer.
+- Rule-based checks for facts (free, deterministic); an LLM-judge for judgment calls a rule can't express (costs a call, pin `temperature=0`).
 - Keep a small fixture with expected tools/step counts — the same discipline as Doc06's selection accuracy, one level up.
 
 ## Go Deeper (Optional)

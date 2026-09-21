@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — a keyword check
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 def should_search(state):
     task = state["messages"][-1].content.lower()
     keywords = ["document", "policy", "according to", "the file says"]
@@ -22,6 +23,7 @@ graph.add_conditional_edges("router", should_search, {"search": "search_node", "
 ### Approach 2 — asking a small model to decide
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 def should_search(state):
     task = state["messages"][-1].content
     prompt = "Does answering this question require looking up information in a document set? Answer only yes or no.\n\nQuestion: " + task
@@ -42,6 +44,7 @@ Both work. Approach 1 is free and instant but easy to fool with unexpected phras
 ### Approach 1 — a keyword check, with type hints
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 def should_search(state: dict) -> str:
     task = state["messages"][-1].content.lower()
     keywords = ["document", "policy", "according to", "the file says"]
@@ -60,6 +63,7 @@ graph.add_conditional_edges(
 ### Approach 2 — a small classification call
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 from langchain_core.messages import HumanMessage
 
 
@@ -92,6 +96,7 @@ graph.add_conditional_edges(
 ### Approach 1 — a hybrid: cheap check first, model call only when ambiguous
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 from langchain_core.messages import HumanMessage
 
 KEYWORDS = ["document", "policy", "according to", "the file says"]
@@ -134,6 +139,7 @@ Most real questions hit one of the two confident branches and never pay for a mo
 A hybrid router is still a guess, and guesses are worth checking. This approach keeps Approach 1's logic unchanged, but records which branch fired and why, so misroutes can be found and fixed later instead of going unnoticed.
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 import logging
 
 logger = logging.getLogger("routing")

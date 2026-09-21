@@ -36,6 +36,7 @@ This is Doc09's `add_conditional_edges` mechanism, applied to a real decision: "
 A conditional edge needs a plain Python function that looks at the current state and returns the *name* of the next node to go to — it doesn't do any work itself, it just decides:
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 def should_search(state: dict) -> str:
     ...
     return "search"  # or "skip"
@@ -43,6 +44,7 @@ def should_search(state: dict) -> str:
 
 Then you register it:
 ```python
+# search_tool_integration_practice.py — Intermediate section
 graph.add_conditional_edges("router", should_search, {"search": "search_node", "skip": "reason_node"})
 ```
 
@@ -101,6 +103,7 @@ test:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# search_tool_integration_practice.py — Intermediate section
 def should_search(state):
     task = state["messages"][-1].content.lower()
     if "document" in task or "policy" in task:
@@ -139,6 +142,7 @@ test:
 ```
 
 ```python
+# search_tool_integration_practice.py — Intermediate section
 def should_search(state: dict) -> str:
     task = state["messages"][-1].content.lower()
     keywords = ["document", "policy", "according to"]
@@ -167,6 +171,7 @@ function should_search(state):
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# search_tool_integration_practice.py — Intermediate section
 from langchain_core.messages import HumanMessage
 
 KEYWORDS = ["document", "policy", "according to", "the file says"]

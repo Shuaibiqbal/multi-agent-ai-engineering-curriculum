@@ -37,6 +37,7 @@ Things to use:
 `interrupt(value)` from `langgraph.types` pauses graph execution and surfaces `value` to whoever is running the graph. Execution stops entirely at that point — nothing after it runs until you call the graph again with a `Command(resume=...)`.
 
 ```python
+# approval_pause_practice.py
 from langgraph.types import interrupt
 
 def approval_node(state: dict) -> dict:
@@ -67,6 +68,7 @@ Two extra pieces answer that:
 - **A staleness check** — before actually treating an old paused thread's resume as valid, compare the interrupt's original timestamp (stored alongside the `interrupt()` payload) against now. If it's been paused far longer than any real reviewer should reasonably take (a week, say), the resuming code should flag that explicitly ("this approval is stale — the source documents may have changed since this was searched") rather than silently trusting a decision made against possibly-outdated context.
 
 ```python
+# approval_pause_practice.py
 from datetime import datetime, timezone
 
 def approval_node(state: dict) -> dict:
@@ -113,6 +115,7 @@ resume it:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# approval_pause_practice.py
 from langgraph.types import interrupt, Command
 
 def approval_node(state):
@@ -152,6 +155,7 @@ resume call:
 ```
 
 ```python
+# approval_pause_practice.py
 from langgraph.types import interrupt, Command
 
 
@@ -184,6 +188,7 @@ function is_stale(paused_at, max_age_hours):
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# approval_pause_practice.py
 from datetime import datetime, timedelta, timezone
 from langgraph.types import interrupt, Command
 

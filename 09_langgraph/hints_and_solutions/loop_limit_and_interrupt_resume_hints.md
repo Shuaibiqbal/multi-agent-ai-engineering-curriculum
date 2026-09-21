@@ -86,6 +86,7 @@ Part 2 -- checkpoint + interrupt + resume:
 
 Here's almost the whole thing for Part 1 — just try running it and reading it line by line:
 ```python
+# loop_limit_interrupt_practice.py
 from langgraph.graph import StateGraph, START, END
 from langgraph.errors import GraphRecursionError
 
@@ -115,6 +116,7 @@ builder.add_edge("node_b", "node_a")  # no exit -- this is the endless loop, on 
 
 **Part 1, complete:**
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.errors import GraphRecursionError

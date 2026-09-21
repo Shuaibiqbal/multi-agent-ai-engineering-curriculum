@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# blocking_event_loop_practice.py
 import asyncio
 import time
 
@@ -48,6 +49,7 @@ This version works correctly and demonstrates the bug clearly. It's missing type
 ### Approach 1 — typed, with a `__main__` guard
 
 ```python
+# blocking_event_loop_practice.py
 import asyncio
 import time
 
@@ -94,6 +96,7 @@ good + blocking: took 6.02s -> ['good', 'blocking']
 ### Approach 1 — `asyncio.to_thread`, the actual fix when you can't avoid a blocking call
 
 ```python
+# blocking_event_loop_practice.py
 import asyncio
 import time
 
@@ -140,6 +143,7 @@ good + fixed (to_thread): took 3.02s -> ['good', 'fixed']
 ### Approach 2 — the realistic version: a sync-only library call, not `time.sleep`
 
 ```python
+# blocking_event_loop_practice.py
 import asyncio
 import time
 import requests   # a real, sync-only library -- no async version exists

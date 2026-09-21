@@ -7,6 +7,7 @@
 ### Approach 1 — the direct way
 
 ```python
+# coroutine_basics_practice.py
 import asyncio
 
 async def wait_and_return():
@@ -39,6 +40,7 @@ This version works correctly. It's missing type hints and the `if __name__ == "_
 ### Approach 1 — type hints and a `__main__` guard
 
 ```python
+# coroutine_basics_practice.py
 import asyncio
 
 
@@ -71,6 +73,7 @@ done
 ### Approach 1 — a timeout, so a hang can't freeze the program forever
 
 ```python
+# coroutine_basics_practice.py
 import asyncio
 
 
@@ -103,6 +106,7 @@ wait_and_return took too long, giving up
 ### Approach 2 — safe to call whether or not a loop is already running
 
 ```python
+# coroutine_basics_practice.py
 import asyncio
 
 

@@ -9,6 +9,7 @@ All three depths below reuse `research()`, `write()`, and `StageResult` from `se
 ### Approach 1 — the direct way, `if`-based routing
 
 ```python
+# architecture_comparison_practice.py — Real-world section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
@@ -90,6 +91,7 @@ This works and correctly reuses `sequential_measure`'s functions unchanged. It's
 ### Approach 1 — a `run_supervisor()` report matching `run_sequential()`'s shape
 
 ```python
+# architecture_comparison_practice.py — Real-world section
 def run_supervisor(topic: str) -> dict:
     initial_state = {
         "task": topic,
@@ -143,6 +145,7 @@ sleep quality
 ### Approach 1 — an LLM-based supervisor, so the routing decision's real cost shows up
 
 ```python
+# architecture_comparison_practice.py — Real-world section
 import time
 
 
@@ -194,6 +197,7 @@ def run_supervisor_llm(topic: str) -> dict:
 ```
 
 ```python
+# architecture_comparison_practice.py — Real-world section
 if __name__ == "__main__":
     topics = ["climate change", "inflation", "sleep quality"]
     for topic in topics:
@@ -217,6 +221,7 @@ The LLM-based supervisor calls the model 3 times total (route, route, route-to-d
 ### Approach 2 — a written comparison table across all 3 designs
 
 ```python
+# architecture_comparison_practice.py — Real-world section
 def compare_all(topics: list[str]) -> None:
     print(f"{'topic':<16} {'sequential':>18} {'supervisor(if)':>18} {'supervisor(llm)':>18}")
     for topic in topics:

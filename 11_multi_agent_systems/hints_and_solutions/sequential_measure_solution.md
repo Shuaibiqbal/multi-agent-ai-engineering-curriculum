@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
+# architecture_comparison_practice.py — Intermediate section
 import time
 
 def research(topic):
@@ -51,6 +52,7 @@ This works and gives you real numbers. It's missing a clean result type and does
 ### Approach 1 — type hints and a dict report
 
 ```python
+# architecture_comparison_practice.py — Intermediate section
 import time
 
 def research(topic: str) -> dict:
@@ -107,6 +109,7 @@ total: 306 tokens, 2.75s
 ### Approach 1 — a typed `StageResult`, and a dedicated `run_sequential()`
 
 ```python
+# architecture_comparison_practice.py — Intermediate section
 import time
 from dataclasses import dataclass
 
@@ -165,6 +168,7 @@ A small `StageResult` type instead of returning three loose values per function 
 Once you have one topic's numbers, the next real question — the one `sequential_measure`'s Hint 2 Advanced asks you to answer — is whether research or write is the more expensive stage, and by how much, across more than one run.
 
 ```python
+# architecture_comparison_practice.py — Intermediate section
 def run_sequential_batch(topics: list[str]) -> list[dict]:
     return [run_sequential(topic) for topic in topics]
 

@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
+# search_tool_integration_practice.py — Basic section
 from langchain_core.tools import tool
 from retriever import retrieve
 
@@ -40,6 +41,7 @@ This works. It's missing type hints, and it builds the joined text with a loop i
 ### Approach 1 — type hints, a real docstring, and an explicit "no results" message
 
 ```python
+# search_tool_integration_practice.py — Basic section
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph
 from retriever import retrieve
@@ -83,6 +85,7 @@ print(result["messages"][-1])
 ### Approach 1 — caught failures and a capped result count
 
 ```python
+# search_tool_integration_practice.py — Basic section
 from langchain_core.tools import tool
 from retriever import retrieve
 
@@ -112,13 +115,14 @@ model_with_tools = model.bind_tools([search_docs])
 result = graph.invoke({"messages": [("user", "What does the document say about vacation policy?")]})
 print(result["messages"][-1])
 ```
-A failed `retrieve()` call now hands the model a short, honest sentence instead of crashing the whole turn with a traceback — the model can decide to tell the user search is down, retry with a rephrased query, or answer from what it already knows, instead of the graph run failing outright. Capping to `MAX_RESULTS` chunks keeps one tool call from consuming an outsized share of the model's context window on a larger document set.
+A failed `retrieve()` call now hands the model a short, honest sentence instead of crashing the whole turn with a traceback — the model can decide to tell the user search is down, retry with a rephrased query, or answer from what it already knows, instead of the graph run failing outright. Capping to `MAX_RESULTS` chunks keeps one tool call from consuming an outsized share of the model's context window on a larger document set. Like `MAX_ATTEMPTS` in `search_failure`, `MAX_RESULTS` is written as a plain constant here for readability — in a real deployment it's a `config.py` setting, not a hardcoded literal, since how many chunks is "too many" depends on the model's context window and changes as you swap models.
 
 ### Approach 2 — returning sources separately, for a later approval step
 
 The Intermediate version's return value is a single joined string — good enough for the model to read, but it throws away exactly which chunks were used. `approval_pause` needs a human reviewer to see the actual sources, not a paraphrase, so this approach keeps them alongside the text instead of discarding them.
 
 ```python
+# search_tool_integration_practice.py — Basic section
 from dataclasses import dataclass
 from langchain_core.tools import tool
 from retriever import retrieve

@@ -92,6 +92,7 @@ run the graph with a question about your document set:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# search_tool_integration_practice.py — Basic section
 from langchain_core.tools import tool
 from retriever import retrieve
 
@@ -129,6 +130,7 @@ graph.invoke({"messages": [("user", "What does the document say about X?")]})
 ```
 
 ```python
+# search_tool_integration_practice.py — Basic section
 from langchain_core.tools import tool
 from retriever import retrieve
 
@@ -165,6 +167,7 @@ def search_docs(query: str) -> str:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# search_tool_integration_practice.py — Basic section
 from langchain_core.tools import tool
 from retriever import retrieve
 

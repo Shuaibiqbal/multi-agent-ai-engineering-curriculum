@@ -9,6 +9,7 @@ Read all three depths — they're not "wrong, less wrong, right," they're 3 real
 ### Approach 1 — the direct way
 
 ```python
+# approval_pause_practice.py
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -41,6 +42,7 @@ This works, and correctly pauses and resumes. It doesn't check what happens on r
 ### Approach 1 — type hints, an explicit prompt, and testing both outcomes
 
 ```python
+# approval_pause_practice.py
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -84,6 +86,7 @@ print("Rejected run result:", rejected_run)
 ### Approach 1 — a structured resume payload, recording who and when
 
 ```python
+# approval_pause_practice.py
 from datetime import datetime, timezone
 from langgraph.types import interrupt, Command
 from langgraph.checkpoint.memory import MemorySaver
@@ -128,6 +131,7 @@ The node's own logic (`decision["decision"] == "approved"`) is barely different 
 Recording who and when only helps if something actually looks at it. This approach adds the check itself: before treating a resumed decision as valid, confirm the pause hasn't sat open so long that the original search results might be outdated.
 
 ```python
+# approval_pause_practice.py
 from datetime import datetime, timedelta, timezone
 from langgraph.types import interrupt, Command
 

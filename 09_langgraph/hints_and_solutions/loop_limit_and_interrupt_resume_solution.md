@@ -10,6 +10,7 @@ This exercise has 2 separate halves — the endless loop, and the checkpoint/int
 
 **Part 1 — the endless loop, stopped by a low recursion limit:**
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.errors import GraphRecursionError
@@ -49,6 +50,7 @@ Stopped on purpose after hitting the recursion limit: Recursion limit of 5 reach
 
 **Part 2 — checkpoint, interrupt, resume:**
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -98,6 +100,7 @@ The first `invoke()` runs `do_task`, which calls `interrupt(...)` and pauses rig
 
 **Part 1:**
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.errors import GraphRecursionError
@@ -137,6 +140,7 @@ Confirmed: an exit-less loop hits the recursion limit and fails loudly, not sile
 
 **Part 2:**
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -194,6 +198,7 @@ This is 2 separate scripts, run one after the other, with the process exiting co
 
 **`pause_script.py`:**
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -226,6 +231,7 @@ print(result)
 
 **`resume_script.py`** (run as a brand-new `python resume_script.py`, after `pause_script.py` has already exited):
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -266,6 +272,7 @@ This is the point, not a mistake to fix: `MemorySaver` really does keep its data
 ### Approach 2 — a checkpointer that actually persists, using SQLite
 
 ```python
+# loop_limit_interrupt_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.sqlite import SqliteSaver

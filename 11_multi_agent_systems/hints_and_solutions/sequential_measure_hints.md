@@ -95,6 +95,7 @@ main:
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# architecture_comparison_practice.py — Intermediate section
 import time
 
 def research(topic):
@@ -142,6 +143,7 @@ def write(research_text: str) -> dict:
 ```
 
 ```python
+# architecture_comparison_practice.py — Intermediate section
 def main():
     topic = "climate change"
     total_start = time.perf_counter()
@@ -183,6 +185,7 @@ function run_sequential(topic) -> dict:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
+# architecture_comparison_practice.py — Intermediate section
 import time
 from dataclasses import dataclass
 

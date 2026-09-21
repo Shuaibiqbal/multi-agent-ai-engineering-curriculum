@@ -89,6 +89,7 @@ run it twice: once with flag=True, once with flag=False -- confirm each one prin
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# conditional_routing_practice.py — Intermediate section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 

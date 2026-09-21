@@ -91,6 +91,7 @@ compare the two printed times
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# gather_practice.py — Intermediate section
 import asyncio
 import time
 
@@ -163,6 +164,7 @@ run gather(f1(), f2(), f3(), return_exceptions=True):
 ```
 
 ```python
+# gather_practice.py — Intermediate section
 async def f2_broken() -> str:
     await asyncio.sleep(2)
     raise ValueError("f2 failed on purpose")
