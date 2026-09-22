@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real caller would actually handle this). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real caller would actually handle this). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -44,12 +44,6 @@ The exact pieces:
 - `async def run_parallel() -> None:` — calls `await asyncio.gather(f1(), f2(), f3())` once, timing that single call.
 - `asyncio.run(...)` twice, separately — you can't call `asyncio.run` from inside another running event loop.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
-
-### Advanced Version
-
 Think about what happens once these 3 tasks aren't 3 identical `sleep(2)` calls, but 3 real API calls, and one of them is slow or genuinely broken. `asyncio.gather(f1(), f2(), f3())`, by default, doesn't fail as soon as one task raises — it keeps the others running, then re-raises the *first* exception it sees once everything has settled. That's usually fine. But it also means: if `f2` raises immediately and `f3` was about to make an expensive, unnecessary API call anyway, `gather` doesn't stop it from happening just because a sibling task already failed.
 
 The real design question isn't just "how do I run 3 things at once" — it's "what should happen to the *other* two tasks if one of them fails or is still running when I no longer need the rest?"
@@ -60,7 +54,7 @@ The extra piece that answers that question:
 
 Sketch what your `run_parallel` output would look like with one of the 3 tasks raising, with and without `return_exceptions=True`, before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both assume all 3 tasks succeed — they only ever prove the speed difference. Advanced asks what happens the moment one of them doesn't, which is the realistic case once these aren't `sleep()` calls but real network requests — and shows the one flag (`return_exceptions=True`) that decides whether one failure costs you every result, or just that one.
+**Difference between Basic and Intermediate:** Basic assumes all 3 tasks succeed — it only ever proves the speed difference. Intermediate also asks what happens the moment one of them doesn't, which is the realistic case once these aren't `sleep()` calls but real network requests — and shows the one flag (`return_exceptions=True`) that decides whether one failure costs you every result, or just that one.
 
 <hr class="page-break">
 
@@ -146,11 +140,7 @@ if __name__ == "__main__":
 ```
 Fill in `run_parallel` yourself, then compare both against the [Solution](gather_speed_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
-
-### Advanced Version
+Once that's working, break one task on purpose and see what `gather` actually does:
 
 ```
 make f2 raise an exception instead of succeeding, on purpose
@@ -159,8 +149,10 @@ run gather(f1(), f2(), f3()) with no extra flag:
     -> raises f2's exception, you never see f1 or f3's results at all
 
 run gather(f1(), f2(), f3(), return_exceptions=True):
-    -> returns a list of 3 things: f1's result, f2's exception object, f3's result
-    -> loop over the list, check isinstance(item, Exception) to tell results from failures apart
+    -> returns a list of 3 things: f1's result, f2's exception object,
+       f3's result
+    -> loop over the list, check isinstance(item, Exception) to tell
+       results from failures apart
 ```
 
 ```python
@@ -180,7 +172,7 @@ async def run_parallel_safe() -> None:
 ```
 Wire this into a runnable script yourself — compare the output with and without `return_exceptions=True` — then check the [Solution](gather_speed_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate's pseudocode and near-complete code both assume every task succeeds. Advanced deliberately breaks one task and shows the two different outcomes `gather` can give you depending on `return_exceptions` — losing every result the moment one task fails (the default), versus getting every result back, successes and failures both labeled, in one list.
+**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code assume every task succeeds. Intermediate deliberately breaks one task and shows the two different outcomes `gather` can give you depending on `return_exceptions` — losing every result the moment one task fails (the default), versus getting every result back, successes and failures both labeled, in one list.
 
 <hr class="page-break">
 

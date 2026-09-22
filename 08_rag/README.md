@@ -344,14 +344,18 @@ class ScopedRetriever:
     """Bound to one tenant at construction. There is no unscoped query."""
     def __init__(self, collection, tenant_id: str) -> None:
         self._collection = collection
-        self._tenant_id = tenant_id  # from the authenticated session, never a caller argument
+        self._tenant_id = tenant_id  # from the session, never a caller arg
 
-    def retrieve(self, query: str, k: int = 5, filters: dict | None = None) -> list[dict]:
+    def retrieve(
+        self, query: str, k: int = 5, filters: dict | None = None,
+    ) -> list[dict]:
         clauses = [{"tenant_id": {"$eq": self._tenant_id}}]
         if filters:
             clauses.extend({key: {"$eq": value}} for key, value in filters.items())
         where = clauses[0] if len(clauses) == 1 else {"$and": clauses}
-        results = self._collection.query(query_embeddings=[embed_query(query)], n_results=k, where=where)
+        results = self._collection.query(
+            query_embeddings=[embed_query(query)], n_results=k, where=where,
+        )
         return shape(results)
 ```
 
@@ -440,7 +444,10 @@ class ScopedRetriever:
 ```python
 def build_context(chunks: list[dict]) -> str:
     """Labelled data, with per-chunk ids and delimiters the model is told about."""
-    parts = [f'<chunk id="{c["id"]}">\n{strip_invisible(c["text"])}\n</chunk>' for c in chunks]
+    parts = [
+        f'<chunk id="{c["id"]}">\n{strip_invisible(c["text"])}\n</chunk>'
+        for c in chunks
+    ]
     return "<retrieved_context>\n" + "\n".join(parts) + "\n</retrieved_context>"
 ```
 Paired with a system prompt stating everything inside `<retrieved_context>` is untrusted data to quote from, never an instruction — and asking the model to *report* any override attempt it saw, which turns a silent compromise into a detection signal for free.
@@ -543,7 +550,23 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup:** same venv as before — if it's not active, `cd 08_rag && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langchain langchain-openai chromadb`.
 
-**Where your code lives:** all of it under `08_rag/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/06/07 — so one topic's growth from basic to advanced stays visible in one file.
+**Where your code lives:** all of it under `08_rag/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/06/07 — so one topic's growth from basic to intermediate stays visible in one file.
+
+**The full file layout, all exercises:**
+
+```
+practice/
+├── embedding_similarity_practice.py   Basic
+├── chunking_practice.py               Intermediate + Edge cases + Failure
+│                                       (three sections)
+└── knowledge_base_search_practice.py  Real-world
+```
+
+**Why each script exists:**
+
+- `embedding_similarity_practice.py` — the one fact the rest of RAG rests on: similar meaning lands close together in vector space. Every later exercise assumes you've watched this work with real numbers.
+- `chunking_practice.py` — where a document gets split changes what a search can find, changes how a bad split hides a fact, and changes what raising `k` actually buys you — three tightly related lessons in one file.
+- `knowledge_base_search_practice.py` — a real, self-written knowledge base you can check by eye, so a wrong search result is immediately recognizable instead of a guess.
 
 **For this document, save your practice code as:**
 - **Basic** (see embeddings as geometry, not theory) is its own topic — save as `practice/embedding_similarity_practice.py`.
@@ -611,12 +634,18 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 08_rag/practice/build_task/
-├── chunking.py          at least two chunking methods: chunk_by_chars(), chunk_by_paragraph()
+├── chunking.py          chunk_by_chars(), chunk_by_paragraph() -- swappable
 ├── ingest.py             build_vector_store(doc_folder: str) -> VectorStore
 ├── retriever.py          retrieve(query: str, k: int = 3) -> list[dict]
 ├── docs/                 your sample documents, plain text/markdown
 └── test_retriever.py     proves the Test Cases below
 ```
+
+- `chunking.py` — **What/Why:** at least two named, swappable chunking methods — the piece that makes "swap the chunker, re-run the eval" a ten-minute experiment, not a refactor.
+- `ingest.py` — **What/Why:** reads every document, chunks it, embeds every chunk in one batched call, and stores the result — safe to re-run without duplicating.
+- `retriever.py` — **What/Why:** the one function Project 3's agent calls as a tool — embeds a question and returns a checked, ranked list of chunk dicts.
+- `docs/` — **What/Why:** 5-10 short documents you wrote yourself, so you're your own ground truth for whether a search result is right.
+- `test_retriever.py` — **What/Why:** proves the 4 Test Cases below actually pass, automatically, every time `chunking.py`/`ingest.py`/`retriever.py` change.
 
 **Run it:** `cd practice/build_task && python test_retriever.py` — from inside the folder, so `from retriever import retrieve` finds the file next to it.
 
@@ -653,4 +682,4 @@ _You don't need any of these to understand the Core Concepts above — use them 
 You can tell whether a bad RAG answer is a retrieval problem or a generation problem — that one skill is the whole point of this document. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-08-rag).
 
 ---
-Stuck? Ask for **Hint 1** or **Hint 2** (each has Basic/Intermediate/Advanced depth). Ask for the full solution only if you say **"Show me the solution."**
+Stuck? Ask for **Hint 1** or **Hint 2** (each has Basic/Intermediate depth). Ask for the full solution only if you say **"Show me the solution."**

@@ -87,7 +87,8 @@ class Person(BaseModel):
     name: str
     age: int
 
-structured_model = ChatOpenAI(model="...", temperature=0).with_structured_output(Person)
+model = ChatOpenAI(model="...", temperature=0)
+structured_model = model.with_structured_output(Person)
 
 good_result = structured_model.invoke("Extract: Maria is 34 years old.")
 print(good_result)                       # a real Person object

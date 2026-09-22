@@ -110,7 +110,9 @@ import os
 def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError("Required environment variable is missing: " + key)
+        raise MissingConfigError(
+            "Required environment variable is missing: " + key
+        )
     return value
 ```
 **Expected output if you run just this (nothing calls `require_env` yet):** nothing — defining a function doesn't run it. You need to add a call below this to see anything happen.
@@ -159,7 +161,8 @@ function get_logger(name):
     if this logger doesn't already have a console handler attached:
         create a StreamHandler, set its level from an env var (default INFO)
         attach it to the logger
-    set the logger's overall level low enough that the handler's level is what actually filters
+    set the logger's overall level low enough that the handler is
+    the one that actually filters
     return the logger
 ```
 
@@ -174,7 +177,9 @@ import os
 def require_env(key: str) -> str:
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError(f"Required environment variable is missing: {key}")
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
     return value
 ```
 
@@ -221,6 +226,8 @@ Files appear in the order you create them: `.env.example`, `.env`, `exceptions.p
 
 ```bash
 # practice/build_task/.env.example
+# Why: shows every teammate which keys to set, without leaking real values into
+# git.
 # Copy this file to .env and fill in the real values. Never commit .env.
 OPENAI_API_KEY=
 LOG_LEVEL=INFO
@@ -233,6 +240,9 @@ OPENAI_API_KEY=sk-test-123
 
 ```python
 # practice/build_task/exceptions.py
+# Why: gives load_config() its own error type, so calling code can catch a
+# missing
+# setting specifically, instead of catching every possible Exception blindly.
 class MissingConfigError(Exception):
     pass
 ```
@@ -249,12 +259,20 @@ class Config:
         self.log_level = log_level
 
 def require_env(key):
+    # Why: one place that turns a missing/empty env var into a clear, named
+    # error,
+    # instead of repeating the same if-check for every required key by hand.
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError("Required environment variable is missing: " + key)
+        raise MissingConfigError(
+            "Required environment variable is missing: " + key
+        )
     return value
 
 def load_config():
+    # Why: the one function every other file calls to get settings — so a
+    # missing
+    # key fails loudly here, at startup, instead of crashing confusingly later.
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -267,6 +285,9 @@ import logging
 import os
 
 def get_logger(name):
+    # Why: gives every file in the project the same logging setup from one
+    # place,
+    # instead of each file configuring handlers/levels its own way.
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -309,42 +330,88 @@ This version works correctly and meets every Build Task requirement. It's missin
 
 #### Approach 1 — a dataclass-based config
 
-`practice/build_task/.env.example` and `practice/build_task/.env` are exactly as shown in Basic Approach 1 above — keep both files as they are.
+**Story — `.env.example` / `.env`:** every project needs somewhere to put a real API key, and that place can never be a file git tracks with the real value in it. `.env.example` is the checked-in template (key names, no values); `.env` is your own copy, gitignored. **If not:** the first time someone forgets to gitignore `.env`, a real key ends up in a public repo's history forever, even if you delete it in a later commit.
+
+```bash
+# practice/build_task/.env.example
+# Why: shows every teammate which keys to set, without leaking real values into
+# git.
+# Copy this file to .env and fill in the real values. Never commit .env.
+OPENAI_API_KEY=
+LOG_LEVEL=INFO
+```
+
+```bash
+# practice/build_task/.env
+OPENAI_API_KEY=sk-test-123
+```
+
+**Story — `exceptions.py`:** `load_config()` needs a way to say "something required is missing" that's more specific than a bare `Exception`. `MissingConfigError` is that one purpose-built signal. **If not:** every caller that wants to catch a config problem would have to catch `Exception` broadly, which also silently swallows real bugs (a typo, a `NameError`) that have nothing to do with missing settings.
 
 ```python
 # practice/build_task/exceptions.py
+# Why: gives load_config() its own error type, so calling code can catch a
+# missing
+# setting specifically, instead of catching every possible Exception blindly.
 class MissingConfigError(Exception):
     """Raised when a required setting is missing from the environment."""
     pass
 ```
 
+**Story — `config.py`:** this is the one place the whole project reads its settings from. Written this way — fail loudly, at startup, from one function — so a missing `OPENAI_API_KEY` is a clear one-line error the moment the program starts, not a confusing `AuthenticationError` from OpenAI five minutes into a run. **If not:** every file that needs a setting would read `os.environ` directly, so the same missing-key bug would need fixing in N different places instead of one, and a typo'd key name would fail silently with `None` instead of a clear error.
+
 ```python
 # practice/build_task/config.py
+# how: os.getenv() is how we read env vars
 import os
+# why: @dataclass auto-builds __init__ for a typed holder
 from dataclasses import dataclass
+# how: reads .env and loads it into os.environ
 from dotenv import load_dotenv
+# why: a specific error type, not a bare Exception
 from exceptions import MissingConfigError
 
 
 @dataclass
 class Config:
+    # why: a typed object, not a plain dict — your editor autocompletes
+    # .openai_api_key and .log_level, and catches a typo'd field name.
     openai_api_key: str
     log_level: str
 
 
 def require_env(key: str) -> str:
+    # why: one place that turns a missing/empty env var into a clear, named
+    # error,
+    # instead of repeating the same if-check for every required key by hand.
+    # when: called once per required key, inside load_config(), before anything
+    # else in the program runs.
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError(f"Required environment variable is missing: {key}")
+        # how: both "never set" (None) and "set but blank" (empty string)
+        # count as missing — an empty API key is never usable either way.
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
     return value
 
 
 def load_config() -> Config:
+    # why: the one function every other file calls to get settings — so a
+    # missing
+    # key fails loudly here, at startup, instead of crashing confusingly later.
+    # when: call this once, near the top of main()/test_config.py, before
+    # anything that needs a setting runs.
+    # how: reads .env into os.environ; must run before os.getenv() below
     load_dotenv()
+    # how: required — raises if missing
     api_key = require_env("OPENAI_API_KEY")
+    # how: optional — "INFO" if unset
     log_level = os.getenv("LOG_LEVEL", "INFO")
     return Config(openai_api_key=api_key, log_level=log_level)
 ```
+
+**Story — `logging_setup.py`:** every script needs to print progress and errors somewhere, and it should look the same everywhere in the project — same timestamp format, same way of separating "quiet console" from "detailed file." `get_logger(name)` is that one shared setup. **If not:** every file would configure its own `logging.StreamHandler()` by hand, some would forget the duplicate-handler guard and print every line twice, and log output would look different from file to file.
 
 ```python
 # practice/build_task/logging_setup.py
@@ -353,82 +420,110 @@ import os
 
 
 def get_logger(name: str) -> logging.Logger:
+    # why: gives every file in the project the same logging setup from one
+    # place,
+    # instead of each file configuring handlers/levels its own way.
+    # when: call once per module, at the top — logging.getLogger(name) always
+    # returns the same object for the same name, so calling it again elsewhere
+    # in the same run is safe and cheap.
     logger = logging.getLogger(name)
 
     if not logger.handlers:
+        # how: only attach a handler the first time this name is configured —
+        # without this guard, calling get_logger(name) twice would print every
+        # line twice.
         level_name = os.getenv("LOG_LEVEL", "INFO")
+        # how: falls back to INFO if the env value is invalid
         level = getattr(logging, level_name.upper(), logging.INFO)
 
+        # how: prints to the console
         handler = logging.StreamHandler()
         handler.setLevel(level)
-        formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+        # why: every line carries a timestamp/source/level, not just the bare
+        # message
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        formatter = logging.Formatter(log_format)
         handler.setFormatter(formatter)
 
         logger.addHandler(handler)
+        # how: the logger's own level must be at least this low, or the handler
+        # never even sees the message
         logger.setLevel(level)
 
     return logger
 ```
 
+**Story — `test_config.py`:** `config.py` and `logging_setup.py` are about to get imported by every document in this curriculum — a silent regression here (say, the duplicate-handler guard breaking) would show up as a confusing bug three documents later, far from its real cause. This script runs all 4 Test Cases in one go, right here, right after writing the code. **If not:** you'd only find out `get_logger()` prints twice, or `load_config()` doesn't actually fail on a missing key, whenever some future document happens to trigger it — much harder to trace back to this file.
+
+This version deliberately stays at the same level as the rest of this document — plain `os` functions, no `pathlib`, no `try/finally`. It reads top to bottom, in the order things actually happen.
+
 ```python
 # practice/build_task/test_config.py
-"""Runs the four Test Cases from the README against config.py and logging_setup.py.
-
-Run it from inside this folder:  python test_config.py
-It rewrites .env as it goes, so it backs your real one up first and restores it at the end.
-"""
+# Runs the four Test Cases from the README against config.py and logging_setup.py.
+# Run it from inside this folder: python test_config.py
+# It rewrites .env as it goes, so it backs your real one up first, and
+# puts it back at the very end.
 import os
-from pathlib import Path
 
 from config import load_config
 from exceptions import MissingConfigError
 from logging_setup import get_logger
 
-ENV_PATH = Path(".env")
-BACKUP_PATH = Path(".env.backup")
+ENV_PATH = ".env"
+BACKUP_PATH = ".env.backup"
 
 
 def set_env_file(contents: str | None) -> None:
-    """Put .env into a known state for one case, and clear os.environ first.
-
-    load_dotenv() never overwrites a variable that is already set, so without
-    these pop() calls every case after the first would inherit the one before it.
-    """
+    # Puts .env into a known state for one case, and clears os.environ first.
+    # why clear os.environ: load_dotenv() never overwrites a variable that's
+    # already set, so without this, case 2 would still see case 1's values.
     os.environ.pop("OPENAI_API_KEY", None)
     os.environ.pop("LOG_LEVEL", None)
     if contents is None:
-        ENV_PATH.unlink(missing_ok=True)
+        if os.path.exists(ENV_PATH):
+            os.remove(ENV_PATH)
     else:
-        ENV_PATH.write_text(contents)
+        with open(ENV_PATH, "w") as env_file:
+            env_file.write(contents)
 
 
 def main() -> None:
-    if ENV_PATH.exists():
-        ENV_PATH.rename(BACKUP_PATH)
+    # Step 1: hide your real .env somewhere safe, so the fake ones below
+    # can't touch it. Nothing is deleted — just renamed out of the way.
+    if os.path.exists(ENV_PATH):
+        os.rename(ENV_PATH, BACKUP_PATH)
+
+    # Case 1: no .env file at all. load_config() should fail clearly.
+    set_env_file(None)
     try:
-        set_env_file(None)
-        try:
-            load_config()
-        except MissingConfigError as e:
-            print(f"case 1 (.env missing)     -> MissingConfigError: {e}")
+        load_config()
+    except MissingConfigError as e:
+        print(f"case 1 (.env missing)     -> MissingConfigError: {e}")
 
-        set_env_file("LOG_LEVEL=INFO\n")
-        try:
-            load_config()
-        except MissingConfigError as e:
-            print(f"case 2 (key missing)      -> MissingConfigError: {e}")
+    # Case 2: .env exists, but OPENAI_API_KEY isn't in it. Should still fail.
+    set_env_file("LOG_LEVEL=INFO\n")
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"case 2 (key missing)      -> MissingConfigError: {e}")
 
-        set_env_file("OPENAI_API_KEY=sk-test-123\n")
-        config = load_config()
-        print(f"case 3 (valid .env)       -> Config loaded, log level {config.log_level}")
+    # Case 3: .env has everything it needs. Should succeed this time.
+    set_env_file("OPENAI_API_KEY=sk-test-123\n")
+    config = load_config()
+    log_level = config.log_level
+    print(f"case 3 (valid .env)       -> Config loaded, log level {log_level}")
 
-        get_logger("x")
-        logger = get_logger("x")
-        logger.info("case 4 (get_logger twice) -> printed exactly once")
-    finally:
-        ENV_PATH.unlink(missing_ok=True)
-        if BACKUP_PATH.exists():
-            BACKUP_PATH.rename(ENV_PATH)
+    # Case 4: calling get_logger() twice with the same name should not
+    # attach a second handler — the line below should print once, not twice.
+    get_logger("x")
+    logger = get_logger("x")
+    logger.info("case 4 (get_logger twice) -> printed exactly once")
+
+    # Step 5: done testing — delete the fake .env, bring your real one back.
+    if os.path.exists(ENV_PATH):
+        os.remove(ENV_PATH)
+    if os.path.exists(BACKUP_PATH):
+        os.rename(BACKUP_PATH, ENV_PATH)
 
 
 if __name__ == "__main__":
@@ -436,11 +531,14 @@ if __name__ == "__main__":
 ```
 **Expected output** (the exact timestamp will differ on your machine — `%(asctime)s` always prints the current time):
 ```
-case 1 (.env missing)     -> MissingConfigError: Required environment variable is missing: OPENAI_API_KEY
-case 2 (key missing)      -> MissingConfigError: Required environment variable is missing: OPENAI_API_KEY
+case 1 (.env missing)     -> MissingConfigError:
+Required environment variable is missing: OPENAI_API_KEY
+case 2 (key missing)      -> MissingConfigError:
+Required environment variable is missing: OPENAI_API_KEY
 case 3 (valid .env)       -> Config loaded, log level INFO
 2026-09-10 09:00:00,123 x INFO case 4 (get_logger twice) -> printed exactly once
 ```
+(Cases 1 and 2 are shown wrapped onto two lines here just to fit the page — each is really one line of real output.)
 The last line is the only one that goes through the logger, so it's the only one carrying the timestamp/name/level prefix — and it appears once, not twice, which is the whole point of the `if not logger.handlers:` guard. One thing that surprises people: a `StreamHandler` writes to **stderr**, while `print()` writes to stdout. In a terminal they interleave in the order shown; pipe the output to a file (`python test_config.py > out.txt`) and the logger line can jump ahead of the others, because the two streams are buffered differently. Nothing is wrong when that happens.
 
 **Why this approach:** a `@dataclass` gives you a typed, readable `Config` object with almost no extra code. This is a very common, standard pattern in real Python projects.
@@ -449,7 +547,29 @@ The last line is the only one that goes through the logger, so it's the only one
 
 This version uses a plain class instead of a dataclass (more explicit, a bit more typing), and adds a file handler alongside the console one, since some projects want both.
 
-`practice/build_task/exceptions.py`, `.env.example` and `.env` are unchanged from Approach 1 above — keep those three files exactly as they are. Only `config.py`, `logging_setup.py` and `test_config.py` change.
+```bash
+# practice/build_task/.env.example
+# Why: shows every teammate which keys to set, without leaking real values into
+# git.
+# Copy this file to .env and fill in the real values. Never commit .env.
+OPENAI_API_KEY=
+LOG_LEVEL=INFO
+```
+
+```bash
+# practice/build_task/.env
+OPENAI_API_KEY=sk-test-123
+```
+
+```python
+# practice/build_task/exceptions.py
+# Why: gives load_config() its own error type, so calling code can catch a
+# missing
+# setting specifically, instead of catching every possible Exception blindly.
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
+```
 
 ```python
 # practice/build_task/config.py
@@ -465,11 +585,16 @@ class Config:
 
 
 def load_config() -> Config:
+    # Why: the one function every other file calls to get settings — so a
+    # missing
+    # key fails loudly here, at startup, instead of crashing confusingly later.
     load_dotenv()
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise MissingConfigError("Required environment variable is missing: OPENAI_API_KEY")
+        raise MissingConfigError(
+            "Required environment variable is missing: OPENAI_API_KEY"
+        )
 
     log_level = os.getenv("LOG_LEVEL", "INFO")
     return Config(openai_api_key=api_key, log_level=log_level)
@@ -482,6 +607,9 @@ import os
 
 
 def get_logger(name: str) -> logging.Logger:
+    # Why: gives every file in the project the same logging setup from one
+    # place,
+    # now with a file handler too, since a console-only log disappears on exit.
     logger = logging.getLogger(name)
 
     if logger.handlers:
@@ -496,7 +624,8 @@ def get_logger(name: str) -> logging.Logger:
     file_handler = logging.FileHandler("app.log")
     file_handler.setLevel(logging.DEBUG)
 
-    formatter = logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s")
+    log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+    formatter = logging.Formatter(log_format)
     console_handler.setFormatter(formatter)
     file_handler.setFormatter(formatter)
 

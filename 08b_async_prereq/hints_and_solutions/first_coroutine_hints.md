@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-first_coroutine) · [Hint 1](first_coroutine_hints.md#hint-1) · [Hint 2](first_coroutine_hints.md#hint-2) · [Solution](first_coroutine_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how this actually bites you in a real program). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how this actually bites you in a real program). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -40,12 +40,6 @@ The exact pieces:
 - `return "done"` — an ordinary `return`. It sets what the coroutine resolves to once it finishes; it does not run the function immediately.
 - `asyncio.run(wait_and_return())` — `wait_and_return()` builds the coroutine object; `asyncio.run(...)` is what actually starts the event loop, drives it to completion, and hands back the return value.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_coroutine) · [Hint 1](first_coroutine_hints.md#hint-1) · [Hint 2](first_coroutine_hints.md#hint-2) · [Solution](first_coroutine_solution.md)
-
-### Advanced Version
-
 Think about where this code actually gets called from in a real program, not just a standalone script. `asyncio.run(...)` assumes it's the *only* thing starting an event loop — it creates one, runs your coroutine, and tears the loop down afterward. That assumption breaks the moment this code runs somewhere a loop is already running: inside a FastAPI route (Doc12), inside a Jupyter notebook, inside any other `async def` function. Call `asyncio.run(...)` from any of those places and you get `RuntimeError: asyncio.run() cannot be called from a running event loop` — not a bug in your coroutine, a bug in *where* you tried to start it.
 
 The real design question isn't just "how do I run this coroutine" — it's "does the code that calls this function control its own event loop, or does it need to work whether or not one is already running?"
@@ -55,7 +49,7 @@ The extra piece that answers that question:
 - **Don't call `asyncio.run()` inside reusable functions.** Keep it at the true entry point of your program (the `if __name__ == "__main__":` block) and nowhere else. Any function meant to be reused from inside an already-async caller should just be `async def` and get `await`ed directly by whatever calls it — never wrapped in its own `asyncio.run()`.
 - **`asyncio.get_running_loop()`** (inside a `try/except RuntimeError`) is how you can detect, at runtime, whether a loop is already running — useful in library code that genuinely needs to support being called both ways, though the cleaner fix is almost always to just not call `asyncio.run()` from library code at all.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the plain idea and the 3 tools you need for the tidy, single-script case. Intermediate gives the same idea the exact vocabulary and shows precisely what each piece does. Advanced asks where this code will actually be called *from* in a real project — a standalone script is the only place `asyncio.run()` is ever safe to call, and the same "coroutine that just needs `await`" you write here will need to plug directly into someone else's already-running loop the moment it's reused, which is exactly what the next exercise (`gather_speed`) and the `async_client_conversion` exercise both build toward.
+**Difference between Basic and Intermediate:** Basic names the plain idea and the 3 tools you need for the tidy, single-script case. Intermediate gives the same idea the exact vocabulary, shows precisely what each piece does, and asks where this code will actually be called *from* in a real project — a standalone script is the only place `asyncio.run()` is ever safe to call, and the same "coroutine that just needs `await`" you write here will need to plug directly into someone else's already-running loop the moment it's reused, which is exactly what the next exercise (`gather_speed`) and the `async_client_conversion` exercise both build toward.
 
 <hr class="page-break">
 
@@ -128,13 +122,7 @@ if __name__ == "__main__":
 ```
 Fill in the `unstarted = wait_and_return()` demonstration and both `print(...)` calls yourself, then compare against the [Solution](first_coroutine_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_coroutine) · [Hint 1](first_coroutine_hints.md#hint-1) · [Hint 2](first_coroutine_hints.md#hint-2) · [Solution](first_coroutine_solution.md)
-
-### Advanced Version
-
-Add a timeout, the way a real caller should — a coroutine that never actually finishes (a network call that hangs, say) shouldn't be able to freeze your whole program forever:
+Once that's working, add a timeout, the way a real caller should — a coroutine that never actually finishes (a network call that hangs, say) shouldn't be able to freeze your whole program forever:
 
 ```
 import asyncio
@@ -169,9 +157,9 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-Notice `asyncio.run()` now only appears once, at the very bottom, wrapping `main()` — exactly the Hint 1 Advanced point about keeping it at the true entry point. Try lowering `timeout=5` to `timeout=0.5` yourself (shorter than the 1-second sleep) to see the `except` branch actually trigger, then compare your finished versions against the [Solution](first_coroutine_solution.md).
+Notice `asyncio.run()` now only appears once, at the very bottom, wrapping `main()` — exactly the Hint 1 point about keeping it at the true entry point. Try lowering `timeout=5` to `timeout=0.5` yourself (shorter than the 1-second sleep) to see the `except` branch actually trigger, then compare your finished versions against the [Solution](first_coroutine_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both just run `wait_and_return()` and trust it to finish. Advanced wraps the same coroutine in `asyncio.wait_for(..., timeout=...)`, which is what a real caller should almost always do around anything that waits on the outside world — without it, one hung network call can freeze your whole program indefinitely, with no way to recover short of killing the process.
+**Difference between Basic and Intermediate:** Basic just runs `wait_and_return()` and trusts it to finish. Intermediate wraps the same coroutine in `asyncio.wait_for(..., timeout=...)`, which is what a real caller should almost always do around anything that waits on the outside world — without it, one hung network call can freeze your whole program indefinitely, with no way to recover short of killing the process.
 
 <hr class="page-break">
 

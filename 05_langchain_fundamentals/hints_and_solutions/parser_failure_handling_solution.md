@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-parser_failure_handling) · [Hint 1](parser_failure_handling_hints.md#hint-1) · [Hint 2](parser_failure_handling_hints.md#hint-2) · [Solution](parser_failure_handling_solution.md)
 
+**Story — `structured_output_practice.py` (Failure section):** you need to know, before it happens in production, exactly what exception type a mismatched structured-output reply raises. Forcing it here, on purpose, once, means the Build Task's "handle a bad structured-output reply gracefully" requirement is catching an error you've actually seen fire, not a guess. **If not:** the first real failure would happen in front of a real user, with your code catching the wrong exception type or not catching it at all.
+
 ## Basic Version
 
 ```python
@@ -40,15 +42,19 @@ class Rating(BaseModel):
 
 
 def get_rating_chain() -> ChatOpenAI:
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(Rating)
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return model.with_structured_output(Rating)
 
 
 def main() -> None:
     structured_model = get_rating_chain()
 
     try:
-        structured_model.invoke("Describe your favorite color, no numbers at all.")
+        prompt = "Describe your favorite color, no numbers at all."
+        structured_model.invoke(prompt)
     except ValidationError as e:
+        # why: catching the specific class means real code can react
+        # differently to "didn't match my shape" than to anything else.
         print(f"Caught a ValidationError (expected): {e}")
     except Exception as e:
         print(f"Caught a different error than expected: {type(e).__name__}: {e}")

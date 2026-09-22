@@ -23,6 +23,8 @@ practice/config_logging_wiring/
 
 ### Approach 1 — the direct way
 
+**Story — `.env`:** `load_config()` below needs a real value to actually read. This is your own local copy, gitignored, holding a fake key for now. **If not:** there's nothing for `os.getenv("OPENAI_API_KEY")` to find, and every run fails at the very first step before you even get to see the wiring work.
+
 The file you create first, because nothing runs without it — your own `.env`, holding a fake key for now:
 
 ```bash
@@ -31,6 +33,8 @@ OPENAI_API_KEY=sk-test-123
 LOG_LEVEL=DEBUG
 ```
 
+**Story — `exceptions.py`:** `require_env()` inside `config.py` needs a way to say "this setting is missing" that's more specific than a bare `Exception`. **If not:** `main.py` would have to catch `Exception` broadly to handle a missing setting, which also hides real bugs that have nothing to do with config.
+
 Then the error class — one line of real content, the same pattern as the Basic exercise:
 
 ```python
@@ -38,6 +42,8 @@ Then the error class — one line of real content, the same pattern as the Basic
 class MissingConfigError(Exception):
     pass
 ```
+
+**Story — `config.py`:** `main.py` shouldn't read environment variables itself — it should ask one function for a ready-to-use settings object. Written this way so a missing key fails loudly, right here, instead of `main.py` crashing later with a confusing error about something else. **If not:** the missing-key check would either not exist, or get copy-pasted into every script that needs a setting.
 
 Then the config loader:
 
@@ -59,7 +65,9 @@ class Config:
 def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError("Required environment variable is missing: " + key)
+        raise MissingConfigError(
+            "Required environment variable is missing: " + key
+        )
     return value
 
 
@@ -70,6 +78,8 @@ def load_config():
     return Config(openai_api_key=api_key, log_level=log_level)
 ```
 A plain class with `__init__`, no type hints yet — same level as the Basic exercises before this one. Type hints get added in Intermediate below, and `@dataclass` (which auto-generates `__init__` for you) is introduced later still, in the Build Task, once you've written this constructor by hand at least once.
+
+**Story — `logging_setup.py`:** `main.py` needs somewhere to print status/errors that isn't a bare `print()` — one that tells console vs. file apart. Copied unchanged from the logger exercise, on purpose, so this folder runs standalone with no import reaching outside itself. **If not:** `main.py` would either `print()` everything (no levels, no file record) or reimplement the same handler setup, diverging slightly from the version every later document expects.
 
 Then the logger — this is `get_logger()` copied straight out of `practice/logging_practice.py`, name and signature untouched:
 
@@ -102,6 +112,8 @@ def get_logger(name: str) -> logging.Logger:
     return logger
 ```
 
+**Story — `main.py`:** this is the exercise's whole point — config and logging are almost always needed together, and this is the first three lines of every real script from here on: load settings, get a logger, use both. **If not:** without this pattern practiced once, the Build Task (and every later document's `main.py`) would be the first place you ever wired the two together, with no smaller version to fall back on when it goes wrong.
+
 And last, the file this exercise is really about — the wiring:
 
 ```python
@@ -126,12 +138,45 @@ The exact text depends on what's actually in your `.env` — this shows the shap
 
 ## Intermediate Version
 
-`practice/config_logging_wiring/logging_setup.py` stays exactly as shown in Basic Approach 1 above — it's already a verbatim copy of the typed `get_logger()` from the Intermediate logger exercise, so there's nothing to add. `exceptions.py` and `config.py` now get type hints:
+`exceptions.py` and `config.py` now get type hints; `logging_setup.py` is a verbatim copy of the typed `get_logger()` from the Intermediate logger exercise, shown again in full below:
 
 ```python
 # practice/config_logging_wiring/exceptions.py
+# Why: gives load_config() its own error type, so main.py can catch a
+# missing setting specifically instead of catching every Exception blindly.
 class MissingConfigError(Exception):
     pass
+```
+
+```python
+# practice/config_logging_wiring/logging_setup.py
+# Copied from practice/logging_practice.py, unchanged.
+import logging
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Create (or reuse) a logger with a screen handler and a file handler.
+
+    Safe to call more than once — if this logger already has handlers,
+    they are not added again.
+    """
+    # Why: one function every file can call to get a working logger,
+    # without attaching duplicate handlers if it's called more than once.
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+
+    logger.setLevel(logging.DEBUG)
+
+    screen_handler = logging.StreamHandler()
+    screen_handler.setLevel(logging.INFO)
+    logger.addHandler(screen_handler)
+
+    file_handler = logging.FileHandler("app.log")
+    file_handler.setLevel(logging.DEBUG)
+    logger.addHandler(file_handler)
+
+    return logger
 ```
 
 ```python
@@ -150,15 +195,24 @@ class Config:
 
 
 def require_env(key: str) -> str:
+    # why: one place that turns a missing/empty env var into a clear, named
+    # error, instead of repeating the same if-check for every required key.
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError(f"Required environment variable is missing: {key}")
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
     return value
 
 
 def load_config() -> Config:
+    # why: the one function main.py calls to get settings — so a missing
+    # key fails loudly here, at startup, instead of crashing confusingly later.
+    # how: reads .env into os.environ; must run before os.getenv() below
     load_dotenv()
+    # how: required — raises if missing
     api_key = require_env("OPENAI_API_KEY")
+    # how: optional — "INFO" if unset
     log_level = os.getenv("LOG_LEVEL", "INFO")
     return Config(openai_api_key=api_key, log_level=log_level)
 ```
@@ -195,11 +249,18 @@ from exceptions import MissingConfigError
 from logging_setup import get_logger
 
 try:
+    # when: wrap only the one call that can actually fail — load_config() —
+    # not the whole script, so an unrelated bug still crashes loudly and
+    # visibly.
     config = load_config()
 except MissingConfigError as e:
+    # how: one clear line and a clean exit, instead of a multi-line
+    # traceback a non-technical user would have to decode.
     print(f"Startup failed: {e}")
+    # why: status code 1 tells any calling script/shell that startup failed
     sys.exit(1)
 
+# how: __name__ names the logger after this module, not a hardcoded string
 logger = get_logger(__name__)
 
 logger.info(f"Loaded config with log level: {config.log_level}")

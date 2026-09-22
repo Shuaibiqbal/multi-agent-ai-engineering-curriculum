@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-infinite_loop_cost) · [Hint 1](infinite_loop_cost_hints.md#hint-1) · [Hint 2](infinite_loop_cost_hints.md#hint-2) · [Solution](infinite_loop_cost_solution.md)
 
+**Story — `loop_safety_cost_practice.py`:** reading "agent loops are more expensive" is not the same as watching one run away and measuring the real token bill. Seeing it happen once, on purpose, with a safety net already in place, is what makes the step-limit requirement feel like something you're protecting yourself from, not an abstract rule. **If not:** the Build Task's step-limit requirement would be a rule you followed without ever having watched what it prevents.
+
 All examples below use an `always_ask_again_tool` that never gives the model what it needs, so the model keeps retrying — the adversarial task this whole exercise needs.
 
 ## Basic Version
@@ -12,7 +14,7 @@ import time
 
 
 def always_ask_again_tool(city: str) -> str:
-    return "That didn't work, please try a different approach and call the tool again."
+    return "That didn't work, please try a different approach and call again."
 
 
 def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
@@ -32,7 +34,9 @@ def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
             messages.append(message)
             for call in message.tool_calls:
                 result = always_ask_again_tool(call.function.arguments)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+                messages.append(
+                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                )
                 print(f"step {step}: called tool, got told to retry")
         else:
             return message.content
@@ -40,7 +44,8 @@ def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
     raise MaxIterationsExceeded(f"No answer after {max_iterations} steps")
 
 
-run_agent_with_timeout("Find the weather for a city that doesn't exist called Zzyxlvania")
+task = "Find the weather for a city that doesn't exist called Zzyxlvania"
+run_agent_with_timeout(task)
 ```
 **Expected output (abbreviated — this prints one line per step until the timeout fires):**
 ```
@@ -72,7 +77,9 @@ Shown above — `time.time() - start > timeout_seconds` checked at the top of ev
 import concurrent.futures
 
 
-def run_agent_bounded(task: str, max_iterations: int = 1000, timeout_seconds: int = 30):
+def run_agent_bounded(
+    task: str, max_iterations: int = 1000, timeout_seconds: int = 30,
+):
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(run_agent, task, max_iterations)
         try:
@@ -81,7 +88,8 @@ def run_agent_bounded(task: str, max_iterations: int = 1000, timeout_seconds: in
             raise TimeoutError(f"Agent did not finish within {timeout_seconds}s")
 
 
-run_agent_bounded("Find the weather for a city that doesn't exist called Zzyxlvania")
+task = "Find the weather for a city that doesn't exist called Zzyxlvania"
+run_agent_bounded(task)
 ```
 **Expected output:**
 ```
@@ -93,13 +101,9 @@ This version doesn't touch `run_agent()`'s internals at all — it runs the *who
 
 **Difference from Basic:** Basic (Approach 1) checks the clock at the top of every iteration, inside the loop you already wrote — minimal, and it stops before spending on the next call. Approach 2 wraps the entire call from the outside, useful when you can't or don't want to modify the loop's internals, but it can't prevent one already-started call from finishing.
 
-<hr class="page-break">
+### Approach 3 — real token counts, looping run vs. one direct call
 
-> [Back to the exercise](../README.md#ex-infinite_loop_cost) · [Hint 1](infinite_loop_cost_hints.md#hint-1) · [Hint 2](infinite_loop_cost_hints.md#hint-2) · [Solution](infinite_loop_cost_solution.md)
-
-## Advanced Version
-
-### Approach 1 — real token counts, looping run vs. one direct call
+**Story:** watching the loop run is only half this exercise — the README's own description asks you to measure the real token/cost difference between the looping run and one direct call. `response.usage.total_tokens` gives you the real, billed count instead of a guess.
 
 ```python
 # loop_safety_cost_practice.py
@@ -124,7 +128,9 @@ def run_agent_with_timeout_and_tokens(task, max_iterations=1000, timeout_seconds
             messages.append(message)
             for call in message.tool_calls:
                 result = always_ask_again_tool(call.function.arguments)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+                messages.append(
+                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                )
         else:
             return total_tokens, steps_run
 
@@ -152,9 +158,7 @@ direct call: 1 step, 31 tokens
 ratio: 303x
 ```
 
-### Approach 2 — why the ratio is worse than the step count, made visible
-
-Add one print statement inside Approach 1's loop, right after the `messages.append(...)` calls:
+**Why the ratio is worse than the step count, made visible:** add one print statement inside the loop above, right after the `messages.append(...)` calls:
 ```python
 # loop_safety_cost_practice.py
 print(f"step {step}: messages list now has {len(messages)} items")
@@ -169,6 +173,6 @@ step 41: messages list now has 85 items
 ```
 Every step appends 2 new items (the tool-call request, then its result) to `messages`, and the *entire* `messages` list gets resent to the API on every single call — so step 41 isn't just "1 more call than step 40," it's a call carrying 83 prior messages worth of tokens with it. This is why `looping_tokens` isn't anywhere close to `42 × (tokens of one call)` — the cost compounds as the scratchpad grows, exactly as Core Concepts' "the scratchpad" section describes, just now visible as a real number instead of a claim.
 
-**Difference from Intermediate:** Intermediate proves the loop can be safely stopped, either from inside (Approach 1) or from outside (Approach 2). Advanced proves *why* stopping matters in dollars, not just in principle — real token counts from `response.usage`, a direct side-by-side ratio against a single call, and a demonstration that the cost grows faster than linearly because the whole scratchpad gets resent every round.
+**Difference from Approach 1/2:** those two prove the loop can be safely stopped, either from inside or from outside. Approach 3 proves *why* stopping matters in dollars, not just in principle — real token counts from `response.usage`, a direct side-by-side ratio against a single call, and a demonstration that the cost grows faster than linearly because the whole scratchpad gets resent every round.
 
-**Which one should you actually write?** None of this — the `max_iterations=1000` + timeout setup here is strictly a one-time diagnostic exercise, never something to leave in real code. In Project 2 and any production agent, keep `max_iterations` low (5–10 is typical) as the primary guard, and add a wall-clock timeout (Intermediate Approach 1's in-loop check, or Approach 2's wrapper) as defense-in-depth on top of it — a single unusually slow tool call could still eat a lot of wall-clock time even with a low step count. The token-accounting pattern from Advanced Approach 1 is worth keeping permanently, though: logging `response.usage.total_tokens` per call is cheap, and it's exactly what turns "this agent seems expensive" into a number you can actually act on.
+**Which one should you actually write?** The `max_iterations=1000` + timeout setup here is strictly a one-time diagnostic exercise, never something to leave in real code. In Project 2 and any production agent, keep `max_iterations` low (5–10 is typical) as the primary guard, and add a wall-clock timeout (Approach 1's in-loop check, or Approach 2's wrapper) as defense-in-depth on top of it — a single unusually slow tool call could still eat a lot of wall-clock time even with a low step count. The token-accounting pattern from Approach 3 is worth keeping permanently, though: logging `response.usage.total_tokens` per call is cheap, and it's exactly what turns "this agent seems expensive" into a number you can actually act on.

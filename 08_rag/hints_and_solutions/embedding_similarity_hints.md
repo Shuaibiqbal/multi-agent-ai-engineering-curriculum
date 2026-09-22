@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real embeddings pipeline avoids doing unnecessary work). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real embeddings pipeline avoids doing unnecessary work). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -44,12 +44,6 @@ The exact pieces:
 - `math.sqrt(sum(x * x for x in a))` for a vector's norm.
 - `itertools.combinations(sentences, 2)` — every unique pair, with no risk of comparing a sentence to itself.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
-
-### Advanced Version
-
 Think about what happens once this stops being a 5-sentence toy script. Calling `client.embeddings.create()` once per sentence, in a loop, is 5 separate network round trips for 5 short sentences — each one carries its own latency, and at real scale (hundreds or thousands of pieces of text) that adds up to a genuinely slow pipeline, one request at a time, for no reason.
 
 The `input` parameter to `embeddings.create()` accepts a *list* of strings, not just one — so all 5 sentences can be embedded in a single API call, and the response comes back as a list of vectors in the same order. This is the same idea as Doc01's "fail at startup, not later," just applied to network calls: do the expensive thing once, in bulk, instead of many times for no benefit.
@@ -58,7 +52,7 @@ There's a second thing worth knowing, not just doing: OpenAI's embedding vectors
 
 The design question underneath both of these: **what's genuinely necessary work, versus work you're doing out of habit?** A general-purpose `cosine_similarity()` that handles any vector, from any model, is the safe default to write first. Once you know exactly which model you're using and that it always returns unit vectors, dropping the redundant normalization is a real, measurable optimization — not premature.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the two things you're building (an embedding call, a similarity score) and the shape of a good test set. Intermediate gives the real formula and the exact API call, one sentence at a time. Advanced asks what changes once this code runs on more than 5 sentences, in a program someone actually keeps running — batching every sentence into one API call instead of 5, and recognizing (and using) the fact that these particular vectors are already unit-length, instead of doing math that has no effect every single time.
+**Difference between Basic and Intermediate:** Basic names the two things you're building (an embedding call, a similarity score) and the shape of a good test set. Intermediate gives the real formula and the exact API call, then asks what changes once this code runs on more than 5 sentences, in a program someone actually keeps running — batching every sentence into one API call instead of 5, and recognizing (and using) the fact that these particular vectors are already unit-length, instead of doing math that has no effect every single time.
 
 <hr class="page-break">
 
@@ -74,7 +68,8 @@ pick 5 sentences: sentence_1 and sentence_2 mean almost the same thing
 
 get an embedding (a list of numbers) for each sentence
 
-make a function cosine_similarity(a, b) that returns how close two lists of numbers are
+make a function cosine_similarity(a, b) that returns how close two
+    lists of numbers are
 
 for every pair of sentences:
     compute cosine_similarity between their embeddings
@@ -149,18 +144,14 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 Write your 5 sentences and the `combinations`-based comparison loop yourself, then compare both against the [Solution](embedding_similarity_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
-
-### Advanced Version
+Once that's working, cut the unnecessary work:
 
 ```
 sentences = [s1, s2, s3, s4, s5]   # s1, s2 are the similar pair
 
 batch-embed every sentence in one API call:
     response = client.embeddings.create(model=..., input=sentences)
-    embeddings = [item.embedding for item in response.data]   # same order as sentences
+    embeddings = [item.embedding for item in response.data]   # same order
 
 function fast_cosine_similarity(a, b) -> float:
     # a and b are already unit-length (this model guarantees it) --
@@ -207,9 +198,9 @@ def assert_unit_length(vector: list[float]) -> None:
     assert abs(norm - 1.0) < 1e-6, f"expected a unit vector, got norm={norm}"
 ```
 
-Fill in `fast_cosine_similarity`, embed `SENTENCES` in one batch call, run `assert_unit_length` on the first vector, then score every pair and compare all 3 of your finished versions against the [Solution](embedding_similarity_solution.md).
+Fill in `fast_cosine_similarity`, embed `SENTENCES` in one batch call, run `assert_unit_length` on the first vector, then score every pair and compare all of your finished versions against the [Solution](embedding_similarity_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** same underlying idea (embed, compare, sort by score) at 3 completeness levels. Basic and Intermediate call the embeddings API once per sentence and use the full cosine similarity formula every time, including the norm calculations. Advanced does the real work exactly once — one batched API call for all 5 sentences instead of 5 separate ones — and, having actually verified the vectors are unit-length instead of assuming it, drops the now-pointless norm division. Neither change affects the *answer* (the similar pair still scores highest) — they change how much unnecessary work the code does to get there, which only starts to matter once "5 sentences" becomes "5,000."
+**Difference between Basic and Intermediate:** same underlying idea (embed, compare, sort by score) at 2 completeness levels. Basic calls the embeddings API once per sentence and uses the full cosine similarity formula every time, including the norm calculations. Intermediate also does the real work exactly once — one batched API call for all 5 sentences instead of 5 separate ones — and, having actually verified the vectors are unit-length instead of assuming it, drops the now-pointless norm division. Neither change affects the *answer* (the similar pair still scores highest) — they change how much unnecessary work the code does to get there, which only starts to matter once "5 sentences" becomes "5,000."
 
 <hr class="page-break">
 

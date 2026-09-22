@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-structured_parser_swap) · [Hint 1](structured_parser_swap_hints.md#hint-1) · [Hint 2](structured_parser_swap_hints.md#hint-2) · [Solution](structured_parser_swap_solution.md)
 
+**Story — `structured_output_practice.py` (Intermediate section):** `.with_structured_output(Model)` is LangChain's version of the exact same constrained-decoding call Doc04 made directly against the SDK — this exercise is where you feel that they're the same idea, reached two different ways. **If not:** the Build Task's parser choice would be the first time you ever saw LangChain's structured-output call, with no smaller version to compare it against Doc04's raw one.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -54,7 +56,10 @@ class Person(BaseModel):
 
 
 def get_structured_model() -> ChatOpenAI:
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(Person)
+    # why: .with_structured_output(Person) is LangChain's version of the
+    # same constrained-decoding call Doc04 made directly against the SDK.
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return model.with_structured_output(Person)
 
 
 def main() -> None:
@@ -66,6 +71,8 @@ def main() -> None:
     try:
         structured_model.invoke("Extract: the sky is blue today.")
     except ValidationError as e:
+        # how: catching the specific error first means a real "didn't
+        # match my shape" failure is distinguishable from anything else.
         print(f"Caught a validation error, as expected: {e}")
     except Exception as e:
         print(f"Caught an unexpected error type: {type(e).__name__}: {e}")

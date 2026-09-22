@@ -221,6 +221,24 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Where your code lives:** all of it under `08b_async_prereq/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — two of them share one file, each in its own labelled section — the same convention as Doc01 and Doc02.
 
+**The full file layout, all exercises:**
+
+```
+practice/
+├── coroutine_basics_practice.py       Basic
+├── gather_practice.py                 Intermediate + Edge cases
+│                                       (two sections)
+├── async_client_conversion_practice.py  Real-world
+└── blocking_event_loop_practice.py    Failure
+```
+
+**Why each script exists:**
+
+- `coroutine_basics_practice.py` — the one fact everything else in this gate assumes: `async def` alone doesn't run anything, only `await`/`asyncio.run()` does.
+- `gather_practice.py` — the actual speed difference, measured, plus proof that `gather` waits for the slowest task, not the fastest.
+- `async_client_conversion_practice.py` — the exact conversion Doc12's FastAPI service and Project 8's MCP client both need — a real function, not a toy.
+- `blocking_event_loop_practice.py` — the single most common real async bug, caused on purpose here so you recognize its silent symptom later.
+
 **Jump to an exercise:** [Basic](#ex-first_coroutine) · [Intermediate](#ex-gather_speed) · [Real-world](#ex-async_client_conversion) · [Edge cases](#ex-gather_waits_for_slowest) · [Failure](#ex-blocking_event_loop)
 
 ### Basic — your first coroutine {: #ex-first_coroutine }

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-bad_split_k_comparison) · [Hint 1](bad_split_k_comparison_hints.md#hint-1) · [Hint 2](bad_split_k_comparison_hints.md#hint-2) · [Solution](bad_split_k_comparison_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (why brute-force search, and "just raise k," both stop working at real scale). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus why brute-force search, and "just raise k," both stop working at real scale). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -41,12 +41,6 @@ The exact pieces:
 - `time.perf_counter()` — a monotonic clock, better than `time.time()` for measuring short durations.
 - `list[tuple[str, list[float]]]` for storage — a plain Python list of `(chunk_text, embedding)` pairs is enough at this scale; no real vector database needed.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-bad_split_k_comparison) · [Hint 1](bad_split_k_comparison_hints.md#hint-1) · [Hint 2](bad_split_k_comparison_hints.md#hint-2) · [Solution](bad_split_k_comparison_solution.md)
-
-### Advanced Version
-
 The timing you did above barely moves between `k=1`, `k=3`, and `k=10` — and that result is easy to over-generalize from. It only barely moves because `retrieve()` here compares your question against a *handful* of chunks, one by one, in a plain Python loop. That's brute-force search: cost grows in direct proportion to how many chunks exist, regardless of `k`. At a few dozen chunks, brute-force is effectively free. At a few hundred thousand — a real company's documentation, ticket history, or knowledge base — comparing against every single one for every single question stops being free, and a real vector database (Chroma, FAISS, a hosted vector store) uses an *approximate* nearest-neighbor index instead: a data structure built in advance that finds very-likely-closest chunks in roughly constant time, without touching every stored vector for every query. This document's Core Concepts describes this as the actual job of a "vector store" — this exercise's brute-force loop is a stand-in for it, not the real thing.
 
 The second thing worth separating out: fixing the "half the fact went missing" bug you caused on purpose here is not the same problem as picking a good `k`. `k` decides how many results to return; where the boundary falls is decided by the chunker. Raising `k` from 1 to 10 hides the symptom for this one tiny document (where there's nowhere else for the missing half to hide) — it does not fix the cause, and won't reliably help at all once the corpus is bigger (see `chunk_boundary_split`'s Advanced section for why). The actual fix is chunking with overlap, applied *before* any of this timing comparison happens.
@@ -54,9 +48,9 @@ The second thing worth separating out: fixing the "half the fact went missing" b
 The extra pieces:
 
 - Measure `retrieve()`'s timing again, but against a much larger synthetic chunk list (repeat/pad your test document hundreds of times) — watch the per-query time actually start to grow with corpus size, unlike the near-flat numbers from a few dozen chunks.
-- Re-run the whole exercise using `chunk_by_chars_with_overlap` (from `chunking_methods`' Advanced section) instead of the plain `chunk_by_chars`, and confirm `k=1` alone now returns the complete fact.
+- Re-run the whole exercise using `chunk_by_chars_with_overlap` (from `chunking_methods`, Intermediate section) instead of the plain `chunk_by_chars`, and confirm `k=1` alone now returns the complete fact.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate observe that timing barely changes across `k` values, at a scale too small to show why that's misleading. Advanced explains *why* it barely changes (brute force over a handful of chunks), shows what happens once the corpus is actually large, and separates "the split-fact bug" (a chunking problem, fixed by overlap) from "how wide to search" (a `k`/cost trade-off) — two genuinely different decisions that are easy to mix up after watching `k` alone seem to fix things in a tiny example.
+**Difference between Basic and Intermediate:** Basic observes that timing barely changes across `k` values, at a scale too small to show why that's misleading. Intermediate also explains *why* it barely changes (brute force over a handful of chunks), shows what happens once the corpus is actually large, and separates "the split-fact bug" (a chunking problem, fixed by overlap) from "how wide to search" (a `k`/cost trade-off) — two genuinely different decisions that are easy to mix up after watching `k` alone seem to fix things in a tiny example.
 
 <hr class="page-break">
 
@@ -180,11 +174,7 @@ def retrieve(
 
 What's missing: `TEST_DOCUMENT`, a `main()` that builds `chunks_with_embeddings`, prints the chunks, runs `retrieve()` at `k=1` alone, then loops over `k` in `(1, 3, 10)` timing each call with `time.perf_counter()`. Write that yourself, then compare against the [Solution](bad_split_k_comparison_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-bad_split_k_comparison) · [Hint 1](bad_split_k_comparison_hints.md#hint-1) · [Hint 2](bad_split_k_comparison_hints.md#hint-2) · [Solution](bad_split_k_comparison_solution.md)
-
-### Advanced Version
+Once that's working, add the missing variable — corpus size — and the real chunking fix:
 
 ```
 build a much bigger chunk list: your TEST_DOCUMENT repeated/padded until
@@ -203,7 +193,9 @@ run retrieve() at k=1 against the overlapping chunks
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
 # chunking_practice.py — Failure section
-def chunk_by_chars_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
+def chunk_by_chars_with_overlap(
+    text: str, chunk_size: int, overlap: int,
+) -> list[str]:
     chunks: list[str] = []
     step = chunk_size - overlap
     start = 0
@@ -220,9 +212,9 @@ def build_large_corpus(document: str, repeats: int) -> str:
     ...
 ```
 
-Fill in both functions, run the timing comparison at small vs. large corpus size, and run the overlap comparison at `k=1`, then compare all 3 of your finished versions against the [Solution](bad_split_k_comparison_solution.md).
+Fill in both functions, run the timing comparison at small vs. large corpus size, and run the overlap comparison at `k=1`, then compare all of your finished versions against the [Solution](bad_split_k_comparison_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate time `retrieve()` at 3 values of `k`, against a handful of chunks, and see almost no difference. Advanced adds the missing variable — corpus size — and shows the timing difference that was hiding the whole time, plus applies the real chunking fix (overlap) instead of just widening `k` to paper over the boundary split.
+**Difference between Basic and Intermediate:** Basic times `retrieve()` at 3 values of `k`, against a handful of chunks, and sees almost no difference. Intermediate adds the missing variable — corpus size — and shows the timing difference that was hiding the whole time, plus applies the real chunking fix (overlap) instead of just widening `k` to paper over the boundary split.
 
 <hr class="page-break">
 

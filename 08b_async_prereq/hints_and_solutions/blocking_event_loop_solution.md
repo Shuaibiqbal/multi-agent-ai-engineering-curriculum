@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-blocking_event_loop) · [Hint 1](blocking_event_loop_hints.md#hint-1) · [Hint 2](blocking_event_loop_hints.md#hint-2) · [Solution](blocking_event_loop_solution.md)
 
+**Story — `blocking_event_loop_practice.py`:** `time.sleep()` inside `async def` doesn't error, doesn't warn, and still gives a correct final answer — the only symptom is that everything took twice as long. **If not:** the first time you'd meet this bug would be in real code, as an unexplained slowdown with no obvious cause, instead of something you caused on purpose here and can now recognize immediately.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -87,13 +89,9 @@ good + blocking: took 6.02s -> ['good', 'blocking']
 
 **Difference from Basic:** full type hints document each function's contract. The `if __name__ == "__main__":` guard means this file can be imported (say, to reuse `time_it` in a later test) without the two 3-6 second demonstration runs firing automatically on import. Same two numbers either way — proving the exact same bug.
 
-<hr class="page-break">
+### Approach 2 — `asyncio.to_thread`, the actual fix when you can't avoid a blocking call
 
-> [Back to the exercise](../README.md#ex-blocking_event_loop) · [Hint 1](blocking_event_loop_hints.md#hint-1) · [Hint 2](blocking_event_loop_hints.md#hint-2) · [Solution](blocking_event_loop_solution.md)
-
-## Advanced Version
-
-### Approach 1 — `asyncio.to_thread`, the actual fix when you can't avoid a blocking call
+**Story:** nobody writes `time.sleep(3)` inside `async def` on purpose in production — this bug happens by accident, almost always because a library only ships a synchronous version. **If not:** you'd have diagnosed the bug (Approach 1) with no way to actually fix it short of rewriting a library you don't own.
 
 ```python
 # blocking_event_loop_practice.py
@@ -140,7 +138,9 @@ good + fixed (to_thread): took 3.02s -> ['good', 'fixed']
 ```
 `fixed_task` still calls the exact same blocking `time.sleep(3)` internally — nothing about `time.sleep` itself changed. What changed is *where* it runs: `asyncio.to_thread(time.sleep, 3)` hands that call off to a separate worker thread and gives the event loop back something it can genuinely `await`, so `good_task` gets to run concurrently again, same as if `fixed_task` had used `asyncio.sleep` natively.
 
-### Approach 2 — the realistic version: a sync-only library call, not `time.sleep`
+### Approach 3 — the realistic version: a sync-only library call, not `time.sleep`
+
+**Story:** plenty of real code accidentally calls a sync-only library (a database driver, a file-parsing library, `requests`) from inside `async def` — it blocks the event loop exactly as badly as `time.sleep`, just without a name that gives it away. **If not:** the first sync-only dependency you reach for in a real agent would silently freeze every other coroutine it's supposed to run alongside.
 
 ```python
 # blocking_event_loop_practice.py
@@ -150,7 +150,7 @@ import requests   # a real, sync-only library -- no async version exists
 
 
 def fetch_sync(url: str) -> int:
-    """A normal, blocking function from a library that was never written to be async."""
+    """A normal, blocking function from a library never written to be async."""
     response = requests.get(url, timeout=10)
     return response.status_code
 
@@ -173,7 +173,9 @@ async def fetch_status_fixed(url: str) -> int:
 
 async def main() -> None:
     start = time.perf_counter()
-    results = await asyncio.gather(good_task(), fetch_status_fixed("https://example.com"))
+    results = await asyncio.gather(
+        good_task(), fetch_status_fixed("https://example.com"),
+    )
     print(f"good + fixed fetch: {time.perf_counter() - start:.2f}s -> {results}")
 
 
@@ -186,6 +188,6 @@ good + fixed fetch: 0.34s -> ['good', 200]
 ```
 This is the realistic version of the bug: nobody writes `time.sleep(3)` inside `async def` in production, but plenty of code accidentally calls a sync-only library (`requests`, a database driver without an async variant, a file-parsing library) the same way `fetch_status_blocking` does here — and it blocks the event loop exactly as badly, just without a name that gives it away. `fetch_status_fixed` fixes it the same way Approach 1 did: `asyncio.to_thread(...)` around the call, nothing else about the library or the call itself changes.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate only diagnoses and measures the bug. Approach 1 fixes the exact same `time.sleep(3)` call from the exercise, to prove the mechanism works. Approach 2 shows the fix applied to what this bug actually looks like in real code — a synchronous library function (`requests.get`, standing in for any sync-only dependency) called from inside `async def` without protection — which is the version of this mistake you'll actually make one day, not a `time.sleep()` typo.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 only diagnoses and measures the bug. Approach 2 fixes the exact same `time.sleep(3)` call from the exercise, to prove the mechanism works. Approach 3 shows the fix applied to what this bug actually looks like in real code — a synchronous library function (`requests.get`, standing in for any sync-only dependency) called from inside `async def` without protection — which is the version of this mistake you'll actually make one day, not a `time.sleep()` typo.
 
-**Which one should you actually write?** In real code: never call a known-blocking function directly from inside `async def` — either use that library's async equivalent if one exists (`httpx`/`aiohttp` instead of `requests`, as Doc09's Core Concepts note), or wrap the sync call in `asyncio.to_thread(...)` the way Approach 2 does when no async version exists. Reach for `asyncio.to_thread` specifically when you're stuck with a sync-only dependency you can't swap out — it's the standard, minimal-effort fix, and exactly what protects an agent's event loop the moment one of its tools turns out to be a synchronous library call in disguise.
+**Which one should you actually write?** In real code: never call a known-blocking function directly from inside `async def` — either use that library's async equivalent if one exists (`httpx`/`aiohttp` instead of `requests`, as Doc09's Core Concepts note), or wrap the sync call in `asyncio.to_thread(...)` the way Approach 3 does when no async version exists. Reach for `asyncio.to_thread` specifically when you're stuck with a sync-only dependency you can't swap out — it's the standard, minimal-effort fix, and exactly what protects an agent's event loop the moment one of its tools turns out to be a synchronous library call in disguise.

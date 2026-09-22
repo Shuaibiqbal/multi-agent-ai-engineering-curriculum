@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-missing_argument_handling) · [Hint 1](missing_argument_handling_hints.md#hint-1) · [Hint 2](missing_argument_handling_hints.md#hint-2) · [Solution](missing_argument_handling_solution.md)
 
+**Story — `missing_argument_practice.py`:** when a required argument is missing from the user's message, the model can ask, guess, or send an empty value — and which one it does tells you whether your tool needs to design for a clarifying question or a graceful default. **If not:** the Build Task's Pydantic argument models would be guessing at a problem you'd never actually watched happen.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -22,7 +24,8 @@ for run_number in range(1, 6):
     response = model_with_tools.invoke("what's the weather like")
 
     if not response.tool_calls:
-        print(f"Run {run_number}: asked or answered directly -> {response.content}")
+        reply = response.content
+        print(f"Run {run_number}: asked or answered directly -> {reply}")
         continue
 
     city_sent = response.tool_calls[0]["args"].get("city")
@@ -33,7 +36,7 @@ for run_number in range(1, 6):
 ```
 **Expected output (an example split — real model behavior varies run to run):**
 ```
-Run 1: asked or answered directly -> Sure — which city would you like the weather for?
+Run 1: asked or answered directly -> Sure — which city do you mean?
 Run 2: called with city = 'London'
 Run 3: asked or answered directly -> Could you tell me which city you mean?
 Run 4: called with city = 'New York'
@@ -63,10 +66,13 @@ def get_weather(city: str) -> str:
 
 
 def get_model_with_tools() -> ChatOpenAI:
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([get_weather])
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return model.bind_tools([get_weather])
 
 
 def classify_response(response) -> str:
+    # why: sorts each run into one of 3 real outcomes instead of leaving it
+    # to a human reading scrolled-past terminal text.
     if not response.tool_calls:
         return "asked_or_answered_directly"
     city_sent = response.tool_calls[0]["args"].get("city")
@@ -99,9 +105,9 @@ if __name__ == "__main__":
 ```
 **Expected output (example):**
 ```
-{'run': 1, 'outcome': 'asked_or_answered_directly', 'reply': 'Which city would you like?'}
+{'run': 1, 'outcome': 'asked_or_answered_directly', 'reply': 'Which city?'}
 {'run': 2, 'outcome': 'called_with_guessed_value', 'city_sent': 'London'}
-{'run': 3, 'outcome': 'asked_or_answered_directly', 'reply': 'Could you specify a city?'}
+{'run': 3, 'outcome': 'asked_or_answered_directly', 'reply': 'Specify a city?'}
 {'run': 4, 'outcome': 'called_with_guessed_value', 'city_sent': 'New York'}
 {'run': 5, 'outcome': 'called_with_empty_value'}
 ```

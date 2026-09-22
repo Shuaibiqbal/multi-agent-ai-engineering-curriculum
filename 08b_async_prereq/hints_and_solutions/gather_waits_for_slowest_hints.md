@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-gather_waits_for_slowest) · [Hint 1](gather_waits_for_slowest_hints.md#hint-1) · [Hint 2](gather_waits_for_slowest_hints.md#hint-2) · [Solution](gather_waits_for_slowest_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (what a real group of unequal-length calls costs you). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus what a real group of unequal-length calls costs you). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -43,12 +43,6 @@ The exact pieces:
 - `time.perf_counter()` — printed at each finish point, and once right after `gather` returns.
 - `await asyncio.gather(fast_task(), slow_task())` — the `await` here is what makes `main` pause until `gather` itself is done, which is exactly the 5 seconds set by `slow_task`, not the 0.1 seconds set by `fast_task`.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_waits_for_slowest) · [Hint 1](gather_waits_for_slowest_hints.md#hint-1) · [Hint 2](gather_waits_for_slowest_hints.md#hint-2) · [Solution](gather_waits_for_slowest_solution.md)
-
-### Advanced Version
-
 Think about what this means once "gather waits for the slowest" isn't 2 tasks but a group of 5 or 10 independent calls, and one of them is unusually slow — a flaky network path, an overloaded endpoint, whatever. Every fast task in that group finished its work long ago and is just sitting there, done, while the whole group's result stays locked behind the one slow straggler. The group's cost isn't its average task — it's its *worst* task, every single time.
 
 The real design question isn't just "does gather wait for the slowest" (yes, always) — it's "should a task genuinely be allowed to take an unbounded amount of time inside a group I'm waiting on, or should something cap how long any one member of the group can hold up the rest?"
@@ -57,7 +51,7 @@ The extra piece that answers that question:
 
 - **A per-task timeout, applied before the task ever reaches `gather`:** wrap each individual coroutine in `asyncio.wait_for(coro, timeout=...)` *before* passing it to `gather` — not around the whole `gather` call. That way, one genuinely hung task times out and fails on its own, instead of holding the entire group hostage indefinitely (`asyncio.gather(..., return_exceptions=True)` from the `gather_speed` exercise is what stops that one timeout from losing the other results too).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both prove `gather` waits for the slowest task, with a slow task that's still bounded (5 seconds, on purpose, so the exercise finishes). Advanced asks what happens if the "slow" task in a real group isn't bounded at all — and shows that the fix isn't wrapping `gather` itself in a timeout (that would cancel the fast tasks' already-finished results too), it's wrapping each individual task before it ever joins the group.
+**Difference between Basic and Intermediate:** Basic proves `gather` waits for the slowest task, with a slow task that's still bounded (5 seconds, on purpose, so the exercise finishes). Intermediate also asks what happens if the "slow" task in a real group isn't bounded at all — and shows that the fix isn't wrapping `gather` itself in a timeout (that would cancel the fast tasks' already-finished results too), it's wrapping each individual task before it ever joins the group.
 
 <hr class="page-break">
 
@@ -149,14 +143,11 @@ if __name__ == "__main__":
 ```
 Fill in the missing pieces yourself, then compare against the [Solution](gather_waits_for_slowest_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_waits_for_slowest) · [Hint 1](gather_waits_for_slowest_hints.md#hint-1) · [Hint 2](gather_waits_for_slowest_hints.md#hint-2) · [Solution](gather_waits_for_slowest_solution.md)
-
-### Advanced Version
+Once that's working, add a task that's unbounded on purpose, and cap it individually:
 
 ```
-make a third task, truly_slow_task, that sleeps for 60 seconds (standing in for "might never come back")
+make a third task, truly_slow_task, that sleeps for 60 seconds
+(standing in for "might never come back")
 
 wrap it individually, before gather ever sees it:
     bounded_slow = asyncio.wait_for(truly_slow_task(), timeout=2)
@@ -176,7 +167,9 @@ async def truly_slow_task() -> str:
 
 async def main_bounded() -> None:
     bounded = asyncio.wait_for(truly_slow_task(), timeout=2)
-    results = await asyncio.gather(fast_task(), bounded, return_exceptions=True)
+    results = await asyncio.gather(
+        fast_task(), bounded, return_exceptions=True,
+    )
     for result in results:
         if isinstance(result, Exception):
             print("a task timed out or failed:", result)
@@ -185,7 +178,7 @@ async def main_bounded() -> None:
 ```
 Time the whole `main_bounded()` call yourself to confirm it finishes in about 2 seconds, not 60, then compare against the [Solution](gather_waits_for_slowest_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate's `slow_task` is slow but always bounded at 5 seconds — a stand-in that always finishes. Advanced adds a task that's unbounded on purpose (`truly_slow_task`, sleeping 60 seconds) and shows the fix isn't avoiding `gather`, it's wrapping the individual risky task in its own `asyncio.wait_for(...)` before it ever joins the group — so one runaway task costs you 2 seconds, not 60.
+**Difference between Basic and Intermediate:** Basic's `slow_task` is slow but always bounded at 5 seconds — a stand-in that always finishes. Intermediate also adds a task that's unbounded on purpose (`truly_slow_task`, sleeping 60 seconds) and shows the fix isn't avoiding `gather`, it's wrapping the individual risky task in its own `asyncio.wait_for(...)` before it ever joins the group — so one runaway task costs you 2 seconds, not 60.
 
 <hr class="page-break">
 

@@ -76,7 +76,7 @@ client = OpenAI()
 response = client.chat.completions.create(
     model="gpt-4o-mini",
     messages=[
-        {"role": "system", "content": "You are a formal, professional assistant."},
+        {"role": "system", "content": "You are formal and professional."},
         {"role": "user", "content": "Tell me about your day."},
     ],
 )
@@ -107,7 +107,7 @@ function ask(system_prompt, user_prompt) -> str:
     )
     return response.choices[0].message.content
 
-print(ask("You are a formal, professional assistant.", "Tell me about your day."))
+print(ask("You are formal and professional.", "Tell me about your day."))
 print(ask("You are a sarcastic pirate.", "Tell me about your day."))
 ```
 

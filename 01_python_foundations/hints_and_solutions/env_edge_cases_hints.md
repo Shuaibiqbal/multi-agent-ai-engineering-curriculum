@@ -123,7 +123,9 @@ If your current `require_env()` only checks `if value is None`, an empty string 
 def require_env(key: str) -> str:
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError(f"Required environment variable is missing: {key}")
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
     return value
 ```
 

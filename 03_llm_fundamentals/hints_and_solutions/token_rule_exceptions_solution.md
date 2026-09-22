@@ -26,10 +26,11 @@ actual                                               : 5-7 tokens
 ```
 Likely token breakdown: `print`, `(`, `'`, `hello`, `world`, `'`, `)` — roughly one token per syntactic element, because code's punctuation carries meaning the tokenizer's training data treated as worth its own token, unlike a plain-English comma that usually merges into a neighboring word's token.
 
-**Non-English:** "میں آج بازار جا رہا ہوں"
+**Non-English:** "میں آج بازار جا رہا ہوں" — English equivalent: "I am going to the market today"
+
 ```
-English-equivalent estimate ("I am going to the market today", ~7 tokens) : ~7 tokens
-actual                                                                     : often 15-20+ tokens, sometimes more
+English-equivalent estimate : ~7 tokens
+actual                      : often 15-20+ tokens, sometimes more
 ```
 The mechanism: byte-pair-encoding-style tokenizers build their vocabulary from the most frequent character sequences in a training corpus. A corpus that's mostly English text produces a vocabulary rich in efficient whole-word and common-subword English tokens. A script underrepresented in that training data has few or no such efficient chunks reserved for it, so the tokenizer falls back to much smaller sub-word or even byte-level pieces to represent the same text.
 

@@ -56,9 +56,10 @@ agent = create_agent(
     tools=[get_weather, get_forecast],          # Doc06-style @tool functions
     system_prompt=SYSTEM_PROMPT,
 )
+task = "Should I bring an umbrella in Lahore tomorrow?"
 result = agent.invoke(
-    {"messages": [{"role": "user", "content": "Should I bring an umbrella in Lahore tomorrow?"}]},
-    config={"recursion_limit": 14},              # ~2 graph steps per ReAct turn — see the step-limit topic
+    {"messages": [{"role": "user", "content": task}]},
+    config={"recursion_limit": 14},   # ~2 graph steps per ReAct turn
 )
 ```
 
@@ -95,22 +96,27 @@ class MaxStepsExceeded(Exception):
     """Raised when the loop used its whole step budget with no final answer."""
 
 def run_agent(client, task, tools, registry, max_steps=6):
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": task}]
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": task},
+    ]
     for step in range(1, max_steps + 1):
         resp = client.chat.completions.create(
             model=config.model_name, messages=messages, tools=tools, temperature=0,
         )
         msg = resp.choices[0].message
-        messages.append(msg)                        # append the request FIRST
+        messages.append(msg)                     # append the request FIRST
         if not msg.tool_calls:
-            return msg.content                       # THINK said: done
-        for call in msg.tool_calls:                  # ACT — loop over ALL calls
+            return msg.content                    # THINK said: done
+        for call in msg.tool_calls:               # ACT — loop over ALL calls
             args = json.loads(call.function.arguments)
             try:
                 content = str(registry[call.function.name](**args))
-            except Exception as e:                   # Doc06's failure topic + Doc01's named errors
+            except Exception as e:                # Doc06's + Doc01's named errors
                 content = f"Error: {call.function.name} failed ({type(e).__name__})."
-            messages.append({"role": "tool", "tool_call_id": call.id, "content": content})  # OBSERVE
+            messages.append(
+                {"role": "tool", "tool_call_id": call.id, "content": content},
+            )                                      # OBSERVE
         logger.debug("step %d: %d tool call(s)", step, len(msg.tool_calls))
     raise MaxStepsExceeded(f"no final answer after {max_steps} steps")
 ```
@@ -151,18 +157,21 @@ messages.append(model_reply)
 messages.append({"role": "tool", "tool_call_id": call.id, "content": tool_result})
 # nothing removed, ever — fine as long as the run stays short and results stay small
 
-# Approach 2 — summarize older, already-acted-on turns once the scratchpad gets long
+# Approach 2 — summarize older, already-acted-on turns once the scratchpad grows
 def compress_if_needed(messages, keep_raw=6):
     system, task = messages[0], messages[1]
-    recent = messages[-keep_raw:]                 # NEVER summarize these — still in play
+    recent = messages[-keep_raw:]           # NEVER summarize these — still in play
     older = messages[2:-keep_raw]
     if not older:
         return messages
-    summary = summarize_model.invoke(
+    prompt = (
         "Summarize what happened in these agent steps, in 3-5 sentences, "
-        "keeping any concrete facts, numbers, or IDs found:\n" + format_for_summary(older)
-    ).content
-    return [system, task, {"role": "system", "content": f"Earlier steps so far: {summary}"}, *recent]
+        "keeping any concrete facts, numbers, or IDs found:\n"
+        + format_for_summary(older)
+    )
+    summary = summarize_model.invoke(prompt).content
+    earlier = {"role": "system", "content": f"Earlier steps so far: {summary}"}
+    return [system, task, earlier, *recent]
 ```
 
 Approach 1 costs nothing extra to write and never loses a detail — but it eventually hits the context wall below on a long enough run. Approach 2 buys headroom, at the real cost of one more model call per compression pass and a small risk the summary drops a detail a later step still needed — which is exactly why the most recent turns stay raw and untouched, never summarized.
@@ -218,9 +227,14 @@ The loop needs a way to know it's done: the model gives a final answer with no m
 ```python
 # Approach 1 — a simple step counter: free, instant, the always-on base layer
 def run_agent(client, task, tools, registry, max_steps=6):
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": task}]
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": task},
+    ]
     for step in range(1, max_steps + 1):
-        resp = client.chat.completions.create(model=config.model_name, messages=messages, tools=tools)
+        resp = client.chat.completions.create(
+            model=config.model_name, messages=messages, tools=tools,
+        )
         # ...same THINK/ACT/OBSERVE body as the ReAct loop's code above...
     raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
 ```
@@ -231,27 +245,42 @@ import time
 
 def run_agent(client, task, tools, registry, max_steps=6, max_seconds=30):
     deadline = time.monotonic() + max_seconds
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": task}]
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": task},
+    ]
     for step in range(1, max_steps + 1):
         if time.monotonic() > deadline:
-            raise MaxIterationsExceeded(f"wall-clock budget ({max_seconds}s) exceeded at step {step}")
-        resp = client.chat.completions.create(model=config.model_name, messages=messages, tools=tools)
+            message = f"wall-clock budget ({max_seconds}s) exceeded at step {step}"
+            raise MaxIterationsExceeded(message)
+        resp = client.chat.completions.create(
+            model=config.model_name, messages=messages, tools=tools,
+        )
         # ...same THINK/ACT/OBSERVE body...
     raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
 ```
 
 ```python
-# Approach 3 — add a token/cost budget, the layer a growing scratchpad actually needs
-def run_agent(client, task, tools, registry, max_steps=6, max_seconds=30, max_tokens=20_000):
+# Approach 3 — add a token/cost budget, the layer a growing scratchpad needs
+def run_agent(
+    client, task, tools, registry,
+    max_steps=6, max_seconds=30, max_tokens=20_000,
+):
     deadline = time.monotonic() + max_seconds
     total_tokens = 0
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": task}]
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": task},
+    ]
     for step in range(1, max_steps + 1):
         if time.monotonic() > deadline:
             raise MaxIterationsExceeded(f"wall-clock budget exceeded at step {step}")
         if total_tokens > max_tokens:
-            raise MaxIterationsExceeded(f"token budget ({max_tokens}) exceeded at step {step}")
-        resp = client.chat.completions.create(model=config.model_name, messages=messages, tools=tools)
+            message = f"token budget ({max_tokens}) exceeded at step {step}"
+            raise MaxIterationsExceeded(message)
+        resp = client.chat.completions.create(
+            model=config.model_name, messages=messages, tools=tools,
+        )
         total_tokens += resp.usage.total_tokens
         # ...same THINK/ACT/OBSERVE body...
     raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
@@ -412,11 +441,11 @@ An agent loop earns its complexity only when the number and order of steps genui
 - **A routing model, decided per request at runtime.** **What:** a small, cheap model call (structured output, the same shape as Doc10's [routing topic](../10_agent_workflows/README.md#search-as-a-routed-step-not-something-that-always-runs)) classifies an incoming request as `"fixed_pipeline"` or `"needs_agent"` before either path runs. **Why:** a system serving a genuine mix of request types can't hard-code the split in advance, because the split depends on what each request actually asks for. **When:** a real product surface where you can't fully enumerate task types ahead of time, and misrouting a fixed-shape task into an expensive loop (or the reverse) shows up often enough in your logs to be worth a routing call.
 
 ```python
-# Approach 1 — a fixed rule, decided once, at design time (no runtime check at all)
+# Approach 1 — a fixed rule, decided once, at design time (no runtime check)
 def handle_request(task: str) -> str:
     # invoice reconciliation is ALWAYS fetch -> compare -> format; decided by
     # looking at real past tasks, not guessed
-    return run_invoice_pipeline(task)      # a plain function / Doc05's LCEL chain, no loop
+    return run_invoice_pipeline(task)   # a plain function / Doc05's LCEL chain
 ```
 
 ```python
@@ -428,16 +457,19 @@ class ShapeDecision(BaseModel):
     needs_agent: bool
     reason: str
 
-router_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(ShapeDecision)
+router_model = ChatOpenAI(
+    model="gpt-4o-mini", temperature=0,
+).with_structured_output(ShapeDecision)
 
 def handle_request(task: str) -> str:
-    decision = router_model.invoke(
-        "Can this task's steps be written down today, in a fixed order, with confidence "
-        f"they won't change based on what happens along the way? Task: {task}"
+    prompt = (
+        "Can this task's steps be written down today, in a fixed order, "
+        f"with confidence they won't change along the way? Task: {task}"
     )
+    decision = router_model.invoke(prompt)
     if decision.needs_agent:
-        return run_agent(task, tools, registry, max_steps=6)   # this document's loop
-    return run_fixed_pipeline(task)                             # Doc05's LCEL chain
+        return run_agent(task, tools, registry, max_steps=6)   # this loop
+    return run_fixed_pipeline(task)                             # Doc05's chain
 ```
 
 Approach 1 costs nothing and can never misroute, but only works once real traffic has actually confirmed the task type never varies. Approach 2 costs one small model call per request and can itself be wrong — the same "silent wrong decision, not a crash" risk Doc10's own router carries — but it's the only real option once traffic is a genuine, unpredictable mix.
@@ -483,7 +515,7 @@ Checking whether an agent's *final answer* is correct isn't enough to trust it i
 
 ```python
 # Approach 1 — a rule-based checker: deterministic, no extra model call
-def check_run(log: list[dict], expected_tool: str, max_reasonable_steps: int) -> dict:
+def check_run(log, expected_tool, max_reasonable_steps):
     tools_used = [entry["tool"] for entry in log]
     seen, repeats = set(), 0
     for entry in log:
@@ -507,12 +539,15 @@ class RunJudgment(BaseModel):
     took_reasonable_path: bool
     reason: str
 
-judge_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(RunJudgment)
+judge_model = ChatOpenAI(
+    model="gpt-4o-mini", temperature=0,
+).with_structured_output(RunJudgment)
 
 def judge_run(task: str, log: list[dict], final_answer: str) -> RunJudgment:
     return judge_model.invoke(
         f"Task: {task}\nSteps taken: {log}\nFinal answer: {final_answer}\n"
-        "Was this a reasonable, non-wasteful path to a correct answer? Explain briefly."
+        "Was this a reasonable, non-wasteful path to a correct answer? "
+        "Explain briefly."
     )
 ```
 
@@ -557,7 +592,24 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup:** same venv as before — if it's not active, `cd 07_ai_agents && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langchain langchain-openai langgraph`.
 
-**Where your code lives:** all of it under `07_ai_agents/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/Doc02/Doc06 — so one topic's growth from basic to advanced stays visible in one file.
+**Where your code lives:** all of it under `07_ai_agents/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/Doc02/Doc06 — so one topic's growth from basic to intermediate stays visible in one file.
+
+**The full file layout, all exercises:**
+
+```
+practice/
+├── react_loop_practice.py             Basic + Intermediate (two sections)
+├── agent_executor_comparison_practice.py   Real-world
+├── no_tool_needed_practice.py         Edge cases
+└── loop_safety_cost_practice.py       Failure
+```
+
+**Why each script exists:**
+
+- `react_loop_practice.py` — the loop itself, traced by hand first, then built for real — the one file every other exercise and the Build Task assumes you already have working.
+- `agent_executor_comparison_practice.py` — proves `create_agent` is your same loop, not a different idea, by running both on the identical prompts.
+- `no_tool_needed_practice.py` — confirms the loop doesn't waste a tool call when it doesn't need one.
+- `loop_safety_cost_practice.py` — the only place you watch a loop actually run away, and measure what that costs, before the step limit goes back on.
 
 **For this document, save your practice code as:**
 - **Basic** (trace the loop on paper first) and **Intermediate** (build the loop yourself) are both about the ReAct loop itself — save them together as `practice/react_loop_practice.py`, one section per level.
@@ -635,11 +687,16 @@ _You don't need any of these to understand the Core Concepts above — use them 
 **Suggested files:**
 ```
 project_2_researchhand_tool_agent/
-├── main.py
-├── agent.py
-├── tools.py            (reused from 06_tools_function_calling)
-└── test_agent.py
+├── main.py              entry point — reads a task, prints the agent's result
+├── agent.py             run_agent(), MaxIterationsExceeded, AgentResult
+├── tools.py             reused from 06_tools_function_calling, unchanged
+└── test_agent.py        the 4 Test Cases above, each as a real pytest function
 ```
+
+- `main.py` — **What/Why:** the thin entry point that turns typed input into one `run_agent()` call and prints its result — no loop logic of its own.
+- `agent.py` — **What/Why:** the loop itself, built once by hand in the Intermediate exercise, now given the step limit and failure recovery a real Worker needs.
+- `tools.py` — **What/Why:** the exact tool library from Doc06, imported unchanged — Project 2 reuses it rather than writing tools from scratch.
+- `test_agent.py` — **What/Why:** proves the 4 Test Cases actually pass, automatically, every time `agent.py` changes — not something checked once by hand.
 
 **Functions/Components to build:**
 

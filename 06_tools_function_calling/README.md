@@ -3,7 +3,9 @@
 > This is for self-study and live mentoring. Full plan: [CURRICULUM.md](../CURRICULUM.md#document-06-tools-function-calling)
 
 ## Prerequisites
-[05_langchain_fundamentals](../05_langchain_fundamentals/)
+[05_langchain_fundamentals](../05_langchain_fundamentals/) — you'll reuse a Doc01 script again here, copied unchanged into `practice/build_task/`:
+
+- `logging_setup.py` — **What:** `get_logger(name)`. **Why:** the tool harness logs the same consistent way as every other document. **How:** copy `01_python_foundations/practice/build_task/logging_setup.py` in as-is; don't rewrite it.
 
 ## How to Read & Practice This Document
 
@@ -204,7 +206,9 @@ The three topics above covered the pieces — description, argument contract, fa
 # the whole document in one function — the seed of Doc07's agent loop
 def one_turn(client, messages, tools, registry, max_rounds=5):
     for _ in range(max_rounds):
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools)
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini", messages=messages, tools=tools
+        )
         msg = resp.choices[0].message
         messages.append(msg)                       # step 4a — always first
         if not msg.tool_calls:
@@ -214,8 +218,13 @@ def one_turn(client, messages, tools, registry, max_rounds=5):
                 args = json.loads(call.function.arguments)
                 content = str(registry[call.function.name](**args))
             except Exception as e:
-                content = f"Error: {call.function.name} failed ({type(e).__name__})."
-            messages.append({"role": "tool", "tool_call_id": call.id, "content": content})  # step 4b
+                name = call.function.name
+                content = f"Error: {name} failed ({type(e).__name__})."
+            # step 4b — tool_call_id ties this result back to the request
+            tool_message = {
+                "role": "tool", "tool_call_id": call.id, "content": content
+            }
+            messages.append(tool_message)
     return "Stopped: too many tool rounds."
 ```
 
@@ -621,7 +630,32 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup:** same venv as before — if it's not active, `cd 06_tools_function_calling && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langchain langchain-openai pydantic mcp`.
 
-**Where your code lives:** all of it under `06_tools_function_calling/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/Doc02 — so you can see one topic's growth from basic to advanced side by side in one file.
+**Where your code lives:** all of it under `06_tools_function_calling/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/Doc02 — so you can see one topic's growth from basic to intermediate side by side in one file.
+
+**The full file layout, all exercises:**
+
+```
+practice/
+├── first_tool_call_practice.py      Basic
+├── tool_selection_practice.py       Intermediate + Failure (two sections)
+├── real_api_tool_practice.py        Real-world
+├── missing_argument_practice.py     Edge cases
+└── build_task/                      Build Task — its own folder
+    ├── tools.py                     2-3 @tool functions, Pydantic argument models
+    ├── tool_harness.py              run_with_tools(...) -> ToolCallResult
+    ├── test_prompts.py              the results logger — prompt -> outcome
+    └── logging_setup.py             copied from 01_python_foundations, unchanged
+```
+
+**Why each script exists:**
+
+- `first_tool_call_practice.py` — the exact primitive every agent in this curriculum is built from.
+- `tool_selection_practice.py` — where "tool descriptions are prompts too" stops being abstract and becomes something you watched happen.
+- `real_api_tool_practice.py` — a hardcoded tool teaches nothing about the failure modes real tools actually have.
+- `missing_argument_practice.py` — tells you whether a tool needs to ask a clarifying question or handle a missing value gracefully.
+- `build_task/tools.py` / `build_task/tool_harness.py` — the one tool library every later document (Doc07 onward) imports instead of writing tools from scratch.
+- `build_task/test_prompts.py` — proves which tool gets picked for a real set of prompts, not just an assumption.
+- `build_task/logging_setup.py` — copied unchanged from Doc01, so the harness logs the same consistent way as every other document.
 
 **For this document, save your practice code as:**
 - **Basic** (your first working tool) is its own topic — save as `practice/first_tool_call_practice.py`.
@@ -695,11 +729,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 06_tools_function_calling/practice/build_task/
-├── tools.py            2-3 @tool-decorated functions with Pydantic argument models
-├── tool_harness.py     run_with_tools(prompt: str, tools: list) -> ToolCallResult
-├── test_prompts.py     the results logger: prompt -> tool picked -> arguments -> outcome
+├── tools.py            2-3 @tool functions, Pydantic argument models
+├── tool_harness.py     run_with_tools(prompt, tools) -> ToolCallResult
+├── test_prompts.py     prompt -> tool picked -> arguments -> outcome
 └── logging_setup.py    get_logger(name), copied from Doc01's build task
 ```
+
+- `tools.py` / `tool_harness.py` — **What/Why:** the one tool library every later document (Doc07 onward) imports instead of writing tools from scratch.
+- `test_prompts.py` — **What/Why:** proves which tool actually gets picked for a real set of prompts — also doubles as this Build Task's test file.
+- `logging_setup.py` — **What/Why:** copied unchanged from Doc01, so the harness logs the same consistent way as every other document.
 
 **Run it:** `cd practice/build_task && python test_prompts.py` — from inside the folder, so imports resolve.
 

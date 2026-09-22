@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-real_api_tool) · [Hint 1](real_api_tool_hints.md#hint-1) · [Hint 2](real_api_tool_hints.md#hint-2) · [Solution](real_api_tool_solution.md)
 
+**Story — `real_api_tool_practice.py`:** a tool that only returns hardcoded data teaches you nothing about the failure modes real tools actually have — timeouts, bad responses, rate limits. Wrapping Doc02's `request_with_retry()` inside a `@tool` is what makes this real, not simulated. **If not:** the Build Task's "one tool that calls a real service" requirement would be the first time you ever put your Doc02 retry logic behind a tool, with no smaller version to trust it against.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -47,7 +49,8 @@ for call in response.tool_calls:
 ```
 **Expected output:**
 ```
-Requested tool calls: [{'name': 'get_weather', 'args': {'city': 'Lahore'}, 'id': 'call_abc', 'type': 'tool_call'}]
+Requested tool calls: [{'name': 'get_weather', 'args': {'city': 'Lahore'},
+    'id': 'call_abc', 'type': 'tool_call'}]
 Real result: Currently 34.2°C in Lahore
 ```
 
@@ -78,6 +81,8 @@ CITY_COORDINATES = {
 
 
 def build_weather_params(city: str) -> dict | None:
+    # why: pulled out on its own so "do we have coordinates for this city"
+    # is testable directly, with no real network call or running model.
     coords = CITY_COORDINATES.get(city.lower())
     if coords is None:
         return None
@@ -95,13 +100,16 @@ def get_weather(city: str) -> str:
     if params is None:
         return f"No coordinates on file for {city}."
 
+    # how: reuses Doc02's request_with_retry() — the tool never calls
+    # requests directly, so it gets timeout/retry handling for free.
     response = request_with_retry(WEATHER_URL, params=params)
     temperature = response["current_weather"]["temperature"]
     return f"Currently {temperature}°C in {city}"
 
 
 def get_model_with_tools() -> ChatOpenAI:
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([get_weather])
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return model.bind_tools([get_weather])
 
 
 def main() -> None:

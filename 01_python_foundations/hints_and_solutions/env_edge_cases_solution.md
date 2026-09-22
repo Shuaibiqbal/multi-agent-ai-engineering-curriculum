@@ -6,6 +6,8 @@
 
 **Builds on:** the `# Intermediate` section of that same file — you are testing *that* loader against the two tricky `.env` states, so keep both sections in the one file. The `MissingConfigError` used below is the same class the [Build Task](../README.md#build-task-config-logging-foundation) ends up with in `practice/build_task/exceptions.py`.
 
+**Story — `env_config_practice.py` (Edge cases section):** "missing" isn't one thing — a key that was never set and a key set to an empty string are two different states that look the same to a careless check. This exercise decides, on purpose, which one a required secret should tolerate. **If not:** `require_env()` in the Build Task would ship with an untested assumption about empty strings, and a genuinely blank API key could sail through as if it were valid.
+
 ## Basic Version
 
 ### Approach 1 — the strict, direct way
@@ -22,7 +24,9 @@ class MissingConfigError(Exception):
 def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError("Required environment variable is missing: " + key)
+        raise MissingConfigError(
+            "Required environment variable is missing: " + key
+        )
     return value
 
 
@@ -66,13 +70,18 @@ class MissingConfigError(Exception):
 
 
 def require_env(key: str) -> str:
+    # why: strict on purpose — an API key that's set but empty is never
+    # usable, so it's treated the same as not being set at all.
     value = os.getenv(key)
     if value is None or value == "":
-        raise MissingConfigError(f"Required environment variable is missing: {key}")
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
     return value
 
 
 # case 1: key was never set at all
+# how: pop(..., None) removes it if present, does nothing if not — never raises
 os.environ.pop("OPENAI_API_KEY", None)
 try:
     require_env("OPENAI_API_KEY")
@@ -80,6 +89,7 @@ except MissingConfigError as e:
     print(f"Case 1 - not set at all: {e}")
 
 # case 2: key is set, but empty
+# when: simulates a .env line like "OPENAI_API_KEY=" with nothing after the "="
 os.environ["OPENAI_API_KEY"] = ""
 try:
     require_env("OPENAI_API_KEY")
@@ -106,7 +116,9 @@ class MissingConfigError(Exception):
 def require_env(key: str) -> str:
     value = os.getenv(key)
     if value is None:
-        raise MissingConfigError(f"Required environment variable is missing: {key}")
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
     return value
 
 

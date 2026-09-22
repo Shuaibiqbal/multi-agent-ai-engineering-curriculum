@@ -6,6 +6,8 @@
 
 **Builds on:** the `# Basic` section of that same file — same habit, three error classes instead of one. Nothing to copy or import: scroll up in the file you already have.
 
+**Story — `custom_errors_practice.py` (Failure handling section):** a real program has more than one way to fail, and each way usually needs a different reaction — retry, ask for new payment info, ask for a new address. Three separate error types and three separate `except` blocks make that difference explicit in the code itself. **If not:** a single `except Exception` would treat "out of stock" the same as "payment declined," so the code would end up with an `if/elif` chain re-deriving what the exception type already told it for free.
+
 ## Basic Version
 
 ### Approach 1 — three separate `except` blocks, each reacting differently
@@ -73,6 +75,11 @@ class InvalidAddressError(Exception):
 
 
 def process_order(problem_type: str) -> None:
+    # why: simulates three different real failures on demand, so the
+    # except blocks below have something real to react to.
+    # when: in real code this would be wherever an order actually gets
+    # processed — the type of failure comes from what really went wrong, not a
+    # parameter.
     if problem_type == "stock":
         raise OutOfStockError("item is out of stock")
     if problem_type == "payment":
@@ -85,6 +92,9 @@ for problem_type in ["stock", "payment", "address"]:
     try:
         process_order(problem_type)
     except OutOfStockError as e:
+        # how: Python checks except blocks top to bottom and stops at the
+        # first type match — each error type here gets its own, different
+        # reaction.
         print(f"Will retry later, notifying the warehouse: {e}")
     except PaymentDeclinedError as e:
         print(f"Asking the customer for a different payment method: {e}")

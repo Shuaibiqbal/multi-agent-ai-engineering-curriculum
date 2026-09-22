@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-build_react_loop) · [Hint 1](build_react_loop_hints.md#hint-1) · [Hint 2](build_react_loop_hints.md#hint-2) · [Solution](build_react_loop_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (what a real agent loop needs beyond the happy path). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, and what a real agent loop needs beyond the happy path). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -35,11 +35,9 @@ The exact pieces:
 - Append the assistant's tool-call message to `messages`, then append a `{"role": "tool", "tool_call_id": ..., "content": result}` message with your tool's result — the API requires both, in that order, or the next call will error.
 - `else:` — no tool calls means this is the final answer; return `response.choices[0].message.content` and break out of the loop.
 
-### Advanced Version
+Two things the happy path above skips over, worth building in from the start: **a response can request more than one tool call in the same round** — `message.tool_calls` is a list, and you must loop over all of it, appending a `{"role": "tool", ...}` message for *every* call before asking the model again, or the next API call will error with a mismatched tool response. **A tool can raise an exception** — `run_tool()` calling your real Python function directly, unguarded, means one bad argument or a network hiccup crashes the entire agent, losing every step already completed. Think about what `run_tool()` should do instead: catch the exception, and feed the *error message itself* back in as the Observation, exactly like a tool that returned a normal (if unhelpful) result — this is what lets the model see the failure and react to it, instead of your program just dying.
 
-Two things the happy path above skips over: **a response can request more than one tool call in the same round** — `message.tool_calls` is a list, and you must loop over all of it, appending a `{"role": "tool", ...}` message for *every* call before asking the model again, or the next API call will error with a mismatched tool response. **A tool can raise an exception** — `run_tool()` calling your real Python function directly, unguarded, means one bad argument or a network hiccup crashes the entire agent, losing every step already completed. Think about what `run_tool()` should do instead: catch the exception, and feed the *error message itself* back in as the Observation, exactly like a tool that returned a normal (if unhelpful) result — this is what lets the model see the failure and react to it, instead of your program just dying.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic names the tools and the loop's shape for a single tool that always succeeds. Intermediate shows the real Python syntax and the exact message-passing contract the API expects. Advanced adds the 2 things that only matter once a response can request multiple tools at once, or a tool can actually fail mid-run — which is the difference between a loop that works in a demo and one that would survive the Build Task's "a tool must be allowed to actually fail" requirement.
+**Difference between Basic and Intermediate:** Basic names the tools and the loop's shape for a single tool that always succeeds. Intermediate shows the real Python syntax, the exact message-passing contract the API expects, and the 2 things that only matter once a response can request multiple tools at once, or a tool can actually fail mid-run — which is the difference between a loop that works in a demo and one that would survive the Build Task's "a tool must be allowed to actually fail" requirement.
 
 <hr class="page-break">
 
@@ -103,7 +101,9 @@ function run_agent(task: str, max_iterations: int = 5) -> str:
             messages.append(message)
             for call in message.tool_calls:
                 result = run_tool(call)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+                messages.append(
+                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                )
         else:
             return message.content
 
@@ -135,26 +135,29 @@ def run_agent(task: str, max_iterations: int = 5) -> str:
 
 Finish both marked parts yourself, then compare against the [Solution](build_react_loop_solution.md).
 
-### Advanced Version
-
-The piece worth seeing on its own before the full Solution — `run_tool()` catching a failure instead of letting it crash the loop:
+The piece worth seeing on its own before the full Solution — `run_tool()` catching a failure instead of letting it crash the loop, and looking the tool up from a dispatch table instead of hardcoding one:
 
 ```python
 # react_loop_practice.py — Intermediate section
 import json
 
+TOOLS_BY_NAME = {"get_weather": get_weather}
+
 def run_tool(call) -> str:
+    function = TOOLS_BY_NAME.get(call.function.name)
+    if function is None:
+        return f"Error: unknown tool {call.function.name}"
     try:
         args = json.loads(call.function.arguments)
-        result = get_weather(**args)
+        result = function(**args)
         return str(result)
     except Exception as e:
         return f"Error: {e}"
 ```
 
-Notice this returns a *string* either way — a real result, or an error message — so the rest of `run_agent()` doesn't need to know or care which one it got; it just appends whatever `run_tool()` returns as the Observation, exactly like Hint 1's Advanced Version described. Also add a `steps` list that records every round's tool name, arguments, and result as it happens — you'll want this for the Build Task's step-log requirement, and for [14_debugging_lab](../../14_debugging_lab/) later. Try writing `run_agent()` so it returns both the final answer and this `steps` list (a small dataclass is a clean way to bundle the two) before checking the Solution.
+Notice this returns a *string* either way — a real result, or an error message — so the rest of `run_agent()` doesn't need to know or care which one it got; it just appends whatever `run_tool()` returns as the Observation, exactly like Hint 1 described. Also add a `steps` list that records every round's tool name, arguments, and result as it happens — you'll want this for the Build Task's step-log requirement, and for [14_debugging_lab](../../14_debugging_lab/) later. Try writing `run_agent()` so it returns both the final answer and this `steps` list (a small dataclass is a clean way to bundle the two) before checking the Solution.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic's pseudocode and near-complete code assume every tool call succeeds and nothing needs remembering afterward. Intermediate adds the real type contract and the exact message-passing shape the API requires. Advanced adds the 2 pieces that matter once this loop has to survive a real, possibly-failing tool and be debuggable afterward — a `run_tool()` that turns an exception into an Observation instead of a crash, and a `steps` log that survives past the final answer.
+**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code assume every tool call succeeds and nothing needs remembering afterward. Intermediate adds the real type contract, the exact message-passing shape the API requires, a `run_tool()` that turns an exception into an Observation instead of a crash and looks the tool up by name from a dispatch table, and a `steps` log that survives past the final answer.
 
 <hr class="page-break">
 

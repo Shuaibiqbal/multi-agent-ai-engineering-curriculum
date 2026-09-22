@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-bad_split_k_comparison) · [Hint 1](bad_split_k_comparison_hints.md#hint-1) · [Hint 2](bad_split_k_comparison_hints.md#hint-2) · [Solution](bad_split_k_comparison_solution.md)
 
+**Story — `chunking_practice.py` (Failure section):** it's tempting to treat "just raise `k`" as a fix once it appears to work on a tiny test document — this exercise makes you watch that assumption fail at real scale before you carry it into the Build Task. **If not:** the Build Task's knowledge base would inherit a `k`-bump habit that quietly stops working the moment the corpus grows past a few dozen chunks.
+
 All examples below use:
 ```python
 # chunking_practice.py — Failure section
@@ -9,7 +11,8 @@ TEST_DOCUMENT = (
     "Our team ships a small internal newsletter every month. "
     "The Treaty of Lisbon was signed on 13 December 2007 in Lisbon, Portugal, "
     "marking a major change to how the European Union is governed. "
-    "Most readers skip the history section and go straight to the recipe at the bottom."
+    "Most readers skip the history section and go straight to the recipe "
+    "at the bottom."
 )
 QUESTION = "When and where was the Treaty of Lisbon signed?"
 ```
@@ -155,13 +158,9 @@ if __name__ == "__main__":
 
 **Difference from Basic:** full type hints, and `build_index()` separates "turn raw text into a searchable index" from `retrieve()`'s "search an existing index" — a real pipeline builds the index once and searches it many times, so keeping those responsibilities apart matters even in a small script.
 
-<hr class="page-break">
+### Approach 2 — timing at real scale, not toy scale
 
-> [Back to the exercise](../README.md#ex-bad_split_k_comparison) · [Hint 1](bad_split_k_comparison_hints.md#hint-1) · [Hint 2](bad_split_k_comparison_hints.md#hint-2) · [Solution](bad_split_k_comparison_solution.md)
-
-## Advanced Version
-
-### Approach 1 — timing at real scale, not toy scale
+**Story:** the timing above barely moves between `k=1`, `k=3`, and `k=10` — and that result is easy to over-generalize from. It only barely moves because `retrieve()` compares the question against a *handful* of chunks; the cost that actually scales with corpus size was always there, just invisible at this size. **If not:** "raising `k` is basically free" would look true right up until the knowledge base actually grew.
 
 ```python
 # chunking_practice.py — Failure section
@@ -182,13 +181,17 @@ for k in (1, 3, 10):
 ```
 **Expected output (shape):** where the small corpus (a handful of chunks) showed almost no timing difference across `k` values, the large corpus's `retrieve()` calls all take noticeably longer than any of the small-corpus calls did — because `retrieve()` scores *every* stored chunk against the question no matter what `k` is; `k` only controls how many of those already-computed scores get returned. The cost that actually scales with corpus size was always there — the earlier, tiny example was just too small to show it. This is exactly why a real vector store (Chroma, FAISS, a hosted service) doesn't do this brute-force comparison at all once a knowledge base grows past a few thousand chunks — it builds an index ahead of time so a query only touches a small, likely-relevant fraction of the stored vectors, not every single one.
 
-### Approach 2 — the real fix for the split fact: overlap, not a bigger k
+### Approach 3 — the real fix for the split fact: overlap, not a bigger k
+
+**Story:** fixing the "half the fact went missing" bug is not the same problem as picking a good `k` — `k` decides how many results come back, but where the boundary falls is decided by the chunker. **If not:** raising `k` would keep looking like the fix, right up until a bigger corpus made it stop working (Approach 2's lesson) — overlap removes the cause instead of hiding the symptom.
 
 ```python
 # chunking_practice.py — Failure section
-def chunk_by_chars_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
+def chunk_by_chars_with_overlap(
+    text: str, chunk_size: int, overlap: int,
+) -> list[str]:
     chunks: list[str] = []
-    step = chunk_size - overlap
+    step = chunk_size - overlap  # why: less than chunk_size -- chunks overlap
     start = 0
     while start < len(text):
         chunks.append(text[start:start + chunk_size])
@@ -196,7 +199,9 @@ def chunk_by_chars_with_overlap(text: str, chunk_size: int, overlap: int) -> lis
     return chunks
 
 
-def build_overlap_index(text: str, chunk_size: int, overlap: int) -> list[tuple[str, list[float]]]:
+def build_overlap_index(
+    text: str, chunk_size: int, overlap: int,
+) -> list[tuple[str, list[float]]]:
     chunks = chunk_by_chars_with_overlap(text, chunk_size, overlap)
     return [(chunk, get_embedding(chunk)) for chunk in chunks]
 
@@ -209,6 +214,6 @@ for score, chunk_text in retrieve(QUESTION, overlap_index, k=1):
 ```
 **Expected output:** with `overlap=15` on a `chunk_size=40` split, the fact's date-and-place sentence now lands whole inside at least one chunk, so `retrieve(..., k=1)` alone returns the complete fact — no need for `k=3` or `k=10` to reconstruct it from separate pieces.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate measures timing at a scale too small to reveal that brute-force cost actually grows with corpus size — Approach 1 makes that cost visible, and explains why real vector stores don't do this same brute-force comparison at scale. Approach 2 tackles a different question entirely: not "how do we search faster," but "how do we stop losing half the fact in the first place" — and shows that the answer isn't `k`, it's the chunker.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 measures timing at a scale too small to reveal that brute-force cost actually grows with corpus size — Approach 2 makes that cost visible, and explains why real vector stores don't do this same brute-force comparison at scale. Approach 3 tackles a different question entirely: not "how do we search faster," but "how do we stop losing half the fact in the first place" — and shows that the answer isn't `k`, it's the chunker.
 
-**Which one should you actually use?** Both matter, but they answer different questions. For "the search is too slow," reach for a real vector index (Approach 1's lesson) once your chunk count is large enough for brute force to actually hurt — not before, since brute force over a small corpus is simpler and genuinely fine. For "the answer is missing half a fact," reach for overlap (Approach 2) — not a bigger `k` — since `k` only ever improves the odds of the workaround, while overlap removes the actual cause. Mixing these two up (treating a `k` bump as if it fixes the boundary-split problem) is the exact trap this exercise exists to catch you doing once, on purpose, before it happens to you by accident in a real project.
+**Which one should you actually use?** Both matter, but they answer different questions. For "the search is too slow," reach for a real vector index (Approach 2's lesson) once your chunk count is large enough for brute force to actually hurt — not before, since brute force over a small corpus is simpler and genuinely fine. For "the answer is missing half a fact," reach for overlap (Approach 3) — not a bigger `k` — since `k` only ever improves the odds of the workaround, while overlap removes the actual cause. Mixing these two up (treating a `k` bump as if it fixes the boundary-split problem) is the exact trap this exercise exists to catch you doing once, on purpose, before it happens to you by accident in a real project.

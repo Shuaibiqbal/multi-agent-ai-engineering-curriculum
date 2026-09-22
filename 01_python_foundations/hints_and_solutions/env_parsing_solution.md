@@ -15,6 +15,8 @@ OPENAI_API_KEY="sk-test123"
 LOG_LEVEL=DEBUG
 ```
 
+**Story — `env_config_practice.py` (Intermediate section):** before trusting `python-dotenv` to read a `.env` file, this exercise writes the same parsing loop by hand once, so the library stops being a black box. **If not:** you'd never see why quoting, blank lines, and comments actually need special handling — and `load_dotenv()` would feel like magic instead of "oh, that's just a loop with a dictionary."
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -81,12 +83,21 @@ DEBUG
 # practice/env_config_practice.py — Intermediate section
 def parse_env_by_hand(path: str) -> dict[str, str]:
     """Read a simple KEY=value file and return it as a dict."""
+    # why: understanding this loop is what makes python-dotenv's
+    # load_dotenv() stop feeling like a black box.
     env_vars: dict[str, str] = {}
     with open(path) as env_file:
+        # how: `with` closes the file automatically, even if a line below
+        # raises.
         for line in env_file:
+            # how: drops the trailing newline and surrounding spaces
             line = line.strip()
             if not line or "=" not in line:
+                # when: skips blank lines and comment lines — both are
+                # valid in a .env file and aren't real settings.
                 continue
+            # how: split on the FIRST "=" only, so a value containing "=" isn't
+            # cut short
             key, value = line.split("=", 1)
             env_vars[key] = value
     return env_vars

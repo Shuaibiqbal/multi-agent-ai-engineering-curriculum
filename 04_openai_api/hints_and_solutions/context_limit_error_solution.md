@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-context_limit_error) · [Hint 1](context_limit_error_hints.md#hint-1) · [Hint 2](context_limit_error_hints.md#hint-2) · [Solution](context_limit_error_solution.md)
 
+**Story — `context_limit_practice.py`:** Doc03 had you guess how many turns fit in a context window — this is where that guess meets a real, deliberately-triggered `BadRequestError`. Seeing the exact exception type and message once means you recognize it instantly later, instead of panicking at an unfamiliar crash. **If not:** the Build Task's "handle a too-long conversation gracefully" requirement would ask you to catch an error you'd never actually seen fire.
+
 All examples below assume `client = OpenAI()` with `.env` already loaded.
 
 ## Basic Version
@@ -24,7 +26,8 @@ except Exception as e:
 **Expected output:**
 ```
 Error type: BadRequestError
-Message: Error code: 400 - {'error': {'message': "This model's maximum context length is 128000 tokens...
+Message: Error code: 400 - {'error': {'message': "This model's maximum
+context length is 128000 tokens...
 ```
 
 This works and shows the real error. Catching the broad `Exception` finds it, but doesn't document which specific class your code is actually expecting — see Intermediate.
@@ -41,6 +44,8 @@ This works and shows the real error. Catching the broad `Exception` finds it, bu
 # context_limit_practice.py
 import openai
 
+# why: 200,000 repeated words reliably blows past any model's context
+# window, on purpose, so the real error actually fires.
 huge_input = "word " * 200_000
 
 try:
@@ -49,13 +54,16 @@ try:
         messages=[{"role": "user", "content": huge_input}],
     )
 except openai.BadRequestError as e:
+    # how: catching the specific class documents exactly what failure this
+    # code expects — a bare except Exception would also hide a real bug.
     print(f"Error type: {type(e).__name__}")
     print(f"Message: {str(e)[:200]}")
 ```
 **Expected output:**
 ```
 Error type: BadRequestError
-Message: Error code: 400 - {'error': {'message': "This model's maximum context length is 128000 tokens...
+Message: Error code: 400 - {'error': {'message': "This model's maximum
+context length is 128000 tokens...
 ```
 
 **Difference from Basic:** catching `openai.BadRequestError` specifically, instead of a bare `Exception`, documents exactly what failure this code expects and is prepared for — the same "catch the specific error you know how to handle" rule from Doc01. A bare `except Exception` here would also silently swallow a real bug elsewhere in how the request was built, not just this one expected, known failure.

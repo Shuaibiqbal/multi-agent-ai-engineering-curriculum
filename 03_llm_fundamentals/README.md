@@ -283,6 +283,27 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Where your notes live:** all of it under `03_llm_fundamentals/practice/` (`mkdir -p practice`) — not scripts, since there's no required code, but a written record of your guess vs. the real answer for each exercise. Writing the guess down *before* checking is what actually builds the intuition; skipping straight to the answer doesn't.
 
+**The full file layout, all exercises:**
+
+```
+practice/
+├── token_count_guessing_notes.md       Basic
+├── temperature_cost_notes.md           Intermediate
+├── context_window_capacity_notes.md    Real-world
+├── token_rule_exceptions_notes.md      Edge cases
+└── induced_hallucination_notes.md      Failure
+```
+
+**Why each notes file exists:**
+
+- `token_count_guessing_notes.md` — the gut-feeling for tokens every cost/context-limit decision from here on depends on.
+- `temperature_cost_notes.md` — proves temperature's effect with real output, and turns per-token pricing into a number you trust.
+- `context_window_capacity_notes.md` — the intuition behind Project 1's "conversation silently exceeds context" failure, before it happens to you.
+- `token_rule_exceptions_notes.md` — catches you before a multilingual or code-heavy feature quietly costs way more than estimated.
+- `induced_hallucination_notes.md` — turns "the model hallucinated" from a mysterious event into an expected failure mode you can explain.
+
+(Optional, not required: if you'd rather check token counts in real code than the browser tool, `pip install tiktoken` and call it directly — no fixed filename, your own throwaway script.)
+
 **Jump to an exercise:** [Basic](#ex-token_count_guessing) · [Intermediate](#ex-temperature_cost) · [Real-world](#ex-context_window_capacity) · [Edge cases](#ex-token_rule_exceptions) · [Failure](#ex-induced_hallucination)
 
 ### Basic — guess token counts, then check {: #ex-token_count_guessing }

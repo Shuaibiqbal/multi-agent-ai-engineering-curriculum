@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-infinite_loop_cost) · [Hint 1](infinite_loop_cost_hints.md#hint-1) · [Hint 2](infinite_loop_cost_hints.md#hint-2) · [Solution](infinite_loop_cost_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (a real safety net in code), **Advanced** (measuring the actual token cost). Read Basic first — this exercise is about *watching* something you'll otherwise only ever read about, so don't skip straight to the numbers.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (a real safety net in code, and measuring the actual token cost). Read Basic first — this exercise is about *watching* something you'll otherwise only ever read about, so don't skip straight to the numbers.
 
 - [Hint 1 — The idea, and the safety net](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -21,11 +21,9 @@ Never actually unlimited — even for this exercise. Temporarily raise `max_iter
 
 You need 2 separate things: a task the model can't actually resolve (an **adversarial prompt**), and a **hard stop that isn't just the step count**. For the adversarial prompt, the easiest reliable option is a tool that always returns something that looks like it needs another step — e.g., a tool that always replies `"Try again with a different city name"` no matter what it's given, so the model keeps retrying forever, believing progress is possible. For the hard stop, `max_iterations=1000` alone isn't actually a safety net by itself here — it bounds the *step count*, not the *time* or *cost* spent getting there, and 1000 steps of real API calls is a lot of both. Add a wall-clock check inside the loop itself.
 
-### Advanced Version
-
 Once you've watched it loop and stopped it, the second half of this exercise is a *measurement*, not a demo: how many tokens did the adversarial run actually burn before you stopped it, versus a single direct call that needs no tool at all? The OpenAI API returns token counts on every response — `response.usage.total_tokens` — so you don't have to estimate; sum it across every step of the looping run, and compare that sum against the `total_tokens` of one plain, no-tool call. Think about *why* the ratio matters more than the raw numbers: a 50-step loop isn't "50x the cost" of 1 call, because each step also resends the entire growing message history — the cost grows faster than the step count does.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic says "watch it loop, safely, then measure." Intermediate gives the 2 concrete pieces that make "safely" actually true — a reliable adversarial task, and a wall-clock timeout that `max_iterations` alone doesn't provide. Advanced turns "measure" into something specific and real: pulling actual token counts from the API instead of guessing, and understanding why the cost curve is worse than linear in step count.
+**Difference between Basic and Intermediate:** Basic says "watch it loop, safely, then measure." Intermediate gives the concrete pieces that make both halves real — a reliable adversarial task, a wall-clock timeout that `max_iterations` alone doesn't provide, and actual token counts pulled from the API instead of guessed.
 
 <hr class="page-break">
 
@@ -69,7 +67,7 @@ def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
 
 ```
 function always_ask_again_tool(anything) -> str:
-    return "That didn't work, please try a different approach and call the tool again."
+    return "That didn't work, please try a different approach and call again."
 
 function run_agent_with_timeout(task, max_iterations, timeout_seconds):
     start = current time
@@ -77,7 +75,7 @@ function run_agent_with_timeout(task, max_iterations, timeout_seconds):
     for step in range(max_iterations):
         if elapsed time > timeout_seconds:
             raise TimeoutError naming the step it stopped at
-        (same body as run_agent: call model, run tool if requested, append to messages)
+        (same body as run_agent: call model, run tool, append to messages)
     raise MaxIterationsExceeded if the loop finishes without a TimeoutError first
 ```
 
@@ -87,10 +85,12 @@ import time
 
 
 def always_ask_again_tool(city: str) -> str:
-    return "That didn't work, please try a different approach and call the tool again."
+    return "That didn't work, please try a different approach and call again."
 
 
-def run_agent_with_timeout(task: str, max_iterations: int = 1000, timeout_seconds: int = 30):
+def run_agent_with_timeout(
+    task: str, max_iterations: int = 1000, timeout_seconds: int = 30,
+):
     start = time.time()
     messages: list[dict] = [{"role": "user", "content": task}]
 
@@ -107,16 +107,18 @@ def run_agent_with_timeout(task: str, max_iterations: int = 1000, timeout_second
             messages.append(message)
             for call in message.tool_calls:
                 result = always_ask_again_tool(call.function.arguments)
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": result})
+                messages.append(
+                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                )
         else:
             return message.content
 
     raise MaxIterationsExceeded(f"No answer after {max_iterations} steps")
 ```
 
-Run this, watch it print steps until the `TimeoutError` fires, then move to the Advanced Version below for the measurement part.
+Run this, watch it print steps until the `TimeoutError` fires, then move to the measurement part below.
 
-### Advanced Version
+The second half — real token accounting, not a guess:
 
 ```
 looping_total_tokens = 0
@@ -132,7 +134,9 @@ print looping_total_tokens, direct_total_tokens, and the ratio between them
 
 ```python
 # loop_safety_cost_practice.py
-def run_agent_with_timeout_and_token_count(task, max_iterations=1000, timeout_seconds=30):
+def run_agent_with_timeout_and_token_count(
+    task, max_iterations=1000, timeout_seconds=30,
+):
     start = time.time()
     messages: list[dict] = [{"role": "user", "content": task}]
     total_tokens = 0
@@ -152,7 +156,7 @@ def run_agent_with_timeout_and_token_count(task, max_iterations=1000, timeout_se
 
 Finish tracking `total_tokens` yourself, run both the looping case and a single direct call, and compare, before checking the full [Solution](infinite_loop_cost_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic's pseudocode and near-complete code get you a safe, bounded loop you can actually watch run. Intermediate fills in the exact adversarial tool and the timeout check inside the loop body. Advanced adds real token accounting from `response.usage`, comparing the looping run's total against one direct call's — turning "agent loops are more expensive" from something you're told into something you measured yourself.
+**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code get you a safe, bounded loop you can actually watch run. Intermediate fills in the exact adversarial tool, the timeout check inside the loop body, and real token accounting from `response.usage`, comparing the looping run's total against one direct call's — turning "agent loops are more expensive" from something you're told into something you measured yourself.
 
 <hr class="page-break">
 

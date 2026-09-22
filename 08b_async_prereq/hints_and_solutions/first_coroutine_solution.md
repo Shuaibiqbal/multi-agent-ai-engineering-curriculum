@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-first_coroutine) · [Hint 1](first_coroutine_hints.md#hint-1) · [Hint 2](first_coroutine_hints.md#hint-2) · [Solution](first_coroutine_solution.md)
 
+**Story — `coroutine_basics_practice.py`:** "`async def` doesn't run like a normal function" is the single fact every later exercise in this document assumes you already internalized — see it fail once, on purpose, here, before it costs you a confusing bug in real code. **If not:** the first time you'd meet an unawaited coroutine would be a silent `RuntimeWarning` buried in real output, with no smaller example to recognize it from.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -64,13 +66,9 @@ done
 
 **Difference from Basic:** the `-> str` type hint on `wait_and_return` documents, without reading the body, what the coroutine resolves to once it's awaited. The `if __name__ == "__main__":` guard means this file can be safely imported elsewhere (a test, another module) without the demonstration code running on import — only running when the file is executed directly. Same underlying behavior either way: calling an `async def` function builds a coroutine object, and only `await` or `asyncio.run(...)` actually runs it.
 
-<hr class="page-break">
+### Approach 2 — a timeout, so a hang can't freeze the program forever
 
-> [Back to the exercise](../README.md#ex-first_coroutine) · [Hint 1](first_coroutine_hints.md#hint-1) · [Hint 2](first_coroutine_hints.md#hint-2) · [Solution](first_coroutine_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a timeout, so a hang can't freeze the program forever
+**Story:** a coroutine waiting on something outside your program — a network call, in every later document — can just hang forever with nothing here to stop it. **If not:** one slow or dead server would freeze your entire program indefinitely, with no way to recover short of killing the process.
 
 ```python
 # coroutine_basics_practice.py
@@ -103,7 +101,9 @@ wait_and_return took too long, giving up
 ```
 `asyncio.wait_for(coro, timeout=...)` cancels the coroutine and raises `asyncio.TimeoutError` if it hasn't finished in time, instead of waiting on it forever. Notice `asyncio.run()` is called exactly once now, wrapping `main()` — every other coroutine in this file is reached with a plain `await`, never its own nested `asyncio.run()` call.
 
-### Approach 2 — safe to call whether or not a loop is already running
+### Approach 3 — safe to call whether or not a loop is already running
+
+**Story:** `asyncio.run()` assumes it's the only thing starting an event loop — call it from inside a FastAPI route, a notebook, or any other `async def` function and it raises a confusing `RuntimeError` that points at asyncio internals, not at the actual mistake. **If not:** reusing this function from inside an already-async caller (exactly what `async_client_conversion` does) would surface as a cryptic crash instead of a clear message pointing at the fix.
 
 ```python
 # coroutine_basics_practice.py
@@ -142,6 +142,6 @@ done
 ```
 This version fails loudly and clearly, with a message that actually explains what to do instead, if someone reuses `run_wait_and_return()` from inside code that already has an event loop running — instead of surfacing asyncio's own less obvious `RuntimeError: asyncio.run() cannot be called from a running event loop`.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's version trusts `wait_and_return()` to always finish, and trusts that `asyncio.run()` is always safe to call from wherever this code ends up. Approach 1 fixes the first assumption — a coroutine waiting on something outside your program (a network call, in every later document) needs a timeout, or a single hang can freeze everything indefinitely. Approach 2 fixes the second assumption — it turns a confusing `RuntimeError` from deep inside `asyncio` into a clear, specific message pointing at the actual fix, for the specific case of this function being reused from inside an already-async caller.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1's version trusts `wait_and_return()` to always finish, and trusts that `asyncio.run()` is always safe to call from wherever this code ends up. Approach 2 fixes the first assumption — a coroutine waiting on something outside your program (a network call, in every later document) needs a timeout, or a single hang can freeze everything indefinitely. Approach 3 fixes the second assumption — it turns a confusing `RuntimeError` from deep inside `asyncio` into a clear, specific message pointing at the actual fix, for the specific case of this function being reused from inside an already-async caller.
 
-**Which one should you actually write?** For a throwaway script, Intermediate is genuinely enough. The moment this kind of function is going to be imported and reused elsewhere in the curriculum — which is exactly what happens from `async_client_conversion` onward — Approach 1's timeout is worth adding on almost anything that waits on the outside world, since "it just hangs forever" is a much worse failure than "it raised a clear timeout error after 5 seconds." Approach 2's running-loop check is worth adding specifically to small entry-point helpers you expect other files to import — not to every coroutine, just the ones meant to be a program's front door.
+**Which one should you actually write?** For a throwaway script, Approach 1 is genuinely enough. The moment this kind of function is going to be imported and reused elsewhere in the curriculum — which is exactly what happens from `async_client_conversion` onward — Approach 2's timeout is worth adding on almost anything that waits on the outside world, since "it just hangs forever" is a much worse failure than "it raised a clear timeout error after 5 seconds." Approach 3's running-loop check is worth adding specifically to small entry-point helpers you expect other files to import — not to every coroutine, just the ones meant to be a program's front door.

@@ -227,6 +227,43 @@ _Optional second explanations — not needed to understand the Core Concepts abo
 
 **Where your code lives:** all of it under `01_python_foundations/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — two of them share one file, each in its own labelled section — and any exercise with two or more files gets its own folder, run from inside that folder so imports and `.env` resolve the way the solutions assume.
 
+**The full file/folder layout, all exercises:**
+
+```
+practice/
+├── custom_errors_practice.py       Basic + Failure handling (two sections)
+├── venv_setup_practice.md          Basic part 2 — notes, not a script
+├── env_config_practice.py          Intermediate + Edge cases (two sections)
+├── logging_practice.py             Intermediate part 2 — get_logger(name)
+├── config_logging_wiring/          Real-world — its own folder
+│   ├── exceptions.py               MissingConfigError
+│   ├── config.py                   load_config() -> Config
+│   ├── logging_setup.py            get_logger(name), copied from above
+│   ├── main.py                     wires the two together
+│   └── .env                        you create this; never committed
+└── build_task/                     Build Task — its own folder
+    ├── exceptions.py               MissingConfigError
+    ├── config.py                   load_config() -> Config
+    ├── logging_setup.py            get_logger(name)
+    ├── test_config.py              proves the 4 Test Cases
+    ├── .env.example                key names only, no real values (committed)
+    └── .env                        your real values (never committed)
+```
+
+**Why each script exists:**
+
+- `custom_errors_practice.py` — practice raising and catching your own exception types.
+- `env_config_practice.py` — practice reading `.env` settings and deciding what "missing" means.
+- `logging_practice.py` — the one function every later file calls to get a working logger.
+- `config_logging_wiring/exceptions.py` — lets `main.py` catch a missing setting specifically.
+- `config_logging_wiring/config.py` — fails loudly at startup if a required setting is missing.
+- `config_logging_wiring/logging_setup.py` — keeps this folder self-contained, no import back into `practice/`.
+- `config_logging_wiring/main.py` — this is the first 3 lines of every script from here on.
+- `build_task/exceptions.py` — gives every later document a specific error to catch.
+- `build_task/config.py` — the one function every later document imports for settings.
+- `build_task/logging_setup.py` — the one function every later document imports for logging.
+- `build_task/test_config.py` — catches a regression here before it breaks a later document.
+
 **Jump to an exercise:** [Basic](#ex-basic1) · [Basic part 2](#ex-venv_setup) · [Intermediate](#ex-env_parsing) · [Intermediate part 2](#ex-logger_levels) · [Real-world](#ex-config_logging_wiring) · [Edge cases](#ex-env_edge_cases) · [Failure handling](#ex-failure_handling) · [Build Task](#build-task-config-logging-foundation)
 
 ### Basic — typed function + custom error {: #ex-basic1 }
@@ -264,7 +301,17 @@ _Optional second explanations — not needed to understand the Core Concepts abo
 
 - **What:** a mini project whose `main.py` calls `load_config()`, then `get_logger(__name__)`, then logs one line using a value from config.
 - **Why:** config and logging are almost always used together, and this is the first three lines of every script you write from here on.
-- **Save as:** its own folder `practice/config_logging_wiring/`, with four files — `exceptions.py` (`MissingConfigError`), `config.py` (`load_config() -> Config`), `logging_setup.py` (`get_logger(name)`) and `main.py`.
+- **Save as:** its own folder `practice/config_logging_wiring/`, with four files:
+  ```
+  exceptions.py       MissingConfigError
+  config.py           load_config() -> Config
+  logging_setup.py    get_logger(name), copied from logging_practice.py
+  main.py             wires the two together
+  ```
+  - `exceptions.py` — **What/Why:** lets `main.py` catch a missing setting specifically, instead of catching every Exception blindly.
+  - `config.py` — **What/Why:** fails loudly at startup if a required setting is missing, instead of crashing confusingly later.
+  - `logging_setup.py` — **What/Why:** keeps this folder self-contained, no import back into `practice/`.
+  - `main.py` — **What/Why:** this is the first 3 lines of every script you write from here on.
 - **Run it:** `cd practice/config_logging_wiring && python main.py` — from inside the folder, so `from config import load_config` finds the file next to it.
 - **Builds on:** `practice/logging_practice.py` ([Intermediate part 2](#ex-logger_levels)) — **copy** its `get_logger()` into `logging_setup.py`, same name and signature; and `practice/custom_errors_practice.py` ([Basic](#ex-basic1)) — the same error pattern, re-written here as `MissingConfigError`. Copies, not imports. `load_config()` is the `.env`-reading idea from [Intermediate](#ex-env_parsing), returning a small `Config` object.
 - **Used later by:** the [Build Task](#build-task-config-logging-foundation) — the same wiring, one level more serious. Get this running first and the Build Task has no surprises left in it.
@@ -308,6 +355,12 @@ _Optional second explanations — not needed to understand the Core Concepts abo
 ├── test_config.py       proves all 4 Test Cases below
 └── .env.example         key names only, no real values
 ```
+
+- `exceptions.py` — **What/Why:** a specific error type, so callers can catch a missing setting on its own instead of catching every Exception.
+- `config.py` — **What/Why:** the one function every later document calls for settings — fails loudly at startup if one is missing.
+- `logging_setup.py` — **What/Why:** the one function every later document calls to get a working logger, so setup isn't repeated per file.
+- `test_config.py` — **What/Why:** catches a regression here before it breaks a later document that imports `config.py`/`logging_setup.py`.
+- `.env.example` — **What/Why:** shows every teammate which keys to set, without leaking real values into git.
 
 **Run it:** `cd practice/build_task && python test_config.py` — from inside the folder, so `from config import load_config` finds the file next to it.
 

@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
 
+**Story — `retry_backoff_practice.py` (Intermediate section):** a network call with no timeout can hang forever, and a network call that just retries instantly on failure makes a busy server's day worse, not better. This exercise builds the retry-with-backoff loop that becomes `http_client.py`'s core almost unchanged. **If not:** the Build Task's retry logic would be written from scratch under deadline pressure, with no smaller, already-working version to copy from — exactly the mistake this document's whole structure is built to avoid.
+
 ## Basic Version
 
 ### Approach 1 — a plain retry loop
@@ -68,7 +70,9 @@ def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
             if attempt == max_attempts - 1:
                 raise
             wait_seconds = 2 ** attempt
-            logger.warning("attempt %s timed out, waiting %ss", attempt, wait_seconds)
+            logger.warning(
+                "attempt %s timed out, waiting %ss", attempt, wait_seconds
+            )
             time.sleep(wait_seconds)
     raise RuntimeError("unreachable")  # loop always returns or raises above
 
@@ -102,25 +106,37 @@ import requests
 def compute_backoff_delay(attempt: int) -> float:
     """Exponential backoff with jitter: 2**attempt seconds, plus a small
     random extra so many failing callers don't retry in lockstep."""
+    # why: pulled out on its own so it's testable with a plain assertion —
+    # no network, no time.sleep, no mocking needed.
+    # how: 2**attempt doubles the wait each retry (1, 2, 4, 8...); the
+    # random.uniform(0, 1) jitter stops many clients retrying at the exact same
+    # instant.
     return (2 ** attempt) + random.uniform(0, 1)
 
 
 def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
+    # why: gives the caller back a real Response or a real, propagated
+    # error — never a silent None they have to remember to check.
+    # how: remembers the last failure so it can be attached to the final raise
     last_error: Exception | None = None
 
     for attempt in range(max_attempts):
         try:
+            # when: success returns immediately, no further attempts
             return requests.get(url, timeout=(3, 5))
         except requests.exceptions.Timeout as e:
             last_error = e
             if attempt < max_attempts - 1:
+                # when: only sleep if there's another attempt coming —
+                # no point waiting after the very last try.
                 time.sleep(compute_backoff_delay(attempt))
 
     raise TimeoutError(f"gave up after {max_attempts} attempts") from last_error
 
 
 if __name__ == "__main__":
-    print(compute_backoff_delay(3))       # roughly 8.something, no network call needed
+    # roughly 8.something, no network call needed
+    print(compute_backoff_delay(3))
     response = get_with_retry("https://api.github.com")
     print(response.status_code)
 ```

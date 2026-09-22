@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-async_client_conversion) · [Hint 1](async_client_conversion_hints.md#hint-1) · [Hint 2](async_client_conversion_hints.md#hint-2) · [Solution](async_client_conversion_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how Doc12's real FastAPI service would actually need this). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how Doc12's real FastAPI service would actually need this). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -56,12 +56,6 @@ The exact pieces:
 - **The `await` keyword:** `response = await client.chat.completions.create(...)` — this is what actually pauses this coroutine (without blocking the whole program) until the API responds.
 - **Running it from plain code:** `asyncio.run(ask("..."))` — you can't just call `ask("...")` directly at the top level anymore.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-async_client_conversion) · [Hint 1](async_client_conversion_hints.md#hint-1) · [Hint 2](async_client_conversion_hints.md#hint-2) · [Solution](async_client_conversion_solution.md)
-
-### Advanced Version
-
 Think about what happens to this function once it's inside Doc12's FastAPI service, handling real user traffic instead of running once in a terminal. Two things change that don't matter in a quick script but matter a lot in production: what happens when the API call hangs, and what happens when the service is shutting down mid-request.
 
 An `AsyncOpenAI()` call with no timeout can, in principle, wait forever if OpenAI's servers stop responding — and unlike a blocking `time.sleep()` mistake, this won't even look wrong from the outside; the request just never comes back. And an `async def` route that's mid-`await` when the server process gets asked to shut down needs that `await` to actually be cancellable, not stuck.
@@ -73,7 +67,7 @@ The extra pieces that answer that question:
 - **A client-level timeout:** `AsyncOpenAI(timeout=30.0)` — every call made through this client gets a 30-second cap by default, instead of trusting each caller to remember to wrap every single call in its own `asyncio.wait_for(...)`.
 - **`asyncio.CancelledError`** — when an `await`ed call gets cancelled (a timeout, a shutting-down server), Python raises this inside the coroutine at the point it was waiting. Code that wraps the call in a bare `except Exception:` will accidentally swallow this too — which is exactly the kind of mistake Doc01 warned about with bare `except:` blocks, just showing up in async form.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both trust the API call to always come back in a reasonable time. Advanced adds a default timeout at the client level, so a hung call fails loudly and boundedly instead of freezing a request (and, in a real server, the worker handling it) forever — and calls out `asyncio.CancelledError` specifically, since it's the one exception type async code has to let propagate, not swallow.
+**Difference between Basic and Intermediate:** Basic trusts the API call to always come back in a reasonable time. Intermediate also adds a default timeout at the client level, so a hung call fails loudly and boundedly instead of freezing a request (and, in a real server, the worker handling it) forever — and calls out `asyncio.CancelledError` specifically, since it's the one exception type async code has to let propagate, not swallow.
 
 <hr class="page-break">
 
@@ -144,11 +138,7 @@ run:
 ```
 Notice the function body is line-for-line the same as the sync version, except for `await` in front of the API call. Write the whole thing yourself, then compare against the [Solution](async_client_conversion_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-async_client_conversion) · [Hint 1](async_client_conversion_hints.md#hint-1) · [Hint 2](async_client_conversion_hints.md#hint-2) · [Solution](async_client_conversion_solution.md)
-
-### Advanced Version
+Once that's working, add a client-level timeout and catch the specific error it raises:
 
 ```
 create the client with a timeout:
@@ -189,7 +179,7 @@ async def main() -> None:
 ```
 Fill in the `if __name__ == "__main__":` block yourself, then compare your finished versions against the [Solution](async_client_conversion_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both create `AsyncOpenAI()` with no timeout at all, trusting every call to come back quickly. Advanced sets `timeout=30.0` once, at the client level, so every call made through that client is bounded by default — and catches the SDK's specific `APITimeoutError` instead of a bare `except Exception:`, so a genuine bug elsewhere in the function doesn't get silently mistaken for a slow API call.
+**Difference between Basic and Intermediate:** Basic creates `AsyncOpenAI()` with no timeout at all, trusting every call to come back quickly. Intermediate sets `timeout=30.0` once, at the client level, so every call made through that client is bounded by default — and catches the SDK's specific `APITimeoutError` instead of a bare `except Exception:`, so a genuine bug elsewhere in the function doesn't get silently mistaken for a slow API call.
 
 <hr class="page-break">
 

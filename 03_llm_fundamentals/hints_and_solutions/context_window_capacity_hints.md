@@ -71,7 +71,8 @@ Once you've got a number, ask the follow-up question this exercise is really tes
 window_size = 128_000
 system_prompt_tokens = 100
 avg_user_message_tokens = 50
-avg_reply_tokens = 300          # replies tend to run longer than a short user message
+# replies tend to run longer than a short user message
+avg_reply_tokens = 300
 avg_turn_tokens = avg_user_message_tokens + avg_reply_tokens   # 350
 
 leftover = window_size - system_prompt_tokens                  # 127,900

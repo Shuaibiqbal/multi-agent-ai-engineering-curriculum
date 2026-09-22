@@ -82,7 +82,13 @@ Now do the same process for your other 4 sentences — pick ones that are progre
 ### Intermediate Version
 
 ```
-sentences = [a short one, a normal one, a long/uncommon-word one, a punctuation/number-heavy one, a plain common-words one]
+sentences = [
+    a short one,
+    a normal one,
+    a long/uncommon-word one,
+    a punctuation/number-heavy one,
+    a plain common-words one,
+]
 
 for each sentence:
     char_guess = round(len(sentence) / 4)

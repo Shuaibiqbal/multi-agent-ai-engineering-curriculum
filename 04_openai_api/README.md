@@ -3,7 +3,12 @@
 > This is for self-study and live mentoring. Full plan: [CURRICULUM.md](../CURRICULUM.md#document-04-openai-api-project-1)
 
 ## Prerequisites
-[01](../01_python_foundations/), [02](../02_apis_http_json/), [03](../03_llm_fundamentals/)
+[01](../01_python_foundations/), [02](../02_apis_http_json/), [03](../03_llm_fundamentals/) — you'll reuse two Doc01 scripts here, copied unchanged into `practice/build_task/`:
+
+- `config.py` — **What:** `load_config() -> Config`. **Why:** every script in this app needs `OPENAI_API_KEY` loaded the same way. **How:** copy `01_python_foundations/practice/build_task/config.py` in as-is; don't rewrite it.
+- `logging_setup.py` — **What:** `get_logger(name)`. **Why:** consistent logging across this app, same as every other document. **How:** copy `01_python_foundations/practice/build_task/logging_setup.py` in as-is; don't rewrite it.
+
+Doc03's token/cost/context-limit intuition and Doc02's retry pattern also get used for real here — see each exercise's **Builds on** line below.
 
 ## How to Read & Practice This Document
 
@@ -238,6 +243,37 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Where your code lives:** all of it under `04_openai_api/practice/` (`mkdir -p practice`), never loose beside this README — same convention as Doc01 and Doc02. None of this document's exercises share an underlying topic, so each one still gets its own file, but several build directly on Doc01's Build Task and Doc03's exercises — check the **Builds on** line under each one before starting from scratch.
 
+**The full file layout, all exercises:**
+
+```
+practice/
+├── chat_api_basics_practice.py     Basic
+├── conversation_memory_practice.py Intermediate
+├── streaming_practice.py           Real-world
+├── context_limit_practice.py       Edge cases
+├── auth_and_cost_practice.py       Failure
+└── build_task/                     Build Task — its own folder
+    ├── main.py                     the terminal loop
+    ├── chat_client.py              create_client(), send/stream_message()
+    ├── schemas.py                  Pydantic model(s) for structured output
+    ├── config.py                   copied from 01_python_foundations, unchanged
+    ├── logging_setup.py            copied from 01_python_foundations, unchanged
+    └── test_chat_client.py         proves the Test Cases
+```
+
+**Why each script exists:**
+
+- `chat_api_basics_practice.py` — the single call every other document and project builds on.
+- `conversation_memory_practice.py` — builds, by hand, the exact resend-everything behavior that *is* an LLM's "memory."
+- `streaming_practice.py` — the difference between a chatbot that feels instant and one that feels like it's stalling.
+- `context_limit_practice.py` — sees the real exception type/message once, instead of just reading about it.
+- `auth_and_cost_practice.py` — catching the specific auth error is what makes a config problem fixable, not hidden.
+- `build_task/chat_client.py` — the one client every later exercise/project in this app actually calls.
+- `build_task/schemas.py` — makes "give me JSON" an actually-checked guarantee, not a hope.
+- `build_task/main.py` — wires config, logging, and chat_client together into a real terminal app.
+- `build_task/config.py` / `build_task/logging_setup.py` — copied unchanged from Doc01, so every later document imports the same settings/logging behavior.
+- `build_task/test_chat_client.py` — catches a regression here before Project 1 (or Doc05/Doc06, which build on this same shape) hits it downstream.
+
 **Jump to an exercise:** [Basic](#ex-first_chat_call) · [Intermediate](#ex-conversation_memory) · [Real-world](#ex-streaming_replies) · [Edge cases](#ex-context_limit_error) · [Failure](#ex-auth_error_cost_compare) · [Build Task](#build-task-project-1-beginner-llm-app)
 
 ### Basic — your first real API call {: #ex-first_chat_call }
@@ -301,13 +337,19 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 04_openai_api/practice/build_task/
-├── main.py
-├── chat_client.py
-├── schemas.py
+├── main.py              the terminal loop
+├── chat_client.py       create_client(), send_message(), stream_message()
+├── schemas.py           Pydantic model(s) for structured output
 ├── config.py            copied from 01_python_foundations's Build Task
 ├── logging_setup.py     copied from 01_python_foundations's Build Task
-└── test_chat_client.py
+└── test_chat_client.py  proves the Test Cases below
 ```
+
+- `main.py` — **What/Why:** wires config, logging, and chat_client together into a real terminal app — the file you actually run.
+- `chat_client.py` — **What/Why:** the one client every later exercise/project reusing this app calls instead of hitting `openai` directly.
+- `schemas.py` — **What/Why:** makes "give me JSON" an actually-checked guarantee, not a hope.
+- `config.py` / `logging_setup.py` — **What/Why:** copied unchanged from Doc01, so this app uses the exact same settings/logging behavior as every other document.
+- `test_chat_client.py` — **What/Why:** catches a regression here before Project 1, Doc05, or Doc06 (which all build on this same shape) hit it downstream.
 
 **Run it:** `cd practice/build_task && python test_chat_client.py` — from inside the folder, so `from config import load_config` finds the file next to it.
 

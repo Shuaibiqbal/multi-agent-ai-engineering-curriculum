@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-conversation_memory) · [Hint 1](conversation_memory_hints.md#hint-1) · [Hint 2](conversation_memory_hints.md#hint-2) · [Solution](conversation_memory_solution.md)
 
+**Story — `conversation_memory_practice.py`:** an LLM API call has no memory of its own — every call is stateless. "Memory" is really just resending the whole conversation so far, every single time. Building that resend-everything loop by hand, once, here, is what makes the Build Task's `chat_client.py` obvious instead of magic. **If not:** you'd be handed `send_message(history, user_input)` in the Build Task without ever having seen why it needs the whole `history` list passed in every time, not just the newest message.
+
 All examples below assume `client = OpenAI()` with `.env` already loaded.
 
 ## Basic Version
@@ -51,6 +53,8 @@ This works correctly and proves memory. It has no error handling, and it never l
 ```python
 # conversation_memory_practice.py
 def get_reply(history: list) -> str:
+    # why: this exact shape — take the whole history, return just the new
+    # reply text — is what the Build Task's send_message() needs to look like.
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=history,
@@ -68,6 +72,8 @@ def run_chat() -> None:
         if user_input == "quit":
             break
 
+        # how: the model only ever sees history — it has no memory of its
+        # own, so every earlier turn has to be resent, every single time.
         history.append({"role": "user", "content": user_input})
 
         reply = get_reply(history)

@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-tool_error_and_description_fix) · [Hint 1](tool_error_and_description_fix_hints.md#hint-1) · [Hint 2](tool_error_and_description_fix_hints.md#hint-2) · [Solution](tool_error_and_description_fix_solution.md)
 
+**Story — `tool_selection_practice.py` (Failure section):** a crashing tool and a vague description are both real production bugs you will cause yourself at least once — better to see them here, on purpose, where nothing's at stake. **If not:** the Build Task's "one tool designed to sometimes fail" would be the first time you ever turned a raised exception into a clean, model-readable error string.
+
 ## Basic Version
 
 ### Approach 1 — both halves, the direct way
@@ -91,22 +93,30 @@ def flaky_divide(a: int, b: int) -> str:
 
 
 def demonstrate_safe_failure() -> None:
-    model_with_tools = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([flaky_divide])
+    # why: proves the caught error string actually reaches the model, and
+    # that the model can react sensibly to it instead of treating it as data.
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    model_with_tools = model.bind_tools([flaky_divide])
     response = model_with_tools.invoke("Use the tool to divide 10 by 0")
 
     for call in response.tool_calls:
         result = flaky_divide.invoke(call["args"])
         print(f"Tool call {call['args']} -> {result}")
 
-    follow_up = model_with_tools.invoke(
-        "Use the tool to divide 10 by 0, then tell me in one sentence what happened."
+    follow_up_prompt = (
+        "Use the tool to divide 10 by 0, then tell me in one sentence "
+        "what happened."
     )
-    print(f"Model's reaction to the error: {follow_up.content}")
+    follow_up = model_with_tools.invoke(follow_up_prompt)
+    reaction = follow_up.content
+    print(f"Model's reaction to the error: {reaction}")
 
 
 # --- Half 2: a vague description, sharpened ---
 
 def make_weather_tool(description: str):
+    # why: builds "before" and "after" tools from the exact same function
+    # body, so the description is the only thing that changes between trials.
     def get_weather(city: str) -> str:
         return f"Sunny in {city}"
     get_weather.__doc__ = description
@@ -114,7 +124,8 @@ def make_weather_tool(description: str):
 
 
 def count_tool_calls(weather_tool, prompt: str, runs: int = 5) -> int:
-    model_with_tools = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([weather_tool])
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    model_with_tools = model.bind_tools([weather_tool])
     called = 0
     for _ in range(runs):
         response = model_with_tools.invoke(prompt)
@@ -146,7 +157,7 @@ if __name__ == "__main__":
 **Expected output (example):**
 ```
 Tool call {'a': 10, 'b': 0} -> Error: division by zero
-Model's reaction to the error: The division failed because you can't divide by zero.
+Model's reaction to the error: The division failed — you can't divide by zero.
 
 Vague description: called 1/5 times
 Precise description: called 5/5 times

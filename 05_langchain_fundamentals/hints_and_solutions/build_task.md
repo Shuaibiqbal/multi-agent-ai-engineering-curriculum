@@ -62,7 +62,7 @@ Sketch, in plain English, the exact function signature of `build_extraction_chai
 ```
 prompts.py:
     function get_extraction_prompt():
-        return a ChatPromptTemplate with the same wording as Project 1's raw prompt
+        return a ChatPromptTemplate matching Project 1's raw prompt wording
 
 chain.py:
     function build_extraction_chain():
@@ -145,6 +145,8 @@ Two working versions below, Basic and Intermediate. Both are correct — read bo
 
 **Approach 1 — one flat `chain.py`**
 
+**Story — `prompts.py`:** the prompt's exact wording is a separate concern from how the chain is built — this is the file every later document imports when it needs this same extraction prompt, without caring how `chain.py` wires it together. **If not:** the wording would be buried inline inside `chain.py`, and changing it would mean editing the same file that also builds the model and the parser.
+
 ```python
 # prompts.py
 from langchain_core.prompts import ChatPromptTemplate
@@ -154,6 +156,8 @@ def get_extraction_prompt():
         "Extract structured data from the following text: {text}"
     )
 ```
+
+**Story — `chain.py`:** this is the one module every later document (Doc06, Doc08, Project 6) imports instead of writing raw SDK calls again — the whole point of this Build Task. Written so the model name/temperature come from config, never hardcoded, because a model swap should be a one-line config change, not a search-and-replace across every file that built its own `ChatOpenAI()`. **If not:** every later document would each build their own slightly-different extraction chain, instead of sharing one tested module.
 
 ```python
 # chain.py
@@ -169,6 +173,8 @@ def build_extraction_chain():
     structured_model = model.with_structured_output(ExtractedData)
     return prompt | structured_model
 ```
+
+**Story — `compare_with_raw_sdk.py`:** doubles as this Build Task's test file — it's how you (and every later document that imports `chain.py`) know the LCEL version genuinely agrees with Project 1's raw version, not just looks similar. **If not:** a silent drift between the two versions (say, a prompt wording change) would go unnoticed until Project 1's grading or a later document's behavior quietly broke.
 
 ```python
 # compare_with_raw_sdk.py
@@ -203,6 +209,9 @@ from project_1 import ExtractedData
 
 
 def build_extraction_chain(config: Config | None = None) -> Runnable:
+    # why: config defaults to None so normal callers just call this with no
+    # arguments, but a test can pass in a fake Config without touching real
+    # environment variables.
     if config is None:
         config = load_config()
 
@@ -223,6 +232,8 @@ from project_1 import extract_raw, ExtractedData
 
 @dataclass
 class ComparisonResult:
+    # why: one typed record per input instead of printing inline — this is
+    # what makes run_comparison()'s result reusable by a caller or a real test.
     input_text: str
     raw_result: ExtractedData
     lcel_result: ExtractedData
@@ -230,12 +241,15 @@ class ComparisonResult:
 
 
 def run_comparison(test_inputs: list[str]) -> list[ComparisonResult]:
+    # why: the logic (run both, record whether they matched) lives here,
+    # separate from main()'s reporting — call this directly from a real test.
     chain = build_extraction_chain()
     results = []
     for text in test_inputs:
         raw_result = extract_raw(text)
         lcel_result = chain.invoke({"text": text})
-        results.append(ComparisonResult(text, raw_result, lcel_result, raw_result == lcel_result))
+        matched = raw_result == lcel_result
+        results.append(ComparisonResult(text, raw_result, lcel_result, matched))
     return results
 
 
@@ -248,7 +262,9 @@ def main() -> None:
 
     for r in results:
         if not r.matched:
-            print(f"MISMATCH on {r.input_text!r}: raw={r.raw_result} lcel={r.lcel_result}")
+            print(f"MISMATCH on {r.input_text!r}:")
+            print(f"  raw:  {r.raw_result}")
+            print(f"  lcel: {r.lcel_result}")
 
 
 if __name__ == "__main__":

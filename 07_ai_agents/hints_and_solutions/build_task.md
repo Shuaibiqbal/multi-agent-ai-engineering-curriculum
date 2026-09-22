@@ -2,7 +2,7 @@
 
 > [Back to the Build Task](../README.md#build-task-project-2-tool-using-agent) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real agent codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — how a real agent codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -36,15 +36,14 @@ Think of `agent.py` as 3 separate concerns living in one loop: **deciding** (cal
 - `run_agent(task: str, max_iterations: int) -> AgentResult` — `AgentResult` should hold at least `final_answer` and `steps`.
 - Reuse your Doc06 tools by importing them, not rewriting them — `from tools import get_weather, convert_currency, search_docs` (or whatever your 3+ tools are named).
 - The tool-failure requirement means at least 1 of your tools needs a way to fail *on purpose*, in a controlled way, for testing — think about how you'd make a tool fail once and then succeed, without permanently breaking it for other tests.
-- `MaxIterationsExceeded` should carry the partial `steps` log with it when raised, the same pattern from `build_react_loop`'s Advanced Version — a bare error message with no context is much harder to debug than one carrying exactly what happened before it gave up.
-
-### Advanced Version
+- `MaxIterationsExceeded` should carry the partial `steps` log with it when raised — a bare error message with no context is much harder to debug than one carrying exactly what happened before it gave up.
+- Every tool call's arguments must pass Pydantic checking before the tool actually runs — a real constraint from the README, not optional polish. Validate with a Pydantic model *before* calling the tool function, so a malformed call never reaches it.
 
 The real design question here isn't "does the loop work" — you already built that. It's **how do you make a tool fail on a real run without making your test suite fragile or your production tool permanently broken?** A tool that always fails isn't useful for proving recovery (the agent never gets a chance to succeed); a tool that never fails can't prove the recovery path exists at all. The answer that scales: a tool wrapped with a small, controllable amount of state — a counter that fails the tool's first call and succeeds on every call after that, reset between test runs. This same pattern is what lets `test_agent.py`'s "fail once then succeed" row in the Test Cases table be a real, repeatable, automated test instead of something you have to trigger by hand and watch.
 
 A second design question: **where does step-logging live so every code path goes through it?** If you log a step only in the "tool call succeeded" branch, a failed tool call's attempt never gets recorded — which defeats the entire point of the log for debugging exactly the runs that went wrong. Log the attempt and its outcome (success or the caught error) from one place, not scattered across branches.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the files, the reused pieces, and the exact tools you'll need. Intermediate separates the loop into deciding/doing/remembering and adds the type contract real Python expects. Advanced asks the 2 harder design questions underneath the requirements — how to make a tool controllably, repeatably failable for testing, and how to make sure every code path (success *and* failure) actually gets logged — both of which only bite once you try to write `test_agent.py` for real.
+**Difference between Basic and Intermediate:** Basic names the files, the reused pieces, and the exact tools you'll need. Intermediate separates the loop into deciding/doing/remembering, adds the type contract real Python expects, and answers the 2 harder design questions underneath the requirements — how to make a tool controllably, repeatably failable for testing, and how to make sure every code path (success *and* failure) actually gets logged — both of which only bite once you try to write `test_agent.py` for real.
 
 <hr class="page-break">
 
@@ -121,7 +120,10 @@ agent.py:
                 for call in message.tool_calls:
                     result, error = run_tool(call, tools_by_name)
                     observation = result if error is None else f"Error: {error}"
-                    messages.append({"role": "tool", "tool_call_id": call.id, "content": observation})
+                    messages.append({
+                        "role": "tool", "tool_call_id": call.id,
+                        "content": observation,
+                    })
                     steps.append({"step": step, "tool": call.function.name,
                                   "arguments": call.function.arguments,
                                   "result": result, "error": error})
@@ -130,14 +132,11 @@ agent.py:
 
         raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
 ```
-Turn this into real code, then write the controllable-failure tool yourself before checking Advanced.
+Turn this into real code, then write the controllable-failure tool yourself before checking the Solution.
 
-### Advanced Version
+Tests need a tool that fails exactly once, then works normally, so the "recovers from a failure" test case is real and repeatable:
 
 ```
-tests need a tool that fails exactly once, then works normally, so the
-"recovers from a failure" test case is real and repeatable:
-
 class FlakyToolState:
     call_count = 0
 
@@ -164,9 +163,9 @@ def make_flaky_search_docs(state: FlakyToolState):
 ```
 `make_flaky_search_docs` returns a *fresh* flaky function tied to a fresh `FlakyToolState()` each time it's called — so every test that needs "fails once, then works" gets its own independent counter, instead of tests accidentally sharing state and interfering with each other.
 
-Fill in the rest of `run_agent()` and `run_tool()` yourself, wire `flaky_search_docs` in as one of your 3+ tools for a test run, then compare all 3 of your finished versions against the [Solution](#solution).
+Fill in the rest of `run_agent()` and `run_tool()` yourself, wire `flaky_search_docs` in as one of your 3+ tools for a test run, then compare your finished version against the [Solution](#solution).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic's pseudocode and near-complete code prove the core idea — catch, don't crash — works at all. Intermediate is the same shape, fully typed, with the log recording both the result and the error side by side so nothing about a failed attempt gets lost. Advanced adds the piece that makes the Build Task's failure requirement testable rather than just demonstrable-once-by-hand: a tool wrapped in its own small piece of state, so "fails once then succeeds" is a real, repeatable setup any test can use.
+**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code prove the core idea — catch, don't crash — works at all. Intermediate is the same shape, fully typed, with the log recording both the result and the error side by side so nothing about a failed attempt gets lost, plus the piece that makes the Build Task's failure requirement testable rather than just demonstrable-once-by-hand: a tool wrapped in its own small piece of state, so "fails once then succeeds" is a real, repeatable setup any test can use.
 
 <hr class="page-break">
 
@@ -174,11 +173,13 @@ Fill in the rest of `run_agent()` and `run_tool()` yourself, wire `flaky_search_
 
 ## Solution {: #solution }
 
-Every code block below shows the exact output you'd see if you ran it. Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+Every code block below shows the exact output you'd see if you ran it. Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ### Basic Version
 
 #### Approach 1 — the direct way
+
+**Story — `agent.py`:** this is Project 2's Worker — every practice exercise above (the loop, the no-tool check, the step limit) folds into this one file. **If not:** Project 2 would be the first place any of these pieces ever had to work together, with no smaller version to trust.
 
 ```python
 # agent.py
@@ -224,7 +225,9 @@ def run_agent(task, max_iterations, tools_by_name, tool_schemas, client):
             for call in message.tool_calls:
                 result, error = run_tool(call, tools_by_name)
                 observation = result if error is None else "Error: " + error
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": observation})
+                messages.append({
+                    "role": "tool", "tool_call_id": call.id, "content": observation,
+                })
                 steps.append({
                     "step": step,
                     "tool": call.function.name,
@@ -235,7 +238,8 @@ def run_agent(task, max_iterations, tools_by_name, tool_schemas, client):
         else:
             return AgentResult(message.content, steps)
 
-    raise MaxIterationsExceeded("No answer after " + str(max_iterations) + " steps", steps)
+    message = "No answer after " + str(max_iterations) + " steps"
+    raise MaxIterationsExceeded(message, steps)
 ```
 
 ```python
@@ -250,7 +254,10 @@ TOOLS_BY_NAME = {
 }
 
 task = input("What do you need? ")
-result = run_agent(task, max_iterations=5, tools_by_name=TOOLS_BY_NAME, tool_schemas=ALL_SCHEMAS, client=client)
+result = run_agent(
+    task, max_iterations=5, tools_by_name=TOOLS_BY_NAME,
+    tool_schemas=ALL_SCHEMAS, client=client,
+)
 print(result.final_answer)
 for step in result.steps:
     print(step)
@@ -258,9 +265,13 @@ for step in result.steps:
 **Expected output for "What's the weather in Paris, in Fahrenheit?":**
 ```
 It's 64.4°F in Paris.
-{'step': 0, 'tool': 'get_weather', 'arguments': '{"city": "Paris"}', 'result': '18', 'error': None}
-{'step': 1, 'tool': 'celsius_to_fahrenheit', 'arguments': '{"celsius": 18}', 'result': '64.4', 'error': None}
+{'step': 0, 'tool': 'get_weather', 'arguments': '{"city": "Paris"}',
+ 'result': '18', 'error': None}
+{'step': 1, 'tool': 'celsius_to_fahrenheit',
+ 'arguments': '{"celsius": 18}', 'result': '64.4', 'error': None}
 ```
+(the 2 `step` dicts above are shown wrapped onto two lines each just to fit
+the page — each is really one line of output)
 This meets every Build Task requirement. It's missing type hints and a real `@dataclass`, and passes `tools_by_name`/`tool_schemas`/`client` as plain arguments instead of module-level setup — both fine for a first working version.
 
 <hr class="page-break">
@@ -271,7 +282,8 @@ This meets every Build Task requirement. It's missing type hints and a real `@da
 
 #### Approach 1 — dataclasses, type hints, a real dispatch table
 
-**`agent.py`**
+**Story — `agent.py` (Intermediate):** Basic proved the loop works; this version makes it safe to build on — a typed `AgentResult` instead of a loose dict, and a real `tools_by_name` dispatch table instead of an `if/elif` chain that grows one branch per tool forever. **If not:** every new tool in Project 2 would mean editing `run_tool()`'s branching logic instead of just adding one line to a dictionary — and a typo in a field name would fail silently instead of being caught by the type checker.
+
 ```python
 import json
 from dataclasses import dataclass, field
@@ -282,6 +294,7 @@ client = OpenAI()
 
 class MaxIterationsExceeded(Exception):
     def __init__(self, message: str, steps: list[dict]) -> None:
+        # why: callers need the partial step log to debug why it looped
         self.steps = steps
         super().__init__(message)
 
@@ -289,18 +302,21 @@ class MaxIterationsExceeded(Exception):
 @dataclass
 class AgentResult:
     final_answer: str
+    # why: mutable default needs a factory, not `= []`
     steps: list[dict] = field(default_factory=list)
 
 
 def run_tool(call, tools_by_name: dict) -> tuple[str | None, str | None]:
     function = tools_by_name.get(call.function.name)
     if function is None:
+        # how: model hallucinated a tool name
         return None, f"unknown tool: {call.function.name}"
     try:
         args = json.loads(call.function.arguments)
         result = function(**args)
         return str(result), None
     except Exception as e:
+        # why: any tool failure becomes an Observation, never a crash
         return None, str(e)
 
 
@@ -324,7 +340,9 @@ def run_agent(
             for call in message.tool_calls:
                 result, error = run_tool(call, tools_by_name)
                 observation = result if error is None else f"Error: {error}"
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": observation})
+                messages.append({
+                    "role": "tool", "tool_call_id": call.id, "content": observation,
+                })
                 steps.append({
                     "step": step,
                     "tool": call.function.name,
@@ -333,9 +351,11 @@ def run_agent(
                     "error": error,
                 })
         else:
+            # when: no tool_calls means the model is done — the loop's only exit
             return AgentResult(final_answer=message.content, steps=steps)
 
-    raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
+    message = f"No answer after {max_iterations} steps"
+    raise MaxIterationsExceeded(message, steps)
 ```
 
 **`main.py`**
@@ -353,7 +373,10 @@ TOOLS_BY_NAME = {
 def main() -> None:
     task = input("What do you need? ")
     try:
-        result = run_agent(task, max_iterations=5, tools_by_name=TOOLS_BY_NAME, tool_schemas=ALL_SCHEMAS)
+        result = run_agent(
+            task, max_iterations=5, tools_by_name=TOOLS_BY_NAME,
+            tool_schemas=ALL_SCHEMAS,
+        )
     except MaxIterationsExceeded as e:
         print(f"Gave up: {e}")
         for step in e.steps:
@@ -371,16 +394,24 @@ if __name__ == "__main__":
 **Expected output for a task designed to loop forever, with `max_iterations=3`:**
 ```
 Gave up: No answer after 3 steps
-{'step': 0, 'tool': 'search_docs', 'arguments': '{"query": "..."}', 'result': 'no matches found', 'error': None}
-{'step': 1, 'tool': 'search_docs', 'arguments': '{"query": "..."}', 'result': 'no matches found', 'error': None}
-{'step': 2, 'tool': 'search_docs', 'arguments': '{"query": "..."}', 'result': 'no matches found', 'error': None}
+{'step': 0, 'tool': 'search_docs', 'arguments': '{"query": "..."}',
+ 'result': 'no matches found', 'error': None}
+{'step': 1, 'tool': 'search_docs', 'arguments': '{"query": "..."}',
+ 'result': 'no matches found', 'error': None}
+{'step': 2, 'tool': 'search_docs', 'arguments': '{"query": "..."}',
+ 'result': 'no matches found', 'error': None}
 ```
+(each `step` dict above is shown wrapped onto two lines just to fit
+the page — really one line of output each)
 
 #### Approach 2 — a real logger instead of `print`, per Core Concepts' step-log requirement
+
+**Story — `agent.py` (Approach 2):** Core Concepts requires a step log you can actually find later; `print()` output scrolls off and disappears the moment the terminal closes, a real logger's output doesn't. **If not:** the one time you'd need to know why a Project 2 run looped 5 times last night, the evidence would already be gone.
 
 ```python
 import logging
 
+# why: named logger, not root — callers can filter just this one
 logger = logging.getLogger("agent")
 
 
@@ -399,37 +430,44 @@ def run_agent(task, max_iterations, tools_by_name, tool_schemas):
             for call in message.tool_calls:
                 result, error = run_tool(call, tools_by_name)
                 observation = result if error is None else f"Error: {error}"
-                messages.append({"role": "tool", "tool_call_id": call.id, "content": observation})
+                messages.append({
+                    "role": "tool", "tool_call_id": call.id, "content": observation,
+                })
                 step_record = {
                     "step": step, "tool": call.function.name,
-                    "arguments": call.function.arguments, "result": result, "error": error,
+                    "arguments": call.function.arguments,
+                    "result": result, "error": error,
                 }
                 steps.append(step_record)
                 if error is None:
-                    logger.info("step %s: %s -> %s", step, call.function.name, result)
+                    logger.info(
+                        "step %s: %s -> %s", step, call.function.name, result,
+                    )
                 else:
-                    logger.warning("step %s: %s failed -> %s", step, call.function.name, error)
+                    # how: warning, not error — a recovered failure isn't fatal
+                    logger.warning(
+                        "step %s: %s failed -> %s",
+                        step, call.function.name, error,
+                    )
         else:
             return AgentResult(final_answer=message.content, steps=steps)
 
-    raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
+    message = f"No answer after {max_iterations} steps"
+    raise MaxIterationsExceeded(message, steps)
 ```
 **Difference from Approach 1:** Approach 1's `steps` list is the log — fine for a short script you run and read once. Approach 2 adds real `logging` calls alongside the same `steps` list, so a failed tool call is visibly a `warning`-level line in your terminal or log file as it happens, not just something you'd notice later by scanning the returned list.
 
 **Difference from Basic:** both Intermediate approaches add full type hints and a real `@dataclass` for `AgentResult`, and pass tools/schemas as explicit arguments instead of relying on globals. Approach 2 additionally logs every step through Python's `logging` module as it happens, distinguishing a success from a caught tool failure at the log level, not just in the data.
 
-<hr class="page-break">
+#### Approach 3 — a controllably-flaky tool, and the full `test_agent.py` it enables
 
-> [Back to the Build Task](../README.md#build-task-project-2-tool-using-agent) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-#### Approach 1 — a controllably-flaky tool, and the full `test_agent.py` it enables
+**Story — `tools.py` addition + `test_agent.py`:** the README's 4 Test Cases include "recovers from a tool failure," but a real tool fails at random — you can't write a repeatable automated test around something that only sometimes happens. `FlakyToolState` makes the failure happen on command, every time. **If not:** the failure-recovery Test Case would stay something you check once by hand and hope keeps working, instead of a real test that runs every time you change `agent.py`.
 
 **`tools.py`** (addition, alongside the real reused Doc06 tools)
 ```python
 class FlakyToolState:
     def __init__(self) -> None:
+        # why: shared mutable state the closure below reads and updates
         self.call_count = 0
 
 
@@ -437,6 +475,7 @@ def make_flaky_search_docs(state: FlakyToolState):
     def flaky_search_docs(query: str) -> str:
         state.call_count += 1
         if state.call_count == 1:
+            # how: fails on call 1 only, so a retry always succeeds
             raise ConnectionError("search index temporarily unavailable")
         return search_docs(query)
     return flaky_search_docs
@@ -445,28 +484,44 @@ def make_flaky_search_docs(state: FlakyToolState):
 **`test_agent.py`**
 ```python
 from agent import run_agent, MaxIterationsExceeded
-from tools import get_weather, celsius_to_fahrenheit, search_docs, FlakyToolState, make_flaky_search_docs
+from tools import (
+    get_weather, celsius_to_fahrenheit, search_docs,
+    FlakyToolState, make_flaky_search_docs,
+)
 
 
 def test_clear_task_uses_the_right_tool():
-    tools_by_name = {"get_weather": get_weather, "celsius_to_fahrenheit": celsius_to_fahrenheit}
-    result = run_agent("What's the weather in Paris?", 5, tools_by_name, WEATHER_SCHEMAS)
+    tools_by_name = {
+        "get_weather": get_weather,
+        "celsius_to_fahrenheit": celsius_to_fahrenheit,
+    }
+    result = run_agent(
+        "What's the weather in Paris?", 5, tools_by_name, WEATHER_SCHEMAS,
+    )
     assert len(result.steps) >= 1
     assert result.steps[0]["tool"] == "get_weather"
 
 
 def test_no_tool_needed_for_general_knowledge():
-    tools_by_name = {"get_weather": get_weather, "celsius_to_fahrenheit": celsius_to_fahrenheit}
-    result = run_agent("What's the capital of France?", 5, tools_by_name, WEATHER_SCHEMAS)
+    tools_by_name = {
+        "get_weather": get_weather,
+        "celsius_to_fahrenheit": celsius_to_fahrenheit,
+    }
+    result = run_agent(
+        "What's the capital of France?", 5, tools_by_name, WEATHER_SCHEMAS,
+    )
     assert len(result.steps) == 0
 
 
 def test_flaky_tool_recovers_on_retry():
+    # how: fresh state per test — call_count starts at 0
     state = FlakyToolState()
     flaky_tool = make_flaky_search_docs(state)
     tools_by_name = {"search_docs": flaky_tool}
 
-    result = run_agent("Search the docs for 'refund policy'", 5, tools_by_name, SEARCH_SCHEMAS)
+    result = run_agent(
+        "Search the docs for 'refund policy'", 5, tools_by_name, SEARCH_SCHEMAS,
+    )
 
     failed_steps = [s for s in result.steps if s["error"] is not None]
     succeeded_steps = [s for s in result.steps if s["error"] is None]
@@ -478,9 +533,13 @@ def test_flaky_tool_recovers_on_retry():
 def test_step_limit_is_enforced_and_raises():
     tools_by_name = {"search_docs": search_docs}
     try:
-        run_agent("a task designed to never be satisfied", 3, tools_by_name, SEARCH_SCHEMAS)
+        run_agent(
+            "a task designed to never be satisfied",
+            3, tools_by_name, SEARCH_SCHEMAS,
+        )
         assert False, "expected MaxIterationsExceeded"
     except MaxIterationsExceeded as e:
+        # why: the partial log must survive the raise
         assert len(e.steps) == 3
 ```
 **Expected output when run with pytest:**
@@ -489,7 +548,9 @@ def test_step_limit_is_enforced_and_raises():
 ```
 Notice `test_flaky_tool_recovers_on_retry` filters `result.steps` into `failed_steps` and `succeeded_steps` rather than asserting an exact count or order — it's checking the *shape* of recovery (at least 1 failure, at least 1 success, and a real final answer), not a brittle exact step count that would break the moment the model's retry behavior shifts slightly.
 
-#### Approach 2 — validating tool arguments with Pydantic before the tool ever runs
+#### Approach 4 — validating tool arguments with Pydantic before the tool ever runs
+
+**Story — `run_tool()` with Pydantic:** the README's own Constraint says every tool call's arguments must pass Pydantic checking *before* the tool runs — not "the tool should handle bad input gracefully," but the check has to happen earlier than that, as a separate step. **If not:** a malformed argument (a string where a number was expected) would reach the tool function itself, and whatever it does with bad input — crash, or silently produce a wrong answer — would be Project 2's actual behavior, not a deliberate, caught, reported error.
 
 ```python
 from pydantic import BaseModel, ValidationError
@@ -507,6 +568,8 @@ def run_tool(call, tools_by_name, arg_models):
     try:
         raw_args = json.loads(call.function.arguments)
         if arg_model is not None:
+            # why: validate BEFORE calling function — this is what "before the tool
+            # actually runs" in the Build Task's constraint means, literally
             validated = arg_model(**raw_args)
             result = function(**validated.model_dump())
         else:
@@ -519,6 +582,6 @@ def run_tool(call, tools_by_name, arg_models):
 ```
 **Expected behavior if the model calls `search_docs` with `{"query": 123}` (a number, not a string):** Pydantic's `SearchDocsArgs(**raw_args)` raises `ValidationError` before `search_docs` itself is ever called — the loop's next Observation is `"Error: invalid arguments: ..."`, and the tool function never runs with bad input. This is what the Build Task's constraint — "every tool call's arguments must pass Pydantic checking before the tool actually runs" — means literally: the check happens *before* the call, not as a side effect of the call failing.
 
-**Difference from Intermediate:** Intermediate's `run_tool()` catches whatever exception the tool itself happens to raise — including a `TypeError` from bad arguments, but only *after* the tool already started running with them. Approach 1 adds the piece that makes the "recovers from a failure" requirement genuinely testable, not just plausible. Approach 2 moves argument validation earlier, catching a malformed call before the tool function runs at all, matching the Build Task's constraint precisely instead of relying on whatever exception the tool happens to throw.
+**Difference from Approach 1/2:** Approach 1/2's `run_tool()` catches whatever exception the tool itself happens to raise — including a `TypeError` from bad arguments, but only *after* the tool already started running with them. Approach 3 adds the piece that makes the "recovers from a failure" requirement genuinely testable, not just plausible. Approach 4 moves argument validation earlier, catching a malformed call before the tool function runs at all, matching the Build Task's constraint precisely instead of relying on whatever exception the tool happens to throw.
 
-**Which one should you actually build?** Intermediate Approach 1's shape is what most of `agent.py` should look like — typed, a real dispatch table, errors caught and logged per step. Layer in Advanced Approach 2's Pydantic validation for every tool (this is a hard constraint, not optional), and Advanced Approach 1's `FlakyToolState` pattern in `test_agent.py` so the failure-recovery Test Case is a real, repeatable, automated test — not something you trigger by hand once and never check again.
+**Which one should you actually build?** Approach 1's shape is what most of `agent.py` should look like — typed, a real dispatch table, errors caught and logged per step. Layer in Approach 4's Pydantic validation for every tool (this is a hard constraint, not optional), and Approach 3's `FlakyToolState` pattern in `test_agent.py` so the failure-recovery Test Case is a real, repeatable, automated test — not something you trigger by hand once and never check again.

@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-lcel_vs_raw_sdk) · [Hint 1](lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](lcel_vs_raw_sdk_hints.md#hint-2) · [Solution](lcel_vs_raw_sdk_solution.md)
 
+**Story — `lcel_vs_raw_sdk_practice.py`:** reading about "LangChain vs. raw SDK" trade-offs isn't the same as seeing both versions of the exact same feature side by side. Rebuilding one real Project 1 feature with LCEL, then diffing the outputs, is what makes the comparison real instead of theoretical. **If not:** the Build Task's `compare_with_raw_sdk.py` would be the first time you ever built this comparison, with no smaller version to trust it against.
+
 All examples below assume `from project_1 import extract_raw, ExtractedData` names your real Project 1 structured-extraction function and Pydantic model.
 
 ## Basic Version
@@ -14,7 +16,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from project_1 import extract_raw, ExtractedData
 
-prompt = ChatPromptTemplate.from_template("Extract structured data from: {text}")
+prompt = ChatPromptTemplate.from_template(
+    "Extract structured data from: {text}"
+)
 lcel_chain = prompt | ChatOpenAI().with_structured_output(ExtractedData)
 
 test_inputs = ["input one text", "input two text", "input three text"]
@@ -45,11 +49,16 @@ from project_1 import extract_raw, ExtractedData
 
 
 def build_lcel_chain(model_name: str = "gpt-4o-mini"):
-    prompt = ChatPromptTemplate.from_template("Extract structured data from: {text}")
-    return prompt | ChatOpenAI(model=model_name, temperature=0).with_structured_output(ExtractedData)
+    prompt = ChatPromptTemplate.from_template(
+        "Extract structured data from: {text}"
+    )
+    model = ChatOpenAI(model=model_name, temperature=0)
+    return prompt | model.with_structured_output(ExtractedData)
 
 
 def compare(text: str, lcel_chain) -> bool:
+    # why: == on two Pydantic objects checks every field — the only real
+    # way to prove the raw and LCEL versions agree, not just look similar.
     raw_result = extract_raw(text)
     lcel_result = lcel_chain.invoke({"text": text})
     match = raw_result == lcel_result
@@ -93,6 +102,8 @@ from project_1 import extract_raw, ExtractedData
 
 @dataclass
 class ComparisonRow:
+    # why: one typed record per input, instead of printing inline — this
+    # is what makes run_comparison()'s result reusable by a caller or a test.
     input_text: str
     raw_result: ExtractedData
     lcel_result: ExtractedData
@@ -100,17 +111,24 @@ class ComparisonRow:
 
 
 def build_lcel_chain(model_name: str = "gpt-4o-mini"):
-    prompt = ChatPromptTemplate.from_template("Extract structured data from: {text}")
-    return prompt | ChatOpenAI(model=model_name, temperature=0).with_structured_output(ExtractedData)
+    prompt = ChatPromptTemplate.from_template(
+        "Extract structured data from: {text}"
+    )
+    model = ChatOpenAI(model=model_name, temperature=0)
+    return prompt | model.with_structured_output(ExtractedData)
 
 
 def run_comparison(test_inputs: list[str]) -> list[ComparisonRow]:
+    # why: the logic (run both versions, record whether they matched) lives
+    # here, separate from main()'s reporting — this is the shape the Build
+    # Task's compare_with_raw_sdk.py copies almost unchanged.
     lcel_chain = build_lcel_chain()
     rows = []
     for text in test_inputs:
         raw_result = extract_raw(text)
         lcel_result = lcel_chain.invoke({"text": text})
-        rows.append(ComparisonRow(text, raw_result, lcel_result, raw_result == lcel_result))
+        matched = raw_result == lcel_result
+        rows.append(ComparisonRow(text, raw_result, lcel_result, matched))
     return rows
 
 

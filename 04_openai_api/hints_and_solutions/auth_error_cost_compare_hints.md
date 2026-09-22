@@ -113,15 +113,24 @@ def try_bad_key() -> None:
 
 def compare_prompt_cost(question: str) -> None:
     short_prompt = "Be helpful."
-    long_prompt = "You are a friendly, detailed, thorough assistant who explains everything carefully. " * 10
+    long_prompt = (
+        "You are a friendly, detailed, thorough assistant "
+        "who explains everything carefully. "
+    ) * 10
 
+    short_messages = [
+        {"role": "system", "content": short_prompt},
+        {"role": "user", "content": question},
+    ]
+    long_messages = [
+        {"role": "system", "content": long_prompt},
+        {"role": "user", "content": question},
+    ]
     short = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": short_prompt}, {"role": "user", "content": question}],
+        model="gpt-4o-mini", messages=short_messages
     )
     long = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": long_prompt}, {"role": "user", "content": question}],
+        model="gpt-4o-mini", messages=long_messages
     )
 
     print(f"Short system prompt: {short.usage.total_tokens} tokens")

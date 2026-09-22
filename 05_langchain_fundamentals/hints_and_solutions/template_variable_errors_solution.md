@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-template_variable_errors) · [Hint 1](template_variable_errors_hints.md#hint-1) · [Hint 2](template_variable_errors_hints.md#hint-2) · [Solution](template_variable_errors_solution.md)
 
+**Story — `prompt_template_practice.py`:** a broken template can fail in two very different places — while building the prompt, or only once the API call goes out — and knowing which one changes how fast you can debug it. Seeing both a missing and an extra variable here, once, on purpose, means you recognize the failure instantly later. **If not:** the Build Task's `prompts.py` requirement to "fail the same clear way" would ask you to guarantee behavior you'd never actually observed happening.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -44,6 +46,8 @@ from langchain_core.prompts import ChatPromptTemplate
 
 
 def demonstrate_missing_variable(prompt: ChatPromptTemplate) -> None:
+    # why: catching KeyError specifically documents exactly what failure
+    # is expected here — a broad except would hide a genuinely different bug.
     try:
         prompt.invoke({})
     except KeyError as e:
@@ -51,6 +55,8 @@ def demonstrate_missing_variable(prompt: ChatPromptTemplate) -> None:
 
 
 def demonstrate_extra_variable(prompt: ChatPromptTemplate) -> None:
+    # when: an unused key in the input dict is silently ignored, not an
+    # error — worth confirming, since it's easy to assume the opposite.
     result = prompt.invoke({"question": "What is LCEL?", "extra": "unused"})
     print(f"Extra variable -> no error, result: {result}")
 
@@ -67,7 +73,8 @@ if __name__ == "__main__":
 **Expected output:**
 ```
 Missing variable -> KeyError: 'question'
-Extra variable -> no error, result: messages=[HumanMessage(content='Answer: What is LCEL?')]
+Extra variable -> no error, result:
+messages=[HumanMessage(content='Answer: What is LCEL?')]
 ```
 
 **Difference from Basic:** catching `KeyError` specifically (not a broad `Exception`) documents, right in the code, exactly what failure you expect and are prepared to handle — if the library ever changed to raise a different error type here, this code would stop silently swallowing it and let you notice. Splitting the two demonstrations into named functions also makes each case something you could reuse as an actual test later, not just a script you run once and read.

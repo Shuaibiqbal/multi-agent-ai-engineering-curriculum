@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-tool_selection_ambiguity) · [Hint 1](tool_selection_ambiguity_hints.md#hint-1) · [Hint 2](tool_selection_ambiguity_hints.md#hint-2) · [Solution](tool_selection_ambiguity_solution.md)
 
+**Story — `tool_selection_practice.py` (Intermediate section):** "tool descriptions are prompts too" stops being an abstract idea the moment you register two overlapping tools and watch the split happen across 5 real runs. **If not:** the Build Task's test harness would be the first place you ever saw a model split its picks between similar tools, with no smaller version to explain why that's expected, not a bug.
+
 ## Basic Version
 
 ### Approach 1 — a plain counting loop
@@ -70,10 +72,13 @@ def get_forecast(city: str) -> str:
 
 
 def get_model_with_tools() -> ChatOpenAI:
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([get_weather, get_forecast])
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return model.bind_tools([get_weather, get_forecast])
 
 
 def run_selection_trial(prompt: str, runs: int = 5) -> Counter:
+    # why: one ambiguous prompt, asked several times, turns "which tool
+    # gets picked" from a guess into a real, measured split.
     model_with_tools = get_model_with_tools()
     tally: Counter = Counter()
 

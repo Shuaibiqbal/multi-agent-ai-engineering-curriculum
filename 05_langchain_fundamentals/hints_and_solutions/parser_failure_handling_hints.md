@@ -85,10 +85,12 @@ What's missing: the `try/except` call itself, printing the exact error type, and
 class Rating(BaseModel):
     score: int
 
-structured_model = ChatOpenAI(model="...", temperature=0).with_structured_output(Rating)
+model = ChatOpenAI(model="...", temperature=0)
+structured_model = model.with_structured_output(Rating)
 
 try:
-    structured_model.invoke("Describe your favorite color in a full sentence, no numbers.")
+    prompt = "Describe your favorite color in a full sentence, no numbers."
+    structured_model.invoke(prompt)
 except Exception as e:
     print(type(e))          # exact class
     print(type(e).__mro__)  # its full parent chain

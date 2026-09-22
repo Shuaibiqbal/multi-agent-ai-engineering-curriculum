@@ -3,7 +3,10 @@
 > This is for self-study and live mentoring. Full plan: [CURRICULUM.md](../CURRICULUM.md#document-05-langchain-basics)
 
 ## Prerequisites
-[04_openai_api](../04_openai_api/) (Project 1 done)
+[04_openai_api](../04_openai_api/) (Project 1 done) — you'll reuse two Doc01 scripts again here, copied unchanged into `practice/build_task/`:
+
+- `config.py` — **What:** `load_config() -> Config`. **Why:** the model choice (name, temperature) comes from config, never hardcoded. **How:** copy `01_python_foundations/practice/build_task/config.py` in as-is; don't rewrite it.
+- `logging_setup.py` — **What:** `get_logger(name)`. **Why:** same consistent logging as every other document. **How:** copy `01_python_foundations/practice/build_task/logging_setup.py` in as-is; don't rewrite it.
 
 ## How to Read & Practice This Document
 
@@ -252,6 +255,32 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Where your code lives:** all of it under `05_langchain_fundamentals/practice/` (`mkdir -p practice`), never loose beside this README — same convention as Doc01, Doc02, and Doc04. Exercises are grouped **by topic, not by level**.
 
+**The full file layout, all exercises:**
+
+```
+practice/
+├── lcel_chain_basics_practice.py    Basic
+├── structured_output_practice.py    Intermediate + Failure (two sections)
+├── lcel_vs_raw_sdk_practice.py      Real-world
+├── prompt_template_practice.py      Edge cases
+└── build_task/                      Build Task — its own folder
+    ├── chain.py                     build_extraction_chain() -> Runnable
+    ├── prompts.py                   PromptTemplate/ChatPromptTemplate
+    ├── compare_with_raw_sdk.py      runs both versions, prints the diff
+    ├── config.py                    copied from 01_python_foundations, unchanged
+    └── logging_setup.py             copied from 01_python_foundations, unchanged
+```
+
+**Why each script exists:**
+
+- `lcel_chain_basics_practice.py` — the 3-piece chain every LangChain thing you'll build is made of.
+- `structured_output_practice.py` — feels, directly, the difference between after-the-fact parser checking and during-generation structured output.
+- `lcel_vs_raw_sdk_practice.py` — the only way to actually compare LangChain vs. raw SDK is having both versions side by side.
+- `prompt_template_practice.py` — knowing whether a broken template fails while building the prompt or only once the call goes out changes how fast you can debug it.
+- `build_task/chain.py` / `build_task/prompts.py` — the one chain module every later document imports instead of writing raw SDK calls again.
+- `build_task/compare_with_raw_sdk.py` — proves the LCEL version and Doc04's raw version genuinely agree, not just look similar.
+- `build_task/config.py` / `build_task/logging_setup.py` — copied unchanged from Doc01, same settings/logging behavior as every other document.
+
 **For this document, save your practice code as:**
 
 - **Basic** (your first LCEL chain) is its own topic — save it as `practice/lcel_chain_basics_practice.py`.
@@ -332,12 +361,16 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 ```
 05_langchain_fundamentals/practice/build_task/
-├── chain.py
-├── prompts.py
-├── compare_with_raw_sdk.py
-├── config.py            copied from 01_python_foundations's Build Task
-└── logging_setup.py     copied from 01_python_foundations's Build Task
+├── chain.py              build_extraction_chain() -> Runnable
+├── prompts.py            PromptTemplate/ChatPromptTemplate
+├── compare_with_raw_sdk.py  runs both versions, prints the diff
+├── config.py             copied from 01_python_foundations's Build Task
+└── logging_setup.py      copied from 01_python_foundations's Build Task
 ```
+
+- `chain.py` / `prompts.py` — **What/Why:** the one chain module every later document imports instead of writing raw SDK calls again.
+- `compare_with_raw_sdk.py` — **What/Why:** proves the LCEL version and Doc04's raw version genuinely agree, not just look similar — also doubles as this Build Task's test file.
+- `config.py` / `logging_setup.py` — **What/Why:** copied unchanged from Doc01, so this module uses the exact same settings/logging behavior as every other document.
 
 **Run it:** `cd practice/build_task && python compare_with_raw_sdk.py` — from inside the folder, so `from config import load_config` finds the file next to it.
 

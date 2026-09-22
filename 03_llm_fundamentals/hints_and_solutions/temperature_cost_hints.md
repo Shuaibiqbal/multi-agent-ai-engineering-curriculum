@@ -69,7 +69,9 @@ part 2:
     input_tokens = 2000
     output_tokens = 500
     look up: input_price_per_token, output_price_per_token
-    cost = (input_tokens × input_price_per_token) + (output_tokens × output_price_per_token)
+    input_cost = input_tokens × input_price_per_token
+    output_cost = output_tokens × output_price_per_token
+    cost = input_cost + output_cost
 ```
 
 A worked cost example, using placeholder rates (check OpenAI's real current pricing page before trusting these numbers for anything real):
@@ -94,8 +96,10 @@ part 1:
             call the model with temperature=temp
             print the answer
 
-    compare the 3 temp=0 answers to each other (expect: very close, maybe identical)
-    compare the 3 temp=1 answers to each other (expect: noticeably different wording/ideas)
+    compare the 3 temp=0 answers to each other
+    (expect: very close, maybe identical)
+    compare the 3 temp=1 answers to each other
+    (expect: noticeably different wording/ideas)
 
 part 2:
     cost = (input_tokens / 1_000_000) * input_rate_per_million \

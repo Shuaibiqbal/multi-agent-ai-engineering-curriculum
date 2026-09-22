@@ -154,8 +154,13 @@ function request_with_retry(method, url, max_attempts=5, **kwargs) -> dict:
 
         if is_transient_status(response.status_code):
             if attempt == max_attempts - 1:
-                logger.error(f"gave up after {max_attempts} attempts, last status {response.status_code}")
-                raise TransientHTTPError(f"status {response.status_code} after {max_attempts} attempts")
+                logger.error(
+                    f"gave up after {max_attempts} attempts, "
+                    f"last status {response.status_code}"
+                )
+                raise TransientHTTPError(
+                    f"status {response.status_code} after {max_attempts} attempts"
+                )
             sleep(compute_backoff_delay(attempt))
             continue
 
@@ -180,7 +185,8 @@ http_client.py:
             try:
                 response = request_fn(method, url, timeout=(3, 10), **kwargs)
             except (Timeout, ConnectionError) as e:
-                if attempt == max_attempts - 1: raise TransientHTTPError(...) from e
+                if attempt == max_attempts - 1:
+                    raise TransientHTTPError(...) from e
                 sleep(compute_backoff_delay(attempt))
                 continue
 
@@ -188,8 +194,10 @@ http_client.py:
                 return parse_json_or_raise(response)
 
             if is_transient_status(response.status_code):
-                if attempt == max_attempts - 1: raise TransientHTTPError(...)
-                wait = decide_wait_seconds(response, attempt)  # respects Retry-After
+                if attempt == max_attempts - 1:
+                    raise TransientHTTPError(...)
+                # respects Retry-After if the server sent one
+                wait = decide_wait_seconds(response, attempt)
                 sleep(wait)
                 continue
 
@@ -231,7 +239,10 @@ def request_with_retry(
         logger.debug(f"attempt {attempt}: {method} {url}")
         try:
             response = request_fn(method, url, timeout=(3, 10), **kwargs)
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+        ) as e:
             if attempt == max_attempts - 1:
                 logger.error(f"gave up after {max_attempts} attempts: {e}")
                 raise TransientHTTPError(str(e)) from e
@@ -270,8 +281,12 @@ Every code block below shows what you'd see running it against a real, working c
 
 #### Approach 1 — one function, everything inline
 
+**Story — `exceptions.py`:** `request_with_retry()` needs a way to tell its caller "this is worth retrying elsewhere too" apart from "this will never work, stop trying" — two error types make that distinction part of the function's actual contract, not just a comment. **If not:** every later document that imports `http_client.py` would catch one generic exception and have no way to tell a transient network hiccup from its own bad request.
+
 ```python
 # exceptions.py
+# Why: two separate types so callers can catch "worth retrying" and
+# "my mistake, don't retry" differently, instead of one generic Exception.
 class TransientHTTPError(Exception):
     pass
 
@@ -281,6 +296,8 @@ class PermanentHTTPError(Exception):
         self.body = body
         super().__init__("HTTP " + str(status_code) + ": " + body)
 ```
+
+**Story — `http_client.py`:** this is the Goal of the whole Build Task — one wrapper around `requests` that every later document imports instead of calling the network directly, so timeout/retry/classification logic exists exactly once in the whole curriculum. **If not:** every later document (Doc04's `chat_client.py`, and beyond) would re-implement its own retry loop, each slightly different, each with its own undiscovered bugs.
 
 ```python
 # http_client.py
@@ -295,17 +312,27 @@ logger = get_logger(__name__)
 
 
 def compute_backoff_delay(attempt):
+    # Why: spaces retries out (2, 4, 8... seconds) with a little randomness,
+    # so a burst of clients retrying together doesn't all hit the server at
+    # once.
     return (2 ** attempt) + random.uniform(0, 1)
 
 
 def request_with_retry(method, url, max_attempts=5, **kwargs):
+    # Why: the one function every later document calls instead of requests
+    # directly — hides the timeout/retry/classify logic behind one clean call.
     for attempt in range(max_attempts):
         logger.debug("attempt " + str(attempt) + ": " + method + " " + url)
         try:
             response = requests.request(method, url, timeout=(3, 10), **kwargs)
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+        ) as e:
             if attempt == max_attempts - 1:
-                logger.error("gave up after " + str(max_attempts) + " attempts: " + str(e))
+                logger.error(
+                    "gave up after " + str(max_attempts) + " attempts: " + str(e)
+                )
                 raise TransientHTTPError(str(e))
             time.sleep(compute_backoff_delay(attempt))
             continue
@@ -348,12 +375,14 @@ This version works correctly and meets every Build Task requirement. It's missin
 **`exceptions.py`**
 ```python
 class TransientHTTPError(Exception):
-    """Raised when a retryable failure (timeout, 5xx, 429) exhausts all attempts."""
+    """Raised when a retryable failure (timeout, 5xx, 429) exhausts all
+    attempts."""
     pass
 
 
 class PermanentHTTPError(Exception):
-    """Raised immediately for a non-retryable 4xx, with the response body attached."""
+    """Raised immediately for a non-retryable 4xx, with the response body
+    attached."""
 
     def __init__(self, status_code: int, body: str) -> None:
         self.status_code = status_code
@@ -391,8 +420,13 @@ def request_with_retry(
     for attempt in range(max_attempts):
         logger.debug(f"attempt {attempt}: {method} {url}")
         try:
-            response = requests.request(method, url, timeout=DEFAULT_TIMEOUT, **kwargs)
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            response = requests.request(
+                method, url, timeout=DEFAULT_TIMEOUT, **kwargs
+            )
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+        ) as e:
             if attempt == max_attempts - 1:
                 logger.error(f"gave up after {max_attempts} attempts: {e}")
                 raise TransientHTTPError(str(e)) from e
@@ -408,7 +442,9 @@ def request_with_retry(
         if response.status_code == 429 or response.status_code // 100 == 5:
             if attempt == max_attempts - 1:
                 logger.error(f"gave up, last status {response.status_code}")
-                raise TransientHTTPError(f"status {response.status_code} after {max_attempts} attempts")
+                raise TransientHTTPError(
+                    f"status {response.status_code} after {max_attempts} attempts"
+                )
             time.sleep(compute_backoff_delay(attempt))
             continue
 
@@ -440,8 +476,13 @@ def request_with_retry(
     for attempt in range(max_attempts):
         logger.debug(f"attempt {attempt}: {method} {url}")
         try:
-            response = requests.request(method, url, timeout=DEFAULT_TIMEOUT, **kwargs)
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            response = requests.request(
+                method, url, timeout=DEFAULT_TIMEOUT, **kwargs
+            )
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+        ) as e:
             if attempt == max_attempts - 1:
                 logger.error(f"gave up after {max_attempts} attempts: {e}")
                 raise TransientHTTPError(str(e)) from e
@@ -457,7 +498,9 @@ def request_with_retry(
         if is_transient_status(response.status_code):
             if attempt == max_attempts - 1:
                 logger.error(f"gave up, last status {response.status_code}")
-                raise TransientHTTPError(f"status {response.status_code} after {max_attempts} attempts")
+                raise TransientHTTPError(
+                    f"status {response.status_code} after {max_attempts} attempts"
+                )
             time.sleep(compute_backoff_delay(attempt))
             continue
 
@@ -473,13 +516,17 @@ def request_with_retry(
 
 ```python
 # exceptions.py
+# Why: two separate types so callers can catch "worth retrying" and
+# "my mistake, don't retry" differently, instead of one generic Exception.
 class TransientHTTPError(Exception):
-    """Raised when a retryable failure (timeout, 5xx, 429) exhausts all attempts."""
+    """Raised when a retryable failure (timeout, 5xx, 429) exhausts all
+    attempts."""
     pass
 
 
 class PermanentHTTPError(Exception):
-    """Raised immediately for a non-retryable 4xx, with the response body attached."""
+    """Raised immediately for a non-retryable 4xx, with the response body
+    attached."""
 
     def __init__(self, status_code: int, body: str) -> None:
         self.status_code = status_code
@@ -511,26 +558,36 @@ _session.headers.update({"User-Agent": "learning-langgraph-http-client/1.0"})
 
 
 def compute_backoff_delay(attempt: int) -> float:
+    # Why: spaces retries out (2, 4, 8... seconds) with a little randomness,
+    # so a burst of clients retrying together doesn't all hit the server at
+    # once.
     return (2 ** attempt) + random.uniform(0, 1)
 
 
 def is_transient_status(status_code: int) -> bool:
+    # Why: pulled out on its own so it's testable with plain integers —
+    # no fake Response object, no network, no mocking needed.
     return status_code == 429 or status_code // 100 == 5
 
 
 def _parse_retry_after(value: str) -> float | None:
+    # Why: the HTTP spec allows Retry-After to be a plain number of seconds
+    # OR an HTTP-date string — this handles both instead of crashing on one.
     try:
         return float(value)
     except ValueError:
         pass
     try:
         target_time = parsedate_to_datetime(value)
-        return max((target_time - datetime.now(timezone.utc)).total_seconds(), 0.0)
+        seconds_left = (target_time - datetime.now(timezone.utc)).total_seconds()
+        return max(seconds_left, 0.0)
     except (TypeError, ValueError):
         return None
 
 
 def decide_wait_seconds(response: requests.Response, attempt: int) -> float:
+    # Why: respects a real Retry-After header when the server sends one,
+    # and falls back to exponential backoff (capped) when it doesn't.
     retry_after = response.headers.get("Retry-After")
     wait = _parse_retry_after(retry_after) if retry_after is not None else None
     if wait is None:
@@ -545,30 +602,52 @@ def request_with_retry(
     request_fn: Callable[..., requests.Response] = _session.request,
     **kwargs: Any,
 ) -> dict:
+    # why: the one function every later document imports instead of calling
+    # requests directly — request_fn is injectable so tests never touch the
+    # network.
     for attempt in range(max_attempts):
+        # how: DEBUG, not print — this is diagnostic, not output
         logger.debug(f"attempt {attempt}: {method} {url}")
         try:
+            # how: request_fn defaults to the shared _session.request, but a
+            # test can pass a fake function here instead — no real network call.
             response = request_fn(method, url, timeout=DEFAULT_TIMEOUT, **kwargs)
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+        ) as e:
+            # when: the request itself never got a response at all —
+            # treated as transient, same bucket as a 5xx status.
             if attempt == max_attempts - 1:
                 logger.error(f"gave up after {max_attempts} attempts: {e}")
                 raise TransientHTTPError(str(e)) from e
             time.sleep(compute_backoff_delay(attempt))
+            # how: goes back to the top of the loop for the next attempt
             continue
 
         if response.status_code < 300:
+            # when: 2xx/3xx is success — try to parse it and return.
             try:
                 return response.json()
             except json.JSONDecodeError as e:
+                # why: a 200 with an unparseable body is still a real
+                # failure the caller needs to know about, not a silent None.
                 raise TransientHTTPError(f"bad JSON in response: {e}") from e
 
         if is_transient_status(response.status_code):
+            # when: 429 or 5xx — worth retrying, unless this was the last
+            # attempt.
             if attempt == max_attempts - 1:
                 logger.error(f"gave up, last status {response.status_code}")
-                raise TransientHTTPError(f"status {response.status_code} after {max_attempts} attempts")
+                raise TransientHTTPError(
+                    f"status {response.status_code} after {max_attempts} attempts"
+                )
+            # how: honors Retry-After if the server sent one
             time.sleep(decide_wait_seconds(response, attempt))
             continue
 
+        # when: any other 4xx — this is a client mistake that will fail
+        # again the same way, so raise immediately instead of retrying.
         logger.error(f"permanent failure: status {response.status_code}")
         raise PermanentHTTPError(response.status_code, response.text)
 
@@ -580,6 +659,8 @@ if __name__ == "__main__":
 ```
 {'current_user_url': 'https://api.github.com/user', ...}
 ```
+
+**Story — `test_http_client.py`:** `http_client.py` is about to get imported by every later document — Doc04's `chat_client.py` calls through it for every OpenAI request. A regression here (the loop stops retrying too early, a 404 gets retried when it shouldn't) needs to be caught right here, in milliseconds, not discovered three documents later against a real API. **If not:** the only way to know the retry logic still works would be to run it against a real, possibly flaky network — slow, unreliable, and not something you'd run on every change.
 
 **`test_http_client.py`, proving the network never has to be touched:**
 ```python
@@ -612,7 +693,9 @@ def test_succeeds_immediately():
     def fake_request(method, url, timeout, **kwargs):
         return FakeResponse(200, json_body={"ok": True})
 
-    result = request_with_retry("GET", "https://example.invalid", request_fn=fake_request)
+    result = request_with_retry(
+        "GET", "https://example.invalid", request_fn=fake_request
+    )
     assert result == {"ok": True}
 
 
@@ -625,7 +708,9 @@ def test_retries_429_then_succeeds():
             return FakeResponse(429, headers={"Retry-After": "0"})
         return FakeResponse(200, json_body={"ok": True})
 
-    result = request_with_retry("GET", "https://example.invalid", request_fn=fake_request)
+    result = request_with_retry(
+        "GET", "https://example.invalid", request_fn=fake_request
+    )
     assert result == {"ok": True}
     assert calls["count"] == 2
 
@@ -638,7 +723,9 @@ def test_404_fails_immediately_no_retry():
         return FakeResponse(404, text="not found")
 
     with pytest.raises(PermanentHTTPError):
-        request_with_retry("GET", "https://example.invalid", request_fn=fake_request)
+        request_with_retry(
+            "GET", "https://example.invalid", request_fn=fake_request
+        )
     assert calls["count"] == 1
 
 
@@ -648,7 +735,10 @@ def test_gives_up_after_max_attempts():
 
     with pytest.raises(TransientHTTPError):
         request_with_retry(
-            "GET", "https://example.invalid", max_attempts=3, request_fn=fake_request
+            "GET",
+            "https://example.invalid",
+            max_attempts=3,
+            request_fn=fake_request,
         )
 ```
 **Expected output (`pytest test_http_client.py -v`):** all 5 tests pass, in well under a second — not one of them opens a real socket, because `request_fn` is a plain Python function each test controls completely.

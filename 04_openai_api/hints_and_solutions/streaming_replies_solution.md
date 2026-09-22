@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-streaming_replies) · [Hint 1](streaming_replies_hints.md#hint-1) · [Hint 2](streaming_replies_hints.md#hint-2) · [Solution](streaming_replies_solution.md)
 
+**Story — `streaming_practice.py`:** a normal call waits for the entire reply before showing you anything — for a long answer, that's several seconds of silence. Streaming prints each piece as it arrives, which is the difference between a chatbot that feels instant and one that feels stuck. **If not:** the Build Task's `stream_message()` would be the first time you ever saw a chunk-by-chunk response, with no smaller version to check your understanding against.
+
 All examples below assume `client = OpenAI()` with `.env` already loaded.
 
 ## Basic Version
@@ -12,7 +14,7 @@ All examples below assume `client = OpenAI()` with `.env` already loaded.
 # streaming_practice.py
 messages = [
     {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Explain what a REST API is, in 3 sentences."},
+    {"role": "user", "content": "Explain a REST API in 3 sentences."},
 ]
 
 stream = client.chat.completions.create(
@@ -43,6 +45,8 @@ This works and shows the streaming effect clearly. It doesn't keep track of the 
 ```python
 # streaming_practice.py
 def stream_reply(history: list) -> str:
+    # why: returns the full text once streaming finishes, so this can plug
+    # straight into the same history list the memory exercise already builds.
     stream = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=history,
@@ -51,6 +55,8 @@ def stream_reply(history: list) -> str:
 
     full_reply = ""
     for chunk in stream:
+        # how: each chunk carries one small piece of the reply in
+        # .delta.content — None on chunks that carry no new text.
         piece = chunk.choices[0].delta.content
         if piece:
             print(piece, end="")
@@ -63,7 +69,7 @@ def stream_reply(history: list) -> str:
 def main() -> None:
     history = [
         {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Explain what a REST API is, in 3 sentences."},
+        {"role": "user", "content": "Explain a REST API in 3 sentences."},
     ]
     reply = stream_reply(history)
     history.append({"role": "assistant", "content": reply})

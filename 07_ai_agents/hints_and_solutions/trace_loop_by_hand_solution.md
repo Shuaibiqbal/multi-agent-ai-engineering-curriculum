@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-trace_loop_by_hand) · [Hint 1](trace_loop_by_hand_hints.md#hint-1) · [Hint 2](trace_loop_by_hand_hints.md#hint-2) · [Solution](trace_loop_by_hand_solution.md)
 
+**Story — `react_loop_practice.py` (Basic section):** if you can't trace a ReAct loop by hand, on paper, you can't debug it in code — this is the cheapest possible way to catch a wrong mental model, before a single line of Python is at stake. **If not:** the first time you'd trace a loop's real steps would be inside a debugger, under time pressure, with no smaller version of this skill to fall back on.
+
 ## Basic Version
 
 Task: "What's the weather in Paris, in Fahrenheit?"
@@ -70,13 +72,7 @@ round 3:
 
 **Difference from Basic:** both approaches here reach the same correct final answer, but Approach 2 burns an extra tool call — extra cost, extra latency, extra chance for something to go wrong — on a step the model didn't need a tool for at all. Being able to spot "does this next step genuinely need external information, or can I already reason about it?" on paper is exactly the judgment the Edge cases exercise below tests in code.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-trace_loop_by_hand) · [Hint 1](trace_loop_by_hand_hints.md#hint-1) · [Hint 2](trace_loop_by_hand_hints.md#hint-2) · [Solution](trace_loop_by_hand_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a failed Observation, and an honest recovery
+### Approach 3 — a failed Observation, and an honest recovery
 
 Task: "What's the weather in Paris, in Fahrenheit?" — but the weather tool is down.
 
@@ -103,9 +99,9 @@ round 3:
                   so I can't answer this one right now.
 ```
 
-### Approach 2 — the failure mode this trace is guarding against
+### Approach 4 — the failure mode this trace is guarding against
 
-Compare Approach 1's round 3 against what an ungrounded model sometimes does instead:
+Compare Approach 3's round 3 against what an ungrounded model sometimes does instead:
 
 ```
 round 2 (bad):
@@ -115,6 +111,6 @@ round 2 (bad):
 
 This "final answer" is fabricated — nothing in the trace ever produced a real number. This is the exact "ignoring a failure" problem named in Core Concepts, written out on paper so you can recognize it before you see it in real model output.
 
-**Difference from Intermediate:** Intermediate's 2 traces compare a *necessary* tool call against an *unnecessary* one — both still land on a truthful final answer. Advanced compares an *honest* response to a real failure (Approach 1) against a *fabricated* one (Approach 2) — the difference isn't tool count anymore, it's whether the final answer is actually grounded in what the tools returned. This is the paper version of exactly what the Build Task's "graceful handling of a tool failure" requirement, and the Break-It Preview's "states a made-up result as fact," are both asking you to prevent in code.
+**Difference from Approach 1/2:** those compare a *necessary* tool call against an *unnecessary* one — both still land on a truthful final answer. Approach 3 vs. 4 compares an *honest* response to a real failure against a *fabricated* one — the difference isn't tool count anymore, it's whether the final answer is actually grounded in what the tools returned. This is the paper version of exactly what the Build Task's "graceful handling of a tool failure" requirement, and the Break-It Preview's "states a made-up result as fact," are both asking you to prevent in code.
 
-**Which one should you actually write?** All 3 — this exercise's value is in the comparison, not in any single trace. In real debugging (the actual use for this skill, per this exercise's "When" above), you'll be reconstructing a trace like Intermediate Approach 2 or Advanced Approach 1 after the fact, from logs, trying to spot exactly where the loop went wrong — being fast and precise at that only comes from having done it slowly, by hand, here first.
+**Which one should you actually write?** All 4 — this exercise's value is in the comparison, not in any single trace. In real debugging (the actual use for this skill, per this exercise's "When" above), you'll be reconstructing a trace like Approach 2 or Approach 3 after the fact, from logs, trying to spot exactly where the loop went wrong — being fast and precise at that only comes from having done it slowly, by hand, here first.

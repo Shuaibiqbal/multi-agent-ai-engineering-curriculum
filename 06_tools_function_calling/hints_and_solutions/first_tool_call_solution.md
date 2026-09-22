@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-first_tool_call) · [Hint 1](first_tool_call_hints.md#hint-1) · [Hint 2](first_tool_call_hints.md#hint-2) · [Solution](first_tool_call_solution.md)
 
+**Story — `first_tool_call_practice.py`:** this is the exact primitive every agent in this entire curriculum is built from — a model deciding to call a function instead of answering directly. Seeing it work once, standalone, before combining it with anything else, is what makes the Build Task's `run_with_tools()` obvious instead of magic. **If not:** the first time you'd see a tool call requested and executed would be inside a bigger harness already juggling 2-3 tools, making it harder to tell which part is "the round trip" and which part is everything else.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -28,7 +30,8 @@ for call in response.tool_calls:
 ```
 **Expected output:**
 ```
-Requested tool calls: [{'name': 'add', 'args': {'a': 5, 'b': 7}, 'id': 'call_abc123', 'type': 'tool_call'}]
+Requested tool calls: [{'name': 'add', 'args': {'a': 5, 'b': 7},
+    'id': 'call_abc123', 'type': 'tool_call'}]
 Real result: 12
 ```
 
@@ -63,12 +66,16 @@ def main() -> None:
     response = model_with_tools.invoke("What's 5 + 7?")
 
     if not response.tool_calls:
+        # when: even an obvious math question, the model can still just
+        # answer in text instead of calling a tool — always check first.
         print("The model answered directly, without calling a tool.")
         print(response.content)
         return
 
     for call in response.tool_calls:
         if call["name"] == "add":
+            # how: .invoke() on the tool itself, not a plain function call —
+            # @tool wraps add into a Runnable too.
             result = add.invoke(call["args"])
             print(f"Called add({call['args']}) -> {result}")
         else:

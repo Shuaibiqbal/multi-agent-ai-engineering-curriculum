@@ -3,7 +3,10 @@
 > This is for self-study and live mentoring. Full plan: [CURRICULUM.md](../CURRICULUM.md#document-02-apis-http-json-backend-basics)
 
 ## Prerequisites
-[01_python_foundations](../01_python_foundations/) — you'll reuse `config.py` and `logging_setup.py` here.
+[01_python_foundations](../01_python_foundations/) — you'll reuse two of its scripts here, copied unchanged into `practice/build_task/`:
+
+- `config.py` — **What:** `load_config() -> Config`. **Why:** every later script needs settings loaded once, the same way, instead of each one reading `os.environ` by hand. **How:** copy `01_python_foundations/practice/build_task/config.py` in as-is; don't rewrite it.
+- `logging_setup.py` — **What:** `get_logger(name)`. **Why:** every later script logs through the same setup, so DEBUG/ERROR behave consistently everywhere. **How:** copy `01_python_foundations/practice/build_task/logging_setup.py` in as-is; don't rewrite it.
 
 ## How to Read & Practice This Document
 
@@ -191,6 +194,30 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Where your code lives:** all of it under `02_apis_http_json/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — two of them share one file, each in its own labelled section, the same convention as Doc01.
 
+**The full file/folder layout, all exercises:**
+
+```
+practice/
+├── api_first_call_practice.py      Basic
+├── retry_backoff_practice.py       Intermediate + Failure (two sections)
+├── session_reuse_practice.py       Real-world
+├── response_validation_practice.py Edge cases
+└── build_task/                     Build Task — its own folder
+    ├── http_client.py              request_with_retry(...) -> dict
+    ├── exceptions.py               TransientHTTPError, PermanentHTTPError
+    └── test_http_client.py         proves Test Cases, no real calls
+```
+
+**Why each script exists:**
+
+- `api_first_call_practice.py` — sees a bad URL and a bad response are different failure types.
+- `retry_backoff_practice.py` — this loop becomes `http_client.py`'s retry logic almost unchanged.
+- `session_reuse_practice.py` — one shared `Session` makes a typo'd/missing header impossible.
+- `response_validation_practice.py` — a 200 status says nothing about whether the body is what you expected.
+- `build_task/http_client.py` — the one wrapper every later document imports for outbound calls.
+- `build_task/exceptions.py` — lets callers retry a transient failure but not a permanent one.
+- `build_task/test_http_client.py` — proves the Test Cases, without real network calls.
+
 **For this document, save your practice code as:**
 
 - **Basic** (your first real API call) is its own topic — save it as `practice/api_first_call_practice.py`.
@@ -261,7 +288,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - Wraps `requests` with a default timeout (never call without one).
 - Retries temporary failures (timeouts, 5xx, 429) with exponential backoff and jitter, up to a limit.
 - Does NOT retry permanent failures — fails right away, with the response body attached to the error. The retryable 4xx codes are `429` (too fast) and `408` (the server itself says "request timeout"); every other 4xx is your mistake and will fail again the same way.
-- Logs each attempt at `DEBUG` level, and each final failure at `ERROR` level (use the logger from `01_python_foundations`).
+- Logs each attempt at `DEBUG` level, and each final failure at `ERROR` level — **What:** `get_logger(__name__)` from Doc01's `logging_setup.py`. **Why:** one consistent logging setup everywhere, instead of reconfiguring handlers per file. **How:** copy `logging_setup.py` in unchanged, same as Doc02's own `config.py` above.
 - **Think about `POST` before you retry it.** A retry is only safe when repeating the call changes nothing (`GET`, `PUT`, `DELETE`). A `POST` that creates something — an order, a payment, an email — can create a **second** one if the first request actually worked and only the *reply* was lost. Either retry `POST` only when the API supports an idempotency key, or make retrying `POST` an option the caller has to switch on, and write down which choice you made and why.
 
 **Inputs:** a URL, an HTTP method, optional headers/body, optional limits on retries/timeout.
@@ -277,10 +304,18 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 **Suggested files:**
 ```
 02_apis_http_json/practice/build_task/
-├── http_client.py
-├── exceptions.py
-├── test_http_client.py
+├── http_client.py       request_with_retry(method, url, **kwargs) -> dict
+├── exceptions.py        TransientHTTPError, PermanentHTTPError
+├── test_http_client.py  proves the Test Cases, without real network calls
+├── config.py            copied from 01_python_foundations, unchanged
+└── logging_setup.py     copied from 01_python_foundations, unchanged
 ```
+
+- `http_client.py` — **What/Why:** the one wrapper every later document imports for outbound calls, instead of calling `requests` directly.
+- `exceptions.py` — **What/Why:** lets callers retry a transient failure but fail immediately on a permanent one (a real 4xx bug).
+- `test_http_client.py` — **What/Why:** `request_fn` is injectable, so these tests run in milliseconds and never depend on a real server being up.
+- `config.py` — **What/Why:** `load_config()` — one function every later script calls for settings, instead of reading `os.environ` by hand.
+- `logging_setup.py` — **What/Why:** `get_logger(name)` — one consistent logging setup everywhere, instead of reconfiguring handlers per file.
 
 **Run it:** `cd practice/build_task && python test_http_client.py` — from inside the folder, so `from http_client import request_with_retry` finds the file next to it.
 

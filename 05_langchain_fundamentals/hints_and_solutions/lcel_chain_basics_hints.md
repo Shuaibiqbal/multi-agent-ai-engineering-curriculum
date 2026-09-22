@@ -94,7 +94,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 
 prompt = ChatPromptTemplate.from_template("Answer: {question}")
-chain = prompt | ChatOpenAI(model="gpt-4o-mini", temperature=0) | StrOutputParser()
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+chain = prompt | model | StrOutputParser()
 ```
 Notice the input to `.invoke(...)` is a dictionary whose key (`question`) matches the template's placeholder name exactly. If they don't match, the chain fails while building the prompt, before any API call happens — you'll practice that failure directly in this document's Edge cases exercise. Add the `.invoke(...)` call and print line yourself, then compare against the [Solution](lcel_chain_basics_solution.md).
 

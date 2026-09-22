@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-chunk_boundary_split) · [Hint 1](chunk_boundary_split_hints.md#hint-1) · [Hint 2](chunk_boundary_split_hints.md#hint-2) · [Solution](chunk_boundary_split_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (the actual fix, not just a workaround). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus the actual fix, not just a workaround). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -44,12 +44,6 @@ The exact pieces:
 - Reuse `get_embedding` and `cosine_similarity` unchanged.
 - A `search(question, chunks, chunk_embeddings, k)` function, so you can compare `k=1` against `k=len(chunks)` directly.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-chunk_boundary_split) · [Hint 1](chunk_boundary_split_hints.md#hint-1) · [Hint 2](chunk_boundary_split_hints.md#hint-2) · [Solution](chunk_boundary_split_solution.md)
-
-### Advanced Version
-
 A bigger `k` isn't actually a fix — it's a workaround. Even at `k=len(chunks)` (every chunk, guaranteed to include both halves), you only get lucky because this is a 2-chunk toy example. In a real knowledge base with thousands of chunks, a bigger `k` just makes it *more likely* the missing half scores well enough to make the cut — it still depends on that chunk actually ranking high enough, and a bigger `k` also means more irrelevant chunks get handed to the model as context (this document's Core Concepts calls this "lost in the middle").
 
 The real fix is **chunking with overlap**: instead of cutting the document into non-overlapping blocks, each new chunk starts a little *before* where the previous one ended, so a fact sitting near a boundary usually ends up whole inside at least one chunk — not permanently split in two, regardless of `k`.
@@ -68,7 +62,7 @@ def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
 
 Build the *same* boundary-splitting test document from Hint 2 below, chunk it with overlap instead of the plain non-overlapping slicer, and check: does the fact now appear whole inside at least one chunk, so even `k=1` can return the complete answer?
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate demonstrate the problem and show that a bigger `k` covers for it in this one small example. Advanced treats "just raise `k`" as the workaround it actually is, and builds the real fix — overlapping chunks — so the fact isn't split by the chunker in the first place, instead of hoping search recovers both halves after the fact.
+**Difference between Basic and Intermediate:** Basic demonstrates the problem and shows that a bigger `k` covers for it in this one small example. Intermediate also treats "just raise `k`" as the workaround it actually is, and builds the real fix — overlapping chunks — so the fact isn't split by the chunker in the first place, instead of hoping search recovers both halves after the fact.
 
 <hr class="page-break">
 
@@ -111,7 +105,11 @@ from openai import OpenAI
 
 client = OpenAI()
 
-document = "The quarterly meeting will be held at 3 PM on Friday in Room 204, and everyone from the product and engineering teams is expected to attend without exception."
+document = (
+    "The quarterly meeting will be held at 3 PM on Friday in Room 204, "
+    "and everyone from the product and engineering teams is expected "
+    "to attend without exception."
+)
 chunk_size = 80
 
 chunks = []
@@ -158,11 +156,7 @@ def chunk_text(text: str, chunk_size: int) -> list[str]:
 
 What's missing: a `search(question, chunks, chunk_embeddings, k)` function that scores and sorts, plus a `main()` that runs `k=1` and `k=len(chunks)` and compares. Write that yourself, then compare against the [Solution](chunk_boundary_split_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-chunk_boundary_split) · [Hint 1](chunk_boundary_split_hints.md#hint-1) · [Hint 2](chunk_boundary_split_hints.md#hint-2) · [Solution](chunk_boundary_split_solution.md)
-
-### Advanced Version
+Once that's working, add the real fix — overlap:
 
 ```
 document = same quarterly-meeting sentence as before
@@ -198,9 +192,9 @@ def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
 # the result against the non-overlapping version's k=1 result
 ```
 
-Finish `chunk_with_overlap` and the `k=1` comparison yourself, then compare all 3 of your finished versions against the [Solution](chunk_boundary_split_solution.md).
+Finish `chunk_with_overlap` and the `k=1` comparison yourself, then compare all of your finished versions against the [Solution](chunk_boundary_split_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate prove the failure exists and show a bigger `k` covering for it in this small example. Advanced removes the need for a bigger `k` at all — with overlap, `k=1` alone can return the complete fact, because the chunker never actually split it in the first place.
+**Difference between Basic and Intermediate:** Basic proves the failure exists and shows a bigger `k` covering for it in this small example. Intermediate removes the need for a bigger `k` at all — with overlap, `k=1` alone can return the complete fact, because the chunker never actually split it in the first place.
 
 <hr class="page-break">
 

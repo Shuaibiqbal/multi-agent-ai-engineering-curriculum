@@ -6,3 +6,4 @@ tools/
 *.log
 copy_to_local.sh
 export_zip.sh
+__pycache__/

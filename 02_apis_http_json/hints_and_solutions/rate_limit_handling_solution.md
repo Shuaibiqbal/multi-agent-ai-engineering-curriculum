@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-rate_limit_handling) · [Hint 1](rate_limit_handling_hints.md#hint-1) · [Hint 2](rate_limit_handling_hints.md#hint-2) · [Solution](rate_limit_handling_solution.md)
 
+**Story — `retry_backoff_practice.py` (Failure section):** a real API doesn't just fail randomly — a 429 often comes with a `Retry-After` header telling you exactly how long to wait, and ignoring it makes the rate limit worse for you and everyone sharing your API key. This exercise builds the one function that reads that header correctly, with a safe fallback when it's missing or malformed. **If not:** the Build Task's `http_client.py` would fall back to blind exponential backoff even when the server explicitly says how long to wait — slower to recover, and a worse citizen on a shared API key.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -57,7 +59,7 @@ class FakeResponse:
 
 
 def decide_wait_seconds(response: FakeResponse, attempt: int) -> int:
-    """Respect Retry-After if the server sent one; otherwise fall back to backoff."""
+    """Respect Retry-After if the server sent one, else fall back to backoff."""
     retry_after = response.headers.get("Retry-After")
     if retry_after is not None:
         try:
@@ -74,8 +76,9 @@ if __name__ == "__main__":
     no_header = FakeResponse(status_code=429, headers={})
     print(decide_wait_seconds(no_header, attempt=3))  # 8
 
-    malformed_header = FakeResponse(status_code=429, headers={"Retry-After": "soon"})
-    print(decide_wait_seconds(malformed_header, attempt=2))  # 4, falls back safely
+    bad_header = {"Retry-After": "soon"}
+    malformed_header = FakeResponse(status_code=429, headers=bad_header)
+    print(decide_wait_seconds(malformed_header, attempt=2))  # 4, falls back
 ```
 **Expected output:**
 ```
@@ -101,27 +104,40 @@ MAX_RETRY_AFTER_SECONDS = 60.0
 def parse_retry_after(value: str) -> float | None:
     """Return seconds to wait from a Retry-After value, or None if it
     can't be parsed in either the numeric or HTTP-date form."""
+    # why: pulled out on its own so the trickiest part (two legal header
+    # formats) is testable with plain strings, no fake response needed.
     try:
+        # how: the plain-number form, e.g. "2"
         return float(value)
     except ValueError:
+        # when: falls through to try the date form instead of crashing here
         pass
 
     try:
+        # how: the HTTP-date form, e.g. "Wed, 21 Oct 2026 07:28:00 GMT"
         target_time = parsedate_to_datetime(value)
-        return max((target_time - datetime.now(timezone.utc)).total_seconds(), 0.0)
+        seconds_left = (target_time - datetime.now(timezone.utc)).total_seconds()
+        return max(seconds_left, 0.0)
     except (TypeError, ValueError):
+        # when: neither form matched — caller falls back to backoff
         return None
 
 
 def decide_wait_seconds(headers: dict[str, str], attempt: int) -> float:
+    # why: respects a real Retry-After header when the server sends one,
+    # caps it so a malicious/buggy server can't stall the client for years.
     retry_after = headers.get("Retry-After")
     wait = parse_retry_after(retry_after) if retry_after is not None else None
     if wait is None:
+        # when: no header, or one that couldn't be parsed — fall back to
+        # the same exponential backoff used everywhere else in this document.
         wait = float(2 ** attempt)
+    # how: never trust a server's number past this cap
     return min(wait, MAX_RETRY_AFTER_SECONDS)
 
 
-# parse_retry_after can be tested directly, with plain strings, no fake response needed
+# parse_retry_after can be tested directly, with plain strings, no fake response
+# needed
 print(parse_retry_after("2"))                                  # 2.0
 print(parse_retry_after("not a number or a date"))              # None
 print(decide_wait_seconds({"Retry-After": "999999999"}, 0))     # 60.0

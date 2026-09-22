@@ -2,6 +2,8 @@
 
 > [Back to the exercise](../README.md#ex-gather_waits_for_slowest) · [Hint 1](gather_waits_for_slowest_hints.md#hint-1) · [Hint 2](gather_waits_for_slowest_hints.md#hint-2) · [Solution](gather_waits_for_slowest_solution.md)
 
+**Story — `gather_practice.py` (Edge cases section):** it's easy to assume `gather` hands back results as soon as the first task finishes — this exercise proves, with a real timestamp, that it doesn't. **If not:** the first time a slow straggler silently doubled an agent turn's latency, you'd have no smaller example to recognize the cause from.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
@@ -92,13 +94,9 @@ results: ['fast', 'slow']
 
 **Difference from Basic:** full type hints (`-> str` on both tasks, `-> None` on `main`) document each coroutine's contract without reading its body. The `if __name__ == "__main__":` guard means this file's functions can be imported and reused (say, from a test checking `gather`'s timing) without the demonstration run firing automatically on import.
 
-<hr class="page-break">
+### Approach 2 — a genuinely unbounded task, capped with its own timeout
 
-> [Back to the exercise](../README.md#ex-gather_waits_for_slowest) · [Hint 1](gather_waits_for_slowest_hints.md#hint-1) · [Hint 2](gather_waits_for_slowest_hints.md#hint-2) · [Solution](gather_waits_for_slowest_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a genuinely unbounded task, capped with its own timeout
+**Story:** `slow_task` above is slow but always, eventually, bounded at 5 seconds — a real task might never come back at all. **If not:** a single hung network call inside a `gather` group would hold every other, already-finished result hostage indefinitely.
 
 ```python
 # gather_practice.py — Edge cases section
@@ -120,7 +118,9 @@ async def main_bounded() -> None:
     start = time.perf_counter()
 
     bounded_slow = asyncio.wait_for(truly_slow_task(), timeout=2)
-    results = await asyncio.gather(fast_task(), bounded_slow, return_exceptions=True)
+    results = await asyncio.gather(
+        fast_task(), bounded_slow, return_exceptions=True,
+    )
 
     print(f"whole group finished in {time.perf_counter() - start:.2f}s")
     for result in results:
@@ -139,9 +139,11 @@ whole group finished in 2.00s
 a task succeeded: fast
 a task timed out or failed: 
 ```
-`asyncio.wait_for(truly_slow_task(), timeout=2)` is created *before* the call to `gather` — it's what actually cancels `truly_slow_task` after 2 seconds and turns that into a `TimeoutError` sitting in `bounded_slow`'s slot, instead of `gather` waiting the full 60 seconds like it did for `slow_task` in the Intermediate version.
+`asyncio.wait_for(truly_slow_task(), timeout=2)` is created *before* the call to `gather` — it's what actually cancels `truly_slow_task` after 2 seconds and turns that into a `TimeoutError` sitting in `bounded_slow`'s slot, instead of `gather` waiting the full 60 seconds like it did for `slow_task` in Approach 1.
 
-### Approach 2 — the same fix applied to a whole list of tasks, not just one
+### Approach 3 — the same fix applied to a whole list of tasks, not just one
+
+**Story:** Approach 2 caps one risky task — a real agent step usually fans out to several independent sources at once, and any one of them could be the slow or dead one. **If not:** the fix from Approach 2 would need re-deriving by hand every time the group's size changed, instead of generalizing to a list comprehension once.
 
 ```python
 # gather_practice.py — Edge cases section
@@ -153,7 +155,9 @@ async def fetch(source_id: int, delay: float) -> str:
     return f"result from source {source_id}"
 
 
-async def fetch_all(sources: list[tuple[int, float]], per_task_timeout: float) -> list:
+async def fetch_all(
+    sources: list[tuple[int, float]], per_task_timeout: float,
+) -> list:
     bounded_tasks = [
         asyncio.wait_for(fetch(source_id, delay), timeout=per_task_timeout)
         for source_id, delay in sources
@@ -182,6 +186,6 @@ source 4: timed out
 ```
 This is the same pattern as Approach 1, generalized: wrap *every* task in `asyncio.wait_for(..., timeout=...)` before handing the whole list to `gather(*tasks, return_exceptions=True)`. One slow or dead source costs the group exactly `per_task_timeout` seconds, not however long that one source decides to take.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's `slow_task` is slow but always, eventually, bounded at 5 seconds — the exercise proves `gather` waits for it, but never asks what if it didn't come back at all. Approach 1 answers that for a single task. Approach 2 shows the same fix scales cleanly to any number of tasks in a list comprehension, which is the shape a real "search 4 independent sources and combine what comes back" agent step actually takes.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1's `slow_task` is slow but always, eventually, bounded at 5 seconds — the exercise proves `gather` waits for it, but never asks what if it didn't come back at all. Approach 2 answers that for a single task. Approach 3 shows the same fix scales cleanly to any number of tasks in a list comprehension, which is the shape a real "search 4 independent sources and combine what comes back" agent step actually takes.
 
-**Which one should you actually write?** Any time you're `gather`-ing calls to something outside your program's control — an API, a database, a vector store — wrap each individual call in `asyncio.wait_for(..., timeout=...)` before it joins the group, the way Approach 1 and 2 both do. Skip it only for tasks you've deliberately bounded some other way already (like `asyncio.sleep(2)` in the earlier exercises, which can never hang). Combined with `return_exceptions=True` from the `gather_speed` exercise, this is what turns "one slow or dead source can freeze the whole group forever" into "the group always finishes within a time you chose, with each source's outcome clearly labeled."
+**Which one should you actually write?** Any time you're `gather`-ing calls to something outside your program's control — an API, a database, a vector store — wrap each individual call in `asyncio.wait_for(..., timeout=...)` before it joins the group, the way Approach 2 and 3 both do. Skip it only for tasks you've deliberately bounded some other way already (like `asyncio.sleep(2)` in the earlier exercises, which can never hang). Combined with `return_exceptions=True` from the `gather_speed` exercise, this is what turns "one slow or dead source can freeze the whole group forever" into "the group always finishes within a time you chose, with each source's outcome clearly labeled."

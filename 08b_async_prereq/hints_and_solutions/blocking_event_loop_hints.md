@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-blocking_event_loop) · [Hint 1](blocking_event_loop_hints.md#hint-1) · [Hint 2](blocking_event_loop_hints.md#hint-2) · [Solution](blocking_event_loop_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (the actual fix, not just the diagnosis). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus the actual fix, not just the diagnosis). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -42,12 +42,6 @@ The exact pieces:
 - **The comparison that proves it:** two "good" coroutines run together finish in ~3 seconds (the max). One "good" and one "blocking" finish in ~6 seconds (the sum) — the blocking one froze everything else, including the good one, until it was done.
 - **No error, no warning:** this is what makes the bug sneaky — the code runs, gives a correct final answer, and the only symptom is that it took twice as long as it should have.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-blocking_event_loop) · [Hint 1](blocking_event_loop_hints.md#hint-1) · [Hint 2](blocking_event_loop_hints.md#hint-2) · [Solution](blocking_event_loop_solution.md)
-
-### Advanced Version
-
 Think about where this actually happens in real code — nobody writes `time.sleep(3)` inside an `async def` function on purpose in production. It happens by accident, almost always the same way: someone reaches for a library that only ships a synchronous version — a database driver, a file-parsing library, `requests` instead of `httpx`/`aiohttp` — and calls it from inside an `async def` function without realizing that call blocks the whole event loop exactly like `time.sleep` does here, just less obviously, since it doesn't have "sleep" in its name to give it away.
 
 The real design question isn't just "did I accidentally block the loop" — it's "what do I do when the work I need genuinely has no async version, and I can't just rewrite the library myself?"
@@ -56,7 +50,7 @@ The extra piece that answers that question:
 
 - **`asyncio.to_thread(...)`** (or the lower-level `loop.run_in_executor(...)`) runs a normal, blocking, synchronous function in a separate thread, and gives you back something you `await` — so the event loop stays free to run other coroutines while that blocking call happens somewhere else. `result = await asyncio.to_thread(some_blocking_function, arg1, arg2)` is the fix any time you're stuck calling code that was never written to be async.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both diagnose the bug — spot it, measure it, understand why it's silent. Advanced answers the question those two levels leave open: once you find a real blocking call you can't avoid (a sync-only library, not a `time.sleep()` typo), `asyncio.to_thread(...)` is how you keep the event loop free anyway, without rewriting the blocking code itself.
+**Difference between Basic and Intermediate:** Basic diagnoses the bug — spot it, measure it, understand why it's silent. Intermediate also answers the question that leaves open: once you find a real blocking call you can't avoid (a sync-only library, not a `time.sleep()` typo), `asyncio.to_thread(...)` is how you keep the event loop free anyway, without rewriting the blocking code itself.
 
 <hr class="page-break">
 
@@ -143,23 +137,22 @@ if __name__ == "__main__":
 ```
 Fill in `main()` and the entry point yourself, then compare against the [Solution](blocking_event_loop_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-blocking_event_loop) · [Hint 1](blocking_event_loop_hints.md#hint-1) · [Hint 2](blocking_event_loop_hints.md#hint-2) · [Solution](blocking_event_loop_solution.md)
-
-### Advanced Version
+Once that's working, fix it without touching the blocking call itself:
 
 ```
-make a fixed version of blocking_task that uses asyncio.to_thread instead of calling time.sleep directly:
+make a fixed version of blocking_task that uses asyncio.to_thread
+instead of calling time.sleep directly:
 
 async def fixed_task():
-    await asyncio.to_thread(time.sleep, 3)   # still calls the real blocking function,
-                                               # but off the event loop's own thread
+    await asyncio.to_thread(time.sleep, 3)   # still calls the real
+                                               # blocking function, but
+                                               # off the loop's thread
     return "fixed"
 
 time this:
     run good_task and fixed_task together with gather
-    -> expect around 3 seconds again, even though fixed_task still calls time.sleep internally
+    -> expect around 3 seconds again, even though fixed_task still
+       calls time.sleep internally
 ```
 
 ```python
@@ -172,9 +165,9 @@ async def fixed_task() -> str:
 async def main_fixed() -> None:
     await time_it("good + fixed (to_thread):", good_task(), fixed_task())
 ```
-Add this third comparison to your `main()` from the Intermediate version, run all 3, and confirm `"good + fixed"` comes back close to 3 seconds — not 6, like `"good + blocking"` did — then compare against the [Solution](blocking_event_loop_solution.md).
+Add this third comparison to your `main()` from the Basic version, run all 3, and confirm `"good + fixed"` comes back close to 3 seconds — not 6, like `"good + blocking"` did — then compare against the [Solution](blocking_event_loop_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate stop at showing the bug and measuring it. Advanced fixes it without touching the blocking call itself — `asyncio.to_thread(time.sleep, 3)` still calls the exact same blocking `time.sleep`, just from a separate thread the event loop doesn't have to wait on directly, which is exactly the pattern you'd reach for with a real sync-only library you can't rewrite.
+**Difference between Basic and Intermediate:** Basic stops at showing the bug and measuring it. Intermediate also fixes it without touching the blocking call itself — `asyncio.to_thread(time.sleep, 3)` still calls the exact same blocking `time.sleep`, just from a separate thread the event loop doesn't have to wait on directly, which is exactly the pattern you'd reach for with a real sync-only library you can't rewrite.
 
 <hr class="page-break">
 

@@ -2,7 +2,7 @@
 
 > [Back to the Build Task](../README.md#build-task-retriever-module) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it).
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — how a real codebase would actually write it).
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -52,19 +52,13 @@ Here's what to actually go look at:
 
 Try sketching, in plain English, what happens to one document on its way into the store, and what happens to one question on its way to becoming a result list.
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-retriever-module) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-Think past "ingest once and it works." Ask: **what happens if `build_vector_store()` runs a second time on the same folder — does the store end up with every chunk duplicated?**
+Think past "ingest once and it works," too. Ask: **what happens if `build_vector_store()` runs a second time on the same folder — does the store end up with every chunk duplicated?**
 
 With `chromadb`, calling `collection.add()` again with the same `ids` either raises or silently overwrites, depending on version and setup — neither is "add a second identical copy," but neither is automatically safe either unless you design for it. The real design answer: build each chunk's `id` deterministically from something stable (`f"{file_name}-{chunk_index}"`, as the hints already do) rather than a random UUID, so re-running ingest on an unchanged file naturally lands on the *same* IDs instead of creating duplicates — and decide explicitly whether a re-run should skip existing IDs, or delete-then-re-add to pick up an edited file.
 
 A second real question worth sketching: what happens when `doc_folder` has thousands of files? Calling the embeddings API once per file (rather than batching many chunks per call) is slow and wastes the API's ability to embed a whole list at once. Collect chunks across *all* files first, then make one (or a few, capped at the API's batch-size limit) embedding call for the whole batch — not one call per file or per chunk.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate get one clean ingest run working correctly. Advanced asks what happens the *second* time you run it (idempotency, via deterministic IDs) and what happens at real scale (batching embedding calls instead of one-per-file) — two questions that don't show up with a 3-file test folder, but absolutely show up in a real knowledge base that grows and changes over time.
+**Difference between Basic and Intermediate:** Basic gets one clean ingest run working correctly. Intermediate also asks what happens the *second* time you run it (idempotency, via deterministic IDs) and what happens at real scale (batching embedding calls instead of one-per-file) — two questions that don't show up with a 3-file test folder, but absolutely show up in a real knowledge base that grows and changes over time.
 
 <hr class="page-break">
 
@@ -121,7 +115,9 @@ def build_vector_store(doc_folder, chunk_fn):
         chunks = chunk_fn(text)
         for chunk_index, chunk_text in enumerate(chunks):
             all_texts.append(chunk_text)
-            all_metadatas.append({"source_file": file_name, "chunk_index": chunk_index})
+            all_metadatas.append({
+                "source_file": file_name, "chunk_index": chunk_index,
+            })
 
     # all_texts[i] and all_metadatas[i] always describe the same chunk —
     # keep them in step with each other
@@ -200,7 +196,9 @@ def build_vector_store(doc_folder: str, chunk_fn) -> tuple[list[str], list[dict]
         chunks = chunk_fn(text)
         for chunk_index, chunk_text in enumerate(chunks):
             all_texts.append(chunk_text)
-            all_metadatas.append({"source_file": path.name, "chunk_index": chunk_index})
+            all_metadatas.append({
+                "source_file": path.name, "chunk_index": chunk_index,
+            })
 
     return all_texts, all_metadatas
 ```
@@ -209,13 +207,7 @@ The empty-store check has to happen *before* you try to search — searching an 
 
 Try finishing the rest yourself before looking at the full Solution below.
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-retriever-module) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-Sketch the deterministic-ID scheme before checking the Solution — this is what makes re-running ingest safe:
+Once that's working, sketch the deterministic-ID scheme — this is what makes re-running ingest safe:
 
 ```python
 chunk_id = f"{path.name}-{chunk_index}"   # stable across re-runs on the same file
@@ -223,7 +215,7 @@ chunk_id = f"{path.name}-{chunk_index}"   # stable across re-runs on the same fi
 
 Then sketch the batched-embedding call: collect `all_texts` across *every* file first (as the hints already do), and make exactly one `client.embeddings.create(model=..., input=all_texts)` call for the whole batch, instead of one call inside the per-file loop. Write both pieces yourself before checking the Solution.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate build a working ingest-and-search pipeline for a clean, one-time run. Advanced adds the two things that only matter once this runs more than once, or on more than a handful of files — a deterministic ID scheme so re-ingesting doesn't duplicate, and one batched embedding call instead of one call per file.
+**Difference between Basic and Intermediate:** Basic builds a working ingest-and-search pipeline for a clean, one-time run. Intermediate adds the two things that only matter once this runs more than once, or on more than a handful of files — a deterministic ID scheme so re-ingesting doesn't duplicate, and one batched embedding call instead of one call per file.
 
 <hr class="page-break">
 
@@ -231,11 +223,13 @@ Then sketch the batched-embedding call: collect `all_texts` across *every* file 
 
 ## Solution {: #solution }
 
-Two working solutions below. Both are correct — they show two normal, real ways people build this. Read both, and think about which one you'd actually pick and why.
+Read both depths below — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ### Basic Version
 
 **Approach 1 — raw `chromadb`**
+
+**Story — `chunking.py`/`ingest.py`/`retriever.py`:** this is Project 3's Retriever module — every practice exercise above (chunking, embedding similarity, the vector-store search) folds into these three files. **If not:** Project 3 would be the first place any of these pieces ever had to work together, with no smaller version to trust.
 
 ```python
 # chunking.py
@@ -287,16 +281,23 @@ def build_vector_store(doc_folder, chunk_fn=chunk_by_paragraph):
         chunks = chunk_fn(text)
         for chunk_index, chunk_text in enumerate(chunks):
             all_texts.append(chunk_text)
-            all_metadatas.append({"source_file": file_name, "chunk_index": chunk_index})
+            all_metadatas.append({
+                "source_file": file_name, "chunk_index": chunk_index,
+            })
             all_ids.append(file_name + "-" + str(chunk_index))
 
     if len(all_texts) == 0:
         return collection
 
-    response = client.embeddings.create(model="text-embedding-3-small", input=all_texts)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=all_texts,
+    )
     embeddings = [item.embedding for item in response.data]
 
-    collection.add(ids=all_ids, embeddings=embeddings, documents=all_texts, metadatas=all_metadatas)
+    collection.add(
+        ids=all_ids, embeddings=embeddings,
+        documents=all_texts, metadatas=all_metadatas,
+    )
     return collection
 ```
 
@@ -311,7 +312,9 @@ def retrieve(collection, query, k=3):
     if collection.count() == 0:
         return []
 
-    response = client.embeddings.create(model="text-embedding-3-small", input=[query])
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=[query],
+    )
     query_embedding = response.data[0].embedding
 
     results = collection.query(query_embeddings=[query_embedding], n_results=k)
@@ -339,6 +342,8 @@ def retrieve(collection, query, k=3):
 ### Intermediate Version
 
 **Approach 1 — raw `chromadb`, with type hints**
+
+**Story — `ingest.py`/`retriever.py` (Intermediate):** Basic proved the pipeline works; this version makes it safe to build on — typed signatures, and `all_ids` built from `f"{path.name}-{chunk_index}"` instead of left implicit. **If not:** a typo in a dict key would fail silently instead of being caught, and nothing about the ID scheme would hint that it needs to be deterministic (Approach 2 below explains why).
 
 ```python
 # chunking.py
@@ -392,7 +397,11 @@ def build_vector_store(
         chunks = chunk_fn(text)
         for chunk_index, chunk_text in enumerate(chunks):
             all_texts.append(chunk_text)
-            all_metadatas.append({"source_file": path.name, "chunk_index": chunk_index})
+            all_metadatas.append({
+                "source_file": path.name, "chunk_index": chunk_index,
+            })
+            # why: deterministic, not a random UUID -- a re-run on an
+            # unchanged file lands on the same ID instead of duplicating
             all_ids.append(f"{path.name}-{chunk_index}")
 
     if not all_texts:
@@ -401,7 +410,10 @@ def build_vector_store(
     response = client.embeddings.create(model=EMBEDDING_MODEL, input=all_texts)
     embeddings = [item.embedding for item in response.data]
 
-    collection.add(ids=all_ids, embeddings=embeddings, documents=all_texts, metadatas=all_metadatas)
+    collection.add(
+        ids=all_ids, embeddings=embeddings,
+        documents=all_texts, metadatas=all_metadatas,
+    )
     return collection
 ```
 
@@ -416,7 +428,7 @@ client = OpenAI()
 
 def retrieve(collection, query: str, k: int = 3) -> list[dict]:
     if collection.count() == 0:
-        return []
+        return []  # when: an empty store must not crash, per the requirements
 
     response = client.embeddings.create(model=EMBEDDING_MODEL, input=[query])
     query_embedding = response.data[0].embedding
@@ -439,24 +451,24 @@ def retrieve(collection, query: str, k: int = 3) -> list[dict]:
     return documents
 ```
 
-**Difference from Basic:** same logic, with full type hints, and `all_ids` built as `f"{path.name}-{chunk_index}"` — a deterministic ID, not just a detail, since it's the piece that makes re-ingesting the same folder safe (see Advanced).
+**Difference from Basic:** same logic, with full type hints, and `all_ids` built as `f"{path.name}-{chunk_index}"` — a deterministic ID, not just a detail, since it's the piece that makes re-ingesting the same folder safe (see Approach 2 below).
 
-<hr class="page-break">
+**Approach 2 — idempotent re-ingest: delete-then-add on a re-run**
 
-> [Back to the Build Task](../README.md#build-task-retriever-module) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-**Approach 1 — idempotent re-ingest: delete-then-add on a re-run**
+**Story:** calling `collection.add()` again with the same IDs either raises or silently overwrites, depending on version and setup — neither is "add a second identical copy," but neither is automatically safe either unless you design for it. **If not:** re-running ingest after editing one document would leave the store in a state nobody could predict without checking the `chromadb` version installed.
 
 ```python
-def build_vector_store(doc_folder: str, chunk_fn=chunk_by_paragraph, collection_name: str = "docs"):
-    # delete-then-recreate makes every run start from a clean, known state —
+def build_vector_store(
+    doc_folder: str,
+    chunk_fn=chunk_by_paragraph,
+    collection_name: str = "docs",
+):
+    # why: delete-then-recreate starts every run from a clean, known state --
     # simpler and safer than trying to diff old vs. new chunks by hand
     try:
         chroma_client.delete_collection(name=collection_name)
     except Exception:
-        pass  # didn't exist yet — fine, this is the first run
+        pass  # how: didn't exist yet -- fine, this is the first run
     collection = chroma_client.create_collection(name=collection_name)
 
     all_texts: list[str] = []
@@ -470,32 +482,49 @@ def build_vector_store(doc_folder: str, chunk_fn=chunk_by_paragraph, collection_
         chunks = chunk_fn(text)
         for chunk_index, chunk_text in enumerate(chunks):
             all_texts.append(chunk_text)
-            all_metadatas.append({"source_file": path.name, "chunk_index": chunk_index})
+            all_metadatas.append({
+                "source_file": path.name, "chunk_index": chunk_index,
+            })
             all_ids.append(f"{path.name}-{chunk_index}")
 
     if not all_texts:
         return collection
 
-    # one batched call for every chunk across every file, not one call per file
+    # why: one batched call for every chunk across every file, not one
+    # call per file -- see Approach 3's Story for what this costs otherwise
     response = client.embeddings.create(model=EMBEDDING_MODEL, input=all_texts)
     embeddings = [item.embedding for item in response.data]
 
-    collection.add(ids=all_ids, embeddings=embeddings, documents=all_texts, metadatas=all_metadatas)
+    collection.add(
+        ids=all_ids, embeddings=embeddings,
+        documents=all_texts, metadatas=all_metadatas,
+    )
     return collection
 ```
 Re-running `build_vector_store()` on an edited folder now produces a clean, correct store every time — no duplicate chunks from re-running, and no stale chunks left over from a file that was deleted since the last ingest.
 
-**Approach 2 — LangChain's `Chroma` wrapper, same idempotency idea**
+**Approach 3 — LangChain's `Chroma` wrapper, same idempotency idea**
+
+**Story:** Project 3's agent tooling expects LangChain `Document` objects back from retrieval — building the store with LangChain's own `Chroma` wrapper here avoids a conversion step later, while keeping the exact same delete-then-rebuild safety as Approach 2. **If not:** Project 3 would need a translation layer between this module's raw dicts and whatever shape the agent tools actually expect.
 
 ```python
-def build_vector_store(doc_folder: str, chunk_fn=chunk_by_paragraph, persist_directory: str = "./chroma_db"):
+def build_vector_store(
+    doc_folder: str,
+    chunk_fn=chunk_by_paragraph,
+    persist_directory: str = "./chroma_db",
+):
     embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
 
-    # a fresh Chroma instance at the same persist_directory, cleared first,
-    # gives the same "clean re-run" guarantee as Approach 1's delete-then-create
-    store = Chroma(embedding_function=embeddings, persist_directory=persist_directory)
+    # why: a fresh Chroma instance at the same persist_directory, cleared
+    # first, gives the same "clean re-run" guarantee as Approach 2's
+    # delete-then-create
+    store = Chroma(
+        embedding_function=embeddings, persist_directory=persist_directory,
+    )
     store.delete_collection()
-    store = Chroma(embedding_function=embeddings, persist_directory=persist_directory)
+    store = Chroma(
+        embedding_function=embeddings, persist_directory=persist_directory,
+    )
 
     all_texts: list[str] = []
     all_metadatas: list[dict] = []
@@ -507,17 +536,20 @@ def build_vector_store(doc_folder: str, chunk_fn=chunk_by_paragraph, persist_dir
         chunks = chunk_fn(text)
         for chunk_index, chunk_text in enumerate(chunks):
             all_texts.append(chunk_text)
-            all_metadatas.append({"source_file": path.name, "chunk_index": chunk_index})
+            all_metadatas.append({
+                "source_file": path.name, "chunk_index": chunk_index,
+            })
 
     if not all_texts:
         return store
 
     return Chroma.from_texts(
-        texts=all_texts, embedding=embeddings, metadatas=all_metadatas, persist_directory=persist_directory
+        texts=all_texts, embedding=embeddings,
+        metadatas=all_metadatas, persist_directory=persist_directory,
     )
 ```
 
-**Difference from Intermediate:** Intermediate builds a store that works correctly the *first* time. Advanced makes re-running ingest safe (delete-then-rebuild, rather than silently appending duplicates) and keeps the embedding call batched across the whole folder — the two things that actually matter once this runs more than once against a folder of documents that changes over time, which is the normal case for a real knowledge base.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 builds a store that works correctly the *first* time. Approaches 2 and 3 make re-running ingest safe (delete-then-rebuild, rather than silently appending duplicates) and keep the embedding call batched across the whole folder — the two things that actually matter once this runs more than once against a folder of documents that changes over time, which is the normal case for a real knowledge base. Approach 3 additionally returns LangChain `Document` objects directly, matching what Project 3's agent tools expect.
 
 ### Which one should you actually use?
-For Project 3, use Approach 2 with LangChain's `Chroma` wrapper — the agent tooling in later documents expects `Document` objects, and using the same type here avoids a conversion step. Keep the Advanced Version's delete-then-rebuild pattern regardless of which wrapper you use — a `build_vector_store()` that silently duplicates on a second run is a real bug waiting to surface the first time someone re-runs ingest after editing a document, which will happen.
+For Project 3, use Approach 3 with LangChain's `Chroma` wrapper — the agent tooling in later documents expects `Document` objects, and using the same type here avoids a conversion step. Keep Approach 2/3's delete-then-rebuild pattern regardless of which wrapper you use — a `build_vector_store()` that silently duplicates on a second run is a real bug waiting to surface the first time someone re-runs ingest after editing a document, which will happen.

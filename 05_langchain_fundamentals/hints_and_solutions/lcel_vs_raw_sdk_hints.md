@@ -82,7 +82,8 @@ lcel_chain = prompt | ChatOpenAI().with_structured_output(ExtractedData)
 ```
 def build_lcel_chain(model_name="gpt-4o-mini"):
     prompt = ChatPromptTemplate.from_template("...")
-    return prompt | ChatOpenAI(model=model_name, temperature=0).with_structured_output(ExtractedData)
+    model = ChatOpenAI(model=model_name, temperature=0)
+    return prompt | model.with_structured_output(ExtractedData)
 
 test_inputs = [input_1, input_2, input_3]
 
@@ -115,7 +116,8 @@ def run_comparison(test_inputs: list[str]) -> list[ComparisonRow]:
     ...
 
 def main() -> None:
-    rows = run_comparison(["input one text", "input two text", "input three text"])
+    test_inputs = ["input one text", "input two text", "input three text"]
+    rows = run_comparison(test_inputs)
     matched = sum(1 for row in rows if row.matched)
     print(f"{matched}/{len(rows)} matched")
     for row in rows:

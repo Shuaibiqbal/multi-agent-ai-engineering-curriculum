@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real knowledge base survives being rerun, and tells you when nothing good matched). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real knowledge base survives being rerun, and tells you when nothing good matched). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -37,12 +37,6 @@ Same idea, naming the exact pieces:
 
 Because you wrote every document, you're your own ground truth — you can check each search result by eye and know immediately whether it's right or wrong, no guessing required.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
-
-### Advanced Version
-
 Two things break the moment this stops being a script you run exactly once.
 
 **First:** `chroma_client.create_collection(name="kb")` raises an error if a collection named `"kb"` already exists. Run your script a second time — to add a new document, or just because you re-ran it while testing — and it crashes on line 2, before doing anything useful. A script, a test file, and a notebook might all build "the kb collection" the same way this document's Build Task expects several files to share a config loader — and none of them should care whether it's the first call or the fiftieth. `chroma_client.get_or_create_collection(name="kb")` fixes this: it returns the existing collection if one's already there, and creates it only if it isn't — the same "check first, only do the real work if needed" idea from Doc01's Build Task cache.
@@ -56,7 +50,7 @@ The extra pieces:
 
 Sketch what a `search(question, cutoff)` function's signature and return type should look like once it can return "nothing relevant" as a real, distinct case — not just an empty list that looks the same as "no documents at all."
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both assume this script runs exactly once, against documents guaranteed to contain the answer to whatever you ask. Advanced removes both assumptions: `get_or_create_collection` makes building the store safe to call more than once, from more than one place, and a score cutoff makes "nothing relevant was found" a real, checked outcome instead of 3 confidently-wrong results that look no different from a genuine match.
+**Difference between Basic and Intermediate:** Basic assumes this script runs exactly once, against documents guaranteed to contain the answer to whatever you ask. Intermediate removes both assumptions: `get_or_create_collection` makes building the store safe to call more than once, from more than one place, and a score cutoff makes "nothing relevant was found" a real, checked outcome instead of 3 confidently-wrong results that look no different from a genuine match.
 
 <hr class="page-break">
 
@@ -102,7 +96,9 @@ from openai import OpenAI
 openai_client = OpenAI()
 
 def embed(text):
-    response = openai_client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = openai_client.embeddings.create(
+        model="text-embedding-3-small", input=text,
+    )
     return response.data[0].embedding
 
 def build_vector_store(doc_folder):
@@ -128,13 +124,17 @@ define:
         for each file_path in Path(doc_folder).iterdir():
             text = file_path.read_text()
             embedding = embed(text)
-            collection.add(documents=[text], embeddings=[embedding], ids=[file_path.name])
+            collection.add(
+                documents=[text], embeddings=[embedding], ids=[file_path.name],
+            )
         return collection
 
 define:
     def ask(collection, question: str) -> None:
         question_embedding = embed(question)
-        results = collection.query(query_embeddings=[question_embedding], n_results=3)
+        results = collection.query(
+            query_embeddings=[question_embedding], n_results=3,
+        )
         print the question, then results["ids"][0] and results["documents"][0]
 
 test:
@@ -145,26 +145,25 @@ test:
 
 Write `build_vector_store`'s loop and `ask` yourself, then compare against the [Solution](knowledge_base_search_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
-
-### Advanced Version
+Once that's working, make it safe to run more than once, and honest about weak matches:
 
 ```
 define:
-    SCORE_CUTOFF = 0.35     # a distance worse than this means "not actually relevant"
+    SCORE_CUTOFF = 0.35     # a distance worse than this means "not relevant"
 
     def build_vector_store(doc_folder):
         client = chromadb.Client()
-        collection = client.get_or_create_collection(name="kb")   # safe to call twice
-        if collection.count() == len(files in doc_folder): return collection  # already built
+        collection = client.get_or_create_collection(name="kb")   # safe twice
+        if collection.count() == len(files in doc_folder):
+            return collection   # already built
         for each file: embed and add, same as before
         return collection
 
     def search(collection, question, k=3, cutoff=SCORE_CUTOFF):
         question_embedding = embed(question)
-        results = collection.query(query_embeddings=[question_embedding], n_results=k)
+        results = collection.query(
+            query_embeddings=[question_embedding], n_results=k,
+        )
         keep only results whose distance <= cutoff
         if nothing survives the cutoff: return [] and note "no relevant match"
         return the surviving (id, text, distance) tuples
@@ -185,7 +184,9 @@ def build_vector_store(doc_folder: str):
     return collection
 
 
-def search(collection, question: str, k: int = 3, cutoff: float = SCORE_CUTOFF) -> list[dict]:
+def search(
+    collection, question: str, k: int = 3, cutoff: float = SCORE_CUTOFF,
+) -> list[dict]:
     question_embedding = embed(question)
     results = collection.query(query_embeddings=[question_embedding], n_results=k)
     # your turn: build a list of {"id":..., "text":..., "score":...} dicts,
@@ -193,9 +194,9 @@ def search(collection, question: str, k: int = 3, cutoff: float = SCORE_CUTOFF) 
     ...
 ```
 
-Fill in the "already built" check and the cutoff filter yourself, then compare all 3 of your finished versions against the [Solution](knowledge_base_search_solution.md).
+Fill in the "already built" check and the cutoff filter yourself, then compare all of your finished versions against the [Solution](knowledge_base_search_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate build the store once and trust every query returns something worth using. Advanced makes `build_vector_store` safe to call again without duplicating or crashing, and makes `search` capable of reporting "nothing relevant" as a real, distinct result instead of silently returning 3 weak matches with no way to tell they're weak.
+**Difference between Basic and Intermediate:** Basic builds the store once and trusts every query returns something worth using. Intermediate makes `build_vector_store` safe to call again without duplicating or crashing, and makes `search` capable of reporting "nothing relevant" as a real, distinct result instead of silently returning 3 weak matches with no way to tell they're weak.
 
 <hr class="page-break">
 
