@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real retry loop avoids making an outage worse). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — including how a real retry loop avoids making an outage worse). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -47,12 +47,6 @@ The exact pieces:
 
 Sketch the loop's structure — what's inside the `try`, what happens in the `except`, when does it give up — before checking Hint 2.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
-
-### Advanced Version
-
 Two problems with the plain `2 ** attempt` backoff only show up once you imagine more than one caller. First: if a server goes down and 50 different clients all started their first request within the same second, plain exponential backoff makes every one of them retry at *exactly* the same moments — 1s later, 2s later, 4s later — so they keep colliding with each other in a synchronized wave instead of spreading out. **Jitter** — adding a small random amount on top of the backoff formula — breaks that synchronization, since no two clients wait the exact same total time even if they started at the exact same moment.
 
 Second: think about what a caller of your retry function actually needs to test. A test that calls the real function and waits through real `2 ** attempt` seconds of sleeping is slow and flaky (it depends on network timing). The fix is a design change, not a code trick: pull the backoff *math* into its own tiny function, separate from the loop that actually sleeps and makes calls — `compute_backoff_delay(attempt) -> float`. That function is pure math (no network, no `time.sleep`), so it can be tested directly and instantly: does attempt 3 really return roughly 8 seconds? You don't need a fake server to answer that.
@@ -60,9 +54,9 @@ Second: think about what a caller of your retry function actually needs to test.
 The extra pieces:
 
 - `random.uniform(0, 1)` — adds a small random extra wait (jitter) on top of the exponential formula.
-- `compute_backoff_delay(attempt: int) -> float` as its own function, called by the retry loop but tested on its own.
+- `compute_backoff_delay(attempt: int) -> float` as its own function, called by the retry loop but tested on its own — this is the shape the Build Task's `compute_backoff_delay` needs to have.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both build one loop that retries a single caller correctly. Advanced asks what happens once you imagine *many* callers failing at the same moment (jitter, so they don't retry in lockstep) and asks how you'd actually verify the backoff math is right without a slow, flaky test that waits through real sleeps (pulling it into its own pure function). Neither of those problems exists until you stop thinking about "does this one retry loop work" and start thinking about "would this survive being used by a real, busy program."
+**Difference between Basic and Intermediate:** Basic builds one loop that retries a single caller correctly. Intermediate goes further once you imagine *many* callers failing at the same moment (jitter, so they don't retry in lockstep) and asks how you'd actually verify the backoff math is right without a slow, flaky test that waits through real sleeps (pulling it into its own pure function).
 
 <hr class="page-break">
 
@@ -147,13 +141,9 @@ for attempt in range(MAX_ATTEMPTS):
             ...  # what goes here, once you're truly out of attempts?
         time.sleep(2 ** attempt)
 ```
-The `if attempt == MAX_ATTEMPTS - 1:` check is the part people forget — without it, the loop just quietly finishes without telling you it never succeeded. Fill in that branch yourself, then compare against the [Solution](timeout_retry_backoff_solution.md).
+The `if attempt == MAX_ATTEMPTS - 1:` check is the part people forget — without it, the loop just quietly finishes without telling you it never succeeded. Fill in that branch yourself, then compare against the [Solution](timeout_retry_backoff_solution.md)'s Intermediate Approach 1.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
-
-### Advanced Version
+Once that's working, go one step further — Approach 2, the shape the Build Task actually needs:
 
 ```
 function compute_backoff_delay(attempt) -> float:
@@ -198,9 +188,9 @@ def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
 ```
 **Expected output, once filled in and called against a real URL that will eventually succeed on attempt 0:** no timeout lines at all — `compute_backoff_delay` is never even called, since the first attempt returns immediately. You'll only see its effect by testing it directly: `print(compute_backoff_delay(3))` should print something a little over `8.0`.
 
-Fill in `compute_backoff_delay` yourself, then compare all 3 of your finished versions against the [Solution](timeout_retry_backoff_solution.md) — its Advanced version also explains exactly why this one function is worth pulling out on its own.
+Fill in `compute_backoff_delay` yourself, then compare all of your finished versions against the [Solution](timeout_retry_backoff_solution.md) — its Approach 2 also explains exactly why this one function is worth pulling out on its own.
 
-**Difference between Basic, Intermediate, and Advanced:** same loop shape at 3 completeness levels — Basic proves the pieces work individually. Intermediate combines them into one loop that correctly gives up and re-raises after the limit. Advanced adds jitter (so many failing callers don't retry in lockstep) and moves the backoff math into its own testable function, separate from the part of the code that actually sleeps and makes network calls — which is exactly the shape the Build Task's `compute_backoff_delay(attempt: int) -> float` needs to have.
+**Difference between Basic and Intermediate:** same loop shape at 2 completeness levels — Basic proves the pieces work individually. Intermediate combines them into one loop that correctly gives up and re-raises after the limit (Approach 1), then adds jitter (so many failing callers don't retry in lockstep) and moves the backoff math into its own testable function, separate from the part of the code that actually sleeps and makes network calls (Approach 2) — which is exactly the shape the Build Task's `compute_backoff_delay(attempt: int) -> float` needs to have.
 
 <hr class="page-break">
 

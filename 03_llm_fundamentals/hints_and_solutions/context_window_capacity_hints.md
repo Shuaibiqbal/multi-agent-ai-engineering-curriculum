@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-context_window_capacity) · [Hint 1](context_window_capacity_hints.md#hint-1) · [Hint 2](context_window_capacity_hints.md#hint-2) · [Solution](context_window_capacity_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (the real formula), **Advanced** (why a fixed estimate isn't what a real product actually uses). Read Basic first even if you're comfortable with the math — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (the real formula, with a safety margin built in). Read Basic first even if you're comfortable with the math — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the formula](#hint-1)
 - [Hint 2 — A worked example, and the trimming decision](#hint-2)
@@ -36,19 +36,9 @@ Build the estimate as a small budget, not one giant division:
 
 Pick a window size and an average turn size before moving to Hint 2.
 
-<hr class="page-break">
+Keep in mind the formula assumes every turn is the same size — real conversations never are. A support chat has short turns throughout. A document-Q&A feature has one huge turn (the pasted document) followed by short follow-ups. A safety margin (start trimming at 75% full, not 100%) is what actually protects you from that unevenness, not a more precise average.
 
-> [Back to the exercise](../README.md#ex-context_window_capacity) · [Hint 1](context_window_capacity_hints.md#hint-1) · [Hint 2](context_window_capacity_hints.md#hint-2) · [Solution](context_window_capacity_solution.md)
-
-### Advanced Version
-
-The formula above assumes every turn is the same size — real conversations never are. A support chat has short turns throughout. A document-Q&A feature has one huge turn (the pasted document) followed by short follow-ups. Averaging across wildly different turn sizes gives you a number that's technically correct and practically useless for deciding *when* to trim.
-
-The real design question isn't "what's the average turn ceiling" — it's "how do I track this precisely enough, per-conversation, to trigger trimming at the right moment for *this specific* conversation, not some generic average one?"
-
-The piece that answers that: instead of pre-computing a fixed turn count, track a running total as the conversation grows — call `tiktoken` (or use the token count the API response reports back) after every turn, add it to a running sum, and compare that sum against your safety-margin threshold on every turn. This replaces "will I hit turn number N" with "am I over 75% of my budget right now" — which stays correct no matter how uneven the actual turns are.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic names the idea (one shared bucket) and the two things you need to know (window size, per-turn cost). Intermediate turns that into an actual formula with a concrete budget breakdown. Advanced points out the formula's real weakness — it assumes uniform turn size — and replaces "estimate a fixed ceiling up front" with "track the real running total as you go," which is what a production feature actually needs, not just a homework estimate.
+**Difference between Basic and Intermediate:** Basic names the idea (one shared bucket) and the two things you need to know (window size, per-turn cost). Intermediate turns that into an actual formula with a concrete budget breakdown and a safety margin.
 
 <hr class="page-break">
 
@@ -92,31 +82,11 @@ Notice how much the estimate moved (1,279 turns down to about 365) just from bei
 
 A common real-world rule is to start trimming or summarizing older messages once you've used somewhere around 70-80% of the window, not 100% — that leaves headroom for an unusually long reply and avoids a hard failure appearing suddenly mid-conversation.
 
-Write your final turn estimate, and the percentage where you'd start trimming, before checking the [Solution](context_window_capacity_solution.md).
+Two design details worth writing down alongside your number, for when this becomes real code: never trim the system prompt (it's not part of history, it's a fixed instruction), and never trim the most recent turn or two (the model needs the immediate context to make sense of a follow-up question like "what about the second one?").
 
-<hr class="page-break">
+Write your final turn estimate, the percentage where you'd start trimming, and these two rules, then compare against the [Solution](context_window_capacity_solution.md).
 
-> [Back to the exercise](../README.md#ex-context_window_capacity) · [Hint 1](context_window_capacity_hints.md#hint-1) · [Hint 2](context_window_capacity_hints.md#hint-2) · [Solution](context_window_capacity_solution.md)
-
-### Advanced Version
-
-Sketch what the trimming logic itself would actually check, not just the threshold number:
-
-```
-running_total = system_prompt_tokens
-safety_margin = 0.75
-
-on every new turn:
-    running_total += tokens_in(user_message) + tokens_in(model_reply)
-    if running_total > window_size * safety_margin:
-        trim or summarize the oldest turns until running_total drops
-        back under the threshold, but never trim the system prompt
-        or the most recent 1-2 turns
-```
-
-Two design details that matter once this is real code, not a formula: never trim the system prompt (it's not part of history, it's a fixed instruction), and never trim the most recent turn or two (the model needs the immediate context to make sense of a follow-up question like "what about the second one?").
-
-**Difference between Basic, Intermediate, and Advanced:** Basic gets a single static number from a single static formula. Intermediate refines the formula's inputs (realistic reply length, a safety margin instead of 100%). Advanced turns the whole thing into a running check performed every turn, with two concrete rules (never trim the system prompt, never trim the most recent turns) that a formula alone doesn't tell you — that's the gap between "I did the math once" and "I built the feature that keeps working as the conversation actually grows."
+**Difference between Basic and Intermediate:** Basic gets a single static number from a single static formula. Intermediate refines the formula's inputs (realistic reply length, a safety margin instead of 100%) and adds the two rules a formula alone doesn't tell you.
 
 <hr class="page-break">
 

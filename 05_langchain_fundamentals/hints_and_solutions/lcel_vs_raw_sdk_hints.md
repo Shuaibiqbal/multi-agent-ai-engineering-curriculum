@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-lcel_vs_raw_sdk) · [Hint 1](lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](lcel_vs_raw_sdk_hints.md#hint-2) · [Solution](lcel_vs_raw_sdk_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (comparing more than just correctness). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, structured for reuse). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The mapping, and the two deliverables](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -33,35 +33,11 @@ The mapping from raw SDK to LCEL: your `messages` list becomes a `ChatPromptTemp
 
 Reuse the same Pydantic model Project 1 already defines for its structured output — don't redefine it, import it; this is exactly what proves both versions produce the *same shape*, not just a similar-looking one. Keep `temperature=0` on both versions so any difference you see is from the method, not from randomness. Two Pydantic model instances with the same field values are equal with `==` by default — use that directly instead of writing manual field comparisons.
 
+Once the basic loop prints a match per input, think about reuse: right now the comparison logic and the printing are tangled together in one script. Splitting them — a `run_comparison(test_inputs) -> list[ComparisonRow]` function that just computes, and a `main()` that just reports — means the exact same logic could later be called from a test, not just read by a human. This is the shape this document's Build Task needs.
+
+**Difference between Basic and Intermediate:** Basic proves the two versions produce the same *answer* with printed output. Intermediate collects results into a typed structure and separates computing the comparison from reporting it, so the logic is reusable elsewhere.
+
 <hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-lcel_vs_raw_sdk) · [Hint 1](lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](lcel_vs_raw_sdk_hints.md#hint-2) · [Solution](lcel_vs_raw_sdk_solution.md)
-
-### Advanced Version
-
-"Both versions give the same answer" is only half the comparison this document's Core Concepts promised — the other half is the trade-off itself: LangChain adds a layer between your code and the actual API call. That layer has to cost *something*, even if correctness is identical. The real design question: **is that cost visible, and is it worth it?**
-
-Two things are worth actually measuring, not assuming:
-
-- **Latency** — does the LCEL version take noticeably longer per call than the raw SDK version, on the same input? (Usually: a small, close-to-negligible amount, from the extra Python-level indirection — worth confirming for yourself rather than assuming either "no difference" or "much slower.")
-- **Token usage** — do the two versions send the *exact* same prompt to the model, or does LangChain's prompt template add any wrapping text of its own that changes the token count, and therefore the cost, even when the final answer matches?
-
-```python
-# lcel_vs_raw_sdk_practice.py
-import time
-
-start = time.perf_counter()
-raw_result = extract_raw(text)
-raw_seconds = time.perf_counter() - start
-
-start = time.perf_counter()
-lcel_result = lcel_chain.invoke({"text": text})
-lcel_seconds = time.perf_counter() - start
-```
-
-Sketch how you'd add this timing to your comparison script, and what you'd conclude if the LCEL version were, say, 20% slower — is that a problem, or a reasonable cost for the reuse LangChain gives you? Write your answer down before checking Hint 2.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both prove the two versions produce the same *answer*. Advanced asks whether they cost the same to get there — timing each call and comparing token usage — which is the concrete, measured version of the "what does this layer cost" question Doc05's own Core Concepts section raises but never actually measures for you.
 
 <hr class="page-break">
 
@@ -120,61 +96,36 @@ for text in test_inputs:
     print(f"  match: {match}")
 ```
 
-Write the full comparison script (the loop, printing both results and whether they match) yourself before checking Hint 3.
+Write the full comparison script (the loop, printing both results and whether they match) yourself, then go one step further:
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-lcel_vs_raw_sdk) · [Hint 1](lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](lcel_vs_raw_sdk_hints.md#hint-2) · [Solution](lcel_vs_raw_sdk_solution.md)
-
-### Advanced Version
-
-```
-for each input:
-    time the raw call
-    time the lcel call
-    compare results (as before)
-    compare the two timings
-
-after the loop:
-    print the average raw time and average lcel time
-```
-
-Turning that into real code — fill in the missing piece yourself:
 ```python
 # lcel_vs_raw_sdk_practice.py
-import time
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from project_1 import extract_raw, ExtractedData
+from dataclasses import dataclass
 
-prompt = ChatPromptTemplate.from_template("Extract structured data from: {text}")
-lcel_chain = prompt | ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(ExtractedData)
+@dataclass
+class ComparisonRow:
+    input_text: str
+    raw_result: "ExtractedData"
+    lcel_result: "ExtractedData"
+    matched: bool
 
-test_inputs = ["input one text", "input two text", "input three text"]
-raw_times = []
-lcel_times = []
+def run_comparison(test_inputs: list[str]) -> list[ComparisonRow]:
+    # your turn: build the lcel chain, loop over test_inputs, and
+    # return a list of ComparisonRow instead of printing inline
+    ...
 
-for text in test_inputs:
-    start = time.perf_counter()
-    raw_result = extract_raw(text)
-    raw_times.append(time.perf_counter() - start)
-
-    start = time.perf_counter()
-    lcel_result = lcel_chain.invoke({"text": text})
-    lcel_times.append(time.perf_counter() - start)
-
-    print(f"{text!r} -> match: {raw_result == lcel_result}")
-
-# your turn: after the loop, print the average of raw_times and
-# the average of lcel_times, so the timing difference (if any) is
-# a number you can actually read, not something you have to eyeball
-...
+def main() -> None:
+    rows = run_comparison(["input one text", "input two text", "input three text"])
+    matched = sum(1 for row in rows if row.matched)
+    print(f"{matched}/{len(rows)} matched")
+    for row in rows:
+        if not row.matched:
+            print(f"MISMATCH on: {row.input_text}")
 ```
-**Expected output:** a match line per input, plus 2 average-timing lines at the end — confirm whether the LCEL version is meaningfully slower, about the same, or (less commonly) faster.
 
-Fill in the averaging yourself, then compare all 3 of your finished versions against the [Solution](lcel_vs_raw_sdk_solution.md).
+Fill in `run_comparison()` yourself, then compare against the [Solution](lcel_vs_raw_sdk_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both compare *what* the two versions return. Advanced adds a second axis to the comparison — *how long* each version takes — and reports it as real, averaged numbers instead of leaving "LangChain adds overhead" as an unverified claim.
+**Difference between Basic and Intermediate:** Basic prints a match line inline, in one script. Intermediate collects results into a typed `ComparisonRow` list via `run_comparison()`, separate from `main()`'s reporting — the shape this document's Build Task needs.
 
 <hr class="page-break">
 

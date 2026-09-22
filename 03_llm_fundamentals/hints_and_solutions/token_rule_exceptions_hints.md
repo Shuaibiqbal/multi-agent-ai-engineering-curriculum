@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-token_rule_exceptions) · [Hint 1](token_rule_exceptions_hints.md#hint-1) · [Hint 2](token_rule_exceptions_hints.md#hint-2) · [Solution](token_rule_exceptions_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (why it happens), **Advanced** (what to actually do about it in real code). Read Basic first even if you already know the rule — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (why it happens). Read Basic first even if you already know the rule — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — Why the rule breaks, and where](#hint-1)
 - [Hint 2 — Worked examples, and the real numbers](#hint-2)
@@ -33,19 +33,9 @@ For non-English text: don't try to guess from an English rule of thumb at all he
 
 Write your guesses for the code snippet and the non-English sentence, in tokens, before checking them.
 
-<hr class="page-break">
+The deeper pattern connecting both exceptions (code, non-English text) is the same: **token efficiency tracks training-data frequency, not human-perceived complexity.** A short Urdu sentence isn't linguistically more complex than its English translation — it just has far less representation in the corpus the tokenizer's vocabulary was built from. Given this, predict: would a JSON-heavy system prompt (lots of `{`, `}`, `"`, `:`) tokenize better or worse than the equivalent information written as plain English sentences? Write your prediction, then check it against a real tokenizer.
 
-> [Back to the exercise](../README.md#ex-token_rule_exceptions) · [Hint 1](token_rule_exceptions_hints.md#hint-1) · [Hint 2](token_rule_exceptions_hints.md#hint-2) · [Solution](token_rule_exceptions_solution.md)
-
-### Advanced Version
-
-The deeper pattern connecting both exceptions (code, non-English text) is the same: **token efficiency tracks training-data frequency, not human-perceived complexity.** A short Urdu sentence isn't linguistically more complex than its English translation — it just has far less representation in the corpus the tokenizer's vocabulary was built from, so the tokenizer has fewer efficient whole-chunk tokens reserved for it and falls back to smaller, less efficient pieces.
-
-This has a real consequence beyond trivia: any two features that feel equally simple to a developer (a support bot in English vs. the same bot in Urdu; a code-formatting feature vs. a prose-formatting one) can have very different token costs and context-budget footprints, purely because of how the training corpus happened to be weighted — not because one task is harder than the other by nature.
-
-Given this, predict: would a JSON-heavy system prompt (lots of `{`, `}`, `"`, `:`) tokenize better or worse than the equivalent information written as plain English sentences? Write your prediction, then check it against a real tokenizer.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic names that the rule breaks outside plain English. Intermediate explains the training-data mechanism behind why. Advanced generalizes that mechanism into a rule you can apply to *any* new content type you haven't tested yet — token efficiency tracks training-data frequency, not perceived complexity — and asks you to predict a genuinely new case (JSON) using that rule before verifying it.
+**Difference between Basic and Intermediate:** Basic names that the rule breaks outside plain English. Intermediate explains the training-data mechanism behind why, and generalizes it into a rule you can apply to any new content type you haven't tested yet.
 
 <hr class="page-break">
 
@@ -89,27 +79,9 @@ gap explained by: far less Urdu text in the tokenizer's training data means
                    inefficient sub-word or byte-level pieces
 ```
 
-Run your own two examples through the real tokenizer tool now and record the actual counts. Write down which parts of your own future projects fall into these exception categories: system prompts full of JSON schema examples, a multilingual support bot, or a feature that echoes back user-pasted code.
+Run your own two examples through the real tokenizer tool now and record the actual counts. Write down which parts of your own future projects fall into these exception categories: system prompts full of JSON schema examples, a multilingual support bot, or a feature that echoes back user-pasted code, then compare against the [Solution](token_rule_exceptions_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_rule_exceptions) · [Hint 1](token_rule_exceptions_hints.md#hint-1) · [Hint 2](token_rule_exceptions_hints.md#hint-2) · [Solution](token_rule_exceptions_solution.md)
-
-### Advanced Version
-
-Turn this into something you'd actually keep in a real codebase: a small helper that measures instead of estimates, so nobody on the team has to remember which content types are exceptions.
-
-```python
-import tiktoken
-
-def real_token_count(text: str, model: str = "gpt-4o") -> int:
-    encoding = tiktoken.encoding_for_model(model)
-    return len(encoding.encode(text))
-```
-
-Call this on anything that isn't plain English prose before it ships — a system prompt template, a set of few-shot examples, a multilingual UI string — instead of eyeballing a word count. Then think one step further: if you're budgeting cost for a feature that serves multiple languages, the right approach isn't one global average multiplier, it's measuring the *actual* per-language average from real traffic, since the gap varies a lot by language (some non-Latin scripts are far worse than others).
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate get you accurate numbers for the 2 examples in front of you, once. Advanced turns that one-off check into a reusable measurement habit — a function you actually call in code, and a per-language measurement strategy instead of a single guessed multiplier — which is what keeps a real multilingual or code-heavy feature's cost estimate honest as it grows past the 2 examples you happened to test by hand.
+**Difference between Basic and Intermediate:** Basic and Intermediate both get you accurate numbers for the 2 examples in front of you — Intermediate additionally explains the mechanism behind the gap, and has you generalize it to your own future projects.
 
 <hr class="page-break">
 

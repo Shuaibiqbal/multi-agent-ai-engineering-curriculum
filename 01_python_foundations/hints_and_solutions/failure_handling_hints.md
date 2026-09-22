@@ -6,7 +6,7 @@
 
 **Builds on:** the `# Basic` section of that same file — same habit, three error classes instead of one. Nothing to copy or import: scroll up in the file you already have.
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -45,20 +45,7 @@ Think of a real example: a function processing an order might fail because the i
 - A `try/except` block can have multiple `except` clauses, checked in order: `except OutOfStockError: ... except PaymentDeclinedError: ... except InvalidAddressError: ...`
 - Each `except` block should do something *different* — not just print a different string, but actually react differently (like retrying, versus asking the user to fix something, versus just logging and stopping).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-failure_handling) · [Hint 1](failure_handling_hints.md#hint-1) · [Hint 2](failure_handling_hints.md#hint-2) · [Solution](failure_handling_solution.md)
-
-### Advanced Version
-
-Ask yourself: what happens when a 4th error type shows up next month, and then a 10th? A chain of `except` blocks, one per error, is easy to read for 3 errors — but it gets harder to maintain as the list grows, especially if several errors genuinely deserve the *same* reaction. The deeper design question isn't just "catch these 3 errors separately" — it's "how do I organize error *types* and error *reactions* so that adding error #11 doesn't mean rewriting a giant `except` chain, and so that errors which should share a reaction actually can, without losing the ability to handle one specifically when it matters?"
-
-Two extra pieces make this scale:
-
-- **A shared base class:** `class OrderError(Exception): pass`, with all 3 specific errors inheriting from it (`class OutOfStockError(OrderError): pass`, and so on). A caller can then catch the whole family with one `except OrderError:`, or one specific member of it, depending on what it needs.
-- **A dispatch table:** a plain `dict` mapping each exception *class* to the function that should handle it — `HANDLERS = {OutOfStockError: handle_stock, ...}`. Instead of one `except` block per error type, a single `except Exception as e:` looks up `HANDLERS[type(e)]` and calls it. Adding error #11 becomes "add one dict entry and one function," not "add another `except` block to a growing chain."
-
-**Difference between Basic, Intermediate, and Advanced:** Basic gives you the ingredients in plain words. Intermediate shows the exact syntax — 3 classes, 3 raises, 3 `except` blocks, and explains what each piece of syntax does. Advanced asks what happens once "3" becomes "many," and introduces two new *shapes* for organizing the same problem — a class hierarchy, and a lookup table — either of which is a genuinely different structural choice from "write N `except` blocks," not just a fancier version of it. That's the difference between code that works for this exercise and code that scales to a real, growing system.
+**Difference between Basic and Intermediate:** Basic gives you the ingredients in plain words. Intermediate shows the exact syntax — 3 classes, 3 raises, 3 `except` blocks, and explains what each piece of syntax does — this is the depth the exercise's Solution is written at.
 
 <hr class="page-break">
 
@@ -147,61 +134,7 @@ def process_order(problem_type: str) -> None:
 
 Try finishing the function and the 3-branch `except` block yourself before checking the [Solution](failure_handling_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-failure_handling) · [Hint 1](failure_handling_hints.md#hint-1) · [Hint 2](failure_handling_hints.md#hint-2) · [Solution](failure_handling_solution.md)
-
-### Advanced Version
-
-```
-define OrderError as a kind of Exception (the shared base)
-define OutOfStockError, PaymentDeclinedError, InvalidAddressError, each as a kind of OrderError
-
-build a lookup table:
-    HANDLERS = {
-        OutOfStockError: a function that says "try again later, tell the warehouse",
-        PaymentDeclinedError: a function that says "ask for a different payment method",
-        InvalidAddressError: a function that says "ask the customer to fix their address",
-    }
-
-for each of the 3 problem types:
-    try process_order with that type
-    except Exception as e:
-        look up HANDLERS by the exact type of e
-        call whichever function was found, passing it e
-```
-
-```python
-# practice/custom_errors_practice.py — Failure handling section
-class OrderError(Exception):
-    pass
-
-class OutOfStockError(OrderError):
-    pass
-
-class PaymentDeclinedError(OrderError):
-    pass
-
-class InvalidAddressError(OrderError):
-    pass
-
-
-def process_order(problem_type: str) -> None:
-    if problem_type == "stock":
-        raise OutOfStockError("item is out of stock")
-    # add the other two raises yourself
-
-
-HANDLERS = {
-    OutOfStockError: None,       # replace with a real handler function
-    PaymentDeclinedError: None,  # replace with a real handler function
-    InvalidAddressError: None,   # replace with a real handler function
-}
-```
-
-Fill in 3 small handler functions, finish `HANDLERS`, and write the single `except Exception as e:` block that looks up `HANDLERS[type(e)]` and calls it. Then compare all 3 of your finished versions against the [Solution](failure_handling_solution.md).
-
-**Difference between Basic, Intermediate, and Advanced:** same underlying idea (3 error types, 3 different reactions) at 3 completeness levels, shown here both as pseudocode and as near-complete code — Basic proves the concept works, Intermediate adds the type contract real Python expects. Basic and Intermediate's pseudocode both hard-code 3 separate `except` lines. Advanced restructures the dispatch itself: its pseudocode builds a lookup table once, so the `try/except` block itself never changes size again no matter how many error types get added — only the table grows — which is what makes the design still hold up once there are more than 3 error types.
+**Difference between Basic and Intermediate:** same underlying idea (3 error types, 3 different reactions) at 2 completeness levels, shown here both as pseudocode and as near-complete code — Basic proves the concept works, Intermediate adds the type contract real Python expects.
 
 <hr class="page-break">
 

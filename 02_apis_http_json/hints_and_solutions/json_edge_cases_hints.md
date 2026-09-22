@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-json_edge_cases) · [Hint 1](json_edge_cases_hints.md#hint-1) · [Hint 2](json_edge_cases_hints.md#hint-2) · [Solution](json_edge_cases_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real response-parser handles shapes that are wrong in less obvious ways). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -47,26 +47,9 @@ The exact pieces:
 
 Sketch both blocks separately before checking Hint 2.
 
-<hr class="page-break">
+"Missing key" is the simplest way valid JSON can be the wrong shape, but a real API can also hand you a key that's *present* with a completely different type than expected (`response["choices"]` is a string instead of a list, because of an error path on the server's side). `isinstance(value, list)` (or `dict`, `str`, etc.) — checking the *type* of a value you got back, not just whether the key existed — is worth knowing exists; this exercise focuses on the single-key case, and a genuinely nested shape (several dict/list levels deep) is exactly what Doc04's `chat_client.py` reaches for a `pydantic` model to solve instead of hand-walking.
 
-> [Back to the exercise](../README.md#ex-json_edge_cases) · [Hint 1](json_edge_cases_hints.md#hint-1) · [Hint 2](json_edge_cases_hints.md#hint-2) · [Solution](json_edge_cases_solution.md)
-
-### Advanced Version
-
-"Missing key" is only the simplest way valid JSON can still be the wrong shape. Think about two messier cases a real API can hand you: a key that's *present* but holds a completely different type than you expected (`response["choices"]` is a string instead of a list, because of an error path on the server's side), and a key that's buried several levels deep inside nested dictionaries and lists, where any one of those intermediate steps could be the thing that's missing (`response["choices"][0]["message"]["content"]` — 4 separate places this can fail).
-
-`.get()` alone doesn't fully solve either problem: `data.get("choices")` returns `None` safely if `"choices"` is missing, but if it returns a string instead of a list, the very next line (`data["choices"][0]`) still crashes — just one line further downstream than before, at a spot with much less context about what actually went wrong. And chaining `.get()` calls for a nested path (`data.get("a", {}).get("b", {}).get("c")`) works, but silently returns `None` if *any* level is wrong, with no way to tell which level failed.
-
-The real design question isn't "how do I read one key safely" — it's "how do I check an entire response's shape in one place, close to where it arrives, so a bad shape fails with one clear message naming exactly what's wrong, instead of a confusing `TypeError` or `IndexError` three functions later, far from the actual API call."
-
-The extra pieces:
-
-- `isinstance(value, list)` (or `dict`, `str`, etc.) — checking the *type* of a value you got back, not just whether the key existed.
-- A small helper that walks a nested path and raises one clear, named error the moment anything along that path is missing or the wrong type — instead of letting Python's own `TypeError`/`IndexError`/`KeyError` surface wherever the code happens to touch the bad data next.
-
-Sketch this nested-path helper yourself before checking Hint 2.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both handle the single-level case — one key, either present with the right type or genuinely missing. Advanced adds the two ways that case doesn't cover: a key that's present but the *wrong type*, and a value buried several dictionary/list levels deep where any one level could be the problem — and argues for checking a response's whole expected shape in one place, right after parsing, instead of letting a bad shape surface as a confusing crash somewhere else in the program.
+**Difference between Basic and Intermediate:** Basic and Intermediate both handle the single-level case — one key, either present with the right type or genuinely missing — which is exactly what this document's Build Task needs.
 
 <hr class="page-break">
 
@@ -137,71 +120,6 @@ data: dict = {"choices": []}
 print(data.get("message"))  # safe, prints None
 ```
 What's missing: the crashing version of the missing-key lookup, wrapped so it doesn't kill the script. Write it yourself, then compare against the [Solution](json_edge_cases_solution.md). Notice both branches of problem 2 run — first the safe `.get()`, then, separately, the crashing `[...]` wrapped in its own `try/except` so it doesn't stop the script.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-json_edge_cases) · [Hint 1](json_edge_cases_hints.md#hint-1) · [Hint 2](json_edge_cases_hints.md#hint-2) · [Solution](json_edge_cases_solution.md)
-
-### Advanced Version
-
-```
-class ResponseShapeError(Exception): pass  # a named error for "the shape was wrong"
-
-function get_nested(data, path, expected_type):
-    current = data
-    walked = ""
-    for key in path:
-        walked += "." + str(key)
-        if key is a string and current is a dict and key in current:
-            current = current[key]
-        elif key is an int and current is a list and key < len(current):
-            current = current[key]
-        else:
-            raise ResponseShapeError("missing at " + walked)
-
-    if not isinstance(current, expected_type):
-        raise ResponseShapeError("wrong type at " + walked + ", expected " + str(expected_type))
-
-    return current
-```
-
-Here's almost the whole thing — fill in the missing piece yourself:
-```python
-# response_validation_practice.py
-from typing import Any
-
-
-class ResponseShapeError(Exception):
-    """Raised when a response's shape doesn't match what the caller expected."""
-
-
-def get_nested(data: Any, path: list, expected_type: type) -> Any:
-    current = data
-    walked_so_far = ""
-
-    for key in path:
-        walked_so_far += f".{key}"
-        if isinstance(key, str) and isinstance(current, dict) and key in current:
-            current = current[key]
-        elif isinstance(key, int) and isinstance(current, list) and key < len(current):
-            current = current[key]
-        else:
-            raise ResponseShapeError(f"expected response shape missing at {walked_so_far}")
-
-    # your turn: check isinstance(current, expected_type) here, and raise
-    # a clear ResponseShapeError naming walked_so_far and expected_type if it's wrong
-    ...
-
-    return current
-
-
-payload = {"choices": [{"message": {"content": "hi"}}]}
-content = get_nested(payload, ["choices", 0, "message", "content"], str)
-print(content)
-```
-Fill in the type check yourself, then compare all 3 of your finished versions against the [Solution](json_edge_cases_solution.md).
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both demonstrate one key, one level deep, either present or genuinely missing. Advanced generalizes that into a single helper that walks an arbitrary path through nested dicts and lists, checking both "does each step along the way exist" and "is the final value the type I actually expected" — failing with one clear message naming exactly which step broke, instead of a `TypeError` or `IndexError` popping up wherever the bad data happens to get touched next.
 
 <hr class="page-break">
 

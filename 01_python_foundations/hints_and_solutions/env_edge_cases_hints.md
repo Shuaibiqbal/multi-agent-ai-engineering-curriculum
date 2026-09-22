@@ -6,7 +6,7 @@
 
 **Builds on:** the `# Intermediate` section of that same file — you are testing *that* loader against the two tricky `.env` states, so keep both sections in the one file. The `MissingConfigError` used below is the same class the [Build Task](../README.md#build-task-config-logging-foundation) ends up with in `practice/build_task/exceptions.py`.
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real codebase would actually write it). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and try it yourself](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -57,17 +57,7 @@ print(type(value))   # <class 'NoneType'>  or  <class 'str'>
 ```
 Using `repr()` (instead of a plain `print(value)`) shows you the quotes around a string, so you can't mistake an empty string `''` for anything else.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-env_edge_cases) · [Hint 1](env_edge_cases_hints.md#hint-1) · [Hint 2](env_edge_cases_hints.md#hint-2) · [Solution](env_edge_cases_solution.md)
-
-### Advanced Version
-
-This is really a small version of a general problem: "missing" and "present but empty" are not the same thing, and collapsing them together (or keeping them apart) is a real design decision — not just a syntax detail. A careless check like `if not value:` treats `None`, `""`, and even things like `"0"` or a whitespace-only string `"   "` all as equally "falsy," which quietly hides distinctions that matter. For a secret like an API key, you usually want to be explicit about exactly *which* falsy-looking values are invalid, rather than letting Python's truthiness rules make that call for you.
-
-A production loader usually needs to handle a 3rd real case too: a value that's technically non-empty but still useless — like `OPENAI_API_KEY=   ` (only whitespace) or someone accidentally writing the literal text `"None"`. Testing your loader against a few of these messier inputs (and deciding whether `.strip()`-ing the value before checking it is the right call) is how a strict/lenient decision holds up outside the two textbook cases the exercise names.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic names the two situations in plain English and just says "try it and look." Intermediate shows exactly what `os.getenv()` returns for each one, in real code, and how to inspect it precisely with `repr()` and `type()` so you're certain what you're looking at. Advanced asks the harder question underneath — is a quick `if not value` check even safe, given how many different values Python treats as "falsy"? — and pushes past the two textbook cases into a few more realistic, messier inputs a loader might actually see in production.
+**Difference between Basic and Intermediate:** Basic names the two situations in plain English and just says "try it and look." Intermediate shows exactly what `os.getenv()` returns for each one, in real code, and how to inspect it precisely with `repr()` and `type()` so you're certain what you're looking at — this is the depth the exercise's Solution is written at.
 
 <hr class="page-break">
 
@@ -137,36 +127,9 @@ def require_env(key: str) -> str:
     return value
 ```
 
-What's missing: actual test calls, and the lenient version (which only checks `value is None`, with no `== ""` part). Write both yourself, and try them against an empty `.env` file and a `.env` with `OPENAI_API_KEY=`.
+What's missing: actual test calls, and the lenient version (which only checks `value is None`, with no `== ""` part). Write both yourself, and try them against an empty `.env` file and a `.env` with `OPENAI_API_KEY=`, then compare against the [Solution](env_edge_cases_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-env_edge_cases) · [Hint 1](env_edge_cases_hints.md#hint-1) · [Hint 2](env_edge_cases_hints.md#hint-2) · [Solution](env_edge_cases_solution.md)
-
-### Advanced Version
-
-```
-test 1: empty .env file            -> None  -> raise, in both strict and lenient designs
-test 2: "KEY="                     -> ""    -> decide: strict raises, lenient allows it through
-test 3: "KEY=   " (only spaces)    -> "   " -> decide: does .strip() turn this into "" too, and should it also raise?
-test 4 (optional): instead of writing an if-check at all,
-    express the same rule declaratively -- e.g. a Pydantic
-    Field with min_length=1 -- so the validation library
-    enforces the rule instead of hand-written logic
-```
-
-```python
-# practice/env_config_practice.py — Edge cases section
-from pydantic import BaseModel, Field
-
-class Config(BaseModel):
-    openai_api_key: str = Field(min_length=1)
-```
-This says the same rule as `if value is None or value == "":` — but as a constraint declared on the field itself, instead of an imperative statement someone has to remember to write correctly (and could accidentally write slightly differently in a 2nd place in the codebase).
-
-Fill in the part that loads `os.getenv("OPENAI_API_KEY")` into this model and catches the validation error yourself, then compare all 3 of your finished versions against the [Solution](env_edge_cases_solution.md).
-
-**Difference between Basic, Intermediate, and Advanced:** same underlying idea (test the 2 textbook cases, then check the code) at 3 completeness levels — Basic and Intermediate test the 2 textbook cases the exercise names, as pseudocode and near-complete code respectively, with Intermediate adding the type contract real Python expects. Advanced adds a 3rd, more realistic case (whitespace-only), and replaces the `if` check entirely with a declared field constraint — the same rule, enforced by a validation library instead of hand-written logic, which is exactly what the Advanced solution builds.
+**Difference between Basic and Intermediate:** same underlying idea (test the 2 textbook cases, then check the code) at 2 completeness levels — Basic and Intermediate test the 2 textbook cases the exercise names, as pseudocode and near-complete code respectively, with Intermediate adding the type contract real Python expects.
 
 <hr class="page-break">
 

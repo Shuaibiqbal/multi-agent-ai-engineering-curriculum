@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-api_first_call) · [Hint 1](api_first_call_hints.md#hint-1) · [Hint 2](api_first_call_hints.md#hint-2) · [Solution](api_first_call_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real HTTP client tells failure types apart). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -48,23 +48,9 @@ The exact pieces:
 
 Write both blocks — the working call and the broken one — before checking Hint 2.
 
+**Difference between Basic and Intermediate:** Basic names the tools for the two obvious outcomes (a working call, a broken URL). Intermediate names the real exception class involved and the habit of catching it specifically — this is the depth the exercise's Solution is written at. Telling apart the several distinct kinds of client-side failure (DNS, connection refused, a 4xx/5xx status) is exactly what this document's Build Task does properly, in its own exercises below.
+
 <hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-api_first_call) · [Hint 1](api_first_call_hints.md#hint-1) · [Hint 2](api_first_call_hints.md#hint-2) · [Solution](api_first_call_solution.md)
-
-### Advanced Version
-
-A malformed URL is only one of several ways a call can fail before you ever get a `Response` back — a real client also has to tell apart a DNS lookup that fails (`requests.exceptions.ConnectionError`), a server that refuses the connection outright (also `ConnectionError`), and a certificate that doesn't validate (`requests.exceptions.SSLError`). Catching only `MissingSchema`, or catching bare `Exception`, means you learn nothing about *which* of these happened — and each one points you toward a different fix.
-
-There's a second, easy-to-miss failure mode too: `requests.get(url)` can succeed and still hand you a `Response` carrying a 4xx or 5xx status — that's not an exception at all, just a "successful" call that failed at the HTTP level. `response.raise_for_status()` is what turns that into a catchable exception (`requests.exceptions.HTTPError`) too, so your `except` block can handle "the request itself failed" and "the server said no" the same way, instead of writing a separate `if response.status_code >= 400:` check every time.
-
-The real design question isn't "how do I catch the error" — it's "how many different exception types am I willing to tell apart, and what does my code do differently for each one?" A script exploring an API by hand can get away with one broad `except RequestException`. A client meant to run unattended needs to know the difference between "this URL will never work, don't retry" and "the server is just having a bad moment."
-
-The extra piece worth trying:
-
-- `response.raise_for_status()` — call it right after `requests.get(...)` succeeds; it raises `requests.exceptions.HTTPError` if the status is 4xx or 5xx, and does nothing if the call actually succeeded. Wrap both the `.get()` call and this line in the same `try/except requests.exceptions.RequestException` block, since `HTTPError` is itself a subclass of it.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic names the tools for the two obvious outcomes (a working call, a broken URL). Intermediate names the real exception class involved and the habit of catching it specifically. Advanced points out that "broken URL" is just one of several distinct client-side failures (DNS, connection refused, TLS), and that a "successful" call can still carry a failing status code — which `raise_for_status()` folds into the same exception-handling path instead of a separate `if` check, closer to what an actual HTTP client library does under the hood.
 
 <hr class="page-break">
 
@@ -130,55 +116,7 @@ except requests.exceptions.RequestException as e:
 
 Fill in the `except` block yourself, then compare against the [Solution](api_first_call_solution.md). Notice the working call needs no `try/except` at all for this exercise — you're only wrapping the call you already know will fail, to see exactly how it fails.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-api_first_call) · [Hint 1](api_first_call_hints.md#hint-1) · [Hint 2](api_first_call_hints.md#hint-2) · [Solution](api_first_call_solution.md)
-
-### Advanced Version
-
-```
-try:
-    response = requests.get(a real URL)
-    response.raise_for_status()
-except requests.exceptions.RequestException as e:
-    print(type(e).__name__, "-", e)
-else:
-    print(response.status_code)
-    print(response.json())
-
-for each broken url in [a bad schema, a URL with no such host, a URL that 404s]:
-    try:
-        response = requests.get(broken url)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(broken url, "->", type(e).__name__)
-```
-
-Here's almost the whole thing — fill in the missing piece yourself:
-```python
-# api_first_call_practice.py
-import requests
-
-urls = [
-    "https://api.github.com/this-path-does-not-exist-at-all",
-    "https://this-domain-genuinely-does-not-exist.invalid",
-    "htp://broken",
-]
-
-for url in urls:
-    try:
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        # your turn: print the url and type(e).__name__ so you can see
-        # that all 3 of these very different failures still land in
-        # this one except block, but with 3 different exception classes
-        ...
-```
-
-Fill in the `except` block, run it, and look at the 3 different exception class names it prints, then compare all 3 of your finished versions against the [Solution](api_first_call_solution.md).
-
-**Difference between Basic, Intermediate, and Advanced:** same idea (try a call, watch it fail) at 3 completeness levels — Basic proves a call works and a broken one raises something. Intermediate names the specific exception class and catches only that. Advanced adds `raise_for_status()` so a "successful" 404 is caught the same way as a connection failure, and runs several different kinds of broken URLs through the same block to show that `RequestException` is really an umbrella over several distinct, more specific failures.
+**Difference between Basic and Intermediate:** same idea (try a call, watch it fail) at 2 completeness levels — Basic proves a call works and a broken one raises something. Intermediate names the specific exception class and catches only that.
 
 <hr class="page-break">
 

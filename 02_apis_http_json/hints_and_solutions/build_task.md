@@ -2,7 +2,7 @@
 
 > [Back to the Build Task](../README.md#build-task-http-client-wrapper) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real HTTP client wrapper would actually be written). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (how a real HTTP client wrapper is actually written, including what makes it satisfy this Build Task's testability requirement). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -50,12 +50,6 @@ Here's what to actually go look at:
 
 Sketch the function's overall shape — the loop, the classification call, and the two error types it can raise — before checking Hint 2.
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-http-client-wrapper) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
 Think past "classify the failure and retry it correctly." Ask: **the retry loop reads `Retry-After` if this document's rate-limit exercise applies here, and this function is supposed to be "testable without making real network calls" per the Build Task's own constraint — how do you actually satisfy that, not just claim it?**
 
 The honest answer is a design change, not a testing trick: `request_with_retry()` shouldn't call `requests.request` directly by name — it should accept the transport function as a parameter, defaulting to the real one. A test can then pass in a fake function that returns canned responses instead of touching the network at all, with zero mocking libraries and zero real HTTP calls. This is the same idea as `compute_backoff_delay(attempt)` being pulled out on its own in the timeout/retry exercise, applied to the *entire network call* this time, not just the backoff math.
@@ -68,7 +62,7 @@ The extra pieces:
 - A module-level `requests.Session()` in `http_client.py`, and `session.request(...)` used as the real `request_fn` instead of the bare module-level function.
 - `decide_wait_seconds(response, attempt)` from the rate-limit exercise, called inside the retry loop before falling back to `compute_backoff_delay(attempt)` — a 429 should respect `Retry-After` if the server sent one, the same as any other real client.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the function and the tools. Intermediate designs the classification step and the loop's shape around it. Advanced asks how you'd actually satisfy the Build Task's own "testable without real network calls" constraint (dependency-inject the transport function, rather than hard-coding `requests.request`) and folds in the rate-limit exercise's `Retry-After` handling and the session-reuse exercise's connection pooling — because a real `http_client.py` isn't graded on one exercise's requirements in isolation, it's the one file every later document actually imports.
+**Difference between Basic and Intermediate:** Basic names the function and the tools. Intermediate designs the classification step and the loop's shape around it, then asks how you'd actually satisfy the Build Task's own "testable without real network calls" constraint (dependency-inject the transport function, rather than hard-coding `requests.request`) and folds in the rate-limit exercise's `Retry-After` handling and the session-reuse exercise's connection pooling — because a real `http_client.py` isn't graded on one exercise's requirements in isolation, it's the one file every later document actually imports.
 
 <hr class="page-break">
 
@@ -122,6 +116,8 @@ Call this instead of `response.json()` directly inside `request_with_retry`. Try
 
 ### Intermediate Version
 
+#### Approach 1 — typed, with the classification split into its own function
+
 **`exceptions.py`:**
 ```
 class TransientHTTPError is an Exception
@@ -168,13 +164,9 @@ function request_with_retry(method, url, max_attempts=5, **kwargs) -> dict:
         raise PermanentHTTPError(response.status_code, response.text)
 ```
 
-The key structural idea: the loop has exactly two ways out — a successful return, or a raised error — and exactly one way to keep going — `continue` after sleeping. Nothing falls through silently. Write out the full, typed version yourself before checking Hint 2's Advanced Version.
+The key structural idea: the loop has exactly two ways out — a successful return, or a raised error — and exactly one way to keep going — `continue` after sleeping. Nothing falls through silently. Write out the full, typed version yourself, then go one step further — Approach 2, which is what actually satisfies the Build Task's "testable without real network calls" constraint.
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-http-client-wrapper) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
+#### Approach 2 — a dependency-injected transport, a shared session, and `Retry-After` support
 
 ```
 http_client.py:
@@ -262,9 +254,9 @@ def request_with_retry(
         logger.error(f"permanent failure: status {response.status_code}")
         raise PermanentHTTPError(response.status_code, response.text)
 ```
-Fill in the transient branch yourself (a fake `request_fn` that returns canned `Response`-like objects is exactly how you'd unit test this without a real network call), then compare all 3 of your finished versions against the [Solution](#solution).
+Fill in the transient branch yourself (a fake `request_fn` that returns canned `Response`-like objects is exactly how you'd unit test this without a real network call), then compare all of your finished versions against the [Solution](#solution).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic's pseudocode calls `requests.request` by name and never respects `Retry-After`. Intermediate is the same shape, fully typed, with the transient/permanent split as its own function. Advanced injects the transport call as a parameter (`request_fn`) so the whole function becomes testable with a fake in place of the network, reuses a module-level `Session` for connection pooling, and folds in `Retry-After` handling from the rate-limit exercise — the combination this document's 5 exercises were always building toward.
+**Difference between Basic and Intermediate:** Basic's pseudocode calls `requests.request` by name and never respects `Retry-After`. Intermediate Approach 1 is the same shape, fully typed, with the transient/permanent split as its own function. Approach 2 injects the transport call as a parameter (`request_fn`) so the whole function becomes testable with a fake in place of the network, reuses a module-level `Session` for connection pooling, and folds in `Retry-After` handling from the rate-limit exercise — the combination this document's 5 exercises were always building toward.
 
 <hr class="page-break">
 
@@ -272,7 +264,7 @@ Fill in the transient branch yourself (a fake `request_fn` that returns canned `
 
 ## Solution {: #solution }
 
-Every code block below shows what you'd see running it against a real, working call unless a block says otherwise. Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to build the same client, with real tradeoffs between them.
+Every code block below shows what you'd see running it against a real, working call unless a block says otherwise. Read both depths — they're not "wrong, right," they're 2 real, valid stages of building the same client, with real tradeoffs between them.
 
 ### Basic Version
 
@@ -477,13 +469,7 @@ def request_with_retry(
 
 **Difference from Basic:** both Intermediate approaches add full type hints and a `DEFAULT_TIMEOUT` constant instead of a repeated magic tuple. Approach 2 additionally separates the transient/permanent decision into its own pure function, testable in complete isolation from the network.
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-http-client-wrapper) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-#### Approach 1 — a dependency-injected transport, a shared session, and `Retry-After` support
+#### Approach 3 — a dependency-injected transport, a shared session, and `Retry-After` support
 
 ```python
 # exceptions.py
@@ -667,6 +653,6 @@ def test_gives_up_after_max_attempts():
 ```
 **Expected output (`pytest test_http_client.py -v`):** all 5 tests pass, in well under a second — not one of them opens a real socket, because `request_fn` is a plain Python function each test controls completely.
 
-**Difference from Intermediate:** Intermediate's `request_with_retry` calls `requests.request` by name, so testing the *loop itself* — does it really retry a 429, does it really give up after `max_attempts`, does it really leave a 404 alone — means either making real HTTP calls or reaching for a mocking library. This version accepts the transport call as a parameter (`request_fn`, defaulting to a shared `Session`'s `.request`), so `test_http_client.py` above tests the actual retry logic with zero network calls and zero mocking libraries — genuinely satisfying the Build Task's constraint instead of only satisfying part of it. It also folds in `decide_wait_seconds()` from the rate-limit exercise, so a real 429 with a `Retry-After` header is honored (and capped) instead of always falling back to blind exponential backoff, and reuses one `Session` across every call for connection pooling and a consistent `User-Agent`.
+**Difference from Approach 2:** Approach 2's `request_with_retry` calls `requests.request` by name, so testing the *loop itself* — does it really retry a 429, does it really give up after `max_attempts`, does it really leave a 404 alone — means either making real HTTP calls or reaching for a mocking library. Approach 3 accepts the transport call as a parameter (`request_fn`, defaulting to a shared `Session`'s `.request`), so `test_http_client.py` above tests the actual retry logic with zero network calls and zero mocking libraries — genuinely satisfying the Build Task's constraint instead of only satisfying part of it. It also folds in `decide_wait_seconds()` from the rate-limit exercise, so a real 429 with a `Retry-After` header is honored (and capped) instead of always falling back to blind exponential backoff, and reuses one `Session` across every call for connection pooling and a consistent `User-Agent`.
 
-**Which one should you actually write?** Intermediate Approach 2 is a completely reasonable place to stop if this file will only ever be tested by hand, against the real network, during development. But this file is imported by every later document in this curriculum — Doc04's `chat_client.py` calls through it for every OpenAI request — so real, fast, reliable tests matter here more than almost anywhere else in the project. Advanced Approach 1's `request_fn` injection costs one extra parameter and buys you a test suite that runs in milliseconds and never depends on a real server being up. Write it this way.
+**Which one should you actually write?** Approach 2 is a completely reasonable place to stop if this file will only ever be tested by hand, against the real network, during development. But this file is imported by every later document in this curriculum — Doc04's `chat_client.py` calls through it for every OpenAI request — so real, fast, reliable tests matter here more than almost anywhere else in the project. Approach 3's `request_fn` injection costs one extra parameter and buys you a test suite that runs in milliseconds and never depends on a real server being up, which is why it's the version that actually satisfies this Build Task's stated requirements. Write it this way.

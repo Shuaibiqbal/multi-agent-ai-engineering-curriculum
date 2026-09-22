@@ -84,74 +84,11 @@ if __name__ == "__main__":
 4
 ```
 
-**Difference from Basic:** using a `@dataclass` for `FakeResponse` gives you a typed, self-documenting test double with almost no code. Wrapping the `int(retry_after)` conversion in its own `try/except ValueError` handles a malformed or unexpected header value — a genuinely rate-limited API is exactly the situation where you don't want one more edge case crashing your retry logic instead of just falling back sensibly.
+**Difference from Basic:** using a `@dataclass` for `FakeResponse` gives you a typed, self-documenting test double with almost no code (this is the pattern from Doc01's Build Task Intermediate — reused here, not re-explained). Wrapping the `int(retry_after)` conversion in its own `try/except ValueError` handles a malformed or unexpected header value — a genuinely rate-limited API is exactly the situation where you don't want one more edge case crashing your retry logic instead of just falling back sensibly.
 
-<hr class="page-break">
+### Approach 2 — the HTTP-date form, a hard cap, and the parsing split out so it's independently testable
 
-> [Back to the exercise](../README.md#ex-rate_limit_handling) · [Hint 1](rate_limit_handling_hints.md#hint-1) · [Hint 2](rate_limit_handling_hints.md#hint-2) · [Solution](rate_limit_handling_solution.md)
-
-## Advanced Version
-
-### Approach 1 — the HTTP-date form, and a hard cap
-
-```python
-# retry_backoff_practice.py — Failure section
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
-
-
-@dataclass
-class FakeResponse:
-    status_code: int
-    headers: dict[str, str] = field(default_factory=dict)
-
-
-MAX_RETRY_AFTER_SECONDS = 60.0
-
-
-def decide_wait_seconds(response: FakeResponse, attempt: int) -> float:
-    """Respect Retry-After (seconds or an HTTP-date), capped so a server can
-    never make this client sleep an unreasonable amount of time."""
-    retry_after = response.headers.get("Retry-After")
-    if retry_after is None:
-        return float(2 ** attempt)
-
-    try:
-        wait = float(retry_after)
-    except ValueError:
-        try:
-            target_time = parsedate_to_datetime(retry_after)
-            wait = max((target_time - datetime.now(timezone.utc)).total_seconds(), 0.0)
-        except (TypeError, ValueError):
-            wait = float(2 ** attempt)
-
-    return min(wait, MAX_RETRY_AFTER_SECONDS)
-
-
-if __name__ == "__main__":
-    plain_seconds = FakeResponse(429, {"Retry-After": "2"})
-    print(decide_wait_seconds(plain_seconds, attempt=0))  # 2.0
-
-    no_header = FakeResponse(429, {})
-    print(decide_wait_seconds(no_header, attempt=3))  # 8.0
-
-    garbage_header = FakeResponse(429, {"Retry-After": "sometime later"})
-    print(decide_wait_seconds(garbage_header, attempt=2))  # 4.0, falls back to backoff
-
-    absurd_header = FakeResponse(429, {"Retry-After": "999999999"})
-    print(decide_wait_seconds(absurd_header, attempt=0))  # 60.0, capped
-```
-**Expected output:**
-```
-2.0
-8.0
-4.0
-60.0
-```
-The last line is the important one: a server claiming you should wait for over 31 years gets capped at 60 seconds instead of being honored literally.
-
-### Approach 2 — the same idea, factored so the cap and the parsing are independently testable
+Two more real gaps: the HTTP spec allows `Retry-After` to be an HTTP-date instead of a plain number, and a server's number should never be trusted blindly — a buggy or malicious server could say "wait 999999999 seconds."
 
 ```python
 # retry_backoff_practice.py — Failure section
@@ -195,7 +132,8 @@ print(decide_wait_seconds({"Retry-After": "999999999"}, 0))     # 60.0
 None
 60.0
 ```
+The last line is the important one: a server claiming you should wait for over 31 years gets capped at 60 seconds instead of being honored literally.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate trusts `Retry-After` to always be a plain integer string from a well-behaved server — a date-formatted header or a deliberately huge number either crashes it or makes it wait an absurd amount of time. Approach 1 fixes both in one function. Approach 2 splits the parsing (`parse_retry_after`) from the capping-and-fallback decision (`decide_wait_seconds`), so the trickiest part — turning a raw header string into a number of seconds, in either of its two legal forms — can be tested directly with plain string inputs, the same "pull the risky logic into its own pure function" idea from the timeout/retry exercise's `compute_backoff_delay`.
+**Difference from Approach 1:** Approach 1 trusts `Retry-After` to always be a plain integer string from a well-behaved server — a date-formatted header or a deliberately huge number either crashes it or makes it wait an absurd amount of time. Approach 2 splits the parsing (`parse_retry_after`) from the capping-and-fallback decision (`decide_wait_seconds`), so the trickiest part — turning a raw header string into a number of seconds, in either of its two legal forms — can be tested directly with plain string inputs, the same "pull the risky logic into its own pure function" idea from the timeout/retry exercise's `compute_backoff_delay`.
 
 **Which one should you actually write?** For `http_client.py` in this document's Build Task, Approach 2's split is worth it — `parse_retry_after()` is exactly the kind of function you want a handful of quick unit tests for (a plain number, an HTTP-date, garbage, `None`), and testing it doesn't require constructing a fake response object at all. The hard cap (`MAX_RETRY_AFTER_SECONDS`) is worth keeping in any version of this code that talks to a server you don't fully control — which, for an external API, is always. It's also exactly the kind of number that belongs in `config.py` (Doc01) rather than hardcoded here — a cap you might reasonably want to raise or lower per environment without editing this function.

@@ -377,4 +377,4 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 You can decide, for a given task, LangChain vs. raw SDK — not just default to whichever you learned last. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-05-langchain-basics).
 
 ---
-Stuck? Ask for **Hint 1** or **Hint 2** (each has Basic/Intermediate/Advanced depth). Ask for the full solution only if you say **"Show me the solution."**
+Stuck? Ask for **Hint 1** or **Hint 2** (each has Basic/Intermediate depth). Ask for the full solution only if you say **"Show me the solution."**

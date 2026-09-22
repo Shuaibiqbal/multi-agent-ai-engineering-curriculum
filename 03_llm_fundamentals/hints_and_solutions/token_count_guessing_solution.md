@@ -40,24 +40,4 @@ The same table, with both estimation methods shown side by side, and the actual 
 
 **Difference from Basic:** Basic uses one estimate (words × 1.3) and observes where it breaks. Intermediate runs two independent estimates side by side (chars ÷ 4 and words × 1.3) across a deliberately wider range of sentence types, and explains the underlying mechanism (byte-pair-encoding-style vocabulary built mostly from English prose) that predicts *which kinds* of text will break the rule, not just that some of them do.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
-
-## Advanced Version
-
-### Approach 1 — the trailing-space test, and why it matters for cost, not just curiosity
-
-Test strings:
-```
-A: "You are a helpful assistant. Answer concisely."
-B: "You are a helpful assistant. Answer concisely. "   (one trailing space added)
-```
-
-**What actually happens, checked in the real tokenizer tool:** string B does *not* just add one extra "space token" onto the end of string A's token sequence. Because tokenizers frequently merge a space with the token that follows it (a leading space is often baked into the next word's token, not treated as its own separate character), adding a trailing space at the very end — where there's no following word to merge with — typically does add a distinct final token, meaning A and B are *not* the same token sequence, even though a human reading both would call them identical.
-
-**Why this is the point, not a trivia fact:** OpenAI's (and most providers') prompt caching matches on the literal token prefix. If your code builds a system prompt with `f"{instructions}\n\n"` in one code path and `f"{instructions}\n"` in another — or reads it from a file that a text editor silently added a trailing newline to — every call through the second path misses the cache silently. Nothing crashes, nothing errors, the response is still correct; the only symptom is a higher bill than expected, discovered much later, far from the line of code that caused it.
-
-**The habit this earns you:** for any prompt text sent identically on every call (a system prompt, a fixed set of instructions), build it as one constant, defined once, never reconstructed slightly differently in two different places — and if you ever need to verify it's byte-identical across calls, compare the raw strings directly (or their `tiktoken` output) rather than eyeballing them.
-
-**Which estimate should you actually use, day to day?** For a one-off "will this fit / roughly what will this cost" check, chars ÷ 4 in your head is enough — precision below about 20% doesn't change any real decision. For a system prompt or any other text resent unchanged on every call of a running feature, don't estimate at all: keep it as a single defined constant, and if caching behavior ever looks off, verify with `tiktoken` that what you're sending is actually byte-for-byte what you think it is, rather than trusting that two pieces of code that "look the same" produce the same tokens.
+**Which estimate should you actually use, day to day?** For a one-off "will this fit / roughly what will this cost" check, chars ÷ 4 in your head is enough — precision below about 20% doesn't change any real decision. For a system prompt or any other text resent unchanged on every call of a running feature, don't estimate at all: verify with `tiktoken` that what you're sending is actually what you think it is.

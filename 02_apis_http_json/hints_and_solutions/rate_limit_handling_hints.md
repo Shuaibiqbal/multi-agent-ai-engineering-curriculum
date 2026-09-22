@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-rate_limit_handling) · [Hint 1](rate_limit_handling_hints.md#hint-1) · [Hint 2](rate_limit_handling_hints.md#hint-2) · [Solution](rate_limit_handling_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real client protects itself from a server telling it something absurd). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — including how a real client protects itself from a server telling it something absurd). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -48,12 +48,6 @@ The exact pieces:
 
 Write the full function signature and body before checking Hint 2.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-rate_limit_handling) · [Hint 1](rate_limit_handling_hints.md#hint-1) · [Hint 2](rate_limit_handling_hints.md#hint-2) · [Solution](rate_limit_handling_solution.md)
-
-### Advanced Version
-
 Two things a well-behaved client checks that "just read `Retry-After` and sleep" glosses over. First: the real HTTP spec allows `Retry-After` to be either a plain number of seconds (`"2"`) *or* an HTTP-date string (`"Wed, 21 Oct 2026 07:28:00 GMT"`) — a plain `int(retry_after)` crashes on the date form with a `ValueError` instead of falling back sensibly. A malformed value shouldn't be able to crash your retry logic at all; it should just fall back to backoff, the same as if the header wasn't sent.
 
 Second, and more important: a server is not necessarily trustworthy or even correct. A buggy or malicious server could send `Retry-After: 999999999` — should your client really sleep for over 31 years because a header told it to? A real client caps how long it's willing to wait on a server's say-so, the same way it caps how many times it's willing to retry at all. Blindly trusting an external number without a sanity check is the same class of mistake as blindly trusting a required config value without checking it — the fix is the same shape too: validate, then use, never just use.
@@ -63,7 +57,7 @@ The extra pieces:
 - `email.utils.parsedate_to_datetime(value)` — parses the HTTP-date form of `Retry-After`; wrap it in `try/except` alongside the `int(...)` attempt, and fall back to backoff if neither parses.
 - A hard cap, like `MAX_RETRY_AFTER_SECONDS = 60`, applied with `min(parsed_wait, MAX_RETRY_AFTER_SECONDS)` — never sleep longer than this, no matter what the header says.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both assume `Retry-After` is always a plain integer string, sent by a well-behaved server. Advanced questions both assumptions at once: the header can legally be an HTTP-date instead of a number (parse both forms, or fall back safely), and the server's number — even a valid one — might not be something you should ever blindly honor (cap it). Trusting external input exactly as given, with no validation and no upper bound, is the same category of risk whether it's a header, an environment variable, or a user's form input.
+**Difference between Basic and Intermediate:** Basic assumes `Retry-After` is always a plain integer string, sent by a well-behaved server. Intermediate questions both assumptions: the header can legally be an HTTP-date instead of a number (parse both forms, or fall back safely), and the server's number — even a valid one — might not be something you should ever blindly honor (cap it). Trusting external input exactly as given, with no validation and no upper bound, is the same category of risk whether it's a header, an environment variable, or a user's form input.
 
 <hr class="page-break">
 
@@ -137,13 +131,9 @@ def decide_wait_seconds(response, attempt: int) -> int:
         return int(retry_after)
     return 2 ** attempt
 ```
-What's missing: the test calls for both branches, and type hints on `FakeResponse`'s use in the function signature. Write those yourself, then compare against the [Solution](rate_limit_handling_solution.md).
+What's missing: the test calls for both branches, and type hints on `FakeResponse`'s use in the function signature. Write those yourself, then compare against the [Solution](rate_limit_handling_solution.md)'s Approach 1.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-rate_limit_handling) · [Hint 1](rate_limit_handling_hints.md#hint-1) · [Hint 2](rate_limit_handling_hints.md#hint-2) · [Solution](rate_limit_handling_solution.md)
-
-### Advanced Version
+Once that's working, go one step further — Approach 2, the shape the Build Task actually needs:
 
 ```
 constant MAX_RETRY_AFTER_SECONDS = 60
@@ -192,9 +182,9 @@ def decide_wait_seconds(response, attempt: int) -> float:
     # sleep an absurd amount of time
     ...
 ```
-Fill in the final `return` yourself, then compare all 3 of your finished versions against the [Solution](rate_limit_handling_solution.md).
+Fill in the final `return` yourself, then compare all of your finished versions against the [Solution](rate_limit_handling_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both assume a well-formed, plain-integer `Retry-After` header from a well-behaved server. Advanced handles the HTTP-date form of the header too, falls back to backoff if neither form parses, and — the part that matters most — caps whatever number it lands on, so a malformed or dishonest `Retry-After` value can never make your program sleep for an unreasonable amount of time.
+**Difference between Basic and Intermediate:** Basic assumes a well-formed, plain-integer `Retry-After` header from a well-behaved server. Intermediate Approach 2 handles the HTTP-date form of the header too, falls back to backoff if neither form parses, and — the part that matters most — caps whatever number it lands on, so a malformed or dishonest `Retry-After` value can never make your program sleep for an unreasonable amount of time.
 
 <hr class="page-break">
 

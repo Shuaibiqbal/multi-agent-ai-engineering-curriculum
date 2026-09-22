@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-temperature_cost) · [Hint 1](temperature_cost_hints.md#hint-1) · [Hint 2](temperature_cost_hints.md#hint-2) · [Solution](temperature_cost_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (the real formula and mechanism), **Advanced** (the cost and randomness questions a production feature actually has to answer). Read Basic first even if you already feel confident — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (the real formula and mechanism). Read Basic first even if you already feel confident — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and a worked example](#hint-2)
@@ -45,24 +45,9 @@ The exact pieces:
 
 Write your Part 1 prediction and your Part 2 formula (with real numbers plugged in) before checking Hint 2.
 
-<hr class="page-break">
+One thing worth knowing before you predict: `temperature=0` reduces variation but doesn't guarantee an identical answer every single time — there's genuine floating-point non-determinism in how modern GPU serving batches multiple requests together, which slightly changes rounding. "Deterministic" here means "extremely consistent," not "provably identical."
 
-> [Back to the exercise](../README.md#ex-temperature_cost) · [Hint 1](temperature_cost_hints.md#hint-1) · [Hint 2](temperature_cost_hints.md#hint-2) · [Solution](temperature_cost_solution.md)
-
-### Advanced Version
-
-Both parts have a hidden production-scale question underneath the one-call version you're computing.
-
-**For temperature:** `temperature=0` reduces variation but doesn't guarantee an identical answer every single time — there's genuine floating-point non-determinism in how modern GPU serving batches multiple requests together, which slightly changes rounding. This matters for a real feature: if you need *exact* reproducibility (a golden-file test that checks the model's output word-for-word), `temperature=0` alone isn't a strong enough guarantee — you'd need to cache and replay a real response instead of re-calling the model, or accept that "deterministic" here means "extremely consistent," not "provably identical."
-
-**For cost:** the formula you're using assumes you know `output_tokens` in advance — you don't, until the call finishes. A production feature that wants to alert or cap spend *before* a call completes has to budget for the worst case (the model's `max_tokens` setting) rather than the expected case, since a single unusually long reply can blow past what a typical call costs. There's also a second cost lever this document's Core Concepts only touched on: **prompt caching** — a system prompt resent on every call is often eligible for a steep discount on the *repeated* portion, which changes the real per-call cost far below what `input_tokens × input_price` alone would suggest, but only if that resent portion is genuinely byte-identical every time (the same caveat as the token-count-guessing exercise's trailing-space problem).
-
-The extra pieces:
-
-- **Budgeting for `max_tokens`, not average output length**, when setting a hard spend cap or alert threshold — the average is what you'd use for a monthly cost *estimate*, the max is what you'd use for a *guarantee* that a single call can't cost more than X.
-- **Cache-eligible vs. cache-miss cost** — the same call can cost noticeably different amounts depending on whether its repeated prefix (system prompt, few-shot examples) actually hit the cache that call.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both predict variation and compute cost for one call, assuming a known output length and a stable price. Advanced questions both assumptions: `temperature=0` reduces but doesn't guarantee exact reproducibility, and real cost estimation has to account for the worst case (not knowing output length ahead of time) and for prompt caching potentially discounting the repeated portion — neither of which shows up until you're budgeting for a feature that runs thousands of times a day, not a single test call.
+**Difference between Basic and Intermediate:** Basic predicts variation and computes cost for one call in plain terms. Intermediate explains the mechanism behind both — the shape of the probability distribution for temperature, and the formula with units made explicit for cost.
 
 <hr class="page-break">
 
@@ -128,44 +113,9 @@ output_tokens = 500
 cost = (input_tokens / 1_000_000) * input_rate_per_million \
      + (output_tokens / 1_000_000) * output_rate_per_million
 ```
-Plug in real current numbers for a model of your choice from OpenAI's pricing page, and compute the cost of this document's own example call (2,000 input / 500 output tokens). Then write out your Part 1 temperature predictions in full sentences — "I expect the temp=0 answers to be ___ because ___" — before checking the Advanced Version below.
+Plug in real current numbers for a model of your choice from OpenAI's pricing page, and compute the cost of this document's own example call (2,000 input / 500 output tokens). Then write out your Part 1 temperature predictions in full sentences — "I expect the temp=0 answers to be ___ because ___" — then compare against the full [Solution](temperature_cost_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-temperature_cost) · [Hint 1](temperature_cost_hints.md#hint-1) · [Hint 2](temperature_cost_hints.md#hint-2) · [Solution](temperature_cost_solution.md)
-
-### Advanced Version
-
-```
-part 1 - reproducibility:
-    run the same prompt at temperature=0, 5 times in a row
-    were all 5 answers byte-for-byte identical, or "very close but not
-    quite"? write down which one you actually observed.
-
-part 2 - worst-case budgeting:
-    average_cost_per_call = the Part 2 formula, using typical output length
-    worst_case_cost_per_call = the same formula, using max_tokens instead
-                                of typical output length
-    at N calls/day, compare average_cost_per_call × N against
-    worst_case_cost_per_call × N — how far apart are they?
-```
-
-A worked example for worst-case budgeting:
-```
-typical case: 2000 input / 500 output tokens  -> $0.0006 per call (from Hint 1)
-worst case:   2000 input / max_tokens=4000    -> roughly 8x the output cost alone
-
-at 10,000 calls/day:
-    typical: ~$6/day
-    worst case if every call hit max_tokens: much higher — a real alert
-    threshold should be set closer to the worst case, not the typical one,
-    if the goal is "never silently overspend," not just "estimate roughly
-    what this normally costs"
-```
-
-Run this arithmetic with your own `max_tokens` setting and call volume, then write one sentence: for a feature you'd actually ship, would you set a spend alert based on the typical cost or the worst-case cost — and why? Compare your answer against the full [Solution](temperature_cost_solution.md).
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both predict variation for one prompt and compute the cost of one call with known token counts. Advanced tests reproducibility at `temperature=0` directly instead of assuming it, and reframes the cost formula around the question a production feature actually needs answered — not "what does a typical call cost" but "what's the most this could possibly cost, and is my alerting built around that number or the wrong one."
+**Difference between Basic and Intermediate:** Basic predicts variation for one prompt and computes the cost of one call with known token counts, from the worked example. Intermediate has you compute it fresh with real, current numbers and your own reasoning written out.
 
 <hr class="page-break">
 

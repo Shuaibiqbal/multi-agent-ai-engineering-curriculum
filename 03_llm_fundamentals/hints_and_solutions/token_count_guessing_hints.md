@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried guessing first. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (a real estimation method), **Advanced** (why the rule works the way it does, and where that starts to matter for money). Read Basic first even if you already feel confident — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried guessing first. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (a real estimation method, and why it works the way it does). Read Basic first even if you already feel confident — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and a worked example](#hint-2)
@@ -43,19 +43,13 @@ The exact pieces:
 
 Write down your character-based estimate and your word-based estimate separately for each sentence, before checking the real tool.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
-
-### Advanced Version
-
 Both estimates are describing the *average* behavior of a tokenizer built by finding the most common recurring chunks in a mostly-English training set — which means the rule of thumb isn't equally wrong in both directions. It tends to *undercount* rare or long words (they split into more pieces than "1 word" suggests) and it tends to be *roughly right* on short, common, everyday words. Knowing which direction the error usually runs in is more useful than knowing the average error size, because it tells you when to pad your estimate upward on purpose rather than trust the number as-is.
 
-There's a production-grade reason to care about getting this right beyond "will my prompt fit": **prompt caching** (previewed here, covered properly in Doc12) only reuses a cached prefix if the tokens match *exactly* — not the words, the tokens. Two prompts that look identical to a human but differ by one trailing space, one extra blank line, or a slightly different phrasing of the same instruction can tokenize differently and silently miss the cache, paying full price on every call instead of the cached, discounted rate. A rough "close enough" token estimate is fine for a one-off cost check; it is not enough to reason about whether a system prompt sent thousands of times a day is actually hitting the cache the way you assumed it was.
+There's a production-grade reason to care about getting this right beyond "will my prompt fit": **prompt caching** (previewed here, covered properly in Doc12) only reuses a cached prefix if the tokens match *exactly* — not the words, the tokens. Two prompts that look identical to a human but differ by one trailing space, one extra blank line, or a slightly different phrasing of the same instruction can tokenize differently and silently miss the cache, paying full price on every call instead of the cached, discounted rate.
 
-The real question worth carrying forward: for a prompt you send *once*, chars ÷ 4 is plenty. For a prompt (like a system prompt) you send on every single call of a running feature, the exact token count — and whether it's byte-for-byte identical between calls — is worth actually measuring with `tiktoken`, not estimating.
+**Difference between Basic and Intermediate:** Basic gives you the plain estimation idea. Intermediate gives you two independent ways to *estimate* a token count, explains *which direction* the rule of thumb tends to be wrong in (it undercounts rare/long words, and is roughly accurate on common short words), and raises a case where "close enough" genuinely isn't good enough — a prompt resent on every call, where exact token-level identity determines whether prompt caching actually saves you money.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both give you two independent ways to *estimate* a token count for a one-off check. Advanced explains *which direction* the rule of thumb tends to be wrong in (it undercounts rare/long words, and is roughly accurate on common short words), and raises a case where "close enough" genuinely isn't good enough — a prompt resent on every call, where exact token-level identity (not just approximate count) determines whether prompt caching actually saves you money.
+<hr class="page-break">
 
 <hr class="page-break">
 
@@ -105,28 +99,9 @@ compare: which estimate method was closer, and on which kind of sentence?
 
 A worked example, using both estimate methods: "The cat sat on the mat." → 26 characters (including spaces) → char-based guess: 26 ÷ 4 ≈ 7. Word-based guess: 6 words × 1.3 ≈ 8. Both estimates land close together here, because this sentence is exactly the case the rule of thumb was built for — short, common, plain English words.
 
-Now pick 4 more sentences that each break one assumption on purpose (uncommon words, heavy punctuation, a very short fragment, a longer paragraph) and repeat both estimates for each, before checking the Advanced Version below.
+Now pick 4 more sentences that each break one assumption on purpose (uncommon words, heavy punctuation, a very short fragment, a longer paragraph) and repeat both estimates for each, then compare against the full [Solution](token_count_guessing_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
-
-### Advanced Version
-
-```
-for a system-prompt-shaped piece of text (something you'd actually resend
-every call, not a one-off question):
-    estimate its token count using both methods, same as above
-    then ask: if I paste this exact same text in twice, with one trailing
-    space added the second time, would you expect the token sequence to
-    still match exactly? guess yes or no, and why, before checking.
-```
-
-A worked example of the caching-relevant question: take a short system prompt like `"You are a helpful assistant. Answer concisely."` and compare its token count against the same string with a single trailing space added: `"You are a helpful assistant. Answer concisely. "`. Guess first — does the trailing space change the token count, the token *sequence*, both, or neither? Check both in the real tokenizer tool and note exactly what changed.
-
-Write down what you found — including whether it surprised you — before checking the full [Solution](token_count_guessing_solution.md).
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both build and check a one-off token estimate for ordinary sentences. Advanced asks a sharper question about a prompt meant to be resent unchanged on every call: does a trivial, easy-to-miss difference (one trailing space) change its tokenization at all — which is exactly the kind of gap between "looks the same to me" and "is the same to the model" that determines whether prompt caching actually works the way you assumed.
+**Difference between Basic and Intermediate:** Basic builds and checks a one-off token estimate for ordinary sentences. Intermediate does the same across a deliberately wider range of sentence types and explains why each gap happens.
 
 <hr class="page-break">
 
