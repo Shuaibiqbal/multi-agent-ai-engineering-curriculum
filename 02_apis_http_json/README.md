@@ -295,7 +295,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 **Outputs:** the parsed JSON response, or a clear, typed error if it fails.
 
-**Constraints:** no bare `except:`. Your retry code should be testable without making real network calls (design it so you can plug in a fake version).
+**Constraints:** no bare `except:`. Pull the retry-decision logic — classifying a status code, computing the backoff delay, reading `Retry-After` — into small, pure functions you can test directly with plain values, the same way the timeout/retry and rate-limit exercises already did. The retry loop itself gets exercised with a real call, same as those exercises — no fake server, no new testing tool.
 
 **Builds on:** [Intermediate](#ex-timeout_retry_backoff)'s retry loop, [Failure](#ex-rate_limit_handling)'s `Retry-After` handling, [Real-world](#ex-session_reuse)'s shared `Session`, and [Edge cases](#ex-json_edge_cases)'s two-step JSON check — **copy** all four into this one file rather than starting from scratch. `exceptions.py` reuses [Doc01](../01_python_foundations/)'s named-error pattern, now as `TransientHTTPError`/`PermanentHTTPError`.
 
@@ -306,14 +306,14 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 02_apis_http_json/practice/build_task/
 ├── http_client.py       request_with_retry(method, url, **kwargs) -> dict
 ├── exceptions.py        TransientHTTPError, PermanentHTTPError
-├── test_http_client.py  proves the Test Cases, without real network calls
+├── test_http_client.py  tests the pure decision functions directly
 ├── config.py            copied from 01_python_foundations, unchanged
 └── logging_setup.py     copied from 01_python_foundations, unchanged
 ```
 
 - `http_client.py` — **What/Why:** the one wrapper every later document imports for outbound calls, instead of calling `requests` directly.
 - `exceptions.py` — **What/Why:** lets callers retry a transient failure but fail immediately on a permanent one (a real 4xx bug).
-- `test_http_client.py` — **What/Why:** `request_fn` is injectable, so these tests run in milliseconds and never depend on a real server being up.
+- `test_http_client.py` — **What/Why:** `is_transient_status`, `compute_backoff_delay`, and `decide_wait_seconds` are tested directly with plain values — the same pattern the timeout/retry and rate-limit exercises already used, no fake server needed.
 - `config.py` — **What/Why:** `load_config()` — one function every later script calls for settings, instead of reading `os.environ` by hand.
 - `logging_setup.py` — **What/Why:** `get_logger(name)` — one consistent logging setup everywhere, instead of reconfiguring handlers per file.
 
@@ -336,13 +336,14 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 | Scenario | Expected |
 |---|---|
-| Fake 200 + valid JSON | Returns the parsed dictionary |
-| Fake 429, then 200 on retry | Returns the parsed dictionary after waiting, attempt is logged |
-| Fake 404 | `PermanentHTTPError` right away, zero retries |
-| Fake 408, then 200 on retry | Returns the parsed dictionary — `408` is the other retryable 4xx |
-| Fake 500 on a `POST` with no idempotency key | Not retried silently — raises, or retries only because the caller allowed it |
-| Fake timeout on every attempt | `TransientHTTPError` after the limit is reached |
-| Fake 200 with invalid JSON | A clear parsing error, not an unhandled crash |
+| `is_transient_status(429)`, `(500)`, `(503)` | `True` — worth retrying |
+| `is_transient_status(404)`, `(401)` | `False` — a real mistake, not worth retrying |
+| `decide_wait_seconds({"Retry-After": "2"}, 0)` | `2.0` — uses the header the server sent |
+| `decide_wait_seconds({}, 3)` | falls back to `compute_backoff_delay(3)`, no header present |
+| `decide_wait_seconds({"Retry-After": "999999999"}, 0)` | `60.0` — capped, never trusts a server's number blindly |
+| `json.loads("<html>error page</html>")` | raises `json.JSONDecodeError`, same check as the Edge cases exercise |
+| A real `GET` to a working endpoint | Returns the parsed JSON dictionary |
+| A real `GET` to an address that always times out | `TransientHTTPError` after `max_attempts` |
 
 ## Break-It / Debug Preview
 

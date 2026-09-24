@@ -2,7 +2,9 @@
 
 > [Back to the exercise](../README.md#ex-search_as_tool) · [Hint 1](search_as_tool_hints.md#hint-1) · [Hint 2](search_as_tool_hints.md#hint-2) · [Solution](search_as_tool_solution.md)
 
-Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `search_tool_integration_practice.py`:** Doc08's `retrieve()` becomes a real graph tool here, unchanged — the exact wrapper the Build Task's `search_node` reuses. **If not:** the Build Task would be the first place you ever wrapped `retrieve()` as a `@tool`, with no smaller version to trust.
+
+Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
@@ -26,7 +28,8 @@ def search_docs(query):
 model_with_tools = model.bind_tools([search_docs])
 
 # test it
-response = graph.invoke({"messages": [("user", "What does the document say about vacation policy?")]})
+question = "What does the document say about vacation policy?"
+response = graph.invoke({"messages": [("user", question)]})
 print(response["messages"][-1])
 ```
 
@@ -70,19 +73,16 @@ def call_model(state: dict) -> dict:
 
 
 # test it
-result = graph.invoke({"messages": [("user", "What does the document say about vacation policy?")]})
+question = "What does the document say about vacation policy?"
+result = graph.invoke({"messages": [("user", question)]})
 print(result["messages"][-1])
 ```
 
-**Difference from Basic:** full type hints, and a more descriptive docstring that explicitly tells the model *when* to use this tool — the model relies entirely on this text to decide, so being specific here directly improves how reliably it gets called at the right time. An explicit "no results" message instead of an empty string, so the model gets a clear signal instead of silence it might misread as an error. A generator expression (`"\n\n".join(...)`) instead of a manual loop — same result, no intermediate variable to manage. This version still trusts `retrieve()` never to raise, and never to return more chunks than the model should have to read in one turn — that's what Advanced adds.
+**Difference from Basic:** full type hints, and a more descriptive docstring that explicitly tells the model *when* to use this tool — the model relies entirely on this text to decide, so being specific here directly improves how reliably it gets called at the right time. An explicit "no results" message instead of an empty string, so the model gets a clear signal instead of silence it might misread as an error. A generator expression (`"\n\n".join(...)`) instead of a manual loop — same result, no intermediate variable to manage. This version still trusts `retrieve()` never to raise, and never to return more chunks than the model should have to read in one turn — that's what Approach 2 adds.
 
-<hr class="page-break">
+### Approach 2 — caught failures and a capped result count
 
-> [Back to the exercise](../README.md#ex-search_as_tool) · [Hint 1](search_as_tool_hints.md#hint-1) · [Hint 2](search_as_tool_hints.md#hint-2) · [Solution](search_as_tool_solution.md)
-
-## Advanced Version
-
-### Approach 1 — caught failures and a capped result count
+**Story:** a tool's return value becomes a `ToolMessage` inserted straight into the model's context — an uncaught `retrieve()` failure lands as a raw traceback there, confusing and wasteful, and an unbounded join can eat a large slice of the context window on a real document set. **If not:** the first real vector-store hiccup in a live run would crash the whole model turn instead of handing back a sentence the model can react to.
 
 ```python
 # search_tool_integration_practice.py — Basic section
@@ -112,14 +112,15 @@ def search_docs(query: str) -> str:
 
 
 model_with_tools = model.bind_tools([search_docs])
-result = graph.invoke({"messages": [("user", "What does the document say about vacation policy?")]})
+question = "What does the document say about vacation policy?"
+result = graph.invoke({"messages": [("user", question)]})
 print(result["messages"][-1])
 ```
 A failed `retrieve()` call now hands the model a short, honest sentence instead of crashing the whole turn with a traceback — the model can decide to tell the user search is down, retry with a rephrased query, or answer from what it already knows, instead of the graph run failing outright. Capping to `MAX_RESULTS` chunks keeps one tool call from consuming an outsized share of the model's context window on a larger document set. Like `MAX_ATTEMPTS` in `search_failure`, `MAX_RESULTS` is written as a plain constant here for readability — in a real deployment it's a `config.py` setting, not a hardcoded literal, since how many chunks is "too many" depends on the model's context window and changes as you swap models.
 
-### Approach 2 — returning sources separately, for a later approval step
+### Approach 3 — returning sources separately, for a later approval step
 
-The Intermediate version's return value is a single joined string — good enough for the model to read, but it throws away exactly which chunks were used. `approval_pause` needs a human reviewer to see the actual sources, not a paraphrase, so this approach keeps them alongside the text instead of discarding them.
+**Story:** Approach 2's return value is a single joined string — good enough for the model to read, but it throws away exactly which chunks were used. `approval_pause` needs a human reviewer to see the actual sources, not a paraphrase. **If not:** the approval step downstream would only ever be able to show "the model searched something," never what it actually found.
 
 ```python
 # search_tool_integration_practice.py — Basic section
@@ -141,7 +142,8 @@ def search_docs_with_sources(query: str) -> SearchResult:
     try:
         results = retrieve(query)
     except Exception as exc:
-        return SearchResult(text=f"Search is temporarily unavailable: {exc}", sources=[])
+        message = f"Search is temporarily unavailable: {exc}"
+        return SearchResult(text=message, sources=[])
 
     if not results:
         return SearchResult(text="No relevant documents found.", sources=[])
@@ -159,6 +161,6 @@ def search_docs(query: str) -> str:
 ```
 `search_docs` (the `@tool`) is still what the model calls and reads — that part of the contract doesn't change. `search_docs_with_sources` is the same logic, used directly by a graph node (not through the model) when the node itself, not the model, needs to know exactly which sources were used — for example a `search_node` in the full Build Task graph, which saves `sources` into state for `approval_node` to show a human later.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's tool does real, correct work on the happy path, but an unhandled `retrieve()` failure crashes the turn, and there's no limit on how much text one call can return. Approach 1 fixes both of those directly inside the `@tool` function, with no new dependencies or structure — the smallest useful upgrade. Approach 2 solves a different problem: it keeps the *sources* (not just the joined text) available to the rest of the graph, which only matters once something downstream — like a human approval step — needs to show exactly what was searched, not just what the model was told.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1's tool does real, correct work on the happy path, but an unhandled `retrieve()` failure crashes the turn, and there's no limit on how much text one call can return. Approach 2 fixes both of those directly inside the `@tool` function, with no new dependencies or structure — the smallest useful upgrade. Approach 3 solves a different problem: it keeps the *sources* (not just the joined text) available to the rest of the graph, which only matters once something downstream — like a human approval step — needs to show exactly what was searched, not just what the model was told.
 
-**Which one should you actually write?** Approach 1's caught-failure-plus-cap is worth adding to every tool that wraps an external lookup, in any project — it costs a few lines and prevents a whole class of confusing crashes. Approach 2's separate `sources` tracking is only worth the extra structure once something else in your graph — an approval step, a citation feature, a "show your work" UI — actually needs the sources, not just the model. For this exercise alone, Approach 1 is enough; Approach 2 is what you'll reach for once you build the full Build Task graph.
+**Which one should you actually write?** Approach 2's caught-failure-plus-cap is worth adding to every tool that wraps an external lookup, in any project — it costs a few lines and prevents a whole class of confusing crashes. Approach 3's separate `sources` tracking is only worth the extra structure once something else in your graph — an approval step, a citation feature, a "show your work" UI — actually needs the sources, not just the model. For this exercise alone, Approach 2 is enough; Approach 3 is what you'll reach for once you build the full Build Task graph.

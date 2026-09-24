@@ -2,7 +2,9 @@
 
 > [Back to the exercise](../README.md#ex-search_failure) · [Hint 1](search_failure_hints.md#hint-1) · [Hint 2](search_failure_hints.md#hint-2) · [Solution](search_failure_solution.md)
 
-Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `search_failure_practice.py`:** a checkpointer's whole promise is that a crash doesn't erase earlier progress — this exercise proves it on purpose, before the Build Task's search node needs that guarantee for real. **If not:** the Build Task's retry loop would be built on an untested assumption about what actually survives a mid-run failure.
+
+Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
@@ -62,22 +64,18 @@ def test_state_survives_search_failure() -> None:
 
     snapshot = graph.get_state(config)
     assert "task" in snapshot.values, "the original task should still be in state"
-    assert snapshot.next == ("search_node",), "the graph should have stopped right before search_node"
-    print("Confirmed: pre-failure state is intact, and the graph knows exactly where it stopped.")
+    assert snapshot.next == ("search_node",), "should stop right before search_node"
+    print("Confirmed: state is intact, graph knows where it stopped.")
 
 
 test_state_survives_search_failure()
 ```
 
-**Difference from Basic:** full type hints. Wrapping the test in a function with real assertions, not just prints — this is the difference between "I looked at it and it seemed fine" and a test you can rerun automatically after any future change. The extra `raise AssertionError` if the graph *doesn't* fail is a safety check — without it, a bug that accidentally makes `search_node` stop raising would make this whole test silently pass without testing anything. This version still gives up completely on the first failure — no retry — which is what Advanced changes.
+**Difference from Basic:** full type hints. Wrapping the test in a function with real assertions, not just prints — this is the difference between "I looked at it and it seemed fine" and a test you can rerun automatically after any future change. The extra `raise AssertionError` if the graph *doesn't* fail is a safety check — without it, a bug that accidentally makes `search_node` stop raising would make this whole test silently pass without testing anything. This version still gives up completely on the first failure — no retry — which is what Approach 2 changes.
 
-<hr class="page-break">
+### Approach 2 — a retry with backoff, transient errors only
 
-> [Back to the exercise](../README.md#ex-search_failure) · [Hint 1](search_failure_hints.md#hint-1) · [Hint 2](search_failure_hints.md#hint-2) · [Solution](search_failure_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a retry with backoff, transient errors only
+**Story:** not every failure deserves the same response — a vector store down for 200ms is nothing like one down for an hour, or a malformed query that fails identically on every retry. A node that just re-raises on any exception treats all three the same way. **If not:** the Build Task's search step would fail an entire user-facing run on a single, brief network blip a simple retry could have absorbed.
 
 ```python
 # search_failure_practice.py
@@ -111,9 +109,9 @@ A `TimeoutError` or `ConnectionError` gets up to `MAX_ATTEMPTS` tries, with a gr
 
 `MAX_ATTEMPTS` is written here as a plain module constant so the retry logic is easy to follow — in a real deployment, a retry count like this is exactly the kind of value that belongs in `config.py` (loaded from `.env`, per Doc01) instead of a hardcoded literal, since how aggressively to retry is an operational tuning knob, not something tied to the code's logic.
 
-### Approach 2 — retry plus proving both outcomes with a real test
+### Approach 3 — retry plus proving both outcomes with a real test
 
-Approach 1 is the retry logic itself; this approach tests it the way `search_failure`'s own lesson demands — proving both that a transient failure recovers, and that state still survives when retries are genuinely exhausted.
+**Story:** Approach 2 is the retry logic itself; this approach tests it the way `search_failure`'s own lesson demands — proving both that a transient failure recovers, and that state still survives when retries are genuinely exhausted. **If not:** a retry loop with no test could silently start retrying permanent failures, or stop retrying transient ones, without anyone noticing until it matters.
 
 ```python
 # search_failure_practice.py
@@ -125,7 +123,7 @@ MAX_ATTEMPTS = 3
 
 
 def make_search_node(fail_times: int, permanent: bool = False):
-    """Test helper: builds a search_node that fails `fail_times` before succeeding."""
+    """Test helper: a search_node that fails `fail_times` before succeeding."""
     calls = {"count": 0}
 
     def search_node(state: dict) -> dict:
@@ -154,7 +152,7 @@ def test_permanent_failure_does_not_retry() -> None:
         node({"task": "test"})
         raise AssertionError("expected a ValueError, but none was raised")
     except ValueError:
-        print("Permanent failure raised immediately, with no retry delay, as expected.")
+        print("Permanent failure raised immediately, with no retry delay.")
 
 
 def test_state_survives_when_retries_are_exhausted() -> None:
@@ -170,7 +168,7 @@ def test_state_survives_when_retries_are_exhausted() -> None:
 
     snapshot = graph.get_state(config)
     assert "task" in snapshot.values
-    print("Even after all retries were exhausted, pre-failure state is still intact.")
+    print("Even with retries exhausted, pre-failure state is still intact.")
 
 
 test_recovers_from_transient_failure()
@@ -178,6 +176,6 @@ test_permanent_failure_does_not_retry()
 test_state_survives_when_retries_are_exhausted()
 ```
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate proves the checkpointer's guarantee once, against a node that fails exactly once and stays failed — a correct but incomplete picture of a real deployment, where most external failures are brief. Approach 1 adds the retry logic itself: transient errors get a few chances with growing delays, permanent errors fail immediately. Approach 2 doesn't change the retry logic at all — it proves all three outcomes a reviewer would actually want confirmed: recovery after a transient blip, no wasted retries on a permanent failure, and Intermediate's original "state survives" guarantee still holding even when every retry is used up.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 proves the checkpointer's guarantee once, against a node that fails exactly once and stays failed — a correct but incomplete picture of a real deployment, where most external failures are brief. Approach 2 adds the retry logic itself: transient errors get a few chances with growing delays, permanent errors fail immediately. Approach 3 doesn't change the retry logic at all — it proves all three outcomes a reviewer would actually want confirmed: recovery after a transient blip, no wasted retries on a permanent failure, and Approach 1's original "state survives" guarantee still holding even when every retry is used up.
 
-**Which one should you actually write?** Intermediate's plain crash-and-check test is worth keeping regardless — it's the simplest proof the checkpointing promise holds at all, and it's what `search_failure`'s Core Concepts point is really about. Add Advanced Approach 1's retry loop the moment your search backend is a real network service instead of a local file or in-memory store — a single dropped connection shouldn't fail an entire user-facing run. Approach 2's three-part test suite is worth writing once the retry logic itself is something other people (or future you) will change — a retry loop with no test can silently start retrying permanent failures, or stop retrying transient ones, without anyone noticing until it matters.
+**Which one should you actually write?** Approach 1's plain crash-and-check test is worth keeping regardless — it's the simplest proof the checkpointing promise holds at all, and it's what `search_failure`'s Core Concepts point is really about. Add Approach 2's retry loop the moment your search backend is a real network service instead of a local file or in-memory store — a single dropped connection shouldn't fail an entire user-facing run. Approach 3's three-part test suite is worth writing once the retry logic itself is something other people (or future you) will change — a retry loop with no test can silently start retrying permanent failures, or stop retrying transient ones, without anyone noticing until it matters.

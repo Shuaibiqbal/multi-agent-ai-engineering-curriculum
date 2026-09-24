@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper LangGraph), **Advanced** (making the failure message actually useful). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, plus making the failure message actually useful). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -38,12 +38,6 @@ The exact pieces:
 - `try: graph.invoke({"flag": None, ...}) except Exception as e: print(type(e), e)` — catch broadly first, so you can see exactly what LangGraph actually raises, rather than assuming.
 - Confirm it fails **at invoke time**, not at `compile()` time — compiling a graph doesn't run any routing function, so a bad mapping only shows up once you actually execute the branch that hits it.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
-
-### Advanced Version
-
 Think about who actually reads the error LangGraph raises when this happens. It correctly fails loudly — that's the good news this exercise is meant to teach you to notice. But the message you get from the library's internal lookup failing doesn't necessarily say anything about *your* routing function, *your* state, or *why* the value was wrong — it just tells you a key lookup failed somewhere inside the library's branch-running code.
 
 The real design question isn't just "does an unmapped value fail loudly" (yes) — it's "when it does, does the failure actually help whoever's debugging it, or just tell them something broke?"
@@ -66,11 +60,12 @@ def route(state: AgentState) -> str:
 
     valid_paths = {"path_a", "path_b"}
     if result not in valid_paths:
-        raise UnhandledRouteError(f"route() returned {result!r}, which isn't one of {valid_paths}")
+        message = f"route() returned {result!r}, which isn't one of {valid_paths}"
+        raise UnhandledRouteError(message)
     return result
 ```
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate establish the fact this exercise is testing for — an unmapped value fails loudly, via a `KeyError`-style lookup failure, at invoke time rather than compile time. Advanced doesn't change *whether* it fails — it changes *how useful the failure is*, by adding your own explicit check that raises a named `UnhandledRouteError` with a message naming your routing function, the actual bad value, and the state that produced it, instead of relying on a generic error from several layers inside the library.
+**Difference between Basic and Intermediate:** Basic establishes the fact this exercise is testing for — an unmapped value fails loudly, via a `KeyError`-style lookup failure, at invoke time rather than compile time. Intermediate doesn't change *whether* it fails — it changes *how useful the failure is*, by adding your own explicit check that raises a named `UnhandledRouteError` with a message naming your routing function, the actual bad value, and the state that produced it, instead of relying on a generic error from several layers inside the library.
 
 <hr class="page-break">
 
@@ -99,7 +94,7 @@ def route(state):
         return "path_c"
     return "path_a" if state["flag"] else "path_b"
 
-# ... same graph wiring as the Intermediate exercise, mapping only has path_a/path_b ...
+# ... same graph wiring as conditional_routing, mapping only has path_a/path_b ...
 
 try:
     graph.invoke({"flag": None, "message": ""})
@@ -126,14 +121,16 @@ confirm:
     graph.invoke({"flag": True, ...})   -> works fine, unchanged
     graph.invoke({"flag": None, ...})   -> raises, at invoke time
 
-print the exception's type and message -- is it a KeyError? does it name "path_c" anywhere?
-also confirm builder.compile() itself does NOT raise -- the bad mapping isn't checked until a real invoke hits it
+print the exception's type and message -- is it a KeyError? does it
+name "path_c" anywhere?
+also confirm builder.compile() itself does NOT raise -- the bad
+mapping isn't checked until a real invoke hits it
 ```
 
 ```python
 # conditional_routing_practice.py — Edge cases section
 builder = StateGraph(GraphState)
-# ... add_node / add_conditional_edges / add_edge exactly as in conditional_routing ...
+# ... add_node / add_conditional_edges / add_edge, as in conditional_routing ...
 graph = builder.compile()  # this line should NOT raise
 
 try:
@@ -143,11 +140,7 @@ except Exception as e:
 ```
 Run this and read the real output before checking the [Solution](unhandled_routing_value_solution.md) — the exact exception type and message matter here, that's the whole point of the exercise.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
-
-### Advanced Version
+Once that's confirmed, make the failure message actually useful:
 
 ```
 same setup, but route() itself checks its own result before returning,
@@ -156,10 +149,14 @@ raising a named exception instead of a generic one:
 class UnhandledRouteError(Exception): ...
 
 def route(state) -> str:
-    result = "path_c" if state["flag"] is None else ("path_a" if state["flag"] else "path_b")
+    if state["flag"] is None:
+        result = "path_c"
+    else:
+        result = "path_a" if state["flag"] else "path_b"
     valid_paths = {"path_a", "path_b"}
     if result not in valid_paths:
-        raise UnhandledRouteError(f"route() returned {result!r}, which isn't one of {valid_paths}")
+        message = f"route() returned {result!r}, which isn't one of {valid_paths}"
+        raise UnhandledRouteError(message)
     return result
 
 run the same 2 invoke calls as Intermediate, and compare:
@@ -171,7 +168,7 @@ which one would actually help you debug this faster at 2am?
 
 Try writing this yourself, then compare your own message quality against the [Solution](unhandled_routing_value_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate confirm the fact — an unmapped routing value fails loudly, at invoke time, via whatever error LangGraph's internal lookup raises. Advanced adds a check inside `route()` itself, raising a specific, named `UnhandledRouteError` so the failure carries a message written for a human debugging *your* graph, not a generic error from inside the library's branch-running code.
+**Difference between Basic and Intermediate:** Basic confirms the fact — an unmapped routing value fails loudly, at invoke time, via whatever error LangGraph's internal lookup raises. Intermediate adds a check inside `route()` itself, raising a specific, named `UnhandledRouteError` so the failure carries a message written for a human debugging *your* graph, not a generic error from inside the library's branch-running code.
 
 <hr class="page-break">
 

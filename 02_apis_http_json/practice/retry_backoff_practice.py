@@ -43,3 +43,23 @@ def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
 if __name__ == "__main__":
     url = "http://10.255.255.1"
     get_with_retry(url=url)
+
+
+## 429 status-code handling
+response = {"status_code": 429,
+             "headers": {"Retry-After": "2"}}
+class FakeResponse:
+    def __init__(self, status_code, headers):
+        self.status_code = status_code
+        self.headers = headers
+def decides_wait_seconds(response, attempt):
+    retry_after = response.headers.get("Retry-After")
+    if retry_after is not None:
+        return int(retry_after)
+    return 2 ** attempt
+# test: server told us how long to wait
+r1 = FakeResponse(response["status_code"], response["headers"])
+print(decides_wait_seconds(r1, attempt=0))
+# test: server didn't say, fall back to backoff
+r2 = FakeResponse(response['status_code'], {})
+print(decides_wait_seconds(r2, attempt=3))

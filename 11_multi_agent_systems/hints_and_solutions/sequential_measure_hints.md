@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real measurement pipeline handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, including how a real measurement pipeline handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -42,15 +42,7 @@ What you're adding on top of the plain functions is measurement:
 - **Token usage** — most LLM responses carry usage metadata (`response.usage_metadata`, a dict-like with `input_tokens`, `output_tokens`, `total_tokens`) — read it instead of estimating with a separate tokenizer; the provider already tells you exactly what it billed you for.
 - **Keeping research's numbers separate from write's numbers** — you need both stages' individual counts, not just a combined total, or you can't tell which stage is actually the expensive one.
 
-Sketch the two functions and where the timing/token-counting code goes around each one, before Hint 2.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
-
-### Advanced Version
-
-Think about what happens the moment you want to compare this pipeline's numbers against something else — the supervisor version in `supervisor_compare`, or a different topic run tomorrow. A loose tuple of numbers, or three separately-returned values, gets confusing fast once you're comparing two runs side by side, and it's easy to accidentally compare research's tokens against write's seconds by mistake.
+Sketch the two functions and where the timing/token-counting code goes around each one, then go one step further: think about what happens the moment you want to compare this pipeline's numbers against something else — the supervisor version in `supervisor_compare`, or a different topic run tomorrow. A loose tuple of numbers, or three separately-returned values, gets confusing fast once you're comparing two runs side by side, and it's easy to accidentally compare research's tokens against write's seconds by mistake.
 
 The real design question isn't just "measure each stage" — it's "what shape should these numbers live in, so a later comparison can't silently mix them up, and so the whole pipeline's report is reusable instead of one-off print statements?"
 
@@ -62,7 +54,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the two functions and the exact tools (`time`, `usage_metadata`) for a first working measurement. Intermediate explains why `perf_counter()` and real usage metadata matter, and why the two stages' numbers need to stay separate rather than only totaled. Advanced asks what shape those numbers should actually live in once they're not just going to be printed once and thrown away — a typed per-stage result and a dedicated report function — which is exactly the shape `supervisor_compare` needs to reuse for a fair, apples-to-apples comparison next.
+**Difference between Basic and Intermediate:** Basic names the two functions and the exact tools (`time`, `usage_metadata`) for a first working measurement, returning three loose values per function and printing once. Intermediate explains why `perf_counter()` and real usage metadata matter, why the two stages' numbers need to stay separate rather than only totaled, and settles on the shape those numbers should actually live in — a typed per-stage result (`@dataclass`) and a dedicated `run_sequential()` report function — which is exactly the shape `supervisor_compare` needs to reuse for a fair, apples-to-apples comparison next.
 
 <hr class="page-break">
 
@@ -100,14 +92,16 @@ import time
 
 def research(topic):
     start = time.time()
-    response = model.invoke("Research the top 3 causes of " + topic + ". List them briefly.")
+    prompt = "Research the top 3 causes of " + topic + ". List them briefly."
+    response = model.invoke(prompt)
     seconds = time.time() - start
     tokens = response.usage_metadata["total_tokens"]
     return response.content, tokens, seconds
 
 def write(research_text):
     start = time.time()
-    response = model.invoke("Write a 3-sentence summary of this:\n\n" + research_text)
+    prompt = "Write a 3-sentence summary of this:\n\n" + research_text
+    response = model.invoke(prompt)
     seconds = time.time() - start
     tokens = response.usage_metadata["total_tokens"]
     return response.content, tokens, seconds
@@ -123,7 +117,8 @@ def write(research_text):
 ```
 def research(topic: str) -> dict:
     start = time.perf_counter()
-    response = model.invoke(f"Research the top 3 causes of {topic}. List them briefly.")
+    prompt = f"Research the top 3 causes of {topic}. List them briefly."
+    response = model.invoke(prompt)
     elapsed = time.perf_counter() - start
     return {
         "text": response.content,
@@ -133,7 +128,8 @@ def research(topic: str) -> dict:
 
 def write(research_text: str) -> dict:
     start = time.perf_counter()
-    response = model.invoke(f"Write a 3-sentence summary of this:\n\n{research_text}")
+    prompt = f"Write a 3-sentence summary of this:\n\n{research_text}"
+    response = model.invoke(prompt)
     elapsed = time.perf_counter() - start
     return {
         "text": response.content,
@@ -154,18 +150,15 @@ def main():
     total_seconds = time.perf_counter() - total_start
     total_tokens = research_result["tokens"] + write_result["tokens"]
 
-    print(f"research: {research_result['tokens']} tokens, {research_result['seconds']:.2f}s")
-    print(f"write: {write_result['tokens']} tokens, {write_result['seconds']:.2f}s")
+    r_tokens, r_seconds = research_result["tokens"], research_result["seconds"]
+    w_tokens, w_seconds = write_result["tokens"], write_result["seconds"]
+
+    print(f"research: {r_tokens} tokens, {r_seconds:.2f}s")
+    print(f"write: {w_tokens} tokens, {w_seconds:.2f}s")
     print(f"total: {total_tokens} tokens, {total_seconds:.2f}s")
 ```
 
-Run it, then compare these real numbers against your Basic-exercise guess before checking Advanced.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
-
-### Advanced Version
+Run it, then compare these real numbers against your Basic-exercise guess, then go one step further, into the typed, reusable shape below:
 
 ```
 make a StageResult dataclass with fields: text, tokens, seconds
@@ -199,9 +192,11 @@ class StageResult:
 
 def research(topic: str) -> StageResult:
     start = time.perf_counter()
-    response = model.invoke(f"Research the top 3 causes of {topic}. List them briefly.")
+    prompt = f"Research the top 3 causes of {topic}. List them briefly."
+    response = model.invoke(prompt)
     elapsed = time.perf_counter() - start
-    return StageResult(response.content, response.usage_metadata["total_tokens"], elapsed)
+    call_tokens = response.usage_metadata["total_tokens"]
+    return StageResult(response.content, call_tokens, elapsed)
 
 
 def write(research_text: str) -> StageResult:
@@ -225,7 +220,7 @@ def run_sequential(topic: str) -> dict:
 
 Fill in `write()` yourself, then compare your written reflection ("was I right about which stage costs more?") against the [Solution](sequential_measure_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** the same underlying shape (time it, call the model, read `usage_metadata`, report both stages and the total) at 3 completeness levels — Basic's version returns three loose values per function and prints once, Intermediate adds the type contract and a `main()` that separates "run" from "report," and Advanced adds a `StageResult` type plus a dedicated `run_sequential()` function, which is the reusable shape `supervisor_compare` needs next for a fair, side-by-side comparison.
+**Difference between Basic and Intermediate:** the same underlying shape (time it, call the model, read `usage_metadata`, report both stages and the total), at more completeness — Basic's version returns three loose values per function and prints once; Intermediate adds the type contract, a `main()` that separates "run" from "report," a `StageResult` type, and a dedicated `run_sequential()` function, which is the reusable shape `supervisor_compare` needs next for a fair, side-by-side comparison.
 
 <hr class="page-break">
 

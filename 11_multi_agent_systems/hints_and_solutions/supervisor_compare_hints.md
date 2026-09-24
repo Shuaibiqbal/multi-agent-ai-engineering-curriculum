@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper LangGraph), **Advanced** (how a real supervisor graph handles the messy edge cases). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, including how a real supervisor graph handles the messy edge cases). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -48,15 +48,7 @@ Look specifically at:
 
 Reuse `sequential_measure`'s `StageResult`-style measurement inside each node, so you get directly comparable numbers.
 
-Sketch the state shape and the three nodes (supervisor, research, write) before Hint 2.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
-
-### Advanced Version
-
-Think about the fairest way to actually credit or blame the supervisor pattern. The Intermediate version's supervisor uses plain `if` checks — "if no research_text yet, go to research" — which costs nothing. That's a fair simplification for a fixed two-step task, but it also quietly hides the exact cost this whole exercise is supposed to be measuring: a *real* routing decision, made by an LLM, has its own token cost and its own latency, and a supervisor built entirely from `if` checks will never show you that.
+Sketch the state shape and the three nodes (supervisor, research, write), then go one step further: think about the fairest way to actually credit or blame the supervisor pattern. A supervisor using plain `if` checks — "if no research_text yet, go to research" — costs nothing. That's a fair simplification for a fixed two-step task, but it also quietly hides the exact cost this whole exercise is supposed to be measuring: a *real* routing decision, made by an LLM, has its own token cost and its own latency, and a supervisor built entirely from `if` checks will never show you that.
 
 The real design question isn't just "build a graph with a router node" — it's "does my router's own decision cost get measured and reported like every other stage, or is it invisible in my numbers because I built it out of free Python logic instead of a real LLM call?"
 
@@ -68,7 +60,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the reused functions and the exact LangGraph pieces (`Command`, `StateGraph`) for a first working supervisor. Intermediate builds a real, working router using cheap `if`-based logic and wires measurement into every node. Advanced asks whether that cheap router is actually telling you the truth about the supervisor pattern's real cost — an LLM-based router is what production supervisor systems actually use, and only measuring that version tells you the real story `paper_design`'s prediction was trying to guess at.
+**Difference between Basic and Intermediate:** Basic names the reused functions and the exact LangGraph pieces (`Command`, `StateGraph`) for a first working supervisor. Intermediate builds a real, working router using cheap `if`-based logic, wires measurement into every node, then asks whether that cheap router is actually telling you the truth about the supervisor pattern's real cost — an LLM-based router is what production supervisor systems actually use, and only measuring that version tells you the real story `paper_design`'s prediction was trying to guess at.
 
 <hr class="page-break">
 
@@ -90,9 +82,11 @@ research_node:
     run research(task), save result + tokens + seconds, go back to supervisor
 
 write_node:
-    run write(research_text), save result + tokens + seconds, go back to supervisor
+    run write(research_text), save result + tokens + seconds, go back
+    to supervisor
 
-run the same 3 topics through this graph and through sequential_measure's pipeline
+run the same 3 topics through this graph and through
+sequential_measure's pipeline
 compare: total tokens, total seconds, routing_log length
 ```
 
@@ -122,9 +116,11 @@ class SupervisorState(TypedDict):
 
 def supervisor(state: SupervisorState) -> Command:
     if not state.get("research_text"):
-        return Command(update={"routing_log": state["routing_log"] + ["research"]}, goto="research_node")
+        log = state["routing_log"] + ["research"]
+        return Command(update={"routing_log": log}, goto="research_node")
     if not state.get("summary"):
-        return Command(update={"routing_log": state["routing_log"] + ["write"]}, goto="write_node")
+        log = state["routing_log"] + ["write"]
+        return Command(update={"routing_log": log}, goto="write_node")
     return Command(goto=END)
 
 
@@ -152,7 +148,7 @@ def write_node(state: SupervisorState) -> Command:
     )
 ```
 
-Notice the supervisor itself, in this simplest version, uses plain `if` checks rather than its own LLM call — that's a fair simplification for a fixed two-step task, and it's worth trying the LLM-based version too (see Advanced), to measure the routing call's own real cost.
+Notice the supervisor itself, in this simplest version, uses plain `if` checks rather than its own LLM call — that's a fair simplification for a fixed two-step task, and it's worth trying the LLM-based version too, below, to measure the routing call's own real cost.
 
 Wire the nodes into a graph and run the same 3 topics you used in `sequential_measure`:
 ```python
@@ -165,20 +161,16 @@ builder.add_edge(START, "supervisor")
 graph = builder.compile()
 ```
 
-Print `routing_log`, `total_tokens`, and `total_seconds` for each of the 3 topics, next to the same numbers from `sequential_measure`, before checking Advanced.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
-
-### Advanced Version
+Print `routing_log`, `total_tokens`, and `total_seconds` for each of the 3 topics, next to the same numbers from `sequential_measure`, then go one step further, into the LLM-based supervisor variant below:
 
 ```
 LLM-based supervisor node:
-    build a short prompt describing the current state (has research happened? has write happened?)
+    build a short prompt describing the current state
+    (has research happened? has write happened?)
     ask the model to answer with exactly one word: RESEARCH, WRITE, or DONE
     time this call and read its tokens, same as any other stage
-    add those tokens/seconds into total_tokens/total_seconds, same field, same bucket
+    add those tokens/seconds into total_tokens/total_seconds, same
+    field, same bucket
     map the model's word to goto="research_node" / "write_node" / END
 ```
 
@@ -198,9 +190,10 @@ def supervisor_llm(state: SupervisorState) -> Command:
     response = model.invoke(prompt)
     elapsed = time.perf_counter() - start
     decision = response.content.strip().upper()
+    call_tokens = response.usage_metadata["total_tokens"]
 
     updates = {
-        "total_tokens": state["total_tokens"] + response.usage_metadata["total_tokens"],
+        "total_tokens": state["total_tokens"] + call_tokens,
         "total_seconds": state["total_seconds"] + elapsed,
     }
 
@@ -211,7 +204,7 @@ def supervisor_llm(state: SupervisorState) -> Command:
 
 Fill in the mapping yourself, run both supervisor variants against the same 3 topics and against `sequential_measure`'s numbers, then compare your written conclusion against the [Solution](supervisor_compare_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** the same underlying graph shape (state, supervisor, two specialist nodes, `Command` handoffs) at 3 completeness levels — Basic sketches the pseudocode and confirms nothing runs until you invoke the graph, Intermediate is a complete, working, free-routing supervisor with measurement wired into every node, and Advanced adds a second supervisor variant that actually pays for its own routing decision with a real LLM call, which is the version that tells the truth about the pattern's full cost.
+**Difference between Basic and Intermediate:** the same underlying graph shape (state, supervisor, two specialist nodes, `Command` handoffs), at more completeness — Basic sketches the pseudocode and confirms nothing runs until you invoke the graph; Intermediate is a complete, working, free-routing supervisor with measurement wired into every node, plus a second supervisor variant that actually pays for its own routing decision with a real LLM call, which is the version that tells the truth about the pattern's full cost.
 
 <hr class="page-break">
 

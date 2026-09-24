@@ -2,7 +2,9 @@
 
 > [Back to the exercise](../README.md#ex-approval_pause) · [Hint 1](approval_pause_hints.md#hint-1) · [Hint 2](approval_pause_hints.md#hint-2) · [Solution](approval_pause_solution.md)
 
-Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `approval_pause_practice.py`:** this is the exact `interrupt()` pattern the Build Task needs at its final gate — pause, show a human the draft and its sources, wait for a real decision. **If not:** the Build Task's approval step would be the first place you ever used `interrupt()` for a real reason, with no smaller version to trust.
+
+Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
@@ -75,15 +77,11 @@ rejected_run = run_with_approval("What is our refund policy?", "rejected")
 print("Rejected run result:", rejected_run)
 ```
 
-**Difference from Basic:** full type hints. The interrupt payload includes an explicit prompt string, so a real reviewer (not just you, testing) knows what's being asked. And this version tests *both* the approved and rejected paths, not just the happy path — which is the only way to actually confirm your graph reacts correctly to a real "no." This version still trusts the resume value blindly and keeps no record of who decided or when — that's what Advanced adds.
+**Difference from Basic:** full type hints. The interrupt payload includes an explicit prompt string, so a real reviewer (not just you, testing) knows what's being asked. And this version tests *both* the approved and rejected paths, not just the happy path — which is the only way to actually confirm your graph reacts correctly to a real "no." This version still trusts the resume value blindly and keeps no record of who decided or when — that's what Approach 2 adds.
 
-<hr class="page-break">
+### Approach 2 — a structured resume payload, recording who and when
 
-> [Back to the exercise](../README.md#ex-approval_pause) · [Hint 1](approval_pause_hints.md#hint-1) · [Hint 2](approval_pause_hints.md#hint-2) · [Solution](approval_pause_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a structured resume payload, recording who and when
+**Story:** a bare resume string tells the graph *what* was decided but nothing about *who* or *when* — the moment anything goes wrong, "who approved this?" is a real question someone asks, and a bare string has no answer. **If not:** the Build Task's approval step would have no way to show a later reviewer who actually signed off, or when.
 
 ```python
 # approval_pause_practice.py
@@ -124,11 +122,11 @@ final = graph.invoke(
 )
 print(f"Approved by {final['approved_by']} at {final['approved_at']}")
 ```
-The node's own logic (`decision["decision"] == "approved"`) is barely different from the Intermediate version — the real change is that the resume value now carries an identity and a timestamp alongside the yes/no, and both get saved into state instead of discarded the moment the decision is made.
+The node's own logic (`decision["decision"] == "approved"`) is barely different from Approach 1 — the real change is that the resume value now carries an identity and a timestamp alongside the yes/no, and both get saved into state instead of discarded the moment the decision is made.
 
-### Approach 2 — the same audit trail, plus a staleness check before trusting an old resume
+### Approach 3 — the same audit trail, plus a staleness check before trusting an old resume
 
-Recording who and when only helps if something actually looks at it. This approach adds the check itself: before treating a resumed decision as valid, confirm the pause hasn't sat open so long that the original search results might be outdated.
+**Story:** recording who and when only helps if something actually looks at it — this adds the check itself: before treating a resumed decision as valid, confirm the pause hasn't sat open so long that the original search results might be outdated. **If not:** a month-old approval, made against documents that have since changed, would get treated exactly like one made two minutes ago.
 
 ```python
 # approval_pause_practice.py
@@ -179,6 +177,6 @@ print("Staleness check behaves correctly for both a recent and an old pause.")
 ```
 `is_stale` doesn't stop the resume from happening — LangGraph doesn't know or care how old an interrupt is — it's a check your own node makes *after* resuming, so a month-old approval doesn't get treated identically to one made two minutes ago.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's resume value is a bare string — the graph knows *what* was decided but nothing about who or when, and would treat a decision made a month ago exactly like one made a minute ago. Approach 1 fixes the "who and when" gap with a structured resume payload. Approach 2 uses that same timestamp to answer a question Approach 1 records but doesn't act on: is this decision still trustworthy, or was it made against grounding that's since gone stale?
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1's resume value is a bare string — the graph knows *what* was decided but nothing about who or when, and would treat a decision made a month ago exactly like one made a minute ago. Approach 2 fixes the "who and when" gap with a structured resume payload. Approach 3 uses that same timestamp to answer a question Approach 2 records but doesn't act on: is this decision still trustworthy, or was it made against grounding that's since gone stale?
 
-**Which one should you actually write?** Always test both the approved and rejected paths, like the Intermediate version does — a graph that only handles "approved" correctly but silently does the risky thing anyway on rejection is a real bug you'd only catch by testing rejection specifically. Add Approach 1's structured resume payload the moment more than one person can approve things, or the moment "who approved this" is a question that could reasonably come up later — which, for anything touching real actions, is almost always. Add Approach 2's staleness check once your paused threads can realistically sit open for hours or days, not seconds — a fast-moving internal tool with reviewers watching a queue may never need it; a support ticket approved once a week by a manager on rotation needs it from day one.
+**Which one should you actually write?** Always test both the approved and rejected paths, like Approach 1 does — a graph that only handles "approved" correctly but silently does the risky thing anyway on rejection is a real bug you'd only catch by testing rejection specifically. Add Approach 2's structured resume payload the moment more than one person can approve things, or the moment "who approved this" is a question that could reasonably come up later — which, for anything touching real actions, is almost always. Add Approach 3's staleness check once your paused threads can realistically sit open for hours or days, not seconds — a fast-moving internal tool with reviewers watching a queue may never need it; a support ticket approved once a week by a manager on rotation needs it from day one.

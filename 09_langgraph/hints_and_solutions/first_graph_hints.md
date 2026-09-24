@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper LangGraph), **Advanced** (how state merging actually works once more than one field is involved). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, plus how state merging actually works once more than one field is involved). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -45,12 +45,6 @@ The exact pieces:
 - `builder.add_edge(START, "node_one")`, `builder.add_edge("node_one", "node_two")`, `builder.add_edge("node_two", END)` — explicit start and end, not implied by node order.
 - `graph = builder.compile()` then `graph.invoke({"message": "..."})`.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
-
-### Advanced Version
-
 Think about what "a node returns a small update" actually means the moment your state has more than one field, or a field that's a list you want to *grow*, not replace. By default, LangGraph merges a node's returned dict into state one key at a time — for a plain field like `message: str`, that means the new value simply overwrites the old one. But what if two different nodes both need to append to the *same* running log, and you don't want node 2's write to erase node 1's?
 
 The real design question isn't just "how do nodes update state" — it's "for each field, should a new node's update *replace* what's there, or *combine* with it?"
@@ -59,7 +53,7 @@ The extra piece that answers that question:
 
 - **Reducers**, declared right in the state's type: `from typing import Annotated; import operator; log: Annotated[list[str], operator.add]`. Now, instead of overwriting `state["log"]` with whatever a node returns, LangGraph calls `operator.add(old_log, new_log)` — for lists, that's concatenation — so each node's returned `{"log": ["node_one ran"]}` *appends*, instead of replacing the whole history. Without a reducer, the default behavior is a plain overwrite, which is exactly right for a field like `message` but silently wrong for a field you meant to accumulate.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both use a single plain-`str` field, where "overwrite" is exactly the right, unsurprising behavior. Advanced asks what happens the moment a second field needs the opposite behavior — accumulate instead of overwrite — and shows the one annotation (`Annotated[..., operator.add]`) that changes a field's merge behavior from "replace" to "combine," which becomes essential the moment your state needs to track a running history (a message list, a list of sources found) instead of a single current value.
+**Difference between Basic and Intermediate:** Basic uses a single plain-`str` field, where "overwrite" is exactly the right, unsurprising behavior. Intermediate asks what happens the moment a second field needs the opposite behavior — accumulate instead of overwrite — and shows the one annotation (`Annotated[..., operator.add]`) that changes a field's merge behavior from "replace" to "combine," which becomes essential the moment your state needs to track a running history (a message list, a list of sources found) instead of a single current value.
 
 <hr class="page-break">
 
@@ -144,11 +138,7 @@ run:
 ```
 Trace it by hand before running: what should `state["message"]` be right after `node_one` runs, and again right after `node_two`? Then run it and compare against the [Solution](first_graph_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
-
-### Advanced Version
+Once that's working, add a field that needs to accumulate instead of overwrite:
 
 ```
 add a second field, log, that should accumulate instead of overwrite:
@@ -184,7 +174,7 @@ def node_two(state: GraphState) -> dict:
 ```
 Wire this into a full graph yourself (same edges as before), invoke it with `{"message": "start", "log": []}`, and confirm `result["log"]` has both entries in order — then compare against the [Solution](first_graph_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate's single `message` field only ever needs the default overwrite behavior. Advanced adds a second field, `log`, that needs the opposite — declared with `Annotated[list[str], operator.add]` so each node's write combines with what's already there instead of replacing it, proving both merge behaviors side by side in the same state shape.
+**Difference between Basic and Intermediate:** Basic's single `message` field only ever needs the default overwrite behavior. Intermediate adds a second field, `log`, that needs the opposite — declared with `Annotated[list[str], operator.add]` so each node's write combines with what's already there instead of replacing it, proving both merge behaviors side by side in the same state shape.
 
 <hr class="page-break">
 

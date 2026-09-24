@@ -94,7 +94,9 @@ def supervisor_node(state: TeamState) -> Command:
         return Command(goto="analysis_agent")
     if not state.get("draft"):
         return Command(goto="writer_agent")
-    if state.get("revision_count", 0) < 3 and state.get("review_status") != "approved":
+    revisions_left = state.get("revision_count", 0) < 3
+    not_approved = state.get("review_status") != "approved"
+    if revisions_left and not_approved:
         return Command(goto="reviewer_agent")
     return Command(goto="__end__")
 ```
@@ -111,17 +113,23 @@ from logging_setup import get_logger              # Doc01's get_logger(name)
 logger = get_logger(__name__)
 
 class RoutingDecision(BaseModel):
-    next_agent: str   # "research_agent" | "analysis_agent" | "writer_agent" | "reviewer_agent" | "__end__"
+    next_agent: str
+    # one of: "research_agent" / "analysis_agent" / "writer_agent" /
+    # "reviewer_agent" / "__end__"
     reason: str
 
-router_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(RoutingDecision)
+router_model = ChatOpenAI(
+    model="gpt-4o-mini", temperature=0
+).with_structured_output(RoutingDecision)
 
 def supervisor_node(state: TeamState) -> Command:
     decision = router_model.invoke(
         f"Task: {state['task']}\nDone so far: {state.get('path_log', [])}\n"
         "Which agent should run next?"
     )
-    logger.info("supervisor routed to %s (%s)", decision.next_agent, decision.reason)
+    logger.info(
+        "supervisor routed to %s (%s)", decision.next_agent, decision.reason
+    )
     return Command(goto=decision.next_agent)
 ```
 Good when the next step genuinely isn't a fixed checklist — for example, deciding whether a task needs Research at all, or can go straight to the Writer because the user already supplied enough facts.
@@ -191,14 +199,16 @@ Handing work from one agent to another is really two things happening at once: u
 # The old way — a text code, parsed by a separate conditional edge
 def writer_agent(state: TeamState) -> dict:
     draft = write_from_findings(state["research_findings"])
-    return {"draft": draft, "next_step": "ROUTE_TO_REVIEWER"}   # a string, easy to typo
+    return {"draft": draft, "next_step": "ROUTE_TO_REVIEWER"}  # easy to typo
 
 def route_after_writer(state: TeamState) -> str:
-    if state["next_step"] == "ROUTE_TO_REVIEWER":               # must match EXACTLY
+    if state["next_step"] == "ROUTE_TO_REVIEWER":  # must match EXACTLY
         return "reviewer_agent"
-    return "END"                                                 # silent fallback on any mismatch
+    return "END"  # silent fallback on any mismatch
 
-builder.add_conditional_edges("writer_agent", route_after_writer, ["reviewer_agent", END])
+builder.add_conditional_edges(
+    "writer_agent", route_after_writer, ["reviewer_agent", END]
+)
 ```
 ```python
 # Today's way — Command carries the update AND the destination together
@@ -206,7 +216,8 @@ from langgraph.types import Command
 
 def writer_agent(state: TeamState) -> Command:
     draft = write_from_findings(state["research_findings"])
-    return Command(update={"draft": draft}, goto="reviewer_agent")   # one place, nothing to parse
+    # one place, nothing to parse
+    return Command(update={"draft": draft}, goto="reviewer_agent")
 ```
 
 | Situation | What to do | Why |
@@ -246,31 +257,34 @@ Every multi-agent graph has one shared state object every agent can read, and us
 - **This decision has to be made per field, explicitly** — "does every agent need this, or just one?" — rather than defaulting to one big shared object because it's easier to wire up on day one and painful to unwind later, once three agents are already reading a field that was only ever meant for one of them.
 
 ```python
-# Approach 1 — one shared TypedDict, per-agent namespaced keys (Project 4's default shape)
+# Approach 1 — one shared TypedDict, per-agent namespaced keys
 from typing import Annotated, TypedDict
 import operator
 
 class TeamState(TypedDict, total=False):
-    task: str                                      # what was asked — every agent may read this
-    research_findings: str                         # Research's FINISHED output — shared
-    analysis: str                                  # Analysis's FINISHED output — shared
-    draft: str                                      # Writer's FINISHED output — shared
-    review_status: str                              # "approved" / "rejected" — routing info, shared
-    revision_count: int                             # routing info — shared
-    path_log: Annotated[list[str], operator.add]    # who ran, in what order — shared, grows
-    # NOT shared: each agent's own raw tool-call scratchpad — stays inside that agent's own node
+    task: str                # what was asked — every agent may read this
+    research_findings: str   # Research's FINISHED output — shared
+    analysis: str             # Analysis's FINISHED output — shared
+    draft: str                 # Writer's FINISHED output — shared
+    review_status: str          # "approved" / "rejected" — routing, shared
+    revision_count: int          # routing info — shared
+    path_log: Annotated[list[str], operator.add]
+    # ^ who ran, in what order — shared, grows
+    # NOT shared: each agent's own raw scratchpad — stays in its own node
 ```
 ```python
 # Approach 2 — a Research agent's own private sub-state, as a Doc09 subgraph
 class ResearchSubState(TypedDict, total=False):
-    task: str                # shared with the parent — the field that crosses the boundary
-    query: str                # PRIVATE — this agent's current search text
-    search_count: int         # PRIVATE — this agent's own loop counter (Doc10's multi-step search)
-    found_chunks: list[dict]  # PRIVATE — raw retrieval results, not yet summarized
-    research_findings: str    # shared with the parent — the ONLY field the team actually needs back
+    task: str          # shared with the parent — crosses the boundary
+    query: str           # PRIVATE — this agent's current search text
+    search_count: int     # PRIVATE — this agent's own loop counter (Doc10)
+    found_chunks: list[dict]   # PRIVATE — raw results, not yet summarized
+    research_findings: str      # shared — the only field needed back
 
-research_subgraph = research_builder.compile()          # a whole Doc10-style agentic RAG graph
-team_builder.add_node("research_agent", research_subgraph)   # plugged in as ONE node, like any other
+# a whole Doc10-style agentic RAG graph
+research_subgraph = research_builder.compile()
+# plugged in as ONE node, like any other
+team_builder.add_node("research_agent", research_subgraph)
 ```
 Only `task` and `research_findings` cross the boundary between `ResearchSubState` and `TeamState` — `query`, `search_count`, and `found_chunks` never leave the subgraph, so the Writer never sees them and can't be confused by them.
 
@@ -322,15 +336,17 @@ class RunIdFilter(logging.Filter):
         return True
 
 def start_run(run_id: str) -> None:
-    _run_id.set(run_id)                        # call this ONCE, right before graph.invoke(...)
+    _run_id.set(run_id)   # call this ONCE, right before graph.invoke(...)
 
-# each agent gets its own named logger — %(name)s already shows which agent wrote the line
+# each agent gets its own named logger — %(name)s shows which agent wrote it
 research_logger = get_logger("agents.research")
 writer_logger = get_logger("agents.writer")
 
-# formatter (configured once, Doc01's rule): "%(asctime)s [%(run_id)s] %(name)s: %(message)s"
+# formatter (configured once, Doc01's rule):
+# "%(asctime)s [%(run_id)s] %(name)s: %(message)s"
 research_logger.info("found %d chunks for query: %s", len(chunks), query)
-# -> 2026-01-18 10:03:41 [run-881] agents.research: found 4 chunks for query: ...
+# -> 2026-01-18 10:03:41 [run-881] agents.research: found 4 chunks for
+#    query: ...
 ```
 
 | Situation | What to do | Why |
@@ -376,8 +392,11 @@ class ResearchAgentError(Exception):
 def research_agent(state: TeamState) -> Command:
     findings = run_research(state["task"])
     if not findings:
-        raise ResearchAgentError(f"No usable findings for task: {state['task']!r}")
-    return Command(update={"research_findings": findings}, goto="analysis_agent")
+        task = state["task"]
+        raise ResearchAgentError(f"No usable findings for task: {task!r}")
+    return Command(
+        update={"research_findings": findings}, goto="analysis_agent"
+    )
 ```
 ```python
 # Option 2 — let the Supervisor decide
@@ -385,7 +404,10 @@ def research_agent(state: TeamState) -> Command:
     findings = run_research(state["task"])
     if not findings:
         return Command(
-            update={"research_error": "no usable findings", "path_log": ["research:failed"]},
+            update={
+                "research_error": "no usable findings",
+                "path_log": ["research:failed"],
+            },
             goto="supervisor",
         )
     return Command(update={"research_findings": findings}, goto="supervisor")
@@ -393,8 +415,14 @@ def research_agent(state: TeamState) -> Command:
 def supervisor_node(state: TeamState) -> Command:
     if state.get("research_error"):
         if state.get("research_retry_count", 0) < 1:
-            return Command(update={"research_retry_count": 1}, goto="research_agent")  # one retry
-        return Command(update={"path_log": ["supervisor:skipped_research"]}, goto="writer_agent")
+            # one retry
+            return Command(
+                update={"research_retry_count": 1}, goto="research_agent"
+            )
+        return Command(
+            update={"path_log": ["supervisor:skipped_research"]},
+            goto="writer_agent",
+        )
     # ...normal routing continues
 ```
 ```python
@@ -403,11 +431,15 @@ from http_client import request_with_retry     # Doc02's Build Task
 from exceptions import TransientHTTPError      # Doc02's Build Task
 
 def research_agent(state: TeamState) -> Command:
+    params = {"q": state["task"]}
     try:
-        results = request_with_retry("GET", search_url, params={"q": state["task"]})
+        results = request_with_retry("GET", search_url, params=params)
     except TransientHTTPError:
-        return Command(update={"research_error": "search unavailable"}, goto="supervisor")
-    return Command(update={"research_findings": summarize(results)}, goto="supervisor")
+        return Command(
+            update={"research_error": "search unavailable"}, goto="supervisor"
+        )
+    findings = summarize(results)
+    return Command(update={"research_findings": findings}, goto="supervisor")
 ```
 
 | Situation | What to do | Why |
@@ -444,13 +476,15 @@ Every extra agent in a pipeline is at least one more paid model call — often s
 - **How to actually know, instead of guessing:** measure it. Build the same task as a single-agent version and a multi-agent version, run both on the same test inputs, and compare real token counts and real wall-clock time — the Practice Exercises below are built around exactly this comparison.
 
 ```python
-# A global call budget, checked by the supervisor before every handoff — not per-agent
+# A global call budget, checked by the supervisor before every handoff
 MAX_TOTAL_CALLS = 20
 
 def supervisor_node(state: TeamState) -> Command:
     if state.get("total_calls", 0) >= MAX_TOTAL_CALLS:
-        return Command(update={"path_log": ["supervisor:budget_exceeded"]}, goto="__end__")
-    # ...normal routing continues, and each agent node increments total_calls by 1 on return
+        return Command(
+            update={"path_log": ["supervisor:budget_exceeded"]}, goto="__end__"
+        )
+    # ...normal routing continues; each agent node increments total_calls by 1
 ```
 
 | Situation | What to do | Why |
@@ -491,10 +525,15 @@ class BlackboardState(TypedDict, total=False):
     log: Annotated[list[dict], operator.add]   # every agent's posts, in order
 
 def researcher_agent(state: BlackboardState) -> Command:
-    if any(entry["from"] == "researcher" for entry in state.get("log", [])):
-        return Command(goto="writer_agent")     # already posted; someone else's turn
+    already_posted = False
+    for entry in state.get("log", []):
+        if entry["from"] == "researcher":
+            already_posted = True
+    if already_posted:
+        return Command(goto="writer_agent")  # someone else's turn now
     findings = run_research(state["log"][-1]["text"])
-    return Command(update={"log": [{"from": "researcher", "text": findings}]}, goto="writer_agent")
+    post = {"from": "researcher", "text": findings}
+    return Command(update={"log": [post]}, goto="writer_agent")
 ```
 Each agent's own check ("have I already posted? does the log contain what I need?") replaces the Supervisor's single routing function — which is exactly why a blackboard is harder to debug: there's no one function you can read to see "the plan."
 
@@ -529,7 +568,23 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup for this document's practice code:** work inside `11_multi_agent_systems/` (same venv as before — if it's not active, `source .venv/bin/activate`). New packages for this document: `pip install langgraph langchain-openai`.
 
-**Where your code lives:** all of it under `11_multi_agent_systems/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by difficulty level** — the same convention as Doc01/02/07/09/10 — so one topic's growth from basic to advanced stays visible in one file.
+**Where your code lives:** all of it under `11_multi_agent_systems/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by difficulty level** — the same convention as Doc01/02/07/09/10 — so one topic's growth from basic to intermediate stays visible in one file.
+
+**The full file layout, all exercises:**
+
+```
+practice/
+├── architecture_comparison_practice.py  Basic + Intermediate +
+│                                        Real-world (3 sections)
+├── supervisor_routing_practice.py       Edge cases
+└── convergence_and_cost_cutting_practice.py  Failure
+```
+
+**Why each script exists:**
+
+- `architecture_comparison_practice.py` — the same task, designed on paper then built two ways (sequential, supervisor) and measured — the comparison every later "why N agents" decision in this curriculum traces back to.
+- `supervisor_routing_practice.py` — proves a supervisor can route correctly (and recover) when two specialists genuinely overlap, not just when the order was never in question.
+- `convergence_and_cost_cutting_practice.py` — a revision loop that hits its limit cleanly, plus a real, measured cost cut — both things Project 4's reviewer loop needs.
 
 **How to run each exercise:** if two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python practice/env_config_practice.py`.
 
@@ -538,7 +593,7 @@ For this document:
 - Edge cases (`ambiguous_routing`) asks a different question (can the supervisor route correctly when two specialists overlap) — save it as its own topic, `practice/supervisor_routing_practice.py`.
 - Failure (`convergence_and_cost_cutting`) is its own topic — save it as `practice/convergence_and_cost_cutting_practice.py`.
 
-Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to intermediate, side by side.
 
 **Jump to an exercise:** [Basic](#ex-paper_design) · [Intermediate](#ex-sequential_measure) · [Real-world](#ex-supervisor_compare) · [Edge cases](#ex-ambiguous_routing) · [Failure](#ex-convergence_and_cost_cutting) · [Build Task](#build-task-project-4-multi-agent-system)
 
@@ -622,17 +677,25 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 **Suggested files:**
 ```
 project_4_contentforge_multi_agent/
-├── main.py
-├── graph.py
-├── state.py
+├── main.py              entry point, runs the graph
+├── graph.py              wires all 5 nodes into a StateGraph
+├── state.py               the shared state shape
 ├── agents/
-│   ├── supervisor.py
-│   ├── research_agent.py
-│   ├── analysis_agent.py
-│   ├── writer_agent.py
-│   └── reviewer_agent.py
-└── test_project4.py
+│   ├── supervisor.py       routing logic, using Command
+│   ├── research_agent.py   looks things up
+│   ├── analysis_agent.py   figures out what the research means
+│   ├── writer_agent.py     drafts the piece
+│   └── reviewer_agent.py   checks the draft, can send it back
+└── test_project4.py     checks the recoverable and never-agrees cases
 ```
+
+**Why each file exists:**
+
+- `main.py` — the one place a task actually gets run, so the graph-building and the running-it concerns stay separate.
+- `graph.py` — builds on the same `StateGraph`/`Command` mechanics `supervisor_compare` already practiced, now with 5 nodes instead of 2.
+- `state.py` — one shared shape every agent reads and writes, so `research_findings`, `analysis`, `draft`, and `review_status` all mean the same thing everywhere.
+- `agents/*.py` — one file per specialist, so each agent's own logic is testable and readable on its own, separate from the routing.
+- `test_project4.py` — proves the revision loop actually recovers on rejection, and actually stops at the limit when it never agrees — the same discipline `convergence_and_cost_cutting` already trained.
 
 **Functions/Components to build:**
 

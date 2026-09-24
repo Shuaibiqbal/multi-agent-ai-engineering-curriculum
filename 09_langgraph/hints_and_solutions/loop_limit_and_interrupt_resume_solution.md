@@ -2,7 +2,9 @@
 
 > [Back to the exercise](../README.md#ex-loop_limit_and_interrupt_resume) · [Hint 1](loop_limit_and_interrupt_resume_hints.md#hint-1) · [Hint 2](loop_limit_and_interrupt_resume_hints.md#hint-2) · [Solution](loop_limit_and_interrupt_resume_solution.md)
 
-This exercise has 2 separate halves — the endless loop, and the checkpoint/interrupt/resume cycle. Each version below covers both. Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `loop_limit_interrupt_practice.py`:** watching an endless loop actually hit its limit, and a paused graph actually resume across a real process restart, is the difference between trusting these mechanisms and just believing the docs about them. **If not:** the Build Task's own checkpointer choice (`MemorySaver` vs. `SqliteSaver`) would be a guess instead of something you watched fail and then fixed yourself.
+
+This exercise has 2 separate halves — the endless loop, and the checkpoint/interrupt/resume cycle. Each version below covers both. Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
@@ -44,9 +46,15 @@ except GraphRecursionError as e:
 ```
 **Expected output:**
 ```
-Stopped on purpose after hitting the recursion limit: Recursion limit of 5 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.
+Stopped on purpose after hitting the recursion limit: Recursion
+limit of 5 reached without hitting a stop condition. You can
+increase the limit by setting the `recursion_limit` config key.
 ```
-(The exact wording of the message can vary slightly by LangGraph version — the important, reliable part is the exception type, `GraphRecursionError`, and that it fires instead of the process hanging forever.)
+(shown wrapped onto three lines just to fit the page — really one
+line of output; the exact wording can also vary slightly by
+LangGraph version. The reliable part is the exception type,
+`GraphRecursionError`, and that it fires instead of the process
+hanging forever.)
 
 **Part 2 — checkpoint, interrupt, resume:**
 ```python
@@ -76,8 +84,9 @@ checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
 
 config = {"configurable": {"thread_id": "run-1"}}
+starting_state = {"task": "send an email", "approved": False}
 
-first_result = graph.invoke({"task": "send an email", "approved": False}, config=config)
+first_result = graph.invoke(starting_state, config=config)
 print("after first invoke:", first_result)
 
 second_result = graph.invoke(Command(resume=True), config=config)
@@ -85,9 +94,13 @@ print("after resume:", second_result)
 ```
 **Expected output:**
 ```
-after first invoke: {'task': 'send an email', 'approved': False, '__interrupt__': [Interrupt(value={'question': 'Approve running: send an email?'}, ...)]}
+after first invoke: {'task': 'send an email', 'approved': False,
+'__interrupt__': [Interrupt(value={'question': 'Approve running:
+send an email?'}, ...)]}
 after resume: {'task': 'send an email', 'approved': True}
 ```
+(the first line above is shown wrapped onto three lines just to
+fit the page — really one line of output)
 The first `invoke()` runs `do_task`, which calls `interrupt(...)` and pauses right there — the graph never reaches `END` on that call, and the returned state carries the interrupt's payload instead of a finished result. The second `invoke()`, using `Command(resume=True)` and the **same** `thread_id`, picks `do_task` back up from exactly where `interrupt()` paused it — `decision` becomes `True`, the function finishes, and `approved` ends up `True` in the final state.
 
 <hr class="page-break">
@@ -129,13 +142,14 @@ graph = builder.compile()
 
 try:
     final_state = graph.invoke({"count": 0}, config={"recursion_limit": 5})
-    print(f"Somehow finished: {final_state}")  # should never happen with no exit edge
+    # why: unreachable by design -- there's no exit edge from this loop
+    print(f"Somehow finished: {final_state}")
 except GraphRecursionError:
-    print("Confirmed: an exit-less loop hits the recursion limit and fails loudly, not silently.")
+    print("Confirmed: an exit-less loop fails loudly, not silently.")
 ```
 **Expected output:**
 ```
-Confirmed: an exit-less loop hits the recursion limit and fails loudly, not silently.
+Confirmed: an exit-less loop fails loudly, not silently.
 ```
 
 **Part 2:**
@@ -165,8 +179,9 @@ builder.add_edge("do_task", END)
 checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
 config = {"configurable": {"thread_id": "run-1"}}
+starting_state = {"task": "send an email", "approved": False}
 
-paused_state = graph.invoke({"task": "send an email", "approved": False}, config=config)
+paused_state = graph.invoke(starting_state, config=config)
 
 pending_interrupts = paused_state.get("__interrupt__", [])
 if pending_interrupts:
@@ -186,13 +201,9 @@ Final state after resume: {'task': 'send an email', 'approved': True}
 
 **Difference from Basic:** Part 1 adds a check that the graph genuinely never finishes on its own (the `try` block's success branch is unreachable by design, which is itself worth confirming). Part 2 reads the actual interrupt payload out of `paused_state["__interrupt__"]` and prints the real question instead of just printing the whole raw state dict — this is what a real approval UI would do: show the human the *question*, not a debug dump.
 
-<hr class="page-break">
+### Approach 2 — proving `MemorySaver` does NOT survive a real restart
 
-> [Back to the exercise](../README.md#ex-loop_limit_and_interrupt_resume) · [Hint 1](loop_limit_and_interrupt_resume_hints.md#hint-1) · [Hint 2](loop_limit_and_interrupt_resume_hints.md#hint-2) · [Solution](loop_limit_and_interrupt_resume_solution.md)
-
-## Advanced Version
-
-### Approach 1 — proving `MemorySaver` does NOT survive a real restart
+**Story:** proving pause/resume "works" by calling `invoke()` twice in the same script, with the same `MemorySaver` object still sitting in a variable, doesn't actually prove state survives a real restart — it only proves the object in memory still has it. **If not:** the Build Task's `graph.py` would ship with an untested assumption about what its checkpointer actually needs to survive.
 
 This is 2 separate scripts, run one after the other, with the process exiting completely in between — not 2 function calls in the same script.
 
@@ -265,11 +276,14 @@ print(resumed_state)
 ```
 Traceback (most recent call last):
   ...
-langgraph.errors.EmptyInputError: ... (or an equivalent error / empty-state result, depending on version)
+langgraph.errors.EmptyInputError: ... (or an equivalent error /
+empty-state result, depending on version)
 ```
 This is the point, not a mistake to fix: `MemorySaver` really does keep its data only in the Python process that created it. A genuinely separate process has a genuinely empty checkpointer, so there's nothing to resume — proving hands-on that `MemorySaver` is a development/testing tool, not something that survives an actual restart.
 
-### Approach 2 — a checkpointer that actually persists, using SQLite
+### Approach 3 — a checkpointer that actually persists, using SQLite
+
+**Story:** the one substitution that fixes Approach 2's failure — `SqliteSaver` instead of `MemorySaver` — is the exact seam the Build Task needs, so `graph.py` can swap checkpointers at the call site without touching the graph itself. **If not:** the Build Task's skeleton would hard-code `MemorySaver()`, and the day Document 10 needs a real persisted checkpointer, that would mean editing the graph's own code instead of just the caller.
 
 ```python
 # loop_limit_interrupt_practice.py
@@ -314,6 +328,6 @@ with SqliteSaver.from_conn_string("checkpoints.sqlite") as checkpointer:
 ```
 Same graph, same interrupt, same `Command(resume=True)` call — the only change is swapping `MemorySaver()` for `SqliteSaver.from_conn_string("checkpoints.sqlite")`, which writes each checkpoint to an actual file on disk. That one substitution is the entire difference between "survives a second function call in the same script" and "survives the process exiting, the computer rebooting, or a completely different program resuming it hours later."
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate proves pause/resume works within one running script, using `MemorySaver`. Approach 1 deliberately tries the same thing across 2 truly separate processes and shows it fails — the checkpointer's data was only ever in that first process's RAM. Approach 2 fixes the actual problem Approach 1 exposes, by swapping in `SqliteSaver`, a checkpointer backed by a real file — proving the exact same graph and interrupt code now genuinely survives a restart, with no other changes needed.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 proves pause/resume works within one running script, using `MemorySaver`. Approach 2 deliberately tries the same thing across 2 truly separate processes and shows it fails — the checkpointer's data was only ever in that first process's RAM. Approach 3 fixes the actual problem Approach 2 exposes, by swapping in `SqliteSaver`, a checkpointer backed by a real file — proving the exact same graph and interrupt code now genuinely survives a restart, with no other changes needed.
 
-**Which one should you actually use?** `MemorySaver` for local development and this document's exercises — it's fast, needs no setup, and is exactly right for testing a graph's logic. The moment a pause needs to survive past the current process — a real human approval workflow, a server that might restart, anything actually going to production — swap to a real persisted checkpointer (`SqliteSaver` for something simple and local, `PostgresSaver` for a real deployed service). Approach 1's failure is worth actually watching once, the same way the endless loop in Part 1 is — so "why didn't my resume work" never becomes a confusing surprise in a real project.
+**Which one should you actually use?** `MemorySaver` for local development and this document's exercises — it's fast, needs no setup, and is exactly right for testing a graph's logic. The moment a pause needs to survive past the current process — a real human approval workflow, a server that might restart, anything actually going to production — swap to a real persisted checkpointer (`SqliteSaver` for something simple and local, `PostgresSaver` for a real deployed service). Approach 2's failure is worth actually watching once, the same way the endless loop in Part 1 is — so "why didn't my resume work" never becomes a confusing surprise in a real project.

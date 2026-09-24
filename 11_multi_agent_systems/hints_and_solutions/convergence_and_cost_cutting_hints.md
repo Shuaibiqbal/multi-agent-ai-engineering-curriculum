@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper LangGraph), **Advanced** (how a real production system handles both problems). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, including how a real production system handles both problems). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
 
 This exercise has two separate parts — a non-converging generator↔critic loop, and a cost-cutting pass on a working 4-agent run. Both hints cover both parts.
 
@@ -46,15 +46,7 @@ Things to use:
 - A cheaper/smaller model for a stage that doesn't need the most capable model (routing decisions and simple checks are common candidates; final-answer generation usually isn't).
 - Caching a call that would otherwise repeat identical work (e.g. the same research query run twice in one session).
 
-Sketch the unsatisfiable critic and your profiling pass before Hint 2.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
-
-### Advanced Version
-
-Think about what makes a "couldn't converge" report actually useful versus just technically true. A report that says only "gave up after 3 tries" tells whoever reads it that something failed, but nothing about *why* — was the critic's bar genuinely impossible, was the writer stuck repeating the same mistake, or did the two sides disagree about something subjective with no real fix? A production on-call engineer reading this report at 2am needs to be able to tell those apart without re-running the whole thing.
+Sketch the unsatisfiable critic and your profiling pass, then go one step further: think about what makes a "couldn't converge" report actually useful versus just technically true. A report that says only "gave up after 3 tries" tells whoever reads it that something failed, but nothing about *why* — was the critic's bar genuinely impossible, was the writer stuck repeating the same mistake, or did the two sides disagree about something subjective with no real fix? A production on-call engineer reading this report at 2am needs to be able to tell those apart without re-running the whole thing.
 
 For the cost cut, the harder question isn't "did it get cheaper" — cutting a prompt to one word makes it cheaper and also makes it useless. The real design question is: **how do you prove the cut didn't break correctness, using the same rigor `sequential_measure` and `supervisor_compare` used to prove the *cost* numbers, not just a vibe check on one example?**
 
@@ -66,7 +58,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names both parts and the exact pieces — a revision counter and limit, an unsatisfiable critic, a profiling pass, and concrete cost levers. Intermediate shows exactly where the limit check goes in the loop and which levers to reach for first, in order of how safe they are. Advanced asks what makes each part's output actually trustworthy — a "couldn't converge" report detailed enough to diagnose, not just announce, and a cost cut proven against a real test set rather than assumed safe because the number went down — which is the difference between a report someone can act on and one that just says "it broke."
+**Difference between Basic and Intermediate:** Basic names both parts and the exact pieces — a revision counter and limit, an unsatisfiable critic, a profiling pass, and concrete cost levers. Intermediate shows exactly where the limit check goes in the loop, which levers to reach for first in order of how safe they are, and what makes each part's output actually trustworthy — a "couldn't converge" report detailed enough to diagnose, not just announce, and a cost cut proven against a real test set rather than assumed safe because the number went down — which is the difference between a report someone can act on and one that just says "it broke."
 
 <hr class="page-break">
 
@@ -127,7 +119,8 @@ def writer(state: LoopState) -> Command:
 def critic(state: LoopState) -> Command:
     # impossible criteria on purpose: rejects every draft, always
     passed = False
-    reason = "draft does not meet required standard (criteria cannot be satisfied)"
+    reason = "draft does not meet required standard (criteria cannot "
+    reason += "be satisfied)"
 
     if passed:
         return Command(update={"converged": True}, goto=END)
@@ -135,7 +128,11 @@ def critic(state: LoopState) -> Command:
     new_count = state["revision_count"] + 1
     if new_count >= MAX_REVISIONS:
         return Command(
-            update={"revision_count": new_count, "converged": False, "last_rejection_reason": reason},
+            update={
+                "revision_count": new_count,
+                "converged": False,
+                "last_rejection_reason": reason,
+            },
             goto=END,
         )
     return Command(
@@ -150,24 +147,27 @@ builder.add_node("critic", critic)
 builder.add_edge(START, "writer")
 graph = builder.compile()
 
-result = graph.invoke({"draft": "", "revision_count": 0, "converged": False, "last_rejection_reason": ""})
+initial_state = {
+    "draft": "",
+    "revision_count": 0,
+    "converged": False,
+    "last_rejection_reason": "",
+}
+result = graph.invoke(initial_state)
 if result["converged"]:
     print("Accepted:", result["draft"])
 else:
-    print(f"Couldn't converge after {result['revision_count']} attempts: {result['last_rejection_reason']}")
+    attempts = result["revision_count"]
+    reason = result["last_rejection_reason"]
+    print(f"Couldn't converge after {attempts} attempts: {reason}")
 ```
-**Expected output:**
+**Expected output** (shown wrapped onto 2 lines just to fit the page — really one line of output):
 ```
-Couldn't converge after 3 attempts: draft does not meet required standard (criteria cannot be satisfied)
+Couldn't converge after 3 attempts: draft does not meet required standard
+(criteria cannot be satisfied)
 ```
 
-For the cost-cutting half, reuse `run_supervisor()`'s report shape from `supervisor_compare` across a real pipeline's stages, find the most expensive one by comparing `.tokens`, then try a shorter prompt on it and re-measure. Sketch the profiling loop and the before/after comparison yourself before checking Advanced.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
-
-### Advanced Version
+For the cost-cutting half, reuse `run_supervisor()`'s report shape from `supervisor_compare` across a real pipeline's stages, find the most expensive one by comparing `.tokens`, then try a shorter prompt on it and re-measure. Sketch the profiling loop and the before/after comparison, then go one step further, into the diagnostic detail and proof step below:
 
 ```
 critic keeps every rejection reason, not just the last one:
@@ -199,7 +199,8 @@ class LoopState(TypedDict):
 
 def critic(state: LoopState) -> Command:
     passed = False
-    reason = "draft does not meet required standard (criteria cannot be satisfied)"
+    reason = "draft does not meet required standard (criteria cannot "
+    reason += "be satisfied)"
     history = state["rejection_history"] + [reason]
 
     if passed:
@@ -210,13 +211,23 @@ def critic(state: LoopState) -> Command:
         # your turn: build the final report string using `history`,
         # noting whether the reason repeated every time or varied
         ...
-        return Command(update={"revision_count": new_count, "converged": False, "rejection_history": history}, goto=END)
-    return Command(update={"revision_count": new_count, "rejection_history": history}, goto="writer")
+        return Command(
+            update={
+                "revision_count": new_count,
+                "converged": False,
+                "rejection_history": history,
+            },
+            goto=END,
+        )
+    return Command(
+        update={"revision_count": new_count, "rejection_history": history},
+        goto="writer",
+    )
 ```
 
 For Part 2, fill in a `compare_before_after(test_inputs, cut_fn)` function yourself: run the test set through both versions, print the cost delta as a percentage, and print each pair of outputs side by side so you can eyeball whether quality held. Then compare both of your finished pieces against the [Solution](convergence_and_cost_cutting_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** the same two-part shape (a hard-limited loop, and a measured cost cut) at 3 completeness levels — Basic sketches both as pseudocode and confirms nothing runs until invoked, Intermediate is a complete, working non-converging loop with a real limit and the profile-then-cut mechanics, and Advanced adds the diagnostic detail (full rejection history, not just the count) and the proof step (a real before/after test-set comparison, not a one-off measurement) that make both parts' final reports something a reader can actually trust and act on.
+**Difference between Basic and Intermediate:** the same two-part shape (a hard-limited loop, and a measured cost cut), at more completeness — Basic sketches both as pseudocode and confirms nothing runs until invoked; Intermediate is a complete, working non-converging loop with a real limit and the profile-then-cut mechanics, plus the diagnostic detail (full rejection history, not just the count) and the proof step (a real before/after test-set comparison, not a one-off measurement) that make both parts' final reports something a reader can actually trust and act on.
 
 <hr class="page-break">
 

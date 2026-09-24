@@ -50,19 +50,18 @@ Here's what to actually go look at:
 
 Sketch the function's overall shape — the loop, the classification call, and the two error types it can raise — before checking Hint 2.
 
-Think past "classify the failure and retry it correctly." Ask: **the retry loop reads `Retry-After` if this document's rate-limit exercise applies here, and this function is supposed to be "testable without making real network calls" per the Build Task's own constraint — how do you actually satisfy that, not just claim it?**
+Think past "classify the failure and retry it correctly." Ask: **this function is supposed to be testable without real network calls where possible, per the Build Task's own constraint — which parts of it can actually be tested that way, and how did the earlier exercises already show you?**
 
-The honest answer is a design change, not a testing trick: `request_with_retry()` shouldn't call `requests.request` directly by name — it should accept the transport function as a parameter, defaulting to the real one. A test can then pass in a fake function that returns canned responses instead of touching the network at all, with zero mocking libraries and zero real HTTP calls. This is the same idea as `compute_backoff_delay(attempt)` being pulled out on its own in the timeout/retry exercise, applied to the *entire network call* this time, not just the backoff math.
+The answer isn't a new trick — it's the same move every exercise in this document already made: pull the *decision* logic out into its own small, pure function, and test that directly with plain values. `is_transient_status(status_code)` above is one such function. `compute_backoff_delay(attempt)` from the timeout/retry exercise is another. The rate-limit exercise's `decide_wait_seconds(headers, attempt)` is a third — it takes a plain `headers` dict, not a real response object, so it's testable the exact same way. The retry loop itself — the part that actually calls `requests.request` — gets exercised with a real call, the same way the timeout/retry exercise's `get_with_retry()` was: no fake server, nothing new to learn.
 
 There's a second question worth asking too: should every call to `request_with_retry()` open a brand-new connection, or should repeated calls to the same host reuse one, the way the session-reuse exercise showed? A module-level `requests.Session()`, reused across calls, is both faster (connection pooling) and the natural place to set default headers once (like a User-Agent identifying your client) instead of on every call.
 
 The extra pieces:
 
-- A `request_fn` parameter, defaulting to `requests.request`, that the retry loop calls instead of `requests.request` directly — `def request_with_retry(method, url, *, request_fn=requests.request, **kwargs):`.
-- A module-level `requests.Session()` in `http_client.py`, and `session.request(...)` used as the real `request_fn` instead of the bare module-level function.
-- `decide_wait_seconds(response, attempt)` from the rate-limit exercise, called inside the retry loop before falling back to `compute_backoff_delay(attempt)` — a 429 should respect `Retry-After` if the server sent one, the same as any other real client.
+- A module-level `requests.Session()` in `http_client.py`, called as `_session.request(...)` inside the loop instead of the bare `requests.request`.
+- `decide_wait_seconds(headers, attempt)` from the rate-limit exercise, called inside the retry loop before falling back to `compute_backoff_delay(attempt)` — a 429 should respect `Retry-After` if the server sent one, the same as any other real client.
 
-**Difference between Basic and Intermediate:** Basic names the function and the tools. Intermediate designs the classification step and the loop's shape around it, then asks how you'd actually satisfy the Build Task's own "testable without real network calls" constraint (dependency-inject the transport function, rather than hard-coding `requests.request`) and folds in the rate-limit exercise's `Retry-After` handling and the session-reuse exercise's connection pooling — because a real `http_client.py` isn't graded on one exercise's requirements in isolation, it's the one file every later document actually imports.
+**Difference between Basic and Intermediate:** Basic names the function and the tools. Intermediate designs the classification step and the loop's shape around it, then applies the same "pull the decision logic into its own pure function" move from the timeout/retry and rate-limit exercises to everything in this function that can be tested without a network call, and folds in the session-reuse exercise's connection pooling — because a real `http_client.py` isn't graded on one exercise's requirements in isolation, it's the one file every later document actually imports.
 
 <hr class="page-break">
 
@@ -169,21 +168,19 @@ function request_with_retry(method, url, max_attempts=5, **kwargs) -> dict:
         raise PermanentHTTPError(response.status_code, response.text)
 ```
 
-The key structural idea: the loop has exactly two ways out — a successful return, or a raised error — and exactly one way to keep going — `continue` after sleeping. Nothing falls through silently. Write out the full, typed version yourself, then go one step further — Approach 2, which is what actually satisfies the Build Task's "testable without real network calls" constraint.
+The key structural idea: the loop has exactly two ways out — a successful return, or a raised error — and exactly one way to keep going — `continue` after sleeping. Nothing falls through silently. Write out the full, typed version yourself, then go one step further — Approach 2, which folds in the session-reuse and rate-limit exercises.
 
-#### Approach 2 — a dependency-injected transport, a shared session, and `Retry-After` support
+#### Approach 2 — a shared session and `Retry-After` support
 
 ```
 http_client.py:
     module-level: session = requests.Session()   # reused across every call
 
-    function request_with_retry(
-        method, url, max_attempts=5, request_fn=session.request, **kwargs
-    ) -> dict:
+    function request_with_retry(method, url, max_attempts=5, **kwargs) -> dict:
         for attempt in range(max_attempts):
             logger.debug(f"attempt {attempt}: {method} {url}")
             try:
-                response = request_fn(method, url, timeout=(3, 10), **kwargs)
+                response = session.request(method, url, timeout=(3, 10), **kwargs)
             except (Timeout, ConnectionError) as e:
                 if attempt == max_attempts - 1:
                     raise TransientHTTPError(...) from e
@@ -197,7 +194,7 @@ http_client.py:
                 if attempt == max_attempts - 1:
                     raise TransientHTTPError(...)
                 # respects Retry-After if the server sent one
-                wait = decide_wait_seconds(response, attempt)
+                wait = decide_wait_seconds(response.headers, attempt)
                 sleep(wait)
                 continue
 
@@ -209,7 +206,7 @@ Here's almost the whole thing — fill in the missing piece yourself:
 import json
 import random
 import time
-from typing import Any, Callable
+from typing import Any
 
 import requests
 
@@ -232,13 +229,12 @@ def request_with_retry(
     method: str,
     url: str,
     max_attempts: int = 5,
-    request_fn: Callable[..., requests.Response] = _session.request,
     **kwargs: Any,
 ) -> dict:
     for attempt in range(max_attempts):
         logger.debug(f"attempt {attempt}: {method} {url}")
         try:
-            response = request_fn(method, url, timeout=(3, 10), **kwargs)
+            response = _session.request(method, url, timeout=(3, 10), **kwargs)
         except (
             requests.exceptions.Timeout,
             requests.exceptions.ConnectionError,
@@ -258,16 +254,16 @@ def request_with_retry(
         if is_transient_status(response.status_code):
             # your turn: on the last attempt, log ERROR and raise
             # TransientHTTPError; otherwise sleep and continue — for the
-            # sleep, reuse decide_wait_seconds(response, attempt) from the
+            # sleep, reuse decide_wait_seconds(headers, attempt) from the
             # rate-limit exercise so a real Retry-After header is respected
             ...
 
         logger.error(f"permanent failure: status {response.status_code}")
         raise PermanentHTTPError(response.status_code, response.text)
 ```
-Fill in the transient branch yourself (a fake `request_fn` that returns canned `Response`-like objects is exactly how you'd unit test this without a real network call), then compare all of your finished versions against the [Solution](#solution).
+Fill in the transient branch yourself, then compare all of your finished versions against the [Solution](#solution).
 
-**Difference between Basic and Intermediate:** Basic's pseudocode calls `requests.request` by name and never respects `Retry-After`. Intermediate Approach 1 is the same shape, fully typed, with the transient/permanent split as its own function. Approach 2 injects the transport call as a parameter (`request_fn`) so the whole function becomes testable with a fake in place of the network, reuses a module-level `Session` for connection pooling, and folds in `Retry-After` handling from the rate-limit exercise — the combination this document's 5 exercises were always building toward.
+**Difference between Basic and Intermediate:** Basic's pseudocode calls `requests.request` by name and never respects `Retry-After`. Intermediate Approach 1 is the same shape, fully typed, with the transient/permanent split as its own function. Approach 2 reuses a module-level `Session` for connection pooling and folds in `Retry-After` handling from the rate-limit exercise — the combination this document's 5 exercises were always building toward.
 
 <hr class="page-break">
 
@@ -508,11 +504,11 @@ def request_with_retry(
         raise PermanentHTTPError(response.status_code, response.text)
 ```
 
-**Why this approach:** `is_transient_status(429)` and `is_transient_status(404)` can be tested directly with plain integers — no fake `Response` object, no mocking `requests` at all. This is real progress toward the Build Task's "testable without real network calls" constraint, but it's still not the whole answer — `request_with_retry` itself still calls `requests.request` by name, so testing the *loop* (does it really stop after `max_attempts`? does it really sleep between tries?) still means either mocking `requests.request` globally or making real calls.
+**Why this approach:** `is_transient_status(429)` and `is_transient_status(404)` can be tested directly with plain integers — no fake `Response` object, no mocking `requests` at all, the same as `compute_backoff_delay()` in the timeout/retry exercise. The loop itself (`request_with_retry`) still calls `requests.request` for real — that part gets tested by actually calling it, the same way the timeout/retry exercise's `get_with_retry()` was.
 
 **Difference from Basic:** both Intermediate approaches add full type hints and a `DEFAULT_TIMEOUT` constant instead of a repeated magic tuple. Approach 2 additionally separates the transient/permanent decision into its own pure function, testable in complete isolation from the network.
 
-#### Approach 3 — a dependency-injected transport, a shared session, and `Retry-After` support
+#### Approach 3 — a shared session, and `Retry-After` support
 
 ```python
 # exceptions.py
@@ -541,7 +537,7 @@ import random
 import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any, Callable
+from typing import Any
 
 import requests
 
@@ -570,9 +566,10 @@ def is_transient_status(status_code: int) -> bool:
     return status_code == 429 or status_code // 100 == 5
 
 
-def _parse_retry_after(value: str) -> float | None:
+def parse_retry_after(value):
     # Why: the HTTP spec allows Retry-After to be a plain number of seconds
     # OR an HTTP-date string — this handles both instead of crashing on one.
+    # Same function as the rate-limit exercise, copied in unchanged.
     try:
         return float(value)
     except ValueError:
@@ -585,11 +582,15 @@ def _parse_retry_after(value: str) -> float | None:
         return None
 
 
-def decide_wait_seconds(response: requests.Response, attempt: int) -> float:
+def decide_wait_seconds(headers: dict, attempt: int) -> float:
     # Why: respects a real Retry-After header when the server sends one,
-    # and falls back to exponential backoff (capped) when it doesn't.
-    retry_after = response.headers.get("Retry-After")
-    wait = _parse_retry_after(retry_after) if retry_after is not None else None
+    # and falls back to exponential backoff (capped) when it doesn't. Takes
+    # a plain headers dict, not a Response object, so it's testable with
+    # plain values — same signature as the rate-limit exercise.
+    retry_after = headers.get("Retry-After")
+    wait = None
+    if retry_after is not None:
+        wait = parse_retry_after(retry_after)
     if wait is None:
         wait = compute_backoff_delay(attempt)
     return min(wait, MAX_RETRY_AFTER_SECONDS)
@@ -599,19 +600,18 @@ def request_with_retry(
     method: str,
     url: str,
     max_attempts: int = 5,
-    request_fn: Callable[..., requests.Response] = _session.request,
     **kwargs: Any,
 ) -> dict:
     # why: the one function every later document imports instead of calling
-    # requests directly — request_fn is injectable so tests never touch the
-    # network.
+    # requests directly.
     for attempt in range(max_attempts):
         # how: DEBUG, not print — this is diagnostic, not output
         logger.debug(f"attempt {attempt}: {method} {url}")
         try:
-            # how: request_fn defaults to the shared _session.request, but a
-            # test can pass a fake function here instead — no real network call.
-            response = request_fn(method, url, timeout=DEFAULT_TIMEOUT, **kwargs)
+            # how: reuses the module-level Session for connection pooling
+            response = _session.request(
+                method, url, timeout=DEFAULT_TIMEOUT, **kwargs
+            )
         except (
             requests.exceptions.Timeout,
             requests.exceptions.ConnectionError,
@@ -643,7 +643,7 @@ def request_with_retry(
                     f"status {response.status_code} after {max_attempts} attempts"
                 )
             # how: honors Retry-After if the server sent one
-            time.sleep(decide_wait_seconds(response, attempt))
+            time.sleep(decide_wait_seconds(response.headers, attempt))
             continue
 
         # when: any other 4xx — this is a client mistake that will fail
@@ -660,89 +660,64 @@ if __name__ == "__main__":
 {'current_user_url': 'https://api.github.com/user', ...}
 ```
 
-**Story — `test_http_client.py`:** `http_client.py` is about to get imported by every later document — Doc04's `chat_client.py` calls through it for every OpenAI request. A regression here (the loop stops retrying too early, a 404 gets retried when it shouldn't) needs to be caught right here, in milliseconds, not discovered three documents later against a real API. **If not:** the only way to know the retry logic still works would be to run it against a real, possibly flaky network — slow, unreliable, and not something you'd run on every change.
+**Story — `test_http_client.py`:** `http_client.py` is about to get imported by every later document — Doc04's `chat_client.py` calls through it for every OpenAI request. A regression in the classification or backoff math (a 404 gets retried when it shouldn't, `Retry-After` stops being respected) needs to be caught right here, in milliseconds, the same way the timeout/retry and rate-limit exercises already caught theirs. **If not:** the only way to know the decision logic still works would be to read the code carefully every time, instead of just running it.
 
-**`test_http_client.py`, proving the network never has to be touched:**
-```python
-import pytest
+This test file uses the exact same style as every exercise you've already worked through in this document: call the function directly, `print()` the result, and compare it against a `# expected value` comment right next to the call. Nothing here is new — no test framework, no fake response objects standing in for the network. `is_transient_status`, `compute_backoff_delay`, and `decide_wait_seconds` are all plain functions that take plain values (an `int`, a `dict`), so they're testable exactly like `compute_backoff_delay()` was in the timeout/retry exercise and `decide_wait_seconds()` was in the rate-limit exercise. The retry loop itself — the part that actually calls the network — is exercised with one real call at the bottom, the same way `get_with_retry()` was tested in the timeout/retry exercise.
 
-from exceptions import PermanentHTTPError, TransientHTTPError
-from http_client import is_transient_status, request_with_retry
-
-
-class FakeResponse:
-    def __init__(self, status_code, json_body=None, text="", headers=None):
-        self.status_code = status_code
-        self._json_body = json_body
-        self.text = text
-        self.headers = headers or {}
-
-    def json(self):
-        return self._json_body
-
-
-def test_is_transient_status():
-    assert is_transient_status(429) is True
-    assert is_transient_status(500) is True
-    assert is_transient_status(503) is True
-    assert is_transient_status(404) is False
-    assert is_transient_status(200) is False
-
-
-def test_succeeds_immediately():
-    def fake_request(method, url, timeout, **kwargs):
-        return FakeResponse(200, json_body={"ok": True})
-
-    result = request_with_retry(
-        "GET", "https://example.invalid", request_fn=fake_request
-    )
-    assert result == {"ok": True}
-
-
-def test_retries_429_then_succeeds():
-    calls = {"count": 0}
-
-    def fake_request(method, url, timeout, **kwargs):
-        calls["count"] += 1
-        if calls["count"] == 1:
-            return FakeResponse(429, headers={"Retry-After": "0"})
-        return FakeResponse(200, json_body={"ok": True})
-
-    result = request_with_retry(
-        "GET", "https://example.invalid", request_fn=fake_request
-    )
-    assert result == {"ok": True}
-    assert calls["count"] == 2
-
-
-def test_404_fails_immediately_no_retry():
-    calls = {"count": 0}
-
-    def fake_request(method, url, timeout, **kwargs):
-        calls["count"] += 1
-        return FakeResponse(404, text="not found")
-
-    with pytest.raises(PermanentHTTPError):
-        request_with_retry(
-            "GET", "https://example.invalid", request_fn=fake_request
-        )
-    assert calls["count"] == 1
-
-
-def test_gives_up_after_max_attempts():
-    def fake_request(method, url, timeout, **kwargs):
-        return FakeResponse(500, text="server error")
-
-    with pytest.raises(TransientHTTPError):
-        request_with_retry(
-            "GET",
-            "https://example.invalid",
-            max_attempts=3,
-            request_fn=fake_request,
-        )
+**How to run it:** no install needed — it's a plain Python script. From inside `practice/build_task/`, with `http_client.py` and `exceptions.py` sitting right next to it:
 ```
-**Expected output (`pytest test_http_client.py -v`):** all 5 tests pass, in well under a second — not one of them opens a real socket, because `request_fn` is a plain Python function each test controls completely.
+python test_http_client.py
+```
 
-**Difference from Approach 2:** Approach 2's `request_with_retry` calls `requests.request` by name, so testing the *loop itself* — does it really retry a 429, does it really give up after `max_attempts`, does it really leave a 404 alone — means either making real HTTP calls or reaching for a mocking library. Approach 3 accepts the transport call as a parameter (`request_fn`, defaulting to a shared `Session`'s `.request`), so `test_http_client.py` above tests the actual retry logic with zero network calls and zero mocking libraries — genuinely satisfying the Build Task's constraint instead of only satisfying part of it. It also folds in `decide_wait_seconds()` from the rate-limit exercise, so a real 429 with a `Retry-After` header is honored (and capped) instead of always falling back to blind exponential backoff, and reuses one `Session` across every call for connection pooling and a consistent `User-Agent`.
+**`test_http_client.py`:**
+```python
+from http_client import (
+    compute_backoff_delay,
+    decide_wait_seconds,
+    is_transient_status,
+    request_with_retry,
+)
 
-**Which one should you actually write?** Approach 2 is a completely reasonable place to stop if this file will only ever be tested by hand, against the real network, during development. But this file is imported by every later document in this curriculum — Doc04's `chat_client.py` calls through it for every OpenAI request — so real, fast, reliable tests matter here more than almost anywhere else in the project. Approach 3's `request_fn` injection costs one extra parameter and buys you a test suite that runs in milliseconds and never depends on a real server being up, which is why it's the version that actually satisfies this Build Task's stated requirements. Write it this way.
+# is_transient_status: worth retrying vs. a real mistake to fix
+for code in (429, 500, 503, 404, 401):
+    print(f"is_transient_status({code}) -> {is_transient_status(code)}")
+
+# compute_backoff_delay: no network, no time.sleep, no mocking needed
+delay = compute_backoff_delay(3)
+print(f"compute_backoff_delay(3) -> {delay}")
+
+# decide_wait_seconds: respects Retry-After, falls back to backoff, caps a
+# huge value -- same three cases the rate-limit exercise already proved
+told_to_wait = decide_wait_seconds({"Retry-After": "2"}, attempt=0)
+print(f"decide_wait_seconds, server said wait 2s -> {told_to_wait}")
+
+no_header = decide_wait_seconds({}, attempt=3)
+print(f"decide_wait_seconds, no header, attempt 3 -> {no_header}")
+
+huge_value = decide_wait_seconds({"Retry-After": "999999999"}, attempt=0)
+print(f"decide_wait_seconds, server said wait 999999999s -> {huge_value}")
+
+# the retry loop itself: one real call, same as the timeout/retry exercise
+if __name__ == "__main__":
+    result = request_with_retry("GET", "https://api.github.com")
+    print(f"request_with_retry(\"GET\", api.github.com) -> {result}")
+```
+**Expected output:**
+```
+is_transient_status(429) -> True
+is_transient_status(500) -> True
+is_transient_status(503) -> True
+is_transient_status(404) -> False
+is_transient_status(401) -> False
+compute_backoff_delay(3) -> 8.417...
+decide_wait_seconds, server said wait 2s -> 2.0
+decide_wait_seconds, no header, attempt 3 -> 8.417...
+decide_wait_seconds, server said wait 999999999s -> 60.0
+request_with_retry("GET", api.github.com) ->
+  {'current_user_url': 'https://api.github.com/user', ...}
+```
+Each line says what was called and what it returned, right next to each other — so checking your own run against this one is just reading down the list, not counting which bare `True` matches which call.
+
+**Difference from Approach 2:** Approach 2's `request_with_retry` is already correct and already imports the session-reuse and rate-limit exercises' work. Approach 3 doesn't change the design — it's the same function, with `parse_retry_after`'s HTTP-date support and a capped `MAX_RETRY_AFTER_SECONDS` folded in from the rate-limit exercise's own Approach 2, plus `test_http_client.py` proving each pure piece directly.
+
+**Which one should you actually write?** Approach 2 already meets every requirement. Approach 3 is worth it once you want the exact same `Retry-After` robustness the rate-limit exercise already built — the HTTP-date form, and a hard cap so a buggy or malicious server can't stall your client for years. Either way, keep the tests limited to the pure functions, exactly like every exercise before this one did — the retry loop itself is proven by actually calling it, not by building a fake network to avoid calling it.

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (a real, filled-in prediction), **Advanced** (the failure modes and hidden costs a first guess usually misses). Read Basic first even if you already feel confident about the patterns — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (a real, filled-in prediction, including the failure modes and hidden costs a first guess usually misses). Read Basic first even if you already feel confident about the patterns — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -48,15 +48,7 @@ The exact pieces:
 - **Speed** — single agent and sequential both run everything one after another (no parallelism here, since write genuinely needs research's output first). Supervisor adds the routing decision's own delay on top of sequential's delay.
 - **Reliability** — single agent: fewer moving parts, but a single system prompt trying to be good at two different jobs can do both a little worse. Sequential: very predictable, since each stage has one clear job — but a bad research result guarantees a bad write result, with nothing to catch it. Supervisor: adds a new failure mode entirely — the supervisor routing to the wrong specialist, or looping between them unnecessarily.
 
-Write your three paragraphs and three one-line predictions before Hint 2.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
-
-### Advanced Version
-
-A first-pass guess usually undercounts two things: hidden costs, and how a design fails, not just whether it "works."
+Write your three paragraphs and three one-line predictions, then go one step further before Hint 2: a first-pass guess usually undercounts two things — hidden costs, and how a design fails, not just whether it "works."
 
 On hidden costs — the supervisor's routing decision is easy to write off as "basically free," since it's not doing the actual research or writing work. It isn't free: it's a real LLM call, reasoning over the current state, and for a task this small it can easily cost as much as one of the two real work stages. Write down, honestly, whether your supervisor prediction accounted for that, or quietly assumed routing was instant and free.
 
@@ -72,7 +64,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the 3 designs and asks for a plain-language paragraph and a gut guess per design. Intermediate turns that gut guess into a structured, defensible prediction across cost/speed/reliability, using the document's own pattern table as the reference. Advanced asks what a first guess usually misses — the routing call's own real cost, and each design's specific failure mode, not just its happy path — which is the difference between a guess you can be proud of and one that survives being questioned by someone skeptical.
+**Difference between Basic and Intermediate:** Basic names the 3 designs and asks for a plain-language paragraph and a gut guess per design. Intermediate turns that gut guess into a structured, defensible prediction across cost/speed/reliability, using the document's own pattern table as the reference, then asks what a first guess usually misses — the routing call's own real cost, and each design's specific failure mode, not just its happy path — which is the difference between a guess you can be proud of and one that survives being questioned by someone skeptical.
 
 <hr class="page-break">
 
@@ -87,15 +79,18 @@ task: research a topic and write a short summary
 
 design 1 -- single agent:
     one agent, has a research tool and just writes the summary itself
-    guess: cheapest, fastest, but summary quality depends on one prompt doing two jobs well
+    guess: cheapest, fastest, but summary quality depends on one prompt
+    doing two jobs well
 
 design 2 -- sequential:
     agent A researches, hands text to agent B, agent B writes
-    guess: a bit more cost (2 calls), same speed order, more reliable since each step is focused
+    guess: a bit more cost (2 calls), same speed order, more reliable
+    since each step is focused
 
 design 3 -- supervisor:
     a router decides to call research agent, then write agent
-    guess: most cost (routing + 2 calls), slower (extra routing step), same reliability as sequential plus a new risk: bad routing
+    guess: most cost (routing + 2 calls), slower (extra routing step),
+    same reliability as sequential plus a new risk: bad routing
 ```
 
 **Expected output if you "run" just this:** nothing runs — this whole exercise is paper only. What you have here is a 3-way comparison sketch. The next exercises (`sequential_measure`, `supervisor_compare`) are where you'll actually build 2 of these 3 and find out if the guess above was right.
@@ -125,57 +120,58 @@ design 2 -- sequential
     if research is bad, the write step faithfully writes a bad summary
 
 design 3 -- supervisor
-    flow: supervisor reads the task, decides to call research_agent, gets result,
-    decides to call write_agent, gets result, returns
+    flow: supervisor reads the task, decides to call research_agent,
+    gets result, decides to call write_agent, gets result, returns
     cost: ~3+ LLM calls (2 for the work, 1+ for routing)
     speed: slowest of the three -- routing decisions add real delay
     reliability risk: everything sequential has, plus the supervisor could route
     to the wrong specialist or loop unnecessarily
 ```
 
-Fill in your own chosen task the same way — one paragraph and one cost/speed/reliability line per design — before moving to Advanced.
+Fill in your own chosen task the same way — one paragraph and one cost/speed/reliability line per design — then go one step further, the same way Hint 1 did: add the failure-mode line and the honestly-counted routing cost.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
-
-### Advanced Version
-
-Here's almost the whole write-up for a different task ("plan a trip"), with the failure-mode line Advanced Hint 1 asked for — fill in your own task the same way, don't copy this one directly:
+Here's almost the whole write-up for a different task ("plan a trip"), with the failure-mode line Hint 1 asked for — fill in your own task the same way, don't copy this one directly:
 
 ```
-task: "plan a 3-day trip: find flights, then find a hotel near the arrival airport"
+task: "plan a 3-day trip: find flights, then find a hotel near the
+arrival airport"
 
 single agent (one agent, two tools):
-    cost: ~1-2 calls -- the agent can call both tools in one turn if it reasons well
+    cost: ~1-2 calls -- the agent can call both tools in one turn if
+    it reasons well
     speed: fastest -- no agent-to-agent handoff delay
-    reliability risk: it might search for a hotel before it has flight dates, if its
-    own internal reasoning doesn't enforce the order -- nothing external enforces it
-    if it goes wrong: a confident-sounding hotel suggestion with no real flight
-    dates behind it -- nothing flags this, since the same agent "trusts itself"
+    reliability risk: it might search for a hotel before it has flight
+    dates, if its own internal reasoning doesn't enforce the order --
+    nothing external enforces it
+    if it goes wrong: a confident-sounding hotel suggestion with no real
+    flight dates behind it -- nothing flags this, since the same agent
+    "trusts itself"
 
 sequential (flight_agent -> hotel_agent, fixed order):
     cost: ~2 calls, one per stage
-    speed: medium -- hotel search genuinely can't start until flight dates are
-    known, so there's no real parallelism to lose here anyway
-    reliability risk: low for ordering (it's enforced by code, not the model's
-    judgment), but a flight_agent mistake still propagates straight through
-    if it goes wrong: a bad flight pick guarantees a hotel search built on it --
-    the failure is very visible in the flight step, at least, since nothing hides it
+    speed: medium -- hotel search genuinely can't start until flight
+    dates are known, so there's no real parallelism to lose here anyway
+    reliability risk: low for ordering (it's enforced by code, not the
+    model's judgment), but a flight_agent mistake still propagates
+    straight through
+    if it goes wrong: a bad flight pick guarantees a hotel search built
+    on it -- the failure is very visible in the flight step, at least,
+    since nothing hides it
 
 supervisor (router decides who runs next):
-    cost: highest -- the routing decision itself is 1+ extra calls, real and
-    separately counted, not folded into "2 calls for the work"
+    cost: highest -- the routing decision itself is 1+ extra calls,
+    real and separately counted, not folded into "2 calls for the work"
     speed: slowest -- same work as sequential, plus routing overhead
-    reliability risk: everything sequential has, plus a new one: the router could
-    send the task to hotel_agent before flight_agent has run
-    if it goes wrong: the router silently loops flight_agent twice, or sends
-    hotel_agent an empty flight-dates field it doesn't know how to handle
+    reliability risk: everything sequential has, plus a new one: the
+    router could send the task to hotel_agent before flight_agent has run
+    if it goes wrong: the router silently loops flight_agent twice, or
+    sends hotel_agent an empty flight-dates field it doesn't know how
+    to handle
 ```
 
 What's missing: your own task, filled in the same way including the "if it goes wrong" line, plus the follow-up commitment to actually build the sequential and supervisor versions in the next two exercises and compare against these guesses. Do that, then check the [Solution](paper_design_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic gives you the pseudocode shape and a filled example to imitate loosely. Intermediate fills that shape in with real reasoning per design, at the same depth you should aim for on your own task. Advanced adds the piece a first guess almost always skips — a specific "if this goes wrong" line for each design, and the routing call counted as its own real cost rather than hand-waved away — which is what turns a guess into something you could actually defend out loud.
+**Difference between Basic and Intermediate:** Basic gives you the pseudocode shape and a filled example to imitate loosely. Intermediate fills that shape in with real reasoning per design, plus the piece a first guess almost always skips — a specific "if this goes wrong" line for each design, and the routing call counted as its own real cost rather than hand-waved away — which is what turns a guess into something you could actually defend out loud.
 
 <hr class="page-break">
 

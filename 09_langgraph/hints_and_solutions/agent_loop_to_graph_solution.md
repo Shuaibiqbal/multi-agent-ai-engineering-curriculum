@@ -18,7 +18,9 @@ def run_tool(tool_name: str, tool_input: str) -> str:
     return "unknown tool"
 ```
 
-Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `agent_loop_to_graph_practice.py`:** this is where Doc07's whole ReAct loop gets rebuilt as a graph — the same "think, act, observe, repeat" shape, just with nodes and edges instead of a `while` loop. **If not:** the Build Task's own graph skeleton would be the first place you ever turned a loop into a graph, with no smaller version to trust it against.
+
+Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
@@ -70,15 +72,18 @@ builder.add_node("think", think)
 builder.add_node("act", act)
 builder.add_node("finish_node", finish_node)
 builder.add_edge(START, "think")
-builder.add_conditional_edges("think", route, {"call_tool": "act", "finish": "finish_node"})
+builder.add_conditional_edges(
+    "think", route, {"call_tool": "act", "finish": "finish_node"},
+)
 builder.add_edge("act", "think")
 builder.add_edge("finish_node", END)
 
 graph = builder.compile()
-result = graph.invoke(
-    {"task": "What is 12 * 7?", "scratchpad": [], "next_action": "", "final_answer": ""},
-    config={"recursion_limit": 20},
-)
+starting_state = {
+    "task": "What is 12 * 7?", "scratchpad": [],
+    "next_action": "", "final_answer": "",
+}
+result = graph.invoke(starting_state, config={"recursion_limit": 20})
 print(result["final_answer"])
 print(result["scratchpad"])
 ```
@@ -146,15 +151,18 @@ builder.add_node("think", think)
 builder.add_node("act", act)
 builder.add_node("finish_node", finish_node)
 builder.add_edge(START, "think")
-builder.add_conditional_edges("think", route, {"call_tool": "act", "finish": "finish_node"})
+builder.add_conditional_edges(
+    "think", route, {"call_tool": "act", "finish": "finish_node"},
+)
 builder.add_edge("act", "think")
 builder.add_edge("finish_node", END)
 
 graph = builder.compile()
-result = graph.invoke(
-    {"task": "What is 12 * 7?", "scratchpad": [], "next_action": "", "final_answer": ""},
-    config={"recursion_limit": 20},
-)
+starting_state = {
+    "task": "What is 12 * 7?", "scratchpad": [],
+    "next_action": "", "final_answer": "",
+}
+result = graph.invoke(starting_state, config={"recursion_limit": 20})
 print(f"answer: {result['final_answer']}")
 for line in result["scratchpad"]:
     print(f"  {line}")
@@ -169,13 +177,9 @@ answer: 84
 
 **Difference from Basic:** same graph and same result, with full type hints and a `config={"recursion_limit": 20}` called out explicitly as the graph's equivalent of Doc07's manually-counted step limit — without it, a routing bug that never reaches `"finish"` would spin forever instead of failing with a clear `GraphRecursionError`.
 
-<hr class="page-break">
+### Approach 2 — a real equivalence check against the original loop
 
-> [Back to the exercise](../README.md#ex-agent_loop_to_graph) · [Hint 1](agent_loop_to_graph_hints.md#hint-1) · [Hint 2](agent_loop_to_graph_hints.md#hint-2) · [Solution](agent_loop_to_graph_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a real equivalence check against the original loop
+**Story:** the README's own stated point of this exercise is that the graph reaches the *same final answers* as your original loop — that's a real equivalence claim, and a claim needs a check, not a single manual run you eyeballed once. **If not:** a routing bug that happened to produce a plausible-looking answer on one test prompt would ship, undetected, into the Build Task.
 
 ```python
 # agent_loop_to_graph_practice.py
@@ -199,12 +203,14 @@ test_prompts = [
 mismatches = []
 for prompt in test_prompts:
     loop_answer = run_original_loop(prompt)
-    graph_result = graph.invoke(
-        {"task": prompt, "scratchpad": [], "next_action": "", "final_answer": ""},
-        config={"recursion_limit": 20},
-    )
+    starting_state = {
+        "task": prompt, "scratchpad": [],
+        "next_action": "", "final_answer": "",
+    }
+    graph_result = graph.invoke(starting_state, config={"recursion_limit": 20})
     graph_answer = graph_result["final_answer"]
-    status = "MATCH" if loop_answer.strip() == graph_answer.strip() else "MISMATCH"
+    matched = loop_answer.strip() == graph_answer.strip()
+    status = "MATCH" if matched else "MISMATCH"
     print(f"[{status}] {prompt!r} -> loop={loop_answer!r} graph={graph_answer!r}")
     if status == "MISMATCH":
         mismatches.append(prompt)
@@ -222,18 +228,21 @@ All test prompts matched.
 ```
 (The stub `call_model_with_tools` here always answers `"84"` once it's decided it's done — in your real rebuild, swap in your actual Doc07 model call, and each prompt will get its own real answer instead of all matching by coincidence.)
 
-### Approach 2 — comparing step counts too, not just final answers
+### Approach 3 — comparing step counts too, not just final answers
+
+**Story:** a matching final answer isn't the whole story — 2 implementations can reach the same right answer while one of them does unnecessary, wasteful work getting there. **If not:** a routing bug that loops 3 extra times before finally reaching the right answer would pass Approach 2's check clean, and you'd never know it was there.
 
 ```python
 # agent_loop_to_graph_practice.py
 def run_graph_with_step_count(task: str) -> tuple[str, int]:
-    step_count = 0
-    result = graph.invoke(
-        {"task": task, "scratchpad": [], "next_action": "", "final_answer": ""},
-        config={"recursion_limit": 20},
-    )
-    # each "Thought:" entry in the scratchpad marks one think step
-    step_count = sum(1 for line in result["scratchpad"] if line.startswith("Thought:"))
+    starting_state = {
+        "task": task, "scratchpad": [],
+        "next_action": "", "final_answer": "",
+    }
+    result = graph.invoke(starting_state, config={"recursion_limit": 20})
+    # why: each "Thought:" entry in the scratchpad marks one think step
+    thoughts = [line for line in result["scratchpad"] if line.startswith("Thought:")]
+    step_count = len(thoughts)
     return result["final_answer"], step_count
 
 
@@ -249,6 +258,6 @@ for prompt in test_prompts:
 ```
 A matching final answer isn't the whole story — if the graph took, say, 6 steps to reach an answer your original loop reached in 2, that's worth investigating even though the final answer "passed." Counting `"Thought:"` entries in the scratchpad is a cheap way to catch a routing edge that loops more than it should.
 
-**Difference from Intermediate:** Intermediate proves the graph runs correctly on one prompt. Approach 1 runs the exact comparison the exercise asks for — same test prompts, both implementations, an assertion that they agree — which is the only way to actually back up "gives the same answers as my original loop" instead of assuming it from one manual run. Approach 2 adds a second signal (step count) that a matching final answer alone can hide — two implementations can reach the same right answer while one of them is doing unnecessary, wasteful work getting there.
+**Difference from Approach 1:** Approach 1 proves the graph runs correctly on one prompt. Approach 2 runs the exact comparison the exercise asks for — same test prompts, both implementations, an assertion that they agree — which is the only way to actually back up "gives the same answers as my original loop" instead of assuming it from one manual run. Approach 3 adds a second signal (step count) that a matching final answer alone can hide — two implementations can reach the same right answer while one of them is doing unnecessary, wasteful work getting there.
 
-**Which one should you actually write?** Approach 1's equivalence check, always — run it against your real Doc07 loop and your real test prompts before you trust the rebuild for anything. Add Approach 2's step-count comparison once you have more than a couple of test prompts, or once you're debugging a case where the graph's answer is technically right but something about its path there feels off — it's the fastest way to catch a conditional edge that's routing through more loops than it needs to.
+**Which one should you actually write?** Approach 2's equivalence check, always — run it against your real Doc07 loop and your real test prompts before you trust the rebuild for anything. Add Approach 3's step-count comparison once you have more than a couple of test prompts, or once you're debugging a case where the graph's answer is technically right but something about its path there feels off — it's the fastest way to catch a conditional edge that's routing through more loops than it needs to.

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-search_as_tool) · [Hint 1](search_as_tool_hints.md#hint-1) · [Hint 2](search_as_tool_hints.md#hint-2) · [Solution](search_as_tool_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real tool-calling setup handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real tool-calling setup handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -43,12 +43,6 @@ The exact pieces:
 - `results = retrieve(query)` inside the wrapper, then `"\n\n".join(chunk.page_content for chunk in results)` to turn a list of `Document` objects into the plain string the model can actually read.
 - `model.bind_tools([search_docs])` — if your Doc09 model node already binds other tools, add `search_docs` to that same list rather than creating a second, separate binding call.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-search_as_tool) · [Hint 1](search_as_tool_hints.md#hint-1) · [Hint 2](search_as_tool_hints.md#hint-2) · [Solution](search_as_tool_solution.md)
-
-### Advanced Version
-
 Think about what a tool function's return value actually is: it becomes a `ToolMessage` that gets inserted straight into the model's context. That changes two things you haven't had to worry about yet.
 
 First — what happens when `retrieve()` itself fails? A vector store can time out or be briefly unreachable (this is exactly what the `search_failure` exercise practices at the graph-node level) — but a tool is called *from inside* a model turn, not from your own script, so an uncaught exception there doesn't fail as cleanly. A raw traceback landing in the model's context is confusing and wastes tokens; the tool should catch the failure itself and hand back a short, honest string the model can react to sensibly, like "Search is temporarily unavailable."
@@ -65,7 +59,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the tool concept and the exact pieces for the happy path — wrap, decorate, bind. Intermediate explains why the docstring and return type matter and shows the real syntax. Advanced asks what this tool does when `retrieve()` itself is unhealthy, or when it "works" but returns more than the model should have to read in one turn — the same "don't let a plain function's failure or excess become the caller's problem silently" idea that shows up again in `search_failure` and `empty_search`, just applied one layer earlier, at the tool boundary.
+**Difference between Basic and Intermediate:** Basic names the tool concept and the exact pieces for the happy path — wrap, decorate, bind. Intermediate explains why the docstring and return type matter, shows the real syntax, and asks what this tool does when `retrieve()` itself is unhealthy, or when it "works" but returns more than the model should have to read in one turn — the same "don't let a plain function's failure or excess become the caller's problem silently" idea that shows up again in `search_failure` and `empty_search`, just applied one layer earlier, at the tool boundary.
 
 <hr class="page-break">
 
@@ -144,11 +138,7 @@ def search_docs(query: str) -> str:
 
 Wire this into `bind_tools([...])`, run the graph, and confirm a `tool_calls` entry naming `search_docs` shows up before comparing against the [Solution](search_as_tool_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-search_as_tool) · [Hint 1](search_as_tool_hints.md#hint-1) · [Hint 2](search_as_tool_hints.md#hint-2) · [Solution](search_as_tool_solution.md)
-
-### Advanced Version
+Once that's working, harden it against a failing backend and an unbounded return:
 
 ```
 @tool
@@ -162,7 +152,8 @@ def search_docs(query: str) -> str:
         return "No relevant documents found."
 
     capped_results = only the first 5 results
-    return capped_results joined into one string, each chunk separated by a blank line
+    return capped_results joined into one string, separated by
+    a blank line
 ```
 
 Here's almost the whole thing — fill in the missing piece yourself:
@@ -192,9 +183,9 @@ def search_docs(query: str) -> str:
     return "\n\n".join(chunk.page_content for chunk in results)
 ```
 
-Fill in the cap yourself, then compare all 3 of your finished versions against the [Solution](search_as_tool_solution.md).
+Fill in the cap yourself, then compare all of your finished versions against the [Solution](search_as_tool_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** the same underlying shape (call `retrieve()`, join the text, return a string) at 3 completeness levels — Basic's version trusts `retrieve()` to always succeed and always return a reasonable amount of text, Intermediate adds the type contract and an explicit "no results" message but still trusts the backend not to fail or over-return, and Advanced adds the two checks that only matter once this tool is called from inside a real, unattended agent run — a caught failure instead of a crashed turn, and a cap instead of an unbounded dump into the model's context.
+**Difference between Basic and Intermediate:** the same underlying shape (call `retrieve()`, join the text, return a string) at 2 completeness levels — Basic's version trusts `retrieve()` to always succeed and always return a reasonable amount of text. Intermediate adds the type contract, an explicit "no results" message, and the two checks that only matter once this tool is called from inside a real, unattended agent run — a caught failure instead of a crashed turn, and a cap instead of an unbounded dump into the model's context.
 
 <hr class="page-break">
 

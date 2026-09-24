@@ -2,7 +2,7 @@
 
 > [Back to the Build Task](../README.md#build-task-project-4-multi-agent-system) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper LangGraph), **Advanced** (how a real production multi-agent pipeline handles the messy edge cases). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, including how a real production multi-agent pipeline handles the messy edge cases). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -43,17 +43,9 @@ The key design decisions, matching the Build Task's own Requirements:
 - **The hard limit** — checked in the reviewer node itself, before it even asks "is this good," the same defensive-check-first pattern `convergence_and_cost_cutting` practiced: if `revision_count >= MAX_REVISIONS`, stop and report "couldn't agree," full stop, regardless of what the reviewer would have said.
 - **No redundant tool calls** — a Constraint from the README: each specialist's node should run exactly once per sub-task unless the reviewer specifically routes back to `writer_agent`; nothing should call `research_agent` twice for the same task.
 
-Sketch `state.py`'s shape and all 5 node functions' signatures before Hint 2.
+Sketch `state.py`'s shape and all 5 node functions' signatures, then go one step further: think past "route to the next agent and check a counter" — ask **what does "a visible log of why the supervisor routed the way it did" (from the README's own Outputs section) actually require, beyond just a list of node names?** A bare `["research", "analysis", "writer", "reviewer"]` log tells you *what* ran, but nothing about *why* the supervisor thought that was the right next step — which is exactly the gap `ambiguous_routing` found matters once a routing decision isn't perfectly obvious.
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-4-multi-agent-system) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-Think past "route to the next agent and check a counter" — ask **what does "a visible log of why the supervisor routed the way it did" (from the README's own Outputs section) actually require, beyond just a list of node names?** A bare `["research", "analysis", "writer", "reviewer"]` log tells you *what* ran, but nothing about *why* the supervisor thought that was the right next step — which is exactly the gap `ambiguous_routing` found matters once a routing decision isn't perfectly obvious.
-
-The same question applies to the revision loop: the README's Test Cases table specifically requires a **clear** "couldn't agree" report when revision never settles, not just a stopped graph. That means carrying forward every rejection reason, not just the count — the exact pattern `convergence_and_cost_cutting`'s Advanced version built, applied here for real.
+The same question applies to the revision loop: the README's Test Cases table specifically requires a **clear** "couldn't agree" report when revision never settles, not just a stopped graph. That means carrying forward every rejection reason, not just the count — the exact pattern `convergence_and_cost_cutting` built, applied here for real.
 
 Two extra design pieces answer both questions:
 
@@ -70,7 +62,7 @@ config = {"configurable": {"thread_id": "task-1"}}
 result = graph.invoke(initial_state, config=config)
 ```
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the 5 agents, the hand-off shape, and the exact LangGraph pieces (`Command`, a shared state `TypedDict`, a revision counter) for a first working pipeline. Intermediate maps each Build Task Requirement onto a specific design decision — what's shared vs. private in state, where the hard limit gets checked, and why redundant tool calls need to be actively prevented, not just hoped against. Advanced closes the gap between "it works" and what the Build Task's own Outputs and Requirements actually demand — a routing log that explains *why*, not just *what*, and real saved-state via a checkpointer, carried over from Project 3 as the Requirements explicitly ask for.
+**Difference between Basic and Intermediate:** Basic names the 5 agents, the hand-off shape, and the exact LangGraph pieces (`Command`, a shared state `TypedDict`, a revision counter) for a first working pipeline. Intermediate maps each Build Task Requirement onto a specific design decision — what's shared vs. private in state, where the hard limit gets checked, why redundant tool calls need to be actively prevented — then closes the gap between "it works" and what the Build Task's own Outputs and Requirements actually demand — a routing log that explains *why*, not just *what*, and real saved-state via a checkpointer, carried over from Project 3 as the Requirements explicitly ask for.
 
 <hr class="page-break">
 
@@ -141,17 +133,30 @@ MAX_REVISIONS = 3
 
 
 def supervisor(state):
+    log = state["routing_log"]
     if not state.get("research_findings"):
-        return Command(update={"routing_log": state["routing_log"] + ["research_agent"]}, goto="research_agent")
+        return Command(
+            update={"routing_log": log + ["research_agent"]},
+            goto="research_agent",
+        )
     if not state.get("analysis"):
-        return Command(update={"routing_log": state["routing_log"] + ["analysis_agent"]}, goto="analysis_agent")
+        return Command(
+            update={"routing_log": log + ["analysis_agent"]},
+            goto="analysis_agent",
+        )
     if not state.get("draft"):
-        return Command(update={"routing_log": state["routing_log"] + ["writer_agent"]}, goto="writer_agent")
+        return Command(
+            update={"routing_log": log + ["writer_agent"]},
+            goto="writer_agent",
+        )
     if state.get("accepted"):
         return Command(goto="__end__")
     if state["revision_count"] >= MAX_REVISIONS:
         return Command(goto="__end__")
-    return Command(update={"routing_log": state["routing_log"] + ["reviewer_agent"]}, goto="reviewer_agent")
+    return Command(
+        update={"routing_log": log + ["reviewer_agent"]},
+        goto="reviewer_agent",
+    )
 ```
 
 **`agents/reviewer_agent.py`**
@@ -168,20 +173,15 @@ def reviewer_agent(state):
     ...
 ```
 
-Fill in `reviewer_agent`, `research_agent`, `analysis_agent`, and `writer_agent` yourself (each is small: do one job, update its field, `goto="supervisor"`), wire them into `graph.py` with `StateGraph(SharedState)`, and run a normal task through `main.py` before checking Advanced.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-4-multi-agent-system) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
+Fill in `reviewer_agent`, `research_agent`, `analysis_agent`, and `writer_agent` yourself (each is small: do one job, update its field, `goto="supervisor"`), wire them into `graph.py` with `StateGraph(SharedState)`, and run a normal task through `main.py`, then go one step further, into the reasoned routing log below:
 
 ```
 routing_log entries become dicts with a reason, not bare strings:
     {"step": "research_agent", "reason": "no research_findings in state yet"}
 
 reviewer keeps every rejection's feedback, not just the last one:
-    state["review_feedback_history"] = state["review_feedback_history"] + [feedback]
+    history = state["review_feedback_history"]
+    state["review_feedback_history"] = history + [feedback]
 
 when revisions run out:
     final report includes revision_count, MAX_REVISIONS, and the full
@@ -196,11 +196,12 @@ graph.py:
 Here's almost the whole thing for the supervisor's reasoned log — fill in the missing piece yourself:
 ```python
 def supervisor(state):
+    log = state["routing_log"]
     if not state.get("research_findings"):
+        reason = "no research_findings in state yet"
+        entry = {"step": "research_agent", "reason": reason}
         return Command(
-            update={"routing_log": state["routing_log"] + [
-                {"step": "research_agent", "reason": "no research_findings in state yet"}
-            ]},
+            update={"routing_log": log + [entry]},
             goto="research_agent",
         )
     if not state.get("analysis"):
@@ -209,9 +210,9 @@ def supervisor(state):
     # ... continue the same pattern for writer_agent and reviewer_agent ...
 ```
 
-Fill in the rest of `supervisor`'s reasoned routing, `reviewer_agent`'s full feedback history, and the `MemorySaver` wiring in `graph.py`, then compare all 3 of your finished depths against the [Solution](#solution).
+Fill in the rest of `supervisor`'s reasoned routing, `reviewer_agent`'s full feedback history, and the `MemorySaver` wiring in `graph.py`, then compare all of your finished depths against the [Solution](#solution).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic's pseudocode names all 5 agents' jobs and the overall shape, with no code yet. Intermediate turns that into real, working `Command`-based routing and a real hard-limited reviewer loop — functionally complete against the Build Task's Requirements. Advanced adds what the Build Task's Outputs section specifically asks for and what Requirements names explicitly — a routing log that explains *why*, a "couldn't agree" report detailed enough to diagnose (not just announce), and real saved-state via a checkpointer, carried over from Project 3.
+**Difference between Basic and Intermediate:** Basic's pseudocode names all 5 agents' jobs and the overall shape, with no code yet. Intermediate turns that into real, working `Command`-based routing and a real hard-limited reviewer loop, then adds what the Build Task's Outputs section specifically asks for and what Requirements names explicitly — a routing log that explains *why*, a "couldn't agree" report detailed enough to diagnose (not just announce), and real saved-state via a checkpointer, carried over from Project 3.
 
 <hr class="page-break">
 
@@ -219,7 +220,7 @@ Fill in the rest of `supervisor`'s reasoned routing, `reviewer_agent`'s full fee
 
 ## Solution {: #solution }
 
-Every code block below is runnable against the `Suggested files` layout from the README. Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+Every code block below is runnable against the `Suggested files` layout from the README. Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ### Basic Version
 
@@ -249,17 +250,30 @@ MAX_REVISIONS = 3
 
 
 def supervisor(state):
+    log = state["routing_log"]
     if not state.get("research_findings"):
-        return Command(update={"routing_log": state["routing_log"] + ["research_agent"]}, goto="research_agent")
+        return Command(
+            update={"routing_log": log + ["research_agent"]},
+            goto="research_agent",
+        )
     if not state.get("analysis"):
-        return Command(update={"routing_log": state["routing_log"] + ["analysis_agent"]}, goto="analysis_agent")
+        return Command(
+            update={"routing_log": log + ["analysis_agent"]},
+            goto="analysis_agent",
+        )
     if not state.get("draft"):
-        return Command(update={"routing_log": state["routing_log"] + ["writer_agent"]}, goto="writer_agent")
+        return Command(
+            update={"routing_log": log + ["writer_agent"]},
+            goto="writer_agent",
+        )
     if state.get("accepted"):
         return Command(goto="__end__")
     if state["revision_count"] >= MAX_REVISIONS:
         return Command(goto="__end__")
-    return Command(update={"routing_log": state["routing_log"] + ["reviewer_agent"]}, goto="reviewer_agent")
+    return Command(
+        update={"routing_log": log + ["reviewer_agent"]},
+        goto="reviewer_agent",
+    )
 ```
 
 **`agents/research_agent.py`**
@@ -268,8 +282,10 @@ from langgraph.types import Command
 
 
 def research_agent(state):
-    response = model.invoke(f"Research this task and list key findings: {state['task']}")
-    return Command(update={"research_findings": response.content}, goto="supervisor")
+    prompt = f"Research this task and list key findings: {state['task']}"
+    response = model.invoke(prompt)
+    findings = response.content
+    return Command(update={"research_findings": findings}, goto="supervisor")
 ```
 
 **`agents/analysis_agent.py`**
@@ -278,7 +294,8 @@ from langgraph.types import Command
 
 
 def analysis_agent(state):
-    prompt = f"Analyze what these findings mean:\n\n{state['research_findings']}"
+    findings = state["research_findings"]
+    prompt = f"Analyze what these findings mean:\n\n{findings}"
     response = model.invoke(prompt)
     return Command(update={"analysis": response.content}, goto="supervisor")
 ```
@@ -289,10 +306,11 @@ from langgraph.types import Command
 
 
 def writer_agent(state):
+    feedback = state.get("review_feedback", "none yet")
     prompt = (
         f"Write a short brief for this task: {state['task']}\n\n"
         f"Analysis:\n{state['analysis']}\n\n"
-        f"Reviewer feedback (if any): {state.get('review_feedback', 'none yet')}"
+        f"Reviewer feedback (if any): {feedback}"
     )
     response = model.invoke(prompt)
     return Command(update={"draft": response.content}, goto="supervisor")
@@ -306,7 +324,10 @@ MAX_REVISIONS = 3
 
 
 def reviewer_agent(state):
-    prompt = f"Review this draft. Reply GOOD or BAD, then a one-sentence reason.\n\n{state['draft']}"
+    prompt = (
+        "Review this draft. Reply GOOD or BAD, then a one-sentence "
+        f"reason.\n\n{state['draft']}"
+    )
     response = model.invoke(prompt)
     verdict = response.content.strip()
 
@@ -315,7 +336,11 @@ def reviewer_agent(state):
 
     new_count = state["revision_count"] + 1
     return Command(
-        update={"revision_count": new_count, "review_feedback": verdict, "accepted": False},
+        update={
+            "revision_count": new_count,
+            "review_feedback": verdict,
+            "accepted": False,
+        },
         goto="supervisor",
     )
 ```
@@ -393,45 +418,66 @@ MAX_REVISIONS = 3
 
 
 def supervisor(state: SharedState) -> Command:
+    log = state["routing_log"]
     if not state.get("research_findings"):
-        return Command(update={"routing_log": state["routing_log"] + ["research_agent"]}, goto="research_agent")
+        return Command(
+            update={"routing_log": log + ["research_agent"]},
+            goto="research_agent",
+        )
     if not state.get("analysis"):
-        return Command(update={"routing_log": state["routing_log"] + ["analysis_agent"]}, goto="analysis_agent")
+        return Command(
+            update={"routing_log": log + ["analysis_agent"]},
+            goto="analysis_agent",
+        )
     if not state.get("draft"):
-        return Command(update={"routing_log": state["routing_log"] + ["writer_agent"]}, goto="writer_agent")
+        return Command(
+            update={"routing_log": log + ["writer_agent"]},
+            goto="writer_agent",
+        )
     if state.get("accepted"):
         return Command(goto=END)
     if state["revision_count"] >= MAX_REVISIONS:
         return Command(goto=END)
-    return Command(update={"routing_log": state["routing_log"] + ["reviewer_agent"]}, goto="reviewer_agent")
+    return Command(
+        update={"routing_log": log + ["reviewer_agent"]},
+        goto="reviewer_agent",
+    )
 ```
 
+This test file uses the same plain style as every exercise in this document: call the graph, `print()` what happened, and compare it against a `# expected` comment — the same pattern `convergence_and_cost_cutting`'s loop-limit test already used, not a test framework.
+
 ```python
-# test_project4.py -- proving the "reviewer rejects, writer improves" test case
-def test_revision_loop_recovers():
+# test_project4.py -- proving the "reviewer rejects, writer improves" case
+def check_revision_loop_recovers() -> None:
     # deliberately weak first draft: writer_agent's prompt is swapped for one
     # that produces a too-short, low-effort draft on the first pass only
     result = graph.invoke(initial_state)
-    assert len(result["routing_log"]) >= 4  # at least one full pass ran
-    assert result["accepted"] or result["revision_count"] == MAX_REVISIONS
+    print(f"routing_log length: {len(result['routing_log'])}")  # >= 4
+    accepted = result["accepted"]
+    hit_limit = result["revision_count"] == MAX_REVISIONS
+    print(f"accepted or hit the limit: {accepted or hit_limit}")  # True
 
 
-def test_never_agrees_hits_limit():
-    # reviewer configured with an unsatisfiable bar (see convergence_and_cost_cutting)
+def check_never_agrees_hits_limit() -> None:
+    # reviewer configured with an unsatisfiable bar (see
+    # convergence_and_cost_cutting)
     result = graph.invoke(initial_state)
-    assert result["accepted"] is False
-    assert result["revision_count"] == MAX_REVISIONS
+    print(f"accepted: {result['accepted']}")  # False
+    print(f"revision_count: {result['revision_count']}")  # == MAX_REVISIONS
+
+
+if __name__ == "__main__":
+    check_revision_loop_recovers()
+    check_never_agrees_hits_limit()
 ```
 
-**Difference from Basic:** `Command(goto=END)` uses the real imported constant instead of the magic string `"__end__"`, which is both more correct and what autocomplete/type-checking can actually verify. `test_project4.py` now has real assertions for 2 of the README's 4 Test Cases (a recoverable revision, and a never-converging one hitting the limit) instead of only a manual eyeball check of printed output. Neither test yet distinguishes *why* the loop stopped in its final report, and the routing log still only names nodes, not reasons — that's what Advanced adds.
+**Difference from Basic:** `Command(goto=END)` uses the real imported constant instead of the magic string `"__end__"`, which is both more correct and what autocomplete/type-checking can actually verify. `test_project4.py` now checks 2 of the README's 4 Test Cases directly (a recoverable revision, and a never-converging one hitting the limit) instead of only a manual eyeball check of printed output. Neither check yet distinguishes *why* the loop stopped in its final report, and the routing log still only names nodes, not reasons — that's what Approach 2 adds.
 
 <hr class="page-break">
 
 > [Back to the Build Task](../README.md#build-task-project-4-multi-agent-system) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-### Advanced Version
-
-#### Approach 1 — a reasoned routing log, full rejection history, and a checkpointer
+#### Approach 2 — a reasoned routing log, full rejection history, and a checkpointer
 
 **`state.py`**
 ```python
@@ -464,32 +510,38 @@ def _log(state: SharedState, step: str, reason: str) -> list:
 
 def supervisor(state: SharedState) -> Command:
     if not state.get("research_findings"):
+        reason = "no research_findings in state yet"
         return Command(
-            update={"routing_log": _log(state, "research_agent", "no research_findings in state yet")},
+            update={"routing_log": _log(state, "research_agent", reason)},
             goto="research_agent",
         )
     if not state.get("analysis"):
+        reason = "research_findings present, no analysis yet"
         return Command(
-            update={"routing_log": _log(state, "analysis_agent", "research_findings present, no analysis yet")},
+            update={"routing_log": _log(state, "analysis_agent", reason)},
             goto="analysis_agent",
         )
     if not state.get("draft"):
+        reason = "analysis present, no draft yet"
         return Command(
-            update={"routing_log": _log(state, "writer_agent", "analysis present, no draft yet")},
+            update={"routing_log": _log(state, "writer_agent", reason)},
             goto="writer_agent",
         )
     if state.get("accepted"):
+        reason = "reviewer accepted the draft"
         return Command(
-            update={"routing_log": _log(state, "END", "reviewer accepted the draft")},
+            update={"routing_log": _log(state, "END", reason)},
             goto=END,
         )
     if state["revision_count"] >= MAX_REVISIONS:
+        reason = f"revision limit ({MAX_REVISIONS}) reached without agreement"
         return Command(
-            update={"routing_log": _log(state, "END", f"revision limit ({MAX_REVISIONS}) reached without agreement")},
+            update={"routing_log": _log(state, "END", reason)},
             goto=END,
         )
+    reason = "draft ready for review"
     return Command(
-        update={"routing_log": _log(state, "reviewer_agent", "draft ready for review")},
+        update={"routing_log": _log(state, "reviewer_agent", reason)},
         goto="reviewer_agent",
     )
 ```
@@ -501,7 +553,10 @@ from state import SharedState
 
 
 def reviewer_agent(state: SharedState) -> Command:
-    prompt = f"Review this draft. Reply GOOD or BAD, then a one-sentence reason.\n\n{state['draft']}"
+    prompt = (
+        "Review this draft. Reply GOOD or BAD, then a one-sentence "
+        f"reason.\n\n{state['draft']}"
+    )
     response = model.invoke(prompt)
     verdict = response.content.strip()
 
@@ -511,7 +566,11 @@ def reviewer_agent(state: SharedState) -> Command:
     new_count = state["revision_count"] + 1
     history = state["review_feedback_history"] + [verdict]
     return Command(
-        update={"revision_count": new_count, "review_feedback_history": history, "accepted": False},
+        update={
+            "revision_count": new_count,
+            "review_feedback_history": history,
+            "accepted": False,
+        },
         goto="supervisor",
     )
 ```
@@ -526,9 +585,13 @@ graph = build_graph_with_checkpointer(memory)
 
 initial_state = {
     "task": "research the benefits of remote work and write a short brief",
-    "research_findings": "", "analysis": "", "draft": "",
-    "review_feedback_history": [], "accepted": False,
-    "revision_count": 0, "routing_log": [],
+    "research_findings": "",
+    "analysis": "",
+    "draft": "",
+    "review_feedback_history": [],
+    "accepted": False,
+    "revision_count": 0,
+    "routing_log": [],
 }
 config = {"configurable": {"thread_id": "task-1"}}
 
@@ -541,7 +604,8 @@ for entry in result["routing_log"]:
 if result["accepted"]:
     print("\nFinal draft:\n", result["draft"])
 else:
-    print(f"\nCouldn't agree after {result['revision_count']} revisions. Feedback history:")
+    attempts = result["revision_count"]
+    print(f"\nCouldn't agree after {attempts} revisions. Feedback history:")
     for i, feedback in enumerate(result["review_feedback_history"], start=1):
         print(f"  attempt {i}: {feedback}")
 ```
@@ -589,7 +653,7 @@ def build_graph_with_checkpointer(checkpointer: MemorySaver):
 ```
 With a checkpointer wired in, `graph.get_state(config)` can inspect the run at any point using the same `thread_id`, and a crashed or paused run can resume instead of restarting from scratch — the same saved-state guarantee Project 3's single agent had, now working across all 4 specialists and the supervisor.
 
-#### Approach 2 — preventing redundant tool calls with an explicit "already ran" guard
+#### Approach 3 — preventing redundant tool calls with an explicit "already ran" guard
 
 The README's Constraints specifically forbid two agents redundantly calling the same tool for the same sub-task. The supervisor's own `if not state.get(...)` checks already prevent re-running a *finished* stage, but a stricter guard is worth adding for any agent whose work involves an external tool call (like `research_agent` hitting a real search API):
 
@@ -600,11 +664,13 @@ def research_agent(state: SharedState) -> Command:
         # but this guard makes it impossible even if it did
         return Command(goto="supervisor")
 
-    response = model.invoke(f"Research this task and list key findings: {state['task']}")
-    return Command(update={"research_findings": response.content}, goto="supervisor")
+    prompt = f"Research this task and list key findings: {state['task']}"
+    response = model.invoke(prompt)
+    findings = response.content
+    return Command(update={"research_findings": findings}, goto="supervisor")
 ```
 Every specialist node (except `writer_agent`, which is *meant* to re-run on a revision) gets this same "already have my output — don't redo the work" guard at the top. This is a second, independent layer of protection beyond the supervisor's routing logic: even a routing bug that sends a task to `research_agent` twice can't cause a duplicate paid tool call.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's routing log and test suite are functionally complete against the Requirements, but the log only names nodes and there's no persistence across runs. Approach 1 adds the reasoned log, the full rejection history, and a real checkpointer — closing the gap against the Build Task's Outputs section and its saved-state Requirement directly. Approach 2 addresses a different Constraint entirely — redundant tool calls — with a guard that's independent of (and a backstop for) the supervisor's own routing correctness.
+**Difference between Approach 1 and Approaches 2/3:** Approach 1's routing log and test suite are functionally complete against the Requirements, but the log only names nodes and there's no persistence across runs. Approach 2 adds the reasoned log, the full rejection history, and a real checkpointer — closing the gap against the Build Task's Outputs section and its saved-state Requirement directly. Approach 3 addresses a different Constraint entirely — redundant tool calls — with a guard that's independent of (and a backstop for) the supervisor's own routing correctness.
 
-**Which one should you actually write?** Intermediate is the right bar for getting Project 4 working end to end the first time — it satisfies every Requirement functionally. Reach for Advanced Approach 1's reasoned log and full feedback history before you consider the Build Task actually *done*, since the README's own Outputs and Test Cases sections name both explicitly, not just "the pipeline finishes." Reach for Approach 2's redundant-call guard specifically once any specialist wraps a real, costed external tool (a search API, a paid model call for a sub-step) rather than just an LLM `.invoke()` — that's when a routing bug actually costs money or hits a rate limit, not just wastes a cheap extra call.
+**Which one should you actually write?** Approach 1 is the right bar for getting Project 4 working end to end the first time — it satisfies every Requirement functionally. Reach for Approach 2's reasoned log and full feedback history before you consider the Build Task actually *done*, since the README's own Outputs and Test Cases sections name both explicitly, not just "the pipeline finishes." Reach for Approach 3's redundant-call guard specifically once any specialist wraps a real, costed external tool (a search API, a paid model call for a sub-step) rather than just an LLM `.invoke()` — that's when a routing bug actually costs money or hits a rate limit, not just wastes a cheap extra call.

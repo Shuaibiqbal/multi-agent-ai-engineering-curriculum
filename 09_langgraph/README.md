@@ -147,7 +147,7 @@ Doc07's `create_agent` loop hides its own decisions inside library code — a co
 # service.py — build once, run many
 from fastapi import FastAPI
 from langgraph.checkpoint.memory import InMemorySaver
-from my_graph import builder                        # StateGraph builder, defined once
+from my_graph import builder                  # StateGraph builder, defined once
 
 app = FastAPI()
 GRAPH = builder.compile(checkpointer=InMemorySaver())   # built ONCE, at import time
@@ -555,7 +555,25 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup:** same venv as before — if it's not active, `cd 09_langgraph && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langgraph langchain-openai`.
 
-**Where your code lives:** all of it under `09_langgraph/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/07/08 — so one topic's growth from basic to advanced stays visible in one file.
+**Where your code lives:** all of it under `09_langgraph/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/07/08 — so one topic's growth from basic to intermediate stays visible in one file.
+
+**The full file layout, all exercises:**
+
+```
+practice/
+├── first_graph_practice.py            Basic
+├── conditional_routing_practice.py    Intermediate + Edge cases
+│                                       (two sections)
+├── agent_loop_to_graph_practice.py    Real-world
+└── loop_limit_interrupt_practice.py   Failure
+```
+
+**Why each script exists:**
+
+- `first_graph_practice.py` — the 3 real ingredients (state, nodes, edges) at their smallest — every later exercise and the Build Task assume you already have this working.
+- `conditional_routing_practice.py` — real branching, plus what happens when a routing function returns a value nothing handles.
+- `agent_loop_to_graph_practice.py` — proves a graph can do exactly what Doc07's hand-built loop did — the direct rehearsal for the Build Task.
+- `loop_limit_interrupt_practice.py` — the only place you watch an unguarded loop actually hit its limit, and a paused graph actually resume across a real process restart.
 
 **For this document, save your practice code as:**
 - **Basic** (your first graph) is its own topic — save it as `practice/first_graph_practice.py`.
@@ -630,12 +648,18 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 09_langgraph/practice/build_task/
-├── state.py            the TypedDict/Pydantic state shape
-├── nodes.py             node functions (each takes state, returns a small update)
-├── graph.py               build_graph() -> CompiledGraph — nodes, edges, checkpointer, interrupt
-├── tools.py                 reused from 07_ai_agents's Build Task
-└── test_graph.py             proves the Test Cases below
+├── state.py           the TypedDict/Pydantic state shape
+├── nodes.py            node functions -- state in, small update out
+├── graph.py             build_graph() -> CompiledGraph
+├── tools.py               reused from 07_ai_agents's Build Task
+└── test_graph.py           proves the Test Cases below
 ```
+
+- `state.py` — **What/Why:** one typed shape listing everything any node can read or write — the graph's whole public surface, in one place.
+- `nodes.py` — **What/Why:** `think`/`act`/`risky_action`/`route` — Doc07's loop rebuilt as graph functions, plus the one `interrupt()` point standing in for a human check.
+- `graph.py` — **What/Why:** `build_graph()` wires nodes, edges, and the checkpointer, and returns a compiled graph Document 10 can import and build on directly.
+- `tools.py` — **What/Why:** the exact tool library from Doc07, imported unchanged — the graph reuses it rather than writing tools from scratch.
+- `test_graph.py` — **What/Why:** proves the 4 Test Cases below actually pass — including the pause/resume cycle from a genuinely separate process.
 
 **Run it:** `cd practice/build_task && python test_graph.py` — from inside the folder, so `from graph import build_graph` finds the file next to it.
 

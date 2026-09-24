@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-search_failure) · [Hint 1](search_failure_hints.md#hint-1) · [Hint 2](search_failure_hints.md#hint-2) · [Solution](search_failure_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real deployment handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real deployment handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -46,12 +46,6 @@ The exact pieces:
 - **The `try/except` around `invoke()`** — the exception from your node genuinely propagates up through `invoke()`; this isn't something LangGraph silently swallows, so your test code needs to expect and catch it.
 - **What "intact" means here, concretely** — any state fields written by nodes that ran successfully before the failure should still be present and correct in `get_state(config).values` after the crash.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-search_failure) · [Hint 1](search_failure_hints.md#hint-1) · [Hint 2](search_failure_hints.md#hint-2) · [Solution](search_failure_solution.md)
-
-### Advanced Version
-
 Proving state survives a crash is only half the real problem. The other half: not every failure deserves the same response. A vector store that's down for 200 milliseconds because of a network blip is completely different from one that's down for an hour, or a query that's malformed and will fail identically every time you retry it — but a graph that just re-raises on any exception treats all three the same way: total failure, human has to intervene.
 
 The real design question isn't just "does state survive a crash" — it's "which failures are worth retrying automatically, how many times, and how do you avoid retrying forever on something that will never succeed?"
@@ -66,7 +60,7 @@ The extra pieces needed:
 
 Sketch the retry loop's shape — what it catches, how many times, how long it waits — before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both prove the same true thing — a crash doesn't erase earlier progress — by making the node fail exactly once and checking what's left. Advanced asks what a real deployment does *before* giving up: retry a transient failure a few times with growing delays, but recognize a permanent failure immediately instead of wasting time repeating it — and only after that's exhausted does the "state survives the crash" guarantee from Basic and Intermediate actually get used, as the safety net underneath the retry logic, not a replacement for it.
+**Difference between Basic and Intermediate:** Basic proves the same true thing a crash doesn't erase earlier progress — by making the node fail exactly once and checking what's left. Intermediate also asks what a real deployment does *before* giving up: retry a transient failure a few times with growing delays, but recognize a permanent failure immediately instead of wasting time repeating it — and only after that's exhausted does the "state survives the crash" guarantee from Basic actually get used, as the safety net underneath the retry logic, not a replacement for it.
 
 <hr class="page-break">
 
@@ -154,11 +148,7 @@ snapshot = graph.get_state(config)
 
 Add the assertions confirming the surviving state is correct, print `snapshot.next`, and remember to revert the temporary `raise`, then compare against the [Solution](search_failure_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-search_failure) · [Hint 1](search_failure_hints.md#hint-1) · [Hint 2](search_failure_hints.md#hint-2) · [Solution](search_failure_solution.md)
-
-### Advanced Version
+Once that's confirmed, put a retry loop in front of the node instead of just letting it fail once:
 
 ```
 TRANSIENT_ERRORS = (TimeoutError, ConnectionError)
@@ -176,7 +166,8 @@ function search_node(state):
 
 test:
     make retrieve() raise TimeoutError twice then succeed -> confirm it recovers
-    make retrieve() raise a permanent error -> confirm it fails on the first try, no retry delay
+    make retrieve() raise a permanent error -> confirm it fails on
+    the first try, no retry delay
 ```
 
 Here's almost the whole thing — fill in the missing piece yourself:
@@ -203,9 +194,9 @@ def search_node(state: dict) -> dict:
         # it propagates immediately, on the first attempt
 ```
 
-Fill in the retry-exhaustion check and the backoff sleep yourself, then compare all 3 of your finished versions against the [Solution](search_failure_solution.md).
+Fill in the retry-exhaustion check and the backoff sleep yourself, then compare all of your finished versions against the [Solution](search_failure_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both make the node fail exactly once, on purpose, and confirm the checkpointer's promise: whatever ran before is still there. Advanced puts a retry loop *in front of* that same node, so a transient failure gets a few chances to resolve itself before the graph gives up at all — and only failures that are either permanent, or that outlast every retry attempt, ever reach the point Basic and Intermediate were testing. The checkpointing guarantee doesn't change; Advanced just makes sure you're not relying on it for failures that a simple retry could have absorbed.
+**Difference between Basic and Intermediate:** Basic makes the node fail exactly once, on purpose, and confirms the checkpointer's promise: whatever ran before is still there. Intermediate puts a retry loop *in front of* that same node, so a transient failure gets a few chances to resolve itself before the graph gives up at all — and only failures that are either permanent, or that outlast every retry attempt, ever reach the point Basic was testing. The checkpointing guarantee doesn't change; Intermediate just makes sure you're not relying on it for failures that a simple retry could have absorbed.
 
 <hr class="page-break">
 

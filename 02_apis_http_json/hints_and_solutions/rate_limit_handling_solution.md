@@ -127,7 +127,9 @@ def decide_wait_seconds(headers: dict[str, str], attempt: int) -> float:
     # why: respects a real Retry-After header when the server sends one,
     # caps it so a malicious/buggy server can't stall the client for years.
     retry_after = headers.get("Retry-After")
-    wait = parse_retry_after(retry_after) if retry_after is not None else None
+    wait = None
+    if retry_after is not None:
+        wait = parse_retry_after(retry_after)
     if wait is None:
         # when: no header, or one that couldn't be parsed — fall back to
         # the same exponential backoff used everywhere else in this document.

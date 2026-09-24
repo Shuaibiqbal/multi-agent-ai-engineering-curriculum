@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
 
-Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
@@ -26,10 +26,14 @@ class RoutingState(TypedDict):
 
 
 def supervisor(state):
-    descriptions = "\n".join(f"- {name}: {desc}" for name, desc in SPECIALISTS.items())
+    lines = []
+    for name, desc in SPECIALISTS.items():
+        lines.append(f"- {name}: {desc}")
+    descriptions = "\n".join(lines)
     prompt = (
         f"Task: {state['task']}\n\n"
-        f"Choose exactly one specialist to handle this first:\n{descriptions}\n\n"
+        "Choose exactly one specialist to handle this first:\n"
+        f"{descriptions}\n\n"
         "Reply with only the specialist's name."
     )
     response = model.invoke(prompt)
@@ -97,26 +101,29 @@ if __name__ == "__main__":
     tally = run_ambiguity_check(test_prompts)
     for prompt, picks in tally.items():
         consistent = len(set(picks)) == 1
-        print(f"{prompt!r}: {picks} ({'consistent' if consistent else 'INCONSISTENT'})")
+        label = "consistent"
+        if not consistent:
+            label = "INCONSISTENT"
+        print(f"{prompt!r}:")
+        print(f"  {picks} ({label})")
 ```
 **Expected output** (exact picks vary by run):
 ```
-'find out why sales dropped last quarter': ['research_agent', 'research_agent', 'analysis_agent'] (INCONSISTENT)
-'what does this survey data actually tell us': ['analysis_agent', 'analysis_agent', 'analysis_agent'] (consistent)
-'look into the causes of the outage': ['research_agent', 'research_agent', 'research_agent'] (consistent)
-'explain what happened to our conversion rate': ['analysis_agent', 'research_agent', 'analysis_agent'] (INCONSISTENT)
-'dig into the reasons behind the delay': ['research_agent', 'research_agent', 'research_agent'] (consistent)
+'find out why sales dropped last quarter':
+  ['research_agent', 'research_agent', 'analysis_agent'] (INCONSISTENT)
+'what does this survey data actually tell us':
+  ['analysis_agent', 'analysis_agent', 'analysis_agent'] (consistent)
+'look into the causes of the outage':
+  ['research_agent', 'research_agent', 'research_agent'] (consistent)
+'explain what happened to our conversion rate':
+  ['analysis_agent', 'research_agent', 'analysis_agent'] (INCONSISTENT)
+'dig into the reasons behind the delay':
+  ['research_agent', 'research_agent', 'research_agent'] (consistent)
 ```
 
-**Difference from Basic:** the same routing call, run 3 times per prompt instead of once, which is the only way to tell a genuinely stable routing decision (`consistent`) apart from one where the model is essentially coin-flipping on a truly ambiguous prompt (`INCONSISTENT`). Notice the prompts written with the strongest "why/what happened" framing (implying analysis) turned out to be the least consistent ones — a useful, concrete finding this version surfaces that a single run never would. Still no recovery path if the pick was the less useful one — that's what Advanced adds.
+**Difference from Basic:** the same routing call, run 3 times per prompt instead of once, which is the only way to tell a genuinely stable routing decision (`consistent`) apart from one where the model is essentially coin-flipping on a truly ambiguous prompt (`INCONSISTENT`). Notice the prompts written with the strongest "why/what happened" framing (implying analysis) turned out to be the least consistent ones — a useful, concrete finding this version surfaces that a single run never would. Still no recovery path if the pick was the less useful one — that's what Approach 2 adds.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a guard in each specialist, and a supervisor that can recover from a misroute
+### Approach 2 — a guard in each specialist, and a supervisor that can recover from a misroute
 
 ```python
 # supervisor_routing_practice.py
@@ -143,7 +150,8 @@ def supervisor(state: RoutingState) -> Command:
     )
     prompt = (
         f"Task: {state['task']}\n\n"
-        f"Choose exactly one specialist to handle this first:\n{descriptions}\n\n"
+        "Choose exactly one specialist to handle this first:\n"
+        f"{descriptions}\n\n"
         "Reply with only the specialist's name."
     )
     response = model.invoke(prompt)
@@ -157,7 +165,8 @@ def supervisor(state: RoutingState) -> Command:
 def research_agent(state: RoutingState) -> Command:
     state_research = f"[research data for: {state['task']}]"
     if state.get("misrouted"):
-        # this run started as a recovered misroute -- go straight to analysis now
+        # this run started as a recovered misroute -- go straight to
+        # analysis now
         return Command(
             update={"research_data": state_research, "misrouted": False},
             goto="analysis_agent",
@@ -167,12 +176,15 @@ def research_agent(state: RoutingState) -> Command:
 
 def analysis_agent(state: RoutingState) -> Command:
     if not state.get("research_data"):
-        # picked first, but nothing to analyze yet -- signal instead of forging ahead
+        # picked first, but nothing to analyze yet -- signal instead of
+        # forging ahead
+        history = state["picked_history"] + ["[recovered->research_agent]"]
         return Command(
-            update={"misrouted": True, "picked_history": state["picked_history"] + ["[recovered->research_agent]"]},
+            update={"misrouted": True, "picked_history": history},
             goto="research_agent",
         )
-    return Command(update={"analysis": f"[analysis of: {state['research_data']}]"}, goto=END)
+    analysis = f"[analysis of: {state['research_data']}]"
+    return Command(update={"analysis": analysis}, goto=END)
 
 
 builder = StateGraph(RoutingState)
@@ -202,8 +214,12 @@ def run_full_tally(prompts: list[str], attempts: int = 3) -> None:
             if "[recovered->research_agent]" in result["picked_history"]:
                 recovered_count += 1
 
+    research_first = first_pick_counts["research_agent"]
+    analysis_first = first_pick_counts["analysis_agent"]
+
     print(f"total runs: {total_runs}")
-    print(f"first pick -- research_agent: {first_pick_counts['research_agent']}, analysis_agent: {first_pick_counts['analysis_agent']}")
+    print(f"first pick -- research: {research_first}")
+    print(f"first pick -- analysis: {analysis_first}")
     print(f"misroutes recovered: {recovered_count}")
 
 
@@ -219,11 +235,12 @@ run_full_tally(test_prompts)
 **Expected output** (exact numbers vary by run):
 ```
 total runs: 15
-first pick -- research_agent: 9, analysis_agent: 6
+first pick -- research: 9
+first pick -- analysis: 6
 misroutes recovered: 6
 ```
 Every time `analysis_agent` was picked first, it had nothing to analyze yet and had to recover through `research_agent` — meaning `analysis_agent` should arguably never be the correct first pick for these particular prompts, even though the model chose it 6 times out of 15. That's the real finding this exercise is built to produce: the supervisor's routing description for `analysis_agent` needs to say more clearly that it requires research data first, or the two descriptions need to stop overlapping so closely.
 
-**Difference from Intermediate:** Intermediate's repeated runs tell you *that* routing is inconsistent on some prompts, but a misroute there is still a dead end — nothing catches it. Advanced adds the guard (`analysis_agent` checking for `research_data` before doing any real work) and the recovery path (routing back to `research_agent`, then forward again), so a misroute becomes a visible, logged, recoverable extra hop instead of a confident answer built on nothing — directly applying Core Concepts' Error propagation guidance ("look at what an agent actually returned, not just assume it worked because no exception was thrown") one level down, at the routing layer itself.
+**Difference between Approach 1 and Approach 2:** Approach 1's repeated runs tell you *that* routing is inconsistent on some prompts, but a misroute there is still a dead end — nothing catches it. Approach 2 adds the guard (`analysis_agent` checking for `research_data` before doing any real work) and the recovery path (routing back to `research_agent`, then forward again), so a misroute becomes a visible, logged, recoverable extra hop instead of a confident answer built on nothing — directly applying Core Concepts' Error propagation guidance ("look at what an agent actually returned, not just assume it worked because no exception was thrown") one level down, at the routing layer itself.
 
-**Which one should you actually write?** Basic is enough to *see* that two specialist descriptions overlap in practice — worth doing once, early, whenever you're unsure if two specialists are too similar. Intermediate's repeated-run consistency check is worth running on every supervisor before it ships, since a routing decision that flips on identical input is a real bug waiting to surface intermittently in production. Advanced's guard-and-recover pattern is the one to actually keep in the code: cheap to add (one `if` per specialist checking its own prerequisites), and it converts the single most common supervisor-pattern production failure — routing to a specialist that isn't ready yet — from a silent bad answer into a self-correcting extra step, which is exactly the resilience Project 4's own Research-vs-Analysis boundary needs.
+**Which one should you actually write?** Basic is enough to *see* that two specialist descriptions overlap in practice — worth doing once, early, whenever you're unsure if two specialists are too similar. Approach 1's repeated-run consistency check is worth running on every supervisor before it ships, since a routing decision that flips on identical input is a real bug waiting to surface intermittently in production. Approach 2's guard-and-recover pattern is the one to actually keep in the code: cheap to add (one `if` per specialist checking its own prerequisites), and it converts the single most common supervisor-pattern production failure — routing to a specialist that isn't ready yet — from a silent bad answer into a self-correcting extra step, which is exactly the resilience Project 4's own Research-vs-Analysis boundary needs.

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-approval_pause) · [Hint 1](approval_pause_hints.md#hint-1) · [Hint 2](approval_pause_hints.md#hint-2) · [Solution](approval_pause_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real human-in-the-loop system handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real human-in-the-loop system handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -52,12 +52,6 @@ The exact pieces:
 - **`Command(resume=value)`** — the `value` passed here is what `interrupt()`'s call site receives back as its return value, letting the paused node continue with the human's actual decision, not just a generic "continue" signal.
 - **The same `thread_id`** — both the first `invoke()` and the later resumed `invoke()` need the same `config={"configurable": {"thread_id": "..."}}`, or LangGraph has no saved state to resume from.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-approval_pause) · [Hint 1](approval_pause_hints.md#hint-1) · [Hint 2](approval_pause_hints.md#hint-2) · [Solution](approval_pause_solution.md)
-
-### Advanced Version
-
 Every example so far assumes someone resumes the graph promptly. Real approvals don't work that way — a human might be in a meeting, asleep, or on vacation, and the paused thread just sits there, indefinitely, taking up a slot in whatever storage your checkpointer uses. And when they finally do act, "approved" or "rejected" by itself doesn't say *who* decided, or *when* — which matters the moment anything goes wrong and someone asks "who approved this?"
 
 The real design question isn't just "how do I pause and resume" — it's "what happens if nobody resumes this in a reasonable time, and how do I keep a record of who made the call, not just what they decided?"
@@ -87,7 +81,7 @@ def approval_node(state: dict) -> dict:
 
 Sketch the staleness check yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both treat "pause, then resume" as a clean, prompt round trip — correct for a demo, but a demo assumes a human is right there ready to answer. Advanced accounts for the gap between "paused" and "resumed" actually mattering: who made the decision needs to be recorded, not just what they decided, and a decision made a long time after the pause deserves a second look before being trusted blindly — the same "don't silently act on possibly-stale grounding" concern this document raises for search results, applied here to the approval itself.
+**Difference between Basic and Intermediate:** Basic treats "pause, then resume" as a clean, prompt round trip — correct for a demo, but a demo assumes a human is right there ready to answer. Intermediate accounts for the gap between "paused" and "resumed" actually mattering: who made the decision needs to be recorded, not just what they decided, and a decision made a long time after the pause deserves a second look before being trusted blindly — the same "don't silently act on possibly-stale grounding" concern this document raises for search results, applied here to the approval itself.
 
 <hr class="page-break">
 
@@ -166,11 +160,7 @@ def approval_node(state: dict) -> dict:
 
 Compile the graph with a real checkpointer, and write the two-call pause/resume test with a shared `thread_id`, testing both the `"approved"` and `"rejected"` resume values, then compare against the [Solution](approval_pause_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-approval_pause) · [Hint 1](approval_pause_hints.md#hint-1) · [Hint 2](approval_pause_hints.md#hint-2) · [Solution](approval_pause_solution.md)
-
-### Advanced Version
+Once that's working, record who decided and when, and check whether an old decision is too stale to trust:
 
 ```
 function approval_node(state):
@@ -218,9 +208,9 @@ def is_stale(paused_at: str, max_age_hours: int = MAX_APPROVAL_AGE_HOURS) -> boo
     ...
 ```
 
-Fill in `is_stale`'s comparison yourself, then compare all 3 of your finished versions against the [Solution](approval_pause_solution.md).
+Fill in `is_stale`'s comparison yourself, then compare all of your finished versions against the [Solution](approval_pause_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate's pause/resume both trust the resume value blindly and record nothing about who decided or how long the pause lasted. Advanced records both — a structured resume payload naming who approved and when, and an explicit staleness check so a decision made against possibly-outdated search results gets flagged instead of silently trusted, which matters the moment "who approved this, and was the information still current?" becomes a real question someone asks.
+**Difference between Basic and Intermediate:** Basic's pause/resume trusts the resume value blindly and records nothing about who decided or how long the pause lasted. Intermediate records both — a structured resume payload naming who approved and when, and an explicit staleness check so a decision made against possibly-outdated search results gets flagged instead of silently trusted, which matters the moment "who approved this, and was the information still current?" becomes a real question someone asks.
 
 <hr class="page-break">
 

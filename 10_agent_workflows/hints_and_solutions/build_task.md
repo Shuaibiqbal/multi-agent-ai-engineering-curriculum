@@ -2,7 +2,7 @@
 
 > [Back to the Build Task](../README.md#build-task-project-3-langgraph-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real production graph handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — how a real production graph handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The shape, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -53,13 +53,7 @@ The exact pieces:
 
 Now try building the graph's node and edge structure completely, with placeholder node bodies (`pass` or a simple return), before writing any real logic inside them.
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-3-langgraph-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-Each practice exercise above got an Advanced Version of its own — a hardened search tool, a hybrid router, a relevance threshold for empty search, a retry loop for search failures, and an audit trail for approvals. The Build Task's real Advanced-level question is: **do these five hardening ideas compose cleanly into one graph, or do they interfere with each other?**
+Each practice exercise above got a hardened version of its own — a hardened search tool, a hybrid router, a relevance threshold for empty search, a retry loop for search failures, and an audit trail for approvals. The Build Task's real question is: **do these five hardening ideas compose cleanly into one graph, or do they interfere with each other?**
 
 They mostly compose cleanly, but two interactions are worth thinking through deliberately, not just bolting all five pieces on and hoping:
 
@@ -72,7 +66,7 @@ One extra piece worth adding at this level: a `path` list in your state (e.g. `s
 
 Sketch what you'd add to your state shape and your approval payload to make the path fully visible, before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both wire the five pieces together as if each works in isolation, exactly as practiced. Advanced asks how they interact once combined — search's retry logic has to run to completion before the "found nothing" check means anything, and the approval step needs to honestly reflect whether the draft is genuinely grounded or a fallback — plus adds a visible `path` trail so a human approving something can see the graph's actual journey, not just its destination.
+**Difference between Basic and Intermediate:** Basic wires the five pieces together as if each works in isolation, exactly as practiced. Intermediate also asks how they interact once combined — search's retry logic has to run to completion before the "found nothing" check means anything, and the approval step needs to honestly reflect whether the draft is genuinely grounded or a fallback — plus adds a visible `path` trail so a human approving something can see the graph's actual journey, not just its destination.
 
 <hr class="page-break">
 
@@ -94,13 +88,16 @@ nodes:
 
 edges:
     router_node -> (conditional: search or skip) -> search_node or reason_node
-    search_node -> (conditional: found something or not) -> reason_node or reason_node (still, just different draft)
+    search_node -> (conditional: found something or not) ->
+        reason_node either way (just a different draft)
     reason_node -> approval_node
     approval_node -> finish_node
 
 run it:
-    a search-needing task -> should pause at approval_node -> resume -> finish
-    a task with no matching documents -> reason_node makes an honest "can't answer" draft -> still goes through approval -> finish
+    a search-needing task -> should pause at approval_node -> resume
+        -> finish
+    a task with no matching documents -> reason_node makes an honest
+        "can't answer" draft -> still goes through approval -> finish
 ```
 
 <hr class="page-break">
@@ -130,7 +127,8 @@ def has_grounding(state) -> str:
     ...
 
 def reason_node(state) -> dict:
-    # builds draft from sources, or an honest "can't ground this" draft if sources is empty
+    # builds draft from sources, or an honest "can't ground this"
+    # draft if sources is empty
     ...
 
 def approval_node(state) -> dict:
@@ -149,8 +147,13 @@ builder.add_node("reason_node", reason_node)
 builder.add_node("approval_node", approval_node)
 builder.add_node("finish_node", finish_node)
 
-builder.add_conditional_edges("router", route_search, {"search": "search_node", "skip": "reason_node"})
-builder.add_conditional_edges("search_node", has_grounding, {"no_grounding": "reason_node", "reason": "reason_node"})
+builder.add_conditional_edges(
+    "router", route_search, {"search": "search_node", "skip": "reason_node"},
+)
+builder.add_conditional_edges(
+    "search_node", has_grounding,
+    {"no_grounding": "reason_node", "reason": "reason_node"},
+)
 builder.add_edge("reason_node", "approval_node")
 builder.add_edge("approval_node", "finish_node")
 
@@ -159,11 +162,7 @@ graph = builder.compile(checkpointer=MemorySaver())
 
 Note both conditional-edge branches from `search_node` land on `reason_node` here — the difference is what `reason_node` finds in `state["sources"]` when it runs (empty vs. populated), which is what decides whether the draft is a real answer or an honest "can't answer."
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-3-langgraph-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
+Once that's working, layer in the retry loop, the relevance threshold, and a visible `path` trail:
 
 ```
 class ProjectState(TypedDict):
@@ -232,13 +231,13 @@ def approval_node(state: ProjectState) -> dict:
     # state["sources"], state["grounded"], and state["path"] -- this is
     # what makes the approval step honest about what actually happened,
     # not just a draft with no context -- then handle the returned
-    # decision dict the same way approval_pause's Advanced Version does
+    # decision dict the same way approval_pause's Intermediate section does
     ...
 ```
 
-Fill in `approval_node` yourself, then compare all 3 of your finished versions against the [Solution](#solution).
+Fill in `approval_node` yourself, then compare all of your finished versions against the [Solution](#solution).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate's pseudocode and near-complete code wire the five pieces together assuming each one always works cleanly on the first try. Advanced adds the retry loop from `search_failure`, the relevance threshold from `empty_search`, and a `path` field every node appends to — so the approval step (and anyone debugging a run later) can see the graph's actual journey, including any retries or fallbacks, not just its final draft.
+**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code wire the five pieces together assuming each one always works cleanly on the first try. Intermediate adds the retry loop from `search_failure`, the relevance threshold from `empty_search`, and a `path` field every node appends to — so the approval step (and anyone debugging a run later) can see the graph's actual journey, including any retries or fallbacks, not just its final draft.
 
 <hr class="page-break">
 
@@ -246,11 +245,13 @@ Fill in `approval_node` yourself, then compare all 3 of your finished versions a
 
 ## Solution {: #solution }
 
-Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them. Every example assumes a `.env`-configured model and a `retriever.py` reused from `08_rag`.
+Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them. Every example assumes a `.env`-configured model and a `retriever.py` reused from `08_rag`.
 
 ### Basic Version
 
 #### Approach 1 — the direct way, all five pieces wired together
+
+**Story — `state.py`/`nodes.py`/`graph.py`:** this is Project 3 — every practice exercise above (conditional search, search-as-tool, empty search, search failure, approval pause) folds into this one graph. **If not:** Project 3 would be the first place any of these five pieces ever had to work together, with no smaller version to trust.
 
 ```python
 # state.py
@@ -308,7 +309,9 @@ builder.add_node("reason_node", reason_node)
 builder.add_node("approval_node", approval_node)
 builder.add_node("finish_node", finish_node)
 
-builder.set_conditional_entry_point(route_search, {"search": "search_node", "skip": "reason_node"})
+builder.set_conditional_entry_point(
+    route_search, {"search": "search_node", "skip": "reason_node"},
+)
 builder.add_edge("search_node", "reason_node")
 builder.add_edge("reason_node", "approval_node")
 builder.add_edge("approval_node", "finish_node")
@@ -325,6 +328,8 @@ This meets every Build Task requirement: routed search, an honest "no grounding"
 ### Intermediate Version
 
 #### Approach 1 — type hints, `main.py`'s visible pause/resume loop
+
+**Story — `state.py`/`nodes.py`/`graph.py` (Intermediate):** Basic proved the graph works; this version separates "define the graph" from "run the graph," and gives `main.py` a real inspect-then-decide loop instead of trusting one `invoke()` return value. **If not:** every new caller of this graph (a test, Document 11's supervisor) would need to re-derive how to inspect a paused run instead of importing `build_graph()`.
 
 ```python
 # state.py
@@ -363,7 +368,10 @@ def reason_node(state: ProjectState) -> dict:
         return {"draft": "I don't have grounding for this in my documents."}
 
     context = "\n\n".join(source.page_content for source in state["sources"])
-    prompt = f"Using this context, answer the task.\n\nContext:\n{context}\n\nTask: {state['task']}"
+    prompt = (
+        f"Using this context, answer the task.\n\nContext:\n{context}\n\n"
+        f"Task: {state['task']}"
+    )
     response = model.invoke(prompt)
     return {"draft": response.content}
 
@@ -433,15 +441,11 @@ if __name__ == "__main__":
     main()
 ```
 
-**Difference from Basic:** full type hints throughout. `graph.py` wraps construction in `build_graph()` instead of module-level statements, matching how a real project separates "define the graph" from "run the graph." `main.py` now uses `graph.get_state(config)` to inspect the paused draft and source count, instead of relying on `invoke()`'s return value alone — and reports the final answer explicitly. This version still doesn't retry a failed search, cap what gets shown at approval, or distinguish a genuinely-empty search from a low-relevance one — that's what Advanced adds.
+**Difference from Basic:** full type hints throughout. `graph.py` wraps construction in `build_graph()` instead of module-level statements, matching how a real project separates "define the graph" from "run the graph." `main.py` now uses `graph.get_state(config)` to inspect the paused draft and source count, instead of relying on `invoke()`'s return value alone — and reports the final answer explicitly. This version still doesn't retry a failed search, cap what gets shown at approval, or distinguish a genuinely-empty search from a low-relevance one — that's what Approach 2 adds.
 
-<hr class="page-break">
+#### Approach 2 — retry on search, a relevance threshold, and a visible `path` at approval
 
-> [Back to the Build Task](../README.md#build-task-project-3-langgraph-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-#### Approach 1 — retry on search, a relevance threshold, and a visible `path` at approval
+**Story:** each practice exercise above got a hardened version of its own — a retry loop, a relevance threshold, an audit trail. The Build Task's real question is whether these compose cleanly into one graph, not just whether each works alone. **If not:** the approval step would show a human a bare draft with no way to tell a genuinely grounded answer from a fallback, or a retried search from a first-try success.
 
 ```python
 # state.py
@@ -515,7 +519,10 @@ def reason_node(state: ProjectState) -> dict:
         }
 
     context = "\n\n".join(chunk.page_content for chunk, _ in scored_sources)
-    prompt = f"Using this context, answer the task.\n\nContext:\n{context}\n\nTask: {state['task']}"
+    prompt = (
+        f"Using this context, answer the task.\n\nContext:\n{context}\n\n"
+        f"Task: {state['task']}"
+    )
     response = model.invoke(prompt)
     path.append("found_grounding")
     return {"draft": response.content, "grounded": True, "path": path}
@@ -523,10 +530,14 @@ def reason_node(state: ProjectState) -> dict:
 
 def approval_node(state: ProjectState) -> dict:
     path = state.get("path", []) + []
+    # why: truncate each source so approval_node isn't the same
+    # unbounded-context risk search_as_tool's Intermediate section fixes
+    sources = state.get("sources", [])
+    source_previews = [chunk.page_content[:200] for chunk, _ in sources]
     decision = interrupt({
         "draft": state["draft"],
         "grounded": state["grounded"],
-        "sources": [chunk.page_content[:200] for chunk, _ in state.get("sources", [])],
+        "sources": source_previews,
         "path_so_far": path,
         "prompt": "Approve this answer before it's sent? (approved/rejected)",
     })
@@ -568,10 +579,11 @@ def build_graph():
     builder.add_node("finish_node", finish_node)
 
     builder.set_conditional_entry_point(
-        route_search, {"search": "search_node", "skip": "reason_node"}
+        route_search, {"search": "search_node", "skip": "reason_node"},
     )
     builder.add_conditional_edges(
-        "search_node", has_grounding, {"no_grounding": "reason_node", "reason": "reason_node"}
+        "search_node", has_grounding,
+        {"no_grounding": "reason_node", "reason": "reason_node"},
     )
     builder.add_edge("reason_node", "approval_node")
     builder.add_edge("approval_node", "finish_node")
@@ -618,9 +630,9 @@ if __name__ == "__main__":
     main()
 ```
 
-#### Approach 2 — same structure, `pydantic` for a validated state instead of `TypedDict`
+#### Approach 3 — same structure, `pydantic` for a validated state instead of `TypedDict`
 
-`TypedDict` (Approach 1) gives you type hints but no runtime checking — a node can still return `{"approved": "yes"}` (a string, not a bool) and nothing catches it until something downstream breaks confusingly. A `pydantic` model validates every field on construction.
+**Story:** `TypedDict` (Approach 1/2) gives you type hints but no runtime checking — a node can still return `{"approved": "yes"}` (a string, not a bool) and nothing catches it until something downstream breaks confusingly. **If not:** a wrong-typed field would surface as a confusing bug three nodes downstream instead of a clear error at the point it was actually written.
 
 ```python
 # state.py
@@ -637,8 +649,8 @@ class ProjectState(BaseModel):
     answer: str = ""
     path: list[str] = []
 ```
-Everything else stays the same shape as Approach 1 — nodes still read and return dicts that LangGraph merges into state, but now any field with the wrong type (an `approved` that isn't genuinely a `bool`, for example) raises a clear `pydantic.ValidationError` immediately, at the point state is constructed, instead of surfacing later as a confusing `if state["approved"]:` bug three nodes downstream.
+Everything else stays the same shape as Approach 2 — nodes still read and return dicts that LangGraph merges into state, but now any field with the wrong type (an `approved` that isn't genuinely a `bool`, for example) raises a clear `pydantic.ValidationError` immediately, at the point state is constructed, instead of surfacing later as a confusing `if state["approved"]:` bug three nodes downstream.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's graph works correctly on the happy path but trusts `retrieve()` never to fail, trusts any non-empty result list to mean real grounding, and shows the approval step only a bare draft with no record of how it got there. Approach 1 fixes all three: a retry loop around search, a relevance threshold instead of an empty-list check, and a `path` trail plus an audited resume payload at the approval step, so a human reviewer sees the graph's actual journey. Approach 2 doesn't change any of that behavior — it swaps the state container from `TypedDict` (hints only) to `pydantic.BaseModel` (hints enforced at runtime), catching a wrong-typed field the moment it's written instead of whenever it happens to cause a visible bug.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1's graph works correctly on the happy path but trusts `retrieve()` never to fail, trusts any non-empty result list to mean real grounding, and shows the approval step only a bare draft with no record of how it got there. Approach 2 fixes all three: a retry loop around search, a relevance threshold instead of an empty-list check, and a `path` trail plus an audited resume payload at the approval step, so a human reviewer sees the graph's actual journey. Approach 3 doesn't change any of that behavior — it swaps the state container from `TypedDict` (hints only) to `pydantic.BaseModel` (hints enforced at runtime), catching a wrong-typed field the moment it's written instead of whenever it happens to cause a visible bug.
 
-**Which one should you actually write?** For the Build Task as scoped, Intermediate already satisfies every stated requirement — ship that first, and confirm the full test-case table in the exercise README passes before adding anything else. Reach for Advanced Approach 1's retry-plus-threshold-plus-path once you're running this against a real, occasionally-flaky search backend and real human reviewers who need to trust what they're approving — which, per this document's own Goal, is the whole point of Project 3. Reach for Approach 2's `pydantic` state only once a wrong-typed state field has actually caused a confusing bug, or once this graph is being extended by more than one person and a runtime check on every field is worth the small added dependency.
+**Which one should you actually write?** For the Build Task as scoped, Approach 1 already satisfies every stated requirement — ship that first, and confirm the full test-case table in the exercise README passes before adding anything else. Reach for Approach 2's retry-plus-threshold-plus-path once you're running this against a real, occasionally-flaky search backend and real human reviewers who need to trust what they're approving — which, per this document's own Goal, is the whole point of Project 3. Reach for Approach 3's `pydantic` state only once a wrong-typed state field has actually caused a confusing bug, or once this graph is being extended by more than one person and a runtime check on every field is worth the small added dependency.

@@ -107,13 +107,16 @@ class SearchDecision(BaseModel):
     needs_search: bool
     reason: str
 
-router_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(SearchDecision)
+router_model = ChatOpenAI(
+    model="gpt-4o-mini", temperature=0
+).with_structured_output(SearchDecision)
 
 def route_after_start(state: AgentState) -> str:
-    decision = router_model.invoke(
-        f"Does this task need our internal documents to answer? Task: {state['task']}"
+    question = f"Does this task need our internal documents? Task: {state['task']}"
+    decision = router_model.invoke(question)
+    logger.info(
+        "route: needs_search=%s reason=%s", decision.needs_search, decision.reason
     )
-    logger.info("route: needs_search=%s reason=%s", decision.needs_search, decision.reason)
     return "retrieve" if decision.needs_search else "answer"
 ```
 
@@ -181,11 +184,17 @@ class ResultsGrade(BaseModel):
     good_enough: bool
     reason: str
 
-grader_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(ResultsGrade)
+grader_model = ChatOpenAI(
+    model="gpt-4o-mini", temperature=0
+).with_structured_output(ResultsGrade)
 
 def grade_by_model(question: str, chunks: list[dict]) -> bool:
     text = "\n\n".join(c["text"] for c in chunks)
-    grade = grader_model.invoke(f"Question: {question}\n\nFound text:\n{text}\n\nDoes this text actually answer the question?")
+    prompt = (
+        f"Question: {question}\n\nFound text:\n{text}\n\n"
+        "Does this text actually answer the question?"
+    )
+    grade = grader_model.invoke(prompt)
     return grade.good_enough
 
 MAX_SEARCHES = 3
@@ -236,13 +245,14 @@ from typing import Annotated, TypedDict
 import operator
 
 class AgentState(TypedDict, total=False):
-    task: str                                  # what was asked
-    query: str                                 # the search text actually used (may be rewritten)
-    found_chunks: list[dict]                   # what was found: text + source + score
-    draft_answer: str                          # what the model wrote from those chunks
-    decision: str                              # "approved" / "rejected", filled on resume
-    search_count: int                          # for the loop limit
-    path_log: Annotated[list[str], operator.add]  # "searched", "approved"... (adds up, never overwritten)
+    task: str                    # what was asked
+    query: str                   # the search text actually used, may be rewritten
+    found_chunks: list[dict]     # what was found: text + source + score
+    draft_answer: str            # what the model wrote from those chunks
+    decision: str                # "approved" / "rejected", filled on resume
+    search_count: int            # for the loop limit
+    path_log: Annotated[list[str], operator.add]
+    # ^ "searched", "approved"...  adds up, never overwritten
 ```
 
 | Situation | What to do | Why | Example |
@@ -323,8 +333,9 @@ def refine_query_node(state: AgentState) -> dict:
 
 def retrieve_node(state: AgentState) -> dict:
     chunks = retrieve(state["query"], k=4)
+    earlier = state.get("found_chunks", [])          # keep earlier findings too
     return {
-        "found_chunks": state.get("found_chunks", []) + chunks,   # keep earlier findings too
+        "found_chunks": earlier + chunks,
         "search_count": state.get("search_count", 0) + 1,
     }
 
@@ -391,7 +402,7 @@ def search_documents(query: str) -> str:
 @tool
 def check_order_status(order_id: str) -> str:
     """Return the current status of one order, by order id like 'A-1042'."""
-    return orders_api.get_status(order_id)   # Doc02's http_client: timeout + retry already built in
+    return orders_api.get_status(order_id)   # Doc02's http_client already retries
 
 model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 model_with_tools = model.bind_tools([search_documents, check_order_status])
@@ -451,8 +462,12 @@ def retrieve_node(state: AgentState) -> dict:
         return {"found_chunks": cache[key], "path_log": ["search:cache_hit"]}
 
     chunks = retrieve(state["query"], k=4)
-    new_cache = {**cache, key: chunks}          # a NEW dict; don't change the old one in place
-    return {"found_chunks": chunks, "search_cache": new_cache, "path_log": ["search:called"]}
+    new_cache = {**cache, key: chunks}      # a NEW dict, don't mutate the old one
+    return {
+        "found_chunks": chunks,
+        "search_cache": new_cache,
+        "path_log": ["search:called"],
+    }
 
 # tool version — cache lives in a closure, not in graph state
 def make_search_tool(cache: dict):
@@ -523,25 +538,32 @@ from typing import Annotated, TypedDict
 from langgraph.types import interrupt, Command
 
 class ActionState(TypedDict, total=False):
-    action: dict                                    # {"type": "refund", "amount": 5000, "risk": "high"}
+    action: dict          # {"type": "refund", "amount": 5000, "risk": "high"}
     decision: str
-    audit_log: Annotated[list[dict], operator.add]  # grows; never overwritten
+    audit_log: Annotated[list[dict], operator.add]  # grows, never overwritten
 
 def approval_gate(state: ActionState) -> dict:
     action = state["action"]
     if action["risk"] == "high":
-        decision = interrupt({"please_approve": action})   # graph stops here and waits
-        return {"decision": decision,
-                "audit_log": [{"action": action, "mode": "blocked", "decision": decision}]}
-    logger.info("auto-approved low-risk action: %s", action)   # Doc01's get_logger(name)
-    return {"decision": "approved",
-            "audit_log": [{"action": action, "mode": "notified"}]}
+        decision = interrupt({"please_approve": action})   # pauses here
+        return {
+            "decision": decision,
+            "audit_log": [
+                {"action": action, "mode": "blocked", "decision": decision}
+            ],
+        }
+    logger.info("auto-approved low-risk action: %s", action)   # Doc01's logger
+    return {
+        "decision": "approved",
+        "audit_log": [{"action": action, "mode": "notified"}],
+    }
 
 def route_after_gate(state: ActionState) -> str:
     return "do_action" if state["decision"] == "approved" else "report_rejected"
 
 # Resume later, with the SAME thread_id the run was started with:
-# graph.invoke(Command(resume="approved"), config={"configurable": {"thread_id": "refund-881"}})
+# config = {"configurable": {"thread_id": "refund-881"}}
+# graph.invoke(Command(resume="approved"), config)
 ```
 
 **Common mistakes:**
@@ -569,15 +591,27 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 **Setup:** same venv as before — if it's not active, `cd 10_agent_workflows && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langgraph langchain-openai chromadb`.
 
-**Where your code lives:** all of it under `10_agent_workflows/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/07/09 — so one topic's growth from basic to advanced stays visible in one file.
+**Where your code lives:** all of it under `10_agent_workflows/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/07/09 — so one topic's growth from basic to intermediate stays visible in one file.
 
-**For this document, save your practice code as:**
-- **Basic** (`search_as_tool`) and **Intermediate** (`conditional_search`) are both about wiring search into the graph — first as a plain tool, then routed conditionally — save them together as `practice/search_tool_integration_practice.py`, one section per level.
-- **Real-world** (`approval_pause`) is its own topic — save it as `practice/approval_pause_practice.py`.
-- **Edge cases** (`empty_search`) is its own topic — save it as `practice/empty_search_practice.py`.
-- **Failure** (`search_failure`) is its own topic — save it as `practice/search_failure_practice.py`.
+**The full file layout, all exercises:**
 
-Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
+```
+practice/
+├── search_tool_integration_practice.py  Basic + Intermediate
+│                                        (two sections)
+├── approval_pause_practice.py           Real-world
+├── empty_search_practice.py             Edge cases
+└── search_failure_practice.py           Failure
+```
+
+**Why each script exists:**
+
+- `search_tool_integration_practice.py` — search wired in as a plain tool, then routed conditionally — the two building blocks every later exercise assumes already work.
+- `approval_pause_practice.py` — the exact `interrupt()` pattern the Build Task's approval gate needs, grounded in what was actually found, not just the question.
+- `empty_search_practice.py` — the "can't ground this" path, so a missing answer never turns into a made-up one.
+- `search_failure_practice.py` — proves a mid-run search crash doesn't erase whatever the graph had already done.
+
+Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to intermediate, side by side.
 
 **Jump to an exercise:** [Basic](#ex-search_as_tool) · [Intermediate](#ex-conditional_search) · [Real-world](#ex-approval_pause) · [Edge cases](#ex-empty_search) · [Failure](#ex-search_failure) · [Build Task](#build-task-project-3-langgraph-app)
 
@@ -662,13 +696,22 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 **Suggested files:**
 ```
 project_3_documind_rag_agent/
-├── main.py
-├── graph.py           (builds on 09_langgraph/graph.py)
-├── state.py
-├── nodes.py
-├── retriever.py        (reused from 08_rag)
-└── test_project3.py
+├── main.py             entry point, runs the graph
+├── graph.py            builds on 09_langgraph/graph.py
+├── state.py             the shared state shape
+├── nodes.py             retrieve/reason/approval nodes
+├── retriever.py         reused from 08_rag
+└── test_project3.py     tests both outcomes, not just approved
 ```
+
+**Why each file exists:**
+
+- `main.py` — the one place a task actually gets run, so nothing about wiring the graph together lives buried inside a node.
+- `graph.py` — grows Doc09's own graph skeleton rather than starting a new one, so the checkpointer/conditional-edge patterns stay identical to what was already taught.
+- `state.py` — one shared shape for what every node reads and writes, so `retrieve_node`, `reason_node`, and `approval_node` all agree on field names.
+- `nodes.py` — the actual search → reason → approve logic, kept separate from graph wiring so each node is testable on its own.
+- `retriever.py` — pulled straight from Doc08 instead of rewritten, so the retrieval code stays in the exact style it was originally taught in.
+- `test_project3.py` — proves the approval gate handles rejection correctly too, not just the happy "approved" path.
 
 **Functions/Components to build:**
 

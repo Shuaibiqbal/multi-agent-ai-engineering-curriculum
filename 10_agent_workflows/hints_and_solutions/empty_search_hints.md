@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real RAG system handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real RAG system handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -49,12 +49,6 @@ The exact pieces:
 - **The new node** — `cant_answer_node` should return something the caller can clearly tell apart from a real, grounded answer — a distinct field, or a clearly worded message, not just a short version of a normal answer.
 - **Where this check lives** — a conditional edge right after the search node, checked before the reasoning node ever runs, so the model is never even given the chance to improvise from nothing.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
-
-### Advanced Version
-
 An empty list is the easy case to catch. A harder, more common case: search returns *something*, but it's barely related — a vector similarity search almost never returns literally zero results, it returns the *closest* chunks it has, even when none of them are actually relevant. A thin, low-scoring result is just as misleading as no result at all, because your "nothing useful" check won't catch it — the list isn't empty, so the graph sails on to `reason_node` and the model dutifully "answers" from context that doesn't really support an answer.
 
 The real design question isn't "is the list empty" — it's "how relevant does a result actually need to be before it counts as grounding, and what do you do with a result that's borderline?"
@@ -69,7 +63,7 @@ The extra pieces needed:
 
 Sketch the threshold check yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both treat "found nothing" as "the list is empty" — true, but only half the problem. Advanced adds the harder, more common case: a non-empty list that's still not good enough to ground an answer, caught with a relevance-score threshold instead of a length check, plus a logging habit that turns "search fails silently on some questions" into "here's the list of questions search actually fails on, and why" — the difference between noticing a gap once and being able to systematically close it.
+**Difference between Basic and Intermediate:** Basic treats "found nothing" as "the list is empty" — true, but only half the problem. Intermediate adds the harder, more common case: a non-empty list that's still not good enough to ground an answer, caught with a relevance-score threshold instead of a length check, plus a logging habit that turns "search fails silently on some questions" into "here's the list of questions search actually fails on, and why" — the difference between noticing a gap once and being able to systematically close it.
 
 <hr class="page-break">
 
@@ -91,7 +85,8 @@ add a new node cant_answer_node:
     return a message like "I don't have grounding for this in my documents"
 
 wire:
-    add_conditional_edges(after search_node, has_results, {"no_grounding": cant_answer_node, "reason": reason_node})
+    add_conditional_edges(after search_node, has_results,
+        {"no_grounding": cant_answer_node, "reason": reason_node})
 
 test:
     ask something outside your document set -> should land on cant_answer_node
@@ -106,10 +101,16 @@ def has_results(state):
     return "reason"
 
 def cant_answer_node(state):
-    return {"answer": "I don't have grounding for this in my documents.", "grounded": False}
+    return {
+        "answer": "I don't have grounding for this in my documents.",
+        "grounded": False,
+    }
 
 graph.add_node("cant_answer_node", cant_answer_node)
-graph.add_conditional_edges("search_node", has_results, {"no_grounding": "cant_answer_node", "reason": "reason_node"})
+graph.add_conditional_edges(
+    "search_node", has_results,
+    {"no_grounding": "cant_answer_node", "reason": "reason_node"},
+)
 ```
 **Expected output if you run just this:** nothing on its own — invoke the graph with a fully out-of-scope question (like "what's the weather today?") and check that `result["answer"]` is the honest fallback message, not a guess.
 
@@ -127,7 +128,10 @@ define:
         return "reason"
 
     def cant_answer_node(state: dict) -> dict:
-        return {"answer": "I don't have grounding for this in my documents.", "grounded": False}
+        return {
+            "answer": "I don't have grounding for this in my documents.",
+            "grounded": False,
+        }
 
 register:
     graph.add_conditional_edges(
@@ -159,11 +163,7 @@ def cant_answer_node(state: dict) -> dict:
 
 Register `cant_answer_node` with `graph.add_node(...)`, wire the conditional edge, and test both an in-scope and out-of-scope question before comparing against the [Solution](empty_search_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
-
-### Advanced Version
+Once that's working, replace "is it empty" with "is the best result actually good enough":
 
 ```
 RELEVANCE_THRESHOLD = some number you chose from real examples
@@ -196,9 +196,9 @@ def has_results(state: dict) -> str:
     ...
 ```
 
-Fill in the threshold check and the logging call yourself, then compare all 3 of your finished versions against the [Solution](empty_search_solution.md).
+Fill in the threshold check and the logging call yourself, then compare all of your finished versions against the [Solution](empty_search_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both check only whether the list is empty — a real search backend that always returns *some* chunks (just possibly bad ones) will sail right past that check. Advanced replaces "is it empty" with "is the best result actually good enough," using a similarity-score threshold chosen from real examples, and adds a logging habit that turns silent failures into a reviewable record of exactly which questions your document set can't currently answer.
+**Difference between Basic and Intermediate:** Basic checks only whether the list is empty — a real search backend that always returns *some* chunks (just possibly bad ones) will sail right past that check. Intermediate replaces "is it empty" with "is the best result actually good enough," using a similarity-score threshold chosen from real examples, and adds a logging habit that turns silent failures into a reviewable record of exactly which questions your document set can't currently answer.
 
 <hr class="page-break">
 

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-conditional_search) · [Hint 1](conditional_search_hints.md#hint-1) · [Hint 2](conditional_search_hints.md#hint-2) · [Solution](conditional_search_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real router handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real router handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -45,7 +45,9 @@ def should_search(state: dict) -> str:
 Then you register it:
 ```python
 # search_tool_integration_practice.py — Intermediate section
-graph.add_conditional_edges("router", should_search, {"search": "search_node", "skip": "reason_node"})
+graph.add_conditional_edges(
+    "router", should_search, {"search": "search_node", "skip": "reason_node"},
+)
 ```
 
 The exact pieces:
@@ -53,12 +55,6 @@ The exact pieces:
 - **The routing function's return value** — it must exactly match one of the keys in the mapping dict you pass to `add_conditional_edges`. A typo here fails silently in confusing ways (LangGraph raises an error about an unknown node, which can look unrelated to the real cause).
 - **Where the decision lives** — a plain keyword/heuristic check is a fine first version; a second, smaller model call classifying "needs search: yes/no" is the more solid real-world version, at the cost of one extra call.
 - **The two mapped branches** — one path goes to your search node, the other skips straight to your reasoning node, both eventually rejoining before the final answer.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conditional_search) · [Hint 1](conditional_search_hints.md#hint-1) · [Hint 2](conditional_search_hints.md#hint-2) · [Solution](conditional_search_solution.md)
-
-### Advanced Version
 
 A keyword list and a single model call both share the same weakness: they're each wrong in a different, predictable direction. A keyword list misses real search-needing questions phrased without its exact words ("what's our time-off rule?" instead of "policy"). A model call catches those, but costs one extra round trip on *every single task*, even the 90% that are obviously one way or the other — and it isn't perfectly deterministic either, so the same question can route differently on different runs.
 
@@ -70,12 +66,12 @@ The extra pieces needed for a hybrid router:
 
 - A "confident skip" check — something unmistakably conversational, like a short message with no question mark and no keyword hit, routes straight to `"skip"` without ever calling the model.
 - A "confident search" check — a clear keyword hit routes straight to `"search"`, same reasoning.
-- Only the leftover, ambiguous cases fall through to the one-line model classification call from Hint 2's Advanced Version.
+- Only the leftover, ambiguous cases fall through to the one-line model classification call from Hint 2.
 - A cost/accuracy note worth writing down: this hybrid still isn't perfect (there's no free lunch here) — it just spends the expensive check only on the tasks where the cheap one is least trustworthy.
 
 Sketch which cases you'd route with keywords alone, and which you'd fall through to the model, before Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the conditional-edge mechanism and the two branch labels. Intermediate shows the real `should_search` signature and wiring, and names the keyword-vs-model tradeoff as a single either/or choice. Advanced treats it as a spectrum instead of a binary choice — cheap and fast for the clear cases, falling through to the more expensive, more accurate check only for the genuinely ambiguous ones — which is the difference between a router that's "good enough for most" and one that's deliberately built to spend its accuracy budget where it actually matters.
+**Difference between Basic and Intermediate:** Basic names the conditional-edge mechanism and the two branch labels. Intermediate shows the real `should_search` signature and wiring, names the keyword-vs-model tradeoff, and treats it as a spectrum instead of a binary choice — cheap and fast for the clear cases, falling through to the more expensive, more accurate check only for the genuinely ambiguous ones — which is the difference between a router that's "good enough for most" and one that's deliberately built to spend its accuracy budget where it actually matters.
 
 <hr class="page-break">
 
@@ -88,13 +84,15 @@ Sketch which cases you'd route with keywords alone, and which you'd fall through
 ```
 function should_search(state):
     look at the task text
-    if it contains words like "document", "policy", "according to" (or similar clues):
+    if it contains words like "document", "policy", "according to"
+    (or similar clues):
         return "search"
     otherwise:
         return "skip"
 
 wire it up:
-    add_conditional_edges(from the router node, should_search, {"search": search_node, "skip": reason_node})
+    add_conditional_edges(from the router node, should_search,
+        {"search": search_node, "skip": reason_node})
 
 test:
     run with a question mentioning your documents -> should route to search
@@ -110,7 +108,9 @@ def should_search(state):
         return "search"
     return "skip"
 
-graph.add_conditional_edges("router", should_search, {"search": "search_node", "skip": "reason_node"})
+graph.add_conditional_edges(
+    "router", should_search, {"search": "search_node", "skip": "reason_node"},
+)
 ```
 **Expected output if you run just this:** nothing on its own — invoke the graph with a document-mentioning question and a plain greeting, and check which node each one lands on.
 
@@ -137,8 +137,10 @@ register:
     )
 
 test:
-    invoke with a document-referencing question -> confirm it went through search_node
-    invoke with an unrelated greeting -> confirm it skipped straight to reason_node
+    invoke with a document-referencing question -> confirm it went
+        through search_node
+    invoke with an unrelated greeting -> confirm it skipped straight
+        to reason_node
 ```
 
 ```python
@@ -153,17 +155,14 @@ def should_search(state: dict) -> str:
 
 A keyword check is a reasonable first version but is easy to fool. Write the `add_conditional_edges` wiring and both test invocations yourself, then compare against the [Solution](conditional_search_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conditional_search) · [Hint 1](conditional_search_hints.md#hint-1) · [Hint 2](conditional_search_hints.md#hint-2) · [Solution](conditional_search_solution.md)
-
-### Advanced Version
+Once that's working, add the confident short-circuits and a model-call fallback for the ambiguous middle:
 
 ```
 function should_search(state):
     task = the task text
-    if task has a keyword AND is short (no question mark): return "search"   # confident hit
-    if task has no keyword AND looks conversational (short, no "?"): return "skip"   # confident skip
+    if task has a keyword: return "search"   # confident hit
+    if task has no keyword AND looks conversational (short, no "?"):
+        return "skip"   # confident skip
     otherwise (ambiguous):
         ask a small model call: "does this need document search? yes/no"
         return "search" if yes else "skip"
@@ -189,15 +188,15 @@ def should_search(state: dict) -> str:
     if looks_conversational:
         return "skip"
 
-    # your turn: the ambiguous middle case -- fall through to a one-line
-    # model classification call, the same pattern as Hint 1's Advanced note,
-    # and return "search" or "skip" based on its answer
+    # your turn: the ambiguous middle case -- fall through to a
+    # one-line model classification call, the same pattern as
+    # Hint 1's note, and return "search" or "skip" based on its answer
     ...
 ```
 
-Fill in the fallback classification call yourself, then compare all 3 of your finished versions against the [Solution](conditional_search_solution.md).
+Fill in the fallback classification call yourself, then compare all of your finished versions against the [Solution](conditional_search_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic's pseudocode and near-complete code always return based on one keyword check, no matter how ambiguous the task. Intermediate is the same shape, described more precisely, with a broader keyword list — still just one check, no fallback. Advanced adds two confident short-circuits (a clear keyword hit, a clearly conversational message) and only falls through to a model call for whatever's left over — the same idea Hint 1's Advanced Version describes, made concrete: spend the expensive check only where the cheap one is genuinely unsure.
+**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code always return based on one keyword check, no matter how ambiguous the task. Intermediate adds two confident short-circuits (a clear keyword hit, a clearly conversational message) and only falls through to a model call for whatever's left over — the same idea Hint 1 describes, made concrete: spend the expensive check only where the cheap one is genuinely unsure.
 
 <hr class="page-break">
 
