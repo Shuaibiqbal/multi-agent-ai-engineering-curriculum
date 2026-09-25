@@ -36,13 +36,23 @@ def chunk_by_paragraph(text):
     return chunks
 
 def get_embedding(text):
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
 def find_best_chunk(chunks, question_vector):
@@ -62,7 +72,9 @@ char_chunks = chunk_by_chars(DOCUMENT)
 paragraph_chunks = chunk_by_paragraph(DOCUMENT)
 
 char_best, char_score = find_best_chunk(char_chunks, question_vector)
-paragraph_best, paragraph_score = find_best_chunk(paragraph_chunks, question_vector)
+paragraph_best, paragraph_score = find_best_chunk(
+    paragraph_chunks, question_vector
+)
 
 print("chunk_by_chars best match, score:", char_score)
 print(char_best)
@@ -110,14 +122,24 @@ def chunk_by_paragraph(text: str) -> list[str]:
 
 
 def get_embedding(text: str) -> list[float]:
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
 
@@ -165,7 +187,8 @@ def chunk_by_chars_with_overlap(
     text: str, chunk_size: int = 200, overlap: int = 40,
 ) -> list[str]:
     chunks: list[str] = []
-    step = chunk_size - overlap  # why: less than chunk_size, so chunks share text
+    # why: less than chunk_size, so chunks share text
+    step = chunk_size - overlap
     i = 0
     while i < len(text):
         chunks.append(text[i:i + chunk_size])

@@ -113,7 +113,8 @@ test 1: empty .env file
 test 2: .env contains "OPENAI_API_KEY=" (empty value)
     run load_config()
     observe: is the value None, or an empty string ""?
-    decide: should an empty string count as "missing"? write down your answer and why
+    decide: should an empty string count as "missing"?
+    write down your answer and why
 ```
 
 If your current `require_env()` only checks `if value is None`, an empty string will slip through as "valid" — is that the behavior you actually want for a secret like an API key?

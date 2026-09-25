@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-conflicting_requirements_design) · [Hint 1](conflicting_requirements_design_hints.md#hint-1) · [Hint 2](conflicting_requirements_design_hints.md#hint-2) · [Solution](conflicting_requirements_design_solution.md)
 
-Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 3 depth levels: **Basic** (the plain framing), **Intermediate** (the real architectural vocabulary and trade-offs), **Advanced** (the senior-level judgment call). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing) and **Intermediate** (the real architectural vocabulary and trade-offs, including the senior-level judgment call). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — What to ask, and the obvious first (wrong) instinct](#hint-1)
 - [Hint 2 — The plan, and almost the whole design](#hint-2)
@@ -29,17 +29,13 @@ Name the conflict explicitly, in writing, before you design a single agent: "fas
 
 This isn't "solving" the disagreement on your own authority — it's a specific *proposed* compromise design, and it has to be flagged explicitly as an assumption, with the actual question you'd ask stakeholders written down next to it: "where should the auto-publish / requires-review line sit, and who signs off on that line?"
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conflicting_requirements_design) · [Hint 1](conflicting_requirements_design_hints.md#hint-1) · [Hint 2](conflicting_requirements_design_hints.md#hint-2) · [Solution](conflicting_requirements_design_solution.md)
-
-### Advanced Version
+**What a senior reviewer pushes on:**
 
 The trap at this level is over-engineering to "please everyone" — bolting on every stakeholder's individual ask (a full audit trail for legal, an autonomous fast-path for the speed request, a hard cost ceiling for finance, a manual override switch for every edge case anyone can imagine) produces something so complex nobody can explain or maintain it — and it still hasn't actually resolved the underlying disagreement about who owns the risk-tier decision. It just buries the disagreement inside code where nobody will notice it wasn't actually settled.
 
 The senior move is the opposite of "build everything": design the smallest system that resolves the conflict through one explicit, named decision (here, the risk-tier cutoff), present that decision plainly as a stated assumption, and ask the actual stakeholders to confirm or correct it — instead of silently encoding your own guess as if it were already agreed policy. If you're pushed on why you didn't just build in every stakeholder's individual request, the answer is that unreviewed, unauthorized policy calls baked into code are exactly the kind of hidden decision a real system-design review exists to catch.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic is the discipline of writing conflicts down instead of designing around them silently, and refusing the instinct to "just build everything so nobody's upset." Intermediate supplies the real pattern (tiered-risk conditional routing) that reconciles a "fast" ask against a "safe" ask without pretending they aren't in tension. Advanced is the judgment call: naming the compromise as a compromise, flagging it as an assumption that needs real sign-off, and resisting the urge to hide an unresolved policy disagreement inside ever-more-complex code instead of surfacing it.
+**Difference between Basic and Intermediate:** Basic is the discipline of writing conflicts down instead of designing around them silently, and refusing to "just build everything so nobody's upset." Intermediate supplies the real pattern (tiered-risk conditional routing), names the compromise as a compromise that needs real sign-off, and resists hiding an unresolved policy disagreement inside ever-more-complex code.
 
 <hr class="page-break">
 
@@ -93,11 +89,7 @@ Step 4 -- address the requirement nobody reconciled yet (cost):
     silently into the routing logic
 ```
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conflicting_requirements_design) · [Hint 1](conflicting_requirements_design_hints.md#hint-1) · [Hint 2](conflicting_requirements_design_hints.md#hint-2) · [Solution](conflicting_requirements_design_solution.md)
-
-### Advanced Version
+**Hardened for a senior review:**
 
 ```
 Same 4 steps, plus the discipline of resisting "build everything":
@@ -122,7 +114,7 @@ Present the design as:
        answer before this ships as policy, not just as code
 ```
 
-**Difference between Basic, Intermediate, and Advanced:** Basic is the plan anyone can follow — list conflicts, ask who decides, don't dodge the decision by building everything. Intermediate turns that into a real architecture (tiered-risk routing) plus a concrete, written stakeholder question. Advanced adds the discipline a senior reviewer is specifically watching for: actively rejecting components that only exist to *look* like every concern was addressed, and presenting the unresolved part of the disagreement as an open question for the people who actually own it — not something the design quietly decided on their behalf.
+**Difference between Basic and Intermediate:** Basic is the plan anyone can follow — list conflicts, ask who decides, don't dodge the decision by building everything. Intermediate turns that into a real architecture (tiered-risk routing) with a written stakeholder question, and adds the discipline a senior reviewer watches for: rejecting components that exist only to *look* like every concern was addressed.
 
 <hr class="page-break">
 

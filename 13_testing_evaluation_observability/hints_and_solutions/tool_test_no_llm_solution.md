@@ -2,24 +2,27 @@
 
 > [Back to the exercise](../README.md#ex-tool_test_no_llm) · [Hint 1](tool_test_no_llm_hints.md#hint-1) · [Hint 2](tool_test_no_llm_hints.md#hint-2) · [Solution](tool_test_no_llm_solution.md)
 
+**Story — `tool_test_no_llm_practice.py`:** an agent bug is usually either "the tool did the wrong thing" or "the model called the wrong tool". Testing the tool alone, with no model, settles the first question for free, every time. **If not:** every tool bug would show up only through the full agent, mixed up with the model's own choices, and cost an API call each time you checked.
+
+Copy Doc06's `tools.py` into `practice/` first, with the files it imports (`http_client.py`, `exceptions.py`, `logging_setup.py`), unchanged. Run every version from inside `practice/` with `pytest tool_test_no_llm_practice.py -v`. Read both depths — they're not "wrong, right," they're 2 real, valid ways to test the same tools, with real tradeoffs between them.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
 
 ```python
-from tools import get_weather
+# practice/tool_test_no_llm_practice.py
+from tools import add
 
-def test_get_weather_returns_dict():
-    result = get_weather("Lahore")
-    assert isinstance(result, dict)
-    assert "temperature" in result
-
-def test_get_weather_bad_city():
-    result = get_weather("")
-    assert result.get("error") is not None
+def test_add():
+    result = add.invoke({"a": 2, "b": 3})
+    assert result == 5
 ```
-
-This is a correct, minimal pair of tests: one for the normal case, one for bad input. No model, no API key, no network — just the function.
+**Expected output:**
+```
+tool_test_no_llm_practice.py::test_add PASSED
+```
+This is a correct, minimal test: no model, no API key, no network — just the tool. `add` is a LangChain `@tool`, so it's called with `.invoke()` and a dict, the same way Doc06's `tool_harness.py` ran it.
 
 <hr class="page-break">
 
@@ -27,113 +30,120 @@ This is a correct, minimal pair of tests: one for the normal case, one for bad i
 
 ## Intermediate Version
 
-### Approach 1 — the tool returns an error dict on bad input (no exception)
+### Approach 1 — the success path and the failure path of each tool
+
+**Story:** a model will sometimes call a tool that fails. Doc06's `flaky_lookup` catches its own error and returns an `"Error: ..."` string, so the agent can read it and recover. A test on that exact string locks the behavior in. **If not:** someone could "tidy up" the tool so it raises instead, and the agent would start crashing mid-run with no test to warn you.
 
 ```python
-from tools import get_weather
+# practice/tool_test_no_llm_practice.py
+from tools import add, flaky_lookup
 
 
-def test_get_weather_returns_expected_shape() -> None:
-    result = get_weather(city="Lahore")
-    assert isinstance(result, dict)
-    assert "temperature" in result
-    assert isinstance(result["temperature"], (int, float))
+def test_add_returns_the_sum():
+    # why: pure math — exact == is the right check
+    assert add.invoke({"a": 2, "b": 3}) == 5
+    assert add.invoke({"a": -1, "b": 1}) == 0
 
 
-def test_get_weather_bad_city_returns_error_field() -> None:
-    result = get_weather(city="")
-    assert "error" in result
-    assert result["error"] != ""
+def test_flaky_lookup_success():
+    result = flaky_lookup.invoke({"query": "refund policy"})
+    assert result == "Result for refund policy"
+
+
+def test_flaky_lookup_failure():
+    # how: should_fail=True forces the failure on purpose — no
+    # waiting for a real outage to see what the tool does
+    result = flaky_lookup.invoke(
+        {"query": "refund policy", "should_fail": True}
+    )
+    # why: the tool must hand back a readable error, not crash
+    assert result == "Error: simulated failure"
+```
+**Expected output:**
+```
+tool_test_no_llm_practice.py::test_add_returns_the_sum PASSED
+tool_test_no_llm_practice.py::test_flaky_lookup_success PASSED
+tool_test_no_llm_practice.py::test_flaky_lookup_failure PASSED
 ```
 
-### Approach 2 — the tool raises a custom error on bad input
+### Approach 2 — wrong argument types are rejected before the tool runs
+
+**Story:** a model sometimes sends `"two"` where a number belongs. `@tool` checks the arguments against the type hints before the function runs, and `pytest.raises` proves it. **If not:** you'd only be hoping that bad arguments get stopped at the door, instead of knowing it.
 
 ```python
+# practice/tool_test_no_llm_practice.py
 import pytest
-from tools import get_weather
-from exceptions import InvalidToolInputError
+from pydantic import ValidationError
+from tools import add
 
 
-def test_get_weather_returns_expected_shape() -> None:
-    result = get_weather(city="Lahore")
-    assert isinstance(result, dict)
-    assert "temperature" in result
-    assert isinstance(result["temperature"], (int, float))
+def test_add_rejects_wrong_type():
+    # how: the test passes only if the block inside raises
+    # ValidationError — and fails if nothing is raised
+    with pytest.raises(ValidationError):
+        add.invoke({"a": "two", "b": 3})
 
 
-def test_get_weather_bad_city_raises() -> None:
-    with pytest.raises(InvalidToolInputError):
-        get_weather(city="")
+def test_add_rejects_missing_argument():
+    # when: the model leaves out a required argument
+    with pytest.raises(ValidationError):
+        add.invoke({"a": 2})
+```
+**Expected output:**
+```
+tool_test_no_llm_practice.py::test_add_rejects_wrong_type PASSED
+tool_test_no_llm_practice.py::test_add_rejects_missing_argument PASSED
 ```
 
-**Difference from Basic:** Basic checks the happy path plus one bad-input case with a single loose assert (`result.get("error") is not None`). Both Intermediate approaches split that into 2 clearly-named test functions and assert more precisely on the shape of both the success and failure results. Approach 1 keeps the tool's contract simple — it always returns a dict, and bad input just means an `"error"` key shows up instead of a crash. This matters because a tool result usually gets handed *back to the model* as the next message, and a dict is easier for the model to read than a stack trace. Approach 2 raises a real exception, which is more idiomatic Python, but means your agent's tool-calling loop needs its own `try/except` around every tool call to turn that exception back into something the model can read.
+`get_weather` isn't tested in this file on purpose: it calls a real weather API, so a test for it would need the network — which is exactly what this exercise keeps out.
+
+**Difference from Basic:** Approach 1 tests both the success and the failure path of each tool, with exact checks, so the tool's "return an error string, don't crash" behavior can't quietly change. Approach 2 checks what happens *before* the tool runs: wrongly typed or missing arguments are rejected with a `ValidationError`, proven with `pytest.raises`.
+
+**Which one should you actually write?** Approach 1 for every tool you write — a success test and a failure test each. Add Approach 2's checks for tools whose argument types really matter (numbers, IDs, dates), since that's where a model's bad arguments do the most damage. The Build Task's `test_unit_layer.py` reuses Approach 1.
 
 <hr class="page-break">
 
 > [Back to the exercise](../README.md#ex-tool_test_no_llm) · [Hint 1](tool_test_no_llm_hints.md#hint-1) · [Hint 2](tool_test_no_llm_hints.md#hint-2) · [Solution](tool_test_no_llm_solution.md)
 
-## Advanced Version
+## Revision Add-on — the same no-model testing, pointed at Doc01's config loader
 
-### Approach 1 — faking a real network call with `unittest.mock.patch`
+**Story:** Doc01's `load_config()` is supposed to fail loudly when `OPENAI_API_KEY` is missing — the kind of rule nobody tests until a deploy breaks. pytest's built-in `monkeypatch` changes environment variables and functions only for one test, then puts everything back. **If not:** a later "cleanup" of `config.py` could make a missing key return `None` silently, and you'd find out in production.
 
-```python
-from unittest.mock import patch, Mock
-from tools import get_weather
-
-
-@patch("tools.requests.get")
-def test_get_weather_success(mock_get: Mock) -> None:
-    mock_get.return_value.status_code = 200
-    mock_get.return_value.json.return_value = {"temp_c": 22, "condition": "Clear"}
-
-    result = get_weather(city="Lahore")
-
-    assert result["temperature"] == 22
-    assert "error" not in result
-    # prove no real network call happened
-    mock_get.assert_called_once()
-
-
-@patch("tools.requests.get")
-def test_get_weather_api_failure(mock_get: Mock) -> None:
-    mock_get.return_value.status_code = 500
-
-    result = get_weather(city="Lahore")
-
-    assert "error" in result
-    assert "temperature" not in result  # never fabricate a fake success value
-
-
-@patch("tools.requests.get")
-def test_get_weather_timeout(mock_get: Mock) -> None:
-    import requests
-    mock_get.side_effect = requests.exceptions.Timeout
-
-    result = get_weather(city="Lahore")
-
-    assert "error" in result
-```
-**Expected output:** all 3 pass in well under a second, with zero network access — `mock_get` replaces `requests.get` entirely for the duration of each test, and pytest restores the real one automatically afterward. `@patch("tools.requests.get")` patches the name as it's looked up *inside `tools.py`* — patching `"requests.get"` directly would miss it if `tools.py` did `from requests import get`.
-
-### Approach 2 — a separate, explicitly-marked integration test for the real API
+Copy Doc01's `config.py` into `practice/` too. Your `exceptions.py` needs Doc01's `MissingConfigError` as well as Doc02's two HTTP errors — keep all three classes in that one file.
 
 ```python
-import os
+# practice/tool_test_no_llm_practice.py — Revision section
 import pytest
-from tools import get_weather
+import config                                  # your Doc01 config.py
+from exceptions import MissingConfigError      # Doc01's error class
 
 
-@pytest.mark.skipif(
-    not os.getenv("RUN_INTEGRATION_TESTS"),
-    reason="hits the real weather API — run manually with RUN_INTEGRATION_TESTS=1",
-)
-def test_get_weather_real_api() -> None:
-    result = get_weather(city="Lahore")
-    assert isinstance(result, dict)
-    assert "temperature" in result
+def do_not_load_dotenv():
+    # why: stands in for load_dotenv() during the test, so your real
+    # .env file can't quietly put the key back
+    return None
+
+
+def test_missing_api_key_raises(monkeypatch):
+    # how: removes the variable for this test only
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    # how: swaps config.load_dotenv for the fake above, this test only
+    monkeypatch.setattr(config, "load_dotenv", do_not_load_dotenv)
+
+    with pytest.raises(MissingConfigError):
+        config.load_config()
+
+
+def test_log_level_defaults_to_info(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
+    monkeypatch.delenv("LOG_LEVEL", raising=False)
+    monkeypatch.setattr(config, "load_dotenv", do_not_load_dotenv)
+
+    assert config.load_config().log_level == "INFO"
 ```
-**Expected output when run normally (`pytest`):** `SKIPPED (hits the real weather API...)` — this test is invisible in everyday runs. Only `RUN_INTEGRATION_TESTS=1 pytest` actually calls the real API, on purpose, when you want to confirm the real integration still works (e.g. after the third-party API changes its response format).
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's tests only make sense for a tool with no external dependency — if `get_weather` actually calls a real weather API, Intermediate's tests either silently hit the network (slow, costs quota, can fail for reasons unrelated to your code) or simply don't compile against the real function signature. Approach 1 fixes that by faking the one part that isn't yours (`requests.get`), so `test_get_weather_success`, `_api_failure`, and `_timeout` all run fast, free, and deterministically, while still exercising your real request-building and response-parsing logic. Approach 2 is a different, complementary tool: it keeps exactly one test that hits the *real* API, but fences it off behind an env var so it never slows down or breaks a normal test run — useful for catching the day the third-party API's response shape actually changes.
-
-**Which one should you actually write?** For any tool with a real network or database call, write Approach 1's mocked tests always — they belong in your normal test suite and should run on every commit. Add Approach 2's gated integration test only for tools where "the third-party API changed shape under us" is a real, recurring risk worth catching — not for every tool, since each one adds a slow, sometimes-flaky test that a CI pipeline has to be configured to skip correctly.
+**Expected output:**
+```
+tool_test_no_llm_practice.py::test_missing_api_key_raises PASSED
+tool_test_no_llm_practice.py::test_log_level_defaults_to_info PASSED
+```
+`monkeypatch` undoes every change when each test ends, so your real environment is never touched. Two tiny tests lock Doc01's "fail loudly" and "sensible default" rules in place, so a later refactor can't quietly remove them.

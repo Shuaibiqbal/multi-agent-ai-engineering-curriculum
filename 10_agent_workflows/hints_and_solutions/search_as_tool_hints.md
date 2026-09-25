@@ -133,7 +133,10 @@ from retriever import retrieve
 def search_docs(query: str) -> str:
     """Search the document set for text relevant to the query."""
     results = retrieve(query)
-    return "\n\n".join(chunk.page_content for chunk in results)
+    pieces = []
+    for chunk in results:
+        pieces.append(chunk.page_content)
+    return "\n\n".join(pieces)
 ```
 
 Wire this into `bind_tools([...])`, run the graph, and confirm a `tool_calls` entry naming `search_docs` shows up before comparing against the [Solution](search_as_tool_solution.md).
@@ -180,7 +183,10 @@ def search_docs(query: str) -> str:
     # tool call can't return more text than the model should read at once
     ...
 
-    return "\n\n".join(chunk.page_content for chunk in results)
+    pieces = []
+    for chunk in results:
+        pieces.append(chunk.page_content)
+    return "\n\n".join(pieces)
 ```
 
 Fill in the cap yourself, then compare all of your finished versions against the [Solution](search_as_tool_solution.md).

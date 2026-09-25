@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-seven_step_practice) · [Hint 1](seven_step_practice_hints.md#hint-1) · [Hint 2](seven_step_practice_hints.md#hint-2) · [Solution](seven_step_practice_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely written your own 7 steps first. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (what a real answer looks like), **Advanced** (the judgment calls a senior engineer would make here).
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely written your own 7 steps first. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (what a real answer looks like, including the judgment calls a senior engineer would make). Write your answer in `practice/seven_step_practice.md` as you go.
 
 - [Hint 1 — Problem, Requirements, Architecture](#hint-1)
 - [Hint 2 — Components, Data Flow, Implementation Plan, Coding Tasks](#hint-2)
@@ -31,17 +31,11 @@ For "reads a team's daily emails and flags the urgent ones" — ask yourself: wh
 
 **Architecture** — decide: is this a single agent that reads and judges in one pass, or two agents (a reader/summarizer, then a judge)? Tie this back to Doc11's real question — "one agent, or many?" — a task this small usually doesn't need multiple agents, but write down *why* you decided that, not just the decision.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-seven_step_practice) · [Hint 1](seven_step_practice_hints.md#hint-1) · [Hint 2](seven_step_practice_hints.md#hint-2) · [Solution](seven_step_practice_solution.md)
-
-### Advanced Version
-
-The one-sentence request has hidden ambiguity a senior engineer would flag before designing anything: "daily emails" — read once a day, or continuously? "the team's emails" — one shared inbox, or every team member's own inbox? "urgent" — is there an existing definition (keywords? sender? a deadline mentioned in the text?) or does the system have to invent one?
+**Before you commit to a design:** the one-sentence request has hidden ambiguity a senior engineer would flag before designing anything: "daily emails" — read once a day, or continuously? "the team's emails" — one shared inbox, or every team member's own inbox? "urgent" — is there an existing definition (keywords? sender? a deadline mentioned in the text?) or does the system have to invent one?
 
 Write down every place this request is genuinely ambiguous, and what you'd ask before committing to a design — this is the same skill Doc16's "unclear, conflicting requirements" exercise tests, applied here at a smaller scale. A design built on an unstated assumption you never questioned is a design that's wrong the moment someone points out the assumption was false.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic gets you writing something down for all 3 steps. Intermediate adds real structure (must-do vs. must-never, a reasoned agent-count decision). Advanced adds the senior habit of surfacing hidden ambiguity *before* designing around an assumption, rather than discovering it later when the design turns out to be wrong.
+**Difference between Basic and Intermediate:** Basic gets you writing something down for all 3 steps. Intermediate adds real structure (must-do vs. must-never, a reasoned agent-count decision) and the senior habit of surfacing hidden ambiguity *before* designing around an assumption, rather than discovering it later when the design turns out to be wrong.
 
 <hr class="page-break">
 
@@ -67,17 +61,11 @@ Write down every place this request is genuinely ambiguous, and what you'd ask b
 
 **Coding Tasks** — break the plan into pieces small enough to each be one sitting of work: "write the urgency-judging function," "test it against 5 example emails," "wire up the real email source," "wire up the flagged-output destination."
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-seven_step_practice) · [Hint 1](seven_step_practice_hints.md#hint-1) · [Hint 2](seven_step_practice_hints.md#hint-2) · [Solution](seven_step_practice_solution.md)
-
-### Advanced Version
-
-A senior-level plan also names what could go wrong at each Data Flow step, not just the happy path: what if the email source is unreachable (a real API failure, Doc02's territory)? What if the urgency-judge genuinely can't tell (Doc07's "when NOT to use an agent" — maybe some emails should just be flagged "needs a human to decide" instead of forcing a yes/no)? What if two emails about the same topic should be flagged together, not separately?
+**What could go wrong, and what's out of scope:** a senior-level plan also names what could go wrong at each Data Flow step, not just the happy path: what if the email source is unreachable (a real API failure, Doc02's territory)? What if the urgency-judge genuinely can't tell (Doc07's "when NOT to use an agent" — maybe some emails should just be flagged "needs a human to decide" instead of forcing a yes/no)? What if two emails about the same topic should be flagged together, not separately?
 
 Write your Implementation Plan with an explicit "what I'm deliberately NOT handling in v1" line — a real senior plan draws a line around scope on purpose, rather than trying to handle everything at once.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate get you a real, buildable plan. Advanced adds naming failure points *before* you build (not after something breaks), and drawing an explicit scope line — the two habits that separate a plan a senior engineer would actually sign off on from one that just lists steps.
+**Difference between Basic and Intermediate:** Basic gets you a list for each of the 4 steps. Intermediate turns it into a real, buildable plan — then adds naming failure points *before* you build (not after something breaks) and drawing an explicit scope line: the two habits that separate a plan a senior engineer would sign off on from one that just lists steps.
 
 <hr class="page-break">
 

@@ -9,7 +9,9 @@ The `call_model_with_tools` and `run_tool` functions below stand in for your rea
 # stand-ins for your real Doc07 code — replace with your actual imports
 def call_model_with_tools(task: str, scratchpad: list[str]) -> dict:
     if not scratchpad and "*" in task:
-        return {"wants_tool": True, "tool_name": "calculator", "tool_input": task}
+        return {
+            "wants_tool": True, "tool_name": "calculator", "tool_input": task
+        }
     return {"wants_tool": False, "answer": "84"}
 
 def run_tool(tool_name: str, tool_input: str) -> str:
@@ -185,7 +187,8 @@ answer: 84
 # agent_loop_to_graph_practice.py
 def run_original_loop(task: str) -> str:
     """Stand-in for your actual Doc07 while-loop function — same signature,
-    same behavior, just imported from your Project 2 code in the real version."""
+    same behavior, just imported from your Project 2 code in the real
+    version."""
     decision = call_model_with_tools(task, [])
     if not decision["wants_tool"]:
         return decision["answer"]
@@ -210,13 +213,20 @@ for prompt in test_prompts:
     graph_result = graph.invoke(starting_state, config={"recursion_limit": 20})
     graph_answer = graph_result["final_answer"]
     matched = loop_answer.strip() == graph_answer.strip()
-    status = "MATCH" if matched else "MISMATCH"
-    print(f"[{status}] {prompt!r} -> loop={loop_answer!r} graph={graph_answer!r}")
+    if matched:
+        status = "MATCH"
+    else:
+        status = "MISMATCH"
+    print(
+        f"[{status}] {prompt!r} -> loop={loop_answer!r} graph={graph_answer!r}"
+    )
     if status == "MISMATCH":
         mismatches.append(prompt)
 
 if mismatches:
-    raise AssertionError(f"Graph disagreed with the original loop on: {mismatches}")
+    raise AssertionError(
+        f"Graph disagreed with the original loop on: {mismatches}"
+    )
 print("All test prompts matched.")
 ```
 **Expected output** (with the stub functions above — a real rebuild's output depends on your actual model and tools, but the pattern is identical):
@@ -241,7 +251,10 @@ def run_graph_with_step_count(task: str) -> tuple[str, int]:
     }
     result = graph.invoke(starting_state, config={"recursion_limit": 20})
     # why: each "Thought:" entry in the scratchpad marks one think step
-    thoughts = [line for line in result["scratchpad"] if line.startswith("Thought:")]
+    thoughts = []
+    for line in result["scratchpad"]:
+        if line.startswith("Thought:"):
+            thoughts.append(line)
     step_count = len(thoughts)
     return result["final_answer"], step_count
 

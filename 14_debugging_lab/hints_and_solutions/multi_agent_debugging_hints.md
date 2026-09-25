@@ -24,25 +24,25 @@ def supervisor_node(state):
 ```
 `decide_next_agent()` returns one of a fixed set of strings, one of which has a typo baked in:
 ```python
-return "Reserach"
+def decide_next_agent(state):
+    ...
+    return "Reserach"   # the typo
 ```
 
-**Symptoms:** fails immediately, every single run that routes to the research specialist — not intermittent.
+**Symptoms:** no exception at all. Every run that should go to the research specialist finishes in about a second — with no research, no draft, and an empty result.
 
-**Error output:**
-```
-Traceback (most recent call last):
-  File "project_4_contentforge_multi_agent/agents/supervisor.py", line 22, in supervisor_node
-    return Command(goto=next_agent)
-  ...
-langgraph.errors.InvalidUpdateError: Node 'Reserach' referenced in Command(goto=...)
-does not exist in the graph. Available nodes: ['supervisor', 'research_agent',
-'analysis_agent', 'writer_agent', 'reviewer_agent']
-```
+**Log output:**
+~~~
+[supervisor] routing to: Reserach
+Task supervisor with path ('__pregel_pull', 'supervisor') wrote to
+unknown channel branch:to:Reserach, ignoring it.
+[result] research_findings = ""   draft = ""
+~~~
 
 **Expected vs. actual:**
+
 - Expected: `Command(goto="research_agent")` hands control to the Research agent.
-- Actual: the graph fails immediately, because no node named `"Reserach"` exists.
+- Actual: LangGraph logs one warning line and ends the run quietly — nothing raises, so nothing in your `try/except` or your error alerts ever sees it.
 
 **What do you think is wrong?**
 
@@ -72,13 +72,17 @@ class SharedState(TypedDict):
 
 **Log output:**
 ```
-[research_agent] finding = "The refund policy allows returns within 30 days of purchase."
+[research_agent] finding = "The refund policy allows returns within 30 days
+  of purchase."
 [analysis_agent] state.research_findings = ""
-[analysis_agent] WARNING: no research findings to analyze, proceeding with general knowledge
-[writer_agent] draft: "Our return policy details may vary; please check with support."
+[analysis_agent] WARNING: no research findings to analyze,
+  proceeding with general knowledge
+[writer_agent] draft: "Our return policy details may vary;
+  please check with support."
 ```
 
 **Expected vs. actual:**
+
 - Expected: the Analysis agent reads what Research actually found and builds on it.
 - Actual: the Analysis agent's view of `research_findings` is always an empty string, even though Research clearly found something real, one line above in the same log.
 
@@ -94,7 +98,8 @@ class SharedState(TypedDict):
 
 ```python
 SPECIALISTS = {
-    "research_agent": "Finds factual information and data to answer a question.",
+    "research_agent": "Finds factual information and data to answer a "
+                      "question.",
     "analysis_agent": "Analyzes information and data to draw conclusions.",
 }
 ```
@@ -103,14 +108,20 @@ SPECIALISTS = {
 
 **Log output (5 similar requests, same underlying task):**
 ```
-[supervisor] task: "find and interpret last quarter's revenue numbers"    -> routed to: analysis_agent
-[supervisor] task: "look up and interpret last quarter's revenue numbers" -> routed to: research_agent
-[supervisor] task: "get and interpret last quarter's revenue figures"     -> routed to: analysis_agent
-[supervisor] task: "find last quarter's revenue numbers and interpret them" -> routed to: research_agent
-[supervisor] task: "interpret last quarter's revenue numbers after finding them" -> routed to: analysis_agent
+[supervisor] "find and interpret last quarter's revenue numbers"
+  -> analysis_agent
+[supervisor] "look up and interpret last quarter's revenue numbers"
+  -> research_agent
+[supervisor] "get and interpret last quarter's revenue figures"
+  -> analysis_agent
+[supervisor] "find last quarter's revenue numbers and interpret them"
+  -> research_agent
+[supervisor] "interpret last quarter's revenue numbers after finding them"
+  -> analysis_agent
 ```
 
 **Expected vs. actual:**
+
 - Expected: a supervisor routing decision is a deliberate design choice with a knowable reason, not a coin flip.
 - Actual: for tasks that genuinely need both "finding" and "interpreting," the supervisor's routing flips unpredictably between the two specialists depending on exact wording — because both specialist descriptions genuinely apply, and the supervisor has no tiebreaker.
 
@@ -139,7 +150,8 @@ class SharedState(TypedDict):
 `analysis_node` was updated to read from `finding` and works correctly now. `reviewer_node`, written independently by someone checking the draft against the *original* field name, wasn't:
 ```python
 def reviewer_node(state):
-    if state["research_findings"] not in state["draft"]:
+    findings = state["research_findings"]
+    if findings == "" or findings not in state["draft"]:
         return Command(goto="writer_agent", update={
             "review_passed": False,
             "revision_count": state["revision_count"] + 1,
@@ -153,17 +165,20 @@ def reviewer_node(state):
 ```
 [research_agent] finding = "Q1 revenue grew 12% year over year."
 [analysis_agent] analysis = "Growth is driven mainly by the new product line."
-[writer_agent] draft: "Q1 revenue grew 12% year over year, driven mainly by the new product line."
+[writer_agent] draft: "Q1 revenue grew 12% year over year, driven mainly
+  by the new product line."
 [reviewer] state.research_findings = ""   (still the unused field)
 [reviewer] REJECTED: draft does not reflect research findings
-[writer_agent] revision #2: draft: "Q1 revenue grew 12% year over year, driven mainly by the new product line."
+[writer_agent] revision #2: draft: "Q1 revenue grew 12% year over year,
+  driven mainly by the new product line."
 [reviewer] REJECTED: draft does not reflect research findings
 ... (continues to revision_count = 3, then gives up) ...
 ```
 
 **Expected vs. actual:**
+
 - Expected: the Reviewer checks the draft against the same findings the Writer actually used, and approves a genuinely accurate draft.
-- Actual: the Writer and Analysis agents were fixed to use `finding`, but the Reviewer still reads the old, never-written `research_findings` field — which is always empty — so its check (`state["research_findings"] not in state["draft"]`) is comparing the draft against an empty string, which technically is "in" any string, except the actual check is written the other way and always fails. Neither the Research+Analysis pair test nor the Writer+Reviewer pair test (with matching hand-written fixtures) could ever catch this, because each pair test quietly used whichever field name its own author happened to pick.
+- Actual: Research and Analysis were fixed to use `finding`, but the Reviewer still reads the old `research_findings` field — which nobody writes, so it's always empty — and its check treats empty findings as "the draft doesn't reflect the findings". So it rejects every draft. Neither pair test could catch this, because each one used whichever field name its own author picked.
 
 **What do you think is wrong?**
 

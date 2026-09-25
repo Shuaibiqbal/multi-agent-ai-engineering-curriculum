@@ -8,9 +8,9 @@
 
 ```python
 # server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("notes-server")
+mcp = MCPServer("notes-server")
 notes = []
 
 
@@ -36,9 +36,9 @@ This works. It's missing type hints, a real docstring, config/logging, and any t
 
 ```python
 # server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("notes-server")
+mcp = MCPServer("notes-server")
 notes: list[str] = []
 
 
@@ -59,14 +59,14 @@ if __name__ == "__main__":
 
 ```python
 # server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from config import load_config
 from logging_setup import get_logger
 
 config = load_config()
 logger = get_logger(__name__)
 
-mcp = FastMCP("notes-server")
+mcp = MCPServer("notes-server")
 notes: list[str] = []
 
 
@@ -128,7 +128,7 @@ This is the exact shape Step 4 grows into a full client — worth running once h
 
 ```python
 # server.py
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from config import load_config
 from logging_setup import get_logger
 
@@ -139,7 +139,7 @@ logger = get_logger(__name__)
 # on the stdio transport, stdout IS the protocol channel. A stray print()
 # here corrupts every message the client tries to read after it.
 
-mcp = FastMCP("notes-server")
+mcp = MCPServer("notes-server")
 notes: list[str] = []
 
 

@@ -2,9 +2,17 @@
 
 > [Back to the exercise](../README.md#ex-conflicting_requirements_design) · [Hint 1](conflicting_requirements_design_hints.md#hint-1) · [Hint 2](conflicting_requirements_design_hints.md#hint-2) · [Solution](conflicting_requirements_design_solution.md)
 
-Since your actual real-world prompt is handed to you live, this solution walks the technique through a realistic stand-in: three stakeholders on the ContentForge-style content pipeline from the Intermediate exercise. **Marketing** wants every article published automatically within minutes, for speed. **Legal** wants a human to review every article before publish, no exceptions. **Finance** wants API/compute cost capped. Nobody has said what should happen when Marketing's speed and Legal's review both apply to the same article.
+**Story — `conflicting_requirements_design.md`:** real requests come from several people who want different things. This exercise trains naming the conflicts *before* designing, and turning the hidden decision into a written, visible one. **If not:** your code would quietly pick a winner between stakeholders, and nobody would know a decision had been made.
+
+Write your own design first, in `practice/conflicting_requirements_design.md`. Read both depths — they're not "wrong, right," they're 2 real levels of the same design, with real differences in how well they hold up under review.
+
+This solution uses the README's solo practice prompt (live sessions bring a fresh one): three stakeholders on the ContentForge-style content pipeline from the Intermediate exercise. **Marketing** wants every article published automatically within minutes, for speed. **Legal** wants a human to review every article before publish, no exceptions. **Finance** wants API/compute cost capped. Nobody has said what should happen when Marketing's speed and Legal's review both apply to the same article.
 
 ## Basic Version
+
+### Approach 1 — the direct way
+
+**Story:** see the tempting wrong answer first — build to one side and never mention the other. Recognising it is the first half of the skill. **If not:** you'd produce one of these designs yourself and think it was neutral.
 
 A naive but common first attempt: pick one side and quietly build to it.
 
@@ -18,7 +26,11 @@ Both attempts are "a design" in the sense that they're buildable and internally 
 
 > [Back to the exercise](../README.md#ex-conflicting_requirements_design) · [Hint 1](conflicting_requirements_design_hints.md#hint-1) · [Hint 2](conflicting_requirements_design_hints.md#hint-2) · [Solution](conflicting_requirements_design_solution.md)
 
-## Intermediate/Advanced Version
+## Intermediate Version
+
+### Approach 1 — the same design, hardened for review
+
+**Story:** list the conflicts in a table, then propose one pattern (tiered-risk routing) that serves both sides, plus a separate cost cap — with the cutoff clearly marked as an assumption for the stakeholders to confirm. **If not:** the risk-tier line would be your private guess, shipped as company policy.
 
 Start by writing the conflicts down, plainly, before any architecture:
 

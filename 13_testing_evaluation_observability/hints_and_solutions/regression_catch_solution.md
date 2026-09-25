@@ -2,28 +2,99 @@
 
 > [Back to the exercise](../README.md#ex-regression_catch) · [Hint 1](regression_catch_hints.md#hint-1) · [Hint 2](regression_catch_hints.md#hint-2) · [Solution](regression_catch_solution.md)
 
+**Story — `regression_catch_practice.py`:** a green test suite only means something if you've seen it turn red for a real reason. Deleting one key instruction on purpose, and watching the score drop, is the proof. **If not:** the Build Task's regression check would be the first time you ever made a prompt worse on purpose — and you wouldn't know whether a missing drop meant "the prompt change was harmless" or "the suite is blind".
+
+All versions use this prompt file — create it in `practice/` first:
+```
+# practice/support_prompt.txt
+You are a support assistant for an online shop.
+Always mention our 30-day return policy when a customer asks
+about returns, refunds or exchanges.
+Keep every reply under 60 words.
+```
+Every version calls the real OpenAI API, and runs from inside `practice/` with `python regression_catch_practice.py`. Read both depths — they're not "wrong, right," they're 2 real, valid ways to run the same check, with real tradeoffs between them.
+
 ## Basic Version
 
 ### Approach 1 — the direct way
 
 ```python
-baseline_score = run_eval_suite()
-print("baseline:", baseline_score)
+# practice/regression_catch_practice.py
+from openai import OpenAI
 
-# manually edit the prompt file: remove "always mention the return policy"
+client = OpenAI()
 
-sabotaged_score = run_eval_suite()
-print("after sabotage:", sabotaged_score)
+TASKS = [
+    {"id": "return_shoes",
+     "question": "Can I return shoes I bought last week?",
+     "must_include": "30"},
+    {"id": "refund_lamp",
+     "question": "How do I get a refund for a broken lamp?",
+     "must_include": "30"},
+    {"id": "exchange_shirt",
+     "question": "Can I exchange a shirt for a bigger size?",
+     "must_include": "30"},
+    {"id": "send_back_jacket",
+     "question": "I want to send back a jacket. What are the rules?",
+     "must_include": "30"},
+]
 
-if sabotaged_score < baseline_score:
+
+def load_prompt():
+    with open("support_prompt.txt") as f:
+        return f.read()
+
+
+def answer(question):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[
+            {"role": "system", "content": load_prompt()},
+            {"role": "user", "content": question},
+        ],
+    )
+    return response.choices[0].message.content
+
+
+def run_eval_suite():
+    results = {}
+    for task in TASKS:
+        reply = answer(task["question"])
+        results[task["id"]] = task["must_include"] in reply
+    return results
+
+
+def count_passed(results):
+    passed = 0
+    for task_id in results:
+        if results[task_id]:
+            passed = passed + 1
+    return passed
+
+
+baseline = run_eval_suite()
+print("baseline passed:", count_passed(baseline), "of", len(baseline))
+
+input("Delete the 30-day line from support_prompt.txt, save, "
+      "then press Enter...")
+
+after = run_eval_suite()
+print("after sabotage passed:", count_passed(after), "of", len(after))
+
+if count_passed(after) < count_passed(baseline):
     print("Suite works: it caught the regression.")
 else:
-    print("Suite has a hole: score didn't drop. Go tighten the rules for this behavior.")
-
-# restore the original prompt file before continuing
+    print("Suite has a hole: the score didn't drop.")
 ```
-
-This is a correct, minimal version of the check. It reports the result but doesn't tell you *which* task caught (or missed) the problem.
+**Expected output (real numbers can vary a little):**
+```
+baseline passed: 4 of 4
+Delete the 30-day line from support_prompt.txt, save, then press Enter...
+after sabotage passed: 0 of 4
+Suite works: it caught the regression.
+```
+Put the deleted line back in `support_prompt.txt` when you're done. This version reports *that* the score dropped, but not *which* task caught it.
 
 <hr class="page-break">
 
@@ -31,119 +102,183 @@ This is a correct, minimal version of the check. It reports the result but doesn
 
 ## Intermediate Version
 
-### Approach 1 — compare overall score only
+### Approach 1 — overall score, with a fixed bar decided up front
+
+**Story:** "the score dropped" can mean one task out of four wobbled. Deciding the bar *before* the sabotage — how many passes count as OK — stops you from explaining the result away afterwards. **If not:** any small dip could be read as "caught it", and a real hole in the suite could be read as noise.
 
 ```python
+# practice/regression_catch_practice.py
+from openai import OpenAI
+
+client = OpenAI()
+
+# why: decided BEFORE sabotaging, so the result can't be
+# explained away afterwards
+PASS_BAR = 0.75
+
+TASKS = [
+    {"id": "return_shoes",
+     "question": "Can I return shoes I bought last week?",
+     "must_include": "30"},
+    {"id": "refund_lamp",
+     "question": "How do I get a refund for a broken lamp?",
+     "must_include": "30"},
+    {"id": "exchange_shirt",
+     "question": "Can I exchange a shirt for a bigger size?",
+     "must_include": "30"},
+    {"id": "send_back_jacket",
+     "question": "I want to send back a jacket. What are the rules?",
+     "must_include": "30"},
+]
+
+
+def load_prompt() -> str:
+    # how: read fresh on every call, so an edit to the file shows up
+    # on the very next run without restarting the script
+    with open("support_prompt.txt") as f:
+        return f.read()
+
+
+def answer(question: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[
+            {"role": "system", "content": load_prompt()},
+            {"role": "user", "content": question},
+        ],
+    )
+    return response.choices[0].message.content
+
+
+def run_eval_suite() -> dict:
+    results = {}
+    for task in TASKS:
+        reply = answer(task["question"])
+        results[task["id"]] = task["must_include"] in reply
+    return results
+
+
+def score(results: dict) -> float:
+    passed = 0
+    for task_id in results:
+        if results[task_id]:
+            passed = passed + 1
+    return passed / len(results)
+
+
 def run_regression_check() -> None:
     baseline = run_eval_suite()
-    print(f"baseline: {baseline.overall_score} ({baseline.passed}/{baseline.total})")
+    print(f"baseline score: {score(baseline):.2f}")
 
-    input("Now remove one real instruction from the prompt, save, then press Enter...")
+    input("Delete the 30-day line from support_prompt.txt, save, "
+          "then press Enter...")
 
-    sabotaged = run_eval_suite()
-    print(f"after sabotage: {sabotaged.overall_score} ({sabotaged.passed}/{sabotaged.total})")
+    after = run_eval_suite()
+    print(f"after sabotage score: {score(after):.2f}")
 
-    if sabotaged.overall_score < baseline.overall_score:
+    if score(baseline) >= PASS_BAR and score(after) < PASS_BAR:
         print("PASS: the suite caught the regression.")
     else:
-        print("FAIL: the suite did NOT catch this regression. Rules need tightening.")
+        print("FAIL: the suite did NOT catch it. Tighten the rules.")
 
 
 if __name__ == "__main__":
     run_regression_check()
 ```
+**Expected output:**
+```
+baseline score: 1.00
+Delete the 30-day line from support_prompt.txt, save, then press Enter...
+after sabotage score: 0.00
+PASS: the suite caught the regression.
+```
 
-### Approach 2 — compare per-task results, to see exactly which test caught it
+### Approach 2 — per-task comparison, to see exactly which task caught it
+
+**Story:** when the check fails, "the score didn't drop" doesn't tell you where to look. Listing the tasks that passed before and fail after points straight at the rule that caught it — or, when the list is empty, at the task that *should* have. **If not:** a failed check would leave you guessing across the whole suite.
 
 ```python
+# practice/regression_catch_practice.py
+from openai import OpenAI
+
+client = OpenAI()
+
+TASKS = [
+    {"id": "return_shoes",
+     "question": "Can I return shoes I bought last week?",
+     "must_include": "30"},
+    {"id": "refund_lamp",
+     "question": "How do I get a refund for a broken lamp?",
+     "must_include": "30"},
+    {"id": "exchange_shirt",
+     "question": "Can I exchange a shirt for a bigger size?",
+     "must_include": "30"},
+    {"id": "send_back_jacket",
+     "question": "I want to send back a jacket. What are the rules?",
+     "must_include": "30"},
+]
+
+
+def load_prompt() -> str:
+    with open("support_prompt.txt") as f:
+        return f.read()
+
+
+def answer(question: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[
+            {"role": "system", "content": load_prompt()},
+            {"role": "user", "content": question},
+        ],
+    )
+    return response.choices[0].message.content
+
+
+def run_eval_suite() -> dict:
+    results = {}
+    for task in TASKS:
+        reply = answer(task["question"])
+        results[task["id"]] = task["must_include"] in reply
+    return results
+
+
+def find_newly_failed(baseline: dict, after: dict) -> list:
+    newly_failed = []
+    for task_id in baseline:
+        # why: only a task that WAS passing counts as "caught" —
+        # one that always failed tells you nothing about this change
+        if baseline[task_id] and not after[task_id]:
+            newly_failed.append(task_id)
+    return newly_failed
+
+
 def run_regression_check() -> None:
-    baseline = run_eval_suite()  # returns a dict: {task_id: passed(bool)}
+    baseline = run_eval_suite()
+    input("Delete the 30-day line from support_prompt.txt, save, "
+          "then press Enter...")
+    after = run_eval_suite()
 
-    input("Now remove one real instruction from the prompt, save, then press Enter...")
-
-    sabotaged = run_eval_suite()
-
-    newly_failed = [
-        task_id
-        for task_id in baseline
-        if baseline[task_id] and not sabotaged[task_id]
-    ]
-
-    print(f"baseline passed: {sum(baseline.values())}/{len(baseline)}")
-    print(f"after sabotage passed: {sum(sabotaged.values())}/{len(sabotaged)}")
-
-    if newly_failed:
-        print(f"PASS: suite caught it. Newly failing task(s): {newly_failed}")
+    newly_failed = find_newly_failed(baseline, after)
+    if len(newly_failed) > 0:
+        print("PASS: suite caught it. Newly failing:", newly_failed)
     else:
-        print("FAIL: no task newly failed. Find which task SHOULD cover this instruction, and tighten its rule.")
+        print("FAIL: no task newly failed. Find the task that SHOULD "
+              "cover this instruction, and tighten its rule.")
 
 
 if __name__ == "__main__":
     run_regression_check()
 ```
-
-**Difference from Basic:** Basic tells you *that* something changed. Approach 2 tells you *which specific task* caught it — which is exactly what you need when the check fails: it points you straight at the rule that needs tightening, instead of leaving you to guess across your whole suite. Neither Intermediate approach yet asks whether a single before/after pair of numbers is even reliable evidence — that's what Advanced adds.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-regression_catch) · [Hint 1](regression_catch_hints.md#hint-1) · [Hint 2](regression_catch_hints.md#hint-2) · [Solution](regression_catch_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a noise floor from repeated baseline runs, plus per-task diffing
-
-```python
-def run_n_baselines(n: int = 3) -> list[dict]:
-    return [run_eval_suite() for _ in range(n)]  # each returns {task_id: passed(bool)}
-
-
-def run_regression_check_with_noise_floor() -> None:
-    baseline_runs = run_n_baselines(3)
-    baseline_scores = [sum(r.values()) / len(r) for r in baseline_runs]
-    noise_floor = max(baseline_scores) - min(baseline_scores)
-    print(f"baseline scores across 3 runs: {baseline_scores} (noise floor: {noise_floor:.2f})")
-
-    # decide the bar BEFORE sabotaging, so the result can't be rationalized after the fact
-    minimum_real_drop = noise_floor + 0.10
-
-    input("Now remove one real instruction from the prompt, save, then press Enter...")
-
-    sabotaged = run_eval_suite()
-    sabotaged_score = sum(sabotaged.values()) / len(sabotaged)
-    average_baseline = sum(baseline_scores) / len(baseline_scores)
-    drop = average_baseline - sabotaged_score
-
-    # use the LAST baseline run for a clean per-task diff (same conditions as the sabotage run)
-    last_baseline = baseline_runs[-1]
-    newly_failed = [
-        task_id for task_id in last_baseline
-        if last_baseline[task_id] and not sabotaged[task_id]
-    ]
-
-    print(f"average baseline: {average_baseline:.2f}, after sabotage: {sabotaged_score:.2f}, drop: {drop:.2f}")
-    print(f"minimum drop to count as real: {minimum_real_drop:.2f}")
-
-    if drop > minimum_real_drop and newly_failed:
-        print(f"PASS: suite caught a real regression. Newly failing: {newly_failed}")
-    elif drop > 0 and drop <= minimum_real_drop:
-        print("INCONCLUSIVE: drop is within normal run-to-run noise. Not strong evidence either way.")
-    else:
-        print("FAIL: no meaningful drop. Rules need tightening.")
-
-
-if __name__ == "__main__":
-    run_regression_check_with_noise_floor()
+**Expected output (shown wrapped onto 2 lines just to fit the page — really one line of output):**
 ```
-**Expected output** (illustrative, real numbers vary by run):
+Delete the 30-day line from support_prompt.txt, save, then press Enter...
+PASS: suite caught it. Newly failing: ['return_shoes', 'refund_lamp',
+'exchange_shirt', 'send_back_jacket']
 ```
-baseline scores across 3 runs: [0.9, 0.8, 0.9] (noise floor: 0.10)
-Now remove one real instruction from the prompt, save, then press Enter...
-average baseline: 0.87, after sabotage: 0.60, drop: 0.27
-minimum drop to count as real: 0.20
-PASS: suite caught a real regression. Newly failing: ['t3', 't7']
-```
-If instead `drop` had come back at `0.05` — smaller than the `0.10` noise floor already measured with *no* prompt change — the Intermediate version above would have reported it as a straightforward "the suite caught it," when really that 0.05 could easily just be ordinary variance. This version correctly reports it as `INCONCLUSIVE` instead.
 
-**Difference from Intermediate, and what this adds:** Intermediate compares exactly one baseline run against one sabotaged run and trusts the gap. This Approach runs the baseline 3 times first specifically to measure the suite's own run-to-run wobble with the prompt *unchanged* — that wobble becomes the noise floor a real regression has to clearly exceed. It also decides the pass bar (`minimum_real_drop`) before sabotaging anything, so the result can't be rationalized after seeing it, and reuses the per-task diffing from Intermediate Approach 2 on top of the noise-floor check, rather than replacing it — the two checks answer different questions (is the drop real at all, and if so, which specific task caught it).
+**Difference from Basic:** Approach 1 turns "did the number go down" into a clear rule decided up front: the baseline must clear the bar and the sabotaged run must fall below it. Approach 2 keeps the per-task results and lists exactly which tasks went from pass to fail, so a failed check points straight at the rule to tighten.
 
-**Which one should you actually use?** For a suite that's fully deterministic (temperature=0 everywhere, or no LLM calls at all in the scored path), Intermediate Approach 2's single before/after comparison is already reliable — there's no run-to-run wobble to worry about, so a noise floor adds cost for no benefit. The moment any part of your scored path — the pipeline, or the judge — has real sampling variance, use this Advanced version: 3 baseline runs is a small, worthwhile cost against the real risk of this document's whole Failure exercise reporting a false "PASS: the suite works" that's actually just noise you never measured.
+**Which one should you actually write?** Approach 2 — the per-task list is what you need the moment the check fails, which is exactly when it matters. Approach 1's pass bar is worth adding on top once your suite has more tasks and one stray failure shouldn't count as "caught". The Build Task's `regression_check.py` uses both.

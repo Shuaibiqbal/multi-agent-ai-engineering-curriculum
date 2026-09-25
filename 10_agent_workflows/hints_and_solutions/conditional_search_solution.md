@@ -15,7 +15,11 @@ Read both depths — they're not "wrong, right," they're 2 real, valid ways to s
 def should_search(state):
     task = state["messages"][-1].content.lower()
     keywords = ["document", "policy", "according to", "the file says"]
-    if any(keyword in task for keyword in keywords):
+    has_match = False
+    for keyword in keywords:
+        if keyword in task:
+            has_match = True
+    if has_match:
         return "search"
     return "skip"
 
@@ -55,7 +59,11 @@ Both work. Approach 1 is free and instant but easy to fool with unexpected phras
 def should_search(state: dict) -> str:
     task = state["messages"][-1].content.lower()
     keywords = ["document", "policy", "according to", "the file says"]
-    if any(keyword in task for keyword in keywords):
+    has_match = False
+    for keyword in keywords:
+        if keyword in task:
+            has_match = True
+    if has_match:
         return "search"
     return "skip"
 
@@ -82,7 +90,9 @@ def should_search(state: dict) -> str:
         f"Question: {task}"
     )
     answer = model.invoke([HumanMessage(content=classification_prompt)])
-    return "search" if "yes" in answer.content.strip().lower() else "skip"
+    if "yes" in answer.content.strip().lower():
+        return "search"
+    return "skip"
 
 
 graph.add_conditional_edges(
@@ -108,7 +118,10 @@ KEYWORDS = ["document", "policy", "according to", "the file says"]
 def should_search(state: dict) -> str:
     task = state["messages"][-1].content
     lowered = task.lower()
-    has_keyword = any(keyword in lowered for keyword in KEYWORDS)
+    has_keyword = False
+    for keyword in KEYWORDS:
+        if keyword in lowered:
+            has_keyword = True
 
     # confident hit: a clear keyword match
     if has_keyword:
@@ -126,7 +139,9 @@ def should_search(state: dict) -> str:
         f"Question: {task}"
     )
     answer = model.invoke([HumanMessage(content=classification_prompt)])
-    return "search" if "yes" in answer.content.strip().lower() else "skip"
+    if "yes" in answer.content.strip().lower():
+        return "search"
+    return "skip"
 
 
 graph.add_conditional_edges(
@@ -151,7 +166,10 @@ logger = logging.getLogger("routing")
 def should_search(state: dict) -> str:
     task = state["messages"][-1].content
     lowered = task.lower()
-    has_keyword = any(keyword in lowered for keyword in KEYWORDS)
+    has_keyword = False
+    for keyword in KEYWORDS:
+        if keyword in lowered:
+            has_keyword = True
 
     if has_keyword:
         logger.info("routed=search reason=keyword task=%r", task)
@@ -168,7 +186,10 @@ def should_search(state: dict) -> str:
         f"Question: {task}"
     )
     answer = model.invoke([HumanMessage(content=classification_prompt)])
-    decision = "search" if "yes" in answer.content.strip().lower() else "skip"
+    if "yes" in answer.content.strip().lower():
+        decision = "search"
+    else:
+        decision = "skip"
     logger.info("routed=%s reason=model_call task=%r", decision, task)
     return decision
 ```

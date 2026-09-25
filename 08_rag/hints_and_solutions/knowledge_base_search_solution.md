@@ -149,7 +149,9 @@ def build_vector_store(doc_folder: str):
 
 def ask(collection, question: str) -> None:
     question_embedding = embed(question)
-    results = collection.query(query_embeddings=[question_embedding], n_results=3)
+    results = collection.query(
+        query_embeddings=[question_embedding], n_results=3
+    )
     print(f"Q: {question}")
     print(results["ids"][0])
     print(results["documents"][0])
@@ -182,7 +184,9 @@ from langchain_openai import OpenAIEmbeddings
 
 def build_vector_store(docs: dict[str, str]) -> Chroma:
     texts = list(docs.values())
-    metadatas = [{"source": filename} for filename in docs.keys()]
+    metadatas = []
+    for filename in docs.keys():
+        metadatas.append({"source": filename})
     return Chroma.from_texts(texts, OpenAIEmbeddings(), metadatas=metadatas)
 
 
@@ -274,7 +278,9 @@ def search(
     collection, question: str, k: int = 3, cutoff: float = SCORE_CUTOFF,
 ) -> list[dict]:
     question_embedding = embed(question)
-    results = collection.query(query_embeddings=[question_embedding], n_results=k)
+    results = collection.query(
+        query_embeddings=[question_embedding], n_results=k
+    )
 
     matches: list[dict] = []
     for doc_id, text, distance in zip(

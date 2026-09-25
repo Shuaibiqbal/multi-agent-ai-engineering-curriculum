@@ -28,6 +28,7 @@ So the question "how many turns fit" is really: how big is the bucket, and how m
 The context window is a fixed token budget for the whole call, shared by the system prompt, every prior message in the resent history, and the room the model needs left over to write its reply. Nothing about the window itself distinguishes "old messages" from "new reply" — it's one number, consumed from all sides.
 
 Build the estimate as a small budget, not one giant division:
+
 - Reserve tokens for the system prompt (fixed, paid every single call).
 - Reserve tokens for the model's own reply room (budget generously — replies often run longer than the user's message).
 - Whatever's left over is what turns get to share.
@@ -76,7 +77,7 @@ avg_reply_tokens = 300
 avg_turn_tokens = avg_user_message_tokens + avg_reply_tokens   # 350
 
 leftover = window_size - system_prompt_tokens                  # 127,900
-turns_that_fit = leftover / avg_turn_tokens                     # about 365 turns
+turns_that_fit = leftover / avg_turn_tokens   # about 365 turns
 ```
 
 Notice how much the estimate moved (1,279 turns down to about 365) just from being honest that replies usually run longer than the user's own message.

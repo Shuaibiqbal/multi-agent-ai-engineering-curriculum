@@ -23,10 +23,14 @@ def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
 
     for step in range(max_iterations):
         if time.time() - start > timeout_seconds:
-            raise TimeoutError(f"Stopped after {timeout_seconds}s at step {step}")
+            raise TimeoutError(
+                f"Stopped after {timeout_seconds}s at step {step}"
+            )
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini", messages=messages, tools=[adversarial_tool_schema],
+            model="gpt-4o-mini", messages=messages, tools=[
+                adversarial_tool_schema
+            ],
         )
         message = response.choices[0].message
 
@@ -35,7 +39,11 @@ def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
             for call in message.tool_calls:
                 result = always_ask_again_tool(call.function.arguments)
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result,
+                    },
                 )
                 print(f"step {step}: called tool, got told to retry")
         else:
@@ -85,7 +93,9 @@ def run_agent_bounded(
         try:
             return future.result(timeout=timeout_seconds)
         except concurrent.futures.TimeoutError:
-            raise TimeoutError(f"Agent did not finish within {timeout_seconds}s")
+            raise TimeoutError(
+                f"Agent did not finish within {timeout_seconds}s"
+            )
 
 
 task = "Find the weather for a city that doesn't exist called Zzyxlvania"
@@ -107,7 +117,9 @@ This version doesn't touch `run_agent()`'s internals at all — it runs the *who
 
 ```python
 # loop_safety_cost_practice.py
-def run_agent_with_timeout_and_tokens(task, max_iterations=1000, timeout_seconds=30):
+def run_agent_with_timeout_and_tokens(
+    task, max_iterations=1000, timeout_seconds=30
+):
     start = time.time()
     messages = [{"role": "user", "content": task}]
     total_tokens = 0
@@ -115,10 +127,13 @@ def run_agent_with_timeout_and_tokens(task, max_iterations=1000, timeout_seconds
 
     for step in range(max_iterations):
         if time.time() - start > timeout_seconds:
-            return total_tokens, steps_run   # stop cleanly, report what happened
+            # stop cleanly, report what happened
+            return total_tokens, steps_run
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini", messages=messages, tools=[adversarial_tool_schema],
+            model="gpt-4o-mini", messages=messages, tools=[
+                adversarial_tool_schema
+            ],
         )
         total_tokens += response.usage.total_tokens
         steps_run += 1
@@ -129,7 +144,11 @@ def run_agent_with_timeout_and_tokens(task, max_iterations=1000, timeout_seconds
             for call in message.tool_calls:
                 result = always_ask_again_tool(call.function.arguments)
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result,
+                    },
                 )
         else:
             return total_tokens, steps_run

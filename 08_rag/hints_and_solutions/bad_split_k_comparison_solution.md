@@ -38,13 +38,23 @@ def chunk_by_chars(text, chunk_size):
     return chunks
 
 def get_embedding(text):
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
 def retrieve(question, chunks_with_embeddings, k):
@@ -61,7 +71,9 @@ print("chunks:")
 for i, chunk in enumerate(chunks):
     print(i, ":", repr(chunk))
 
-chunks_with_embeddings = [(chunk, get_embedding(chunk)) for chunk in chunks]
+chunks_with_embeddings = []
+for chunk in chunks:
+    chunks_with_embeddings.append((chunk, get_embedding(chunk)))
 
 print()
 print("k=1 result:")
@@ -107,14 +119,24 @@ def chunk_by_chars(text: str, chunk_size: int) -> list[str]:
 
 
 def get_embedding(text: str) -> list[float]:
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
 
@@ -132,7 +154,10 @@ def retrieve(
 
 def build_index(text: str, chunk_size: int) -> list[tuple[str, list[float]]]:
     chunks = chunk_by_chars(text, chunk_size)
-    return [(chunk, get_embedding(chunk)) for chunk in chunks]
+    results = []
+    for chunk in chunks:
+        results.append((chunk, get_embedding(chunk)))
+    return results
 
 
 def main() -> None:
@@ -203,7 +228,10 @@ def build_overlap_index(
     text: str, chunk_size: int, overlap: int,
 ) -> list[tuple[str, list[float]]]:
     chunks = chunk_by_chars_with_overlap(text, chunk_size, overlap)
-    return [(chunk, get_embedding(chunk)) for chunk in chunks]
+    results = []
+    for chunk in chunks:
+        results.append((chunk, get_embedding(chunk)))
+    return results
 
 
 overlap_index = build_overlap_index(TEST_DOCUMENT, chunk_size=40, overlap=15)

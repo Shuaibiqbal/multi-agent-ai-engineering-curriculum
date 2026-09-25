@@ -2,9 +2,17 @@
 
 > [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
 
+**Story — `single_agent_design.md`:** a one-sentence request is where most real AI features start, and the easiest mistake is building too much. Writing this design on paper first — assumptions, one agent, a handoff — trains sizing a design to the request. **If not:** your first real design conversation would be the first time you had to say what you're *not* building, and why.
+
+Write your own design first, in `practice/single_agent_design.md`. Read both depths — they're not "wrong, right," they're 2 real levels of the same design, with real differences in how well they hold up under review.
+
 The request: "answer questions about our product docs, hand off to a human if unsure."
 
 ## Basic Version
+
+### Approach 1 — the direct way
+
+**Story:** the smallest design that answers the request — one agent, one search tool, one handoff rule — with its assumptions written at the top. **If not:** a multi-agent system for a one-agent job, and a reviewer asking why.
 
 A reasonable, working design:
 
@@ -22,7 +30,11 @@ This design answers the one-sentence request without adding anything it wasn't a
 
 > [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
 
-## Intermediate/Advanced Version
+## Intermediate Version
+
+### Approach 1 — the same design, hardened for review
+
+**Story:** the same shape, hardened exactly where a reviewer will push: what "unsure" really means, what the human receives, and what happens when the search tool itself fails. **If not:** the bot would confidently answer from loosely related docs, and go silent the day search is down.
 
 Same shape, hardened at the two places a senior reviewer will actually push on:
 

@@ -34,7 +34,9 @@ def node_b(state):
 
 
 def route(state):
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 
 builder = StateGraph(GraphState)
@@ -91,7 +93,9 @@ def node_b(state: GraphState) -> dict:
 
 
 def route_on_flag(state: GraphState) -> str:
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 
 builder = StateGraph(GraphState)
@@ -147,7 +151,9 @@ def node_b(state: GraphState) -> dict:
 
 
 def route_on_flag(state: GraphState) -> Literal["path_a", "path_b"]:
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 
 builder = StateGraph(GraphState)
@@ -211,7 +217,9 @@ def route_on_flag(
 ) -> Literal["path_a_urgent", "path_a_normal", "path_b"]:
     if not state["flag"]:
         return "path_b"
-    return "path_a_urgent" if state["urgent"] else "path_a_normal"
+    if state["urgent"]:
+        return "path_a_urgent"
+    return "path_a_normal"
 
 
 builder = StateGraph(GraphState)

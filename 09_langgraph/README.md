@@ -6,6 +6,7 @@
 [08_rag](../08_rag/) + [Async Python gate](../08b_async_prereq/)
 
 ## How to Read & Practice This Document
+
 - **What:** building an agent as a clear, visible graph instead of a hidden loop.
 - **Why:** real systems need state you can look at, test, and pause — not a black-box `while` loop you can't inspect or replay.
 - **When:** any agent complex enough to need branching, saved state, or a human checking in — Project 2's simple loop genuinely didn't need this; Project 3 will.
@@ -96,13 +97,21 @@ def route_tools(state) -> str:
     last = state["messages"][-1]
     if not getattr(last, "tool_calls", None):
         return "END"
-    if any(c["name"] in RISKY for c in last.tool_calls):
+    has_match = False
+    for c in last.tool_calls:
+        if c["name"] in RISKY:
+            has_match = True
+    if has_match:
         return "human_approval"
     return "safe_tools"
 
 builder.add_conditional_edges(
     "agent", route_tools,
-    {"safe_tools": "safe_tools", "human_approval": "human_approval", "END": END},
+    {
+        "safe_tools": "safe_tools",
+        "human_approval": "human_approval",
+        "END": END,
+    },
 )
 ```
 Ordinary lookups flow straight through; the moment the model asks for `issue_refund`, control goes to a node that pauses for a person — a check in your Python, not a polite line in the prompt.
@@ -150,7 +159,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 from my_graph import builder                  # StateGraph builder, defined once
 
 app = FastAPI()
-GRAPH = builder.compile(checkpointer=InMemorySaver())   # built ONCE, at import time
+# built ONCE, at import time
+GRAPH = builder.compile(checkpointer=InMemorySaver())
 
 @app.post("/run")
 def run(task: str, thread_id: str) -> dict:
@@ -547,6 +557,7 @@ remembered = store.search(namespace, query="how should I address this user?")
 
 ## Go Deeper (Optional)
 _You don't need any of these to understand the Core Concepts above — use them if you want a second explanation or more detail._
+
 - [LangGraph documentation (home)](https://langchain-ai.github.io/langgraph/) — start with the Quickstart/tutorials.
 - [LangGraph GitHub repo](https://github.com/langchain-ai/langgraph) — the `examples/` folder has real graphs to read.
 - [LangChain Academy](https://academy.langchain.com/) — has a free LangGraph course; do it alongside this document.
@@ -576,6 +587,7 @@ practice/
 - `loop_limit_interrupt_practice.py` — the only place you watch an unguarded loop actually hit its limit, and a paused graph actually resume across a real process restart.
 
 **For this document, save your practice code as:**
+
 - **Basic** (your first graph) is its own topic — save it as `practice/first_graph_practice.py`.
 - **Intermediate** (real branching) and **Edge cases** (an unhandled routing value) are both about conditional edges — save them together as `practice/conditional_routing_practice.py`, one section per level.
 - **Real-world** (rebuild Project 2 as a graph) is its own topic — save it as `practice/agent_loop_to_graph_practice.py`.
@@ -668,6 +680,7 @@ practice/
 **Used later by:** [Project 3 — DocuMind](../project_3_documind_rag_agent/)'s Step 1 and Step 2 are this exact skeleton, rebuilt directly into the project's own files — Step 1 is this document's Basic exercise, Step 2 is its Real-world exercise, both grown with a checkpointer and, later, a Retriever, a Reasoner, and an Approval agent behind an `interrupt()` gate.
 
 ## Expected Behavior
+
 - You can draw the node/edge diagram from the code (or the other way around), without running it.
 - The graph reaches the same final answers as Project 2, for the same test tasks.
 - Pausing at the `interrupt()` point and resuming later (from a fresh process, not just the same one still running) gives the correct, continued behavior, using the saved state.
@@ -681,12 +694,14 @@ practice/
 | Conditional edge with an unexpected state value | Fails clearly and loudly, not a silent wrong path |
 
 ## Break-It / Debug Preview
+
 - An endless loop from a missing or wrong conditional edge.
 - State that doesn't actually survive an interrupt (a badly set up checkpointer).
 - A node that changes state in a way that breaks a later node's assumptions.
 - Full debugging drill in [14_debugging_lab](../14_debugging_lab/).
 
 ## Interview Topics Preview
+
 - Why clear state beats hidden agent memory · checkpointer trade-offs (in-memory vs. saved) · when a graph is overkill vs. actually needed vs. a plain `create_agent` loop is enough.
 
 ## Move On When

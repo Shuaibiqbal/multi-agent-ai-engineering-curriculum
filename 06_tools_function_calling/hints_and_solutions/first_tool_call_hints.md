@@ -51,8 +51,6 @@ Worth knowing beyond this exercise: "run the tool and print the real result" isn
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-first_tool_call) · [Hint 1](first_tool_call_hints.md#hint-1) · [Hint 2](first_tool_call_hints.md#hint-2) · [Solution](first_tool_call_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

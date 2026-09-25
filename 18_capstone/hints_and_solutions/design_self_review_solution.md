@@ -2,9 +2,17 @@
 
 > [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
 
-Since this document's real requirements are handed to you live, this solution walks through the technique on a realistic stand-in example: a capstone with requirements "handle 50,000 requests/day, p95 latency under 2 seconds, cost under $200/month, must never expose raw customer data to the LLM."
+**Story — `design_self_review.md`:** a weak design decision caught on paper costs nothing; the same decision caught three weeks into building costs three weeks. This exercise is that pause, done on purpose, before Stage 2. **If not:** unneeded pieces would get built, and missing ones would be found only when a requirement fails in production.
+
+Write your own version first, in `practice/design_self_review.md`, then compare. Read both depths — they're 2 real levels of the same answer.
+
+Since this document's real requirements are handed to you live, this solution walks through the technique on a realistic stand-in example: a capstone with requirements "handle 50,000 requests/day, p95 latency under 2 seconds, cost under $200/month, must never expose raw customer data to the LLM." (In this example, the capstone design added a fact-checker agent to Project 4's team, to check each draft's claims against the RAG sources.)
 
 ## Basic Version
+
+### Approach 1 — the plain version
+
+**Story:** the quickest useful check — for each piece, "what would break if I removed it?" **If not:** anything that sounded like good practice would slip in unquestioned.
 
 Go through your design piece by piece and ask: "what would break if I removed this?"
 
@@ -23,6 +31,10 @@ This simple pass alone usually finds 1-2 things that snuck in because they seeme
 > [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
 
 ## Intermediate Version
+
+### Approach 1 — the two-direction check
+
+**Story:** check both directions — every component needs a requirement, and every requirement needs a component. The second direction finds what's *missing*, which is easier to overlook than what's extra. **If not:** the cost limit here would have no component enforcing it, and nothing on the page would look wrong.
 
 Run the full two-direction traceability check.
 
@@ -47,11 +59,9 @@ Run the full two-direction traceability check.
 
 **Why this matters:** the forward check (Direction 1) catches unjustified additions — the failure mode of over-building. The reverse check (Direction 2) catches missing coverage — the failure mode of under-building, which is just as common and easier to miss because nothing "looks wrong" about a design that's simply incomplete. Finding the cost-tracking gap here, in writing, before any code exists, is exactly the value this exercise is meant to deliver.
 
-<hr class="page-break">
+### Approach 2 — a bias pass on your own requirement column
 
-> [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
-
-## Advanced Version
+**Story:** the table is only as honest as the person filling it in — and that person already chose every component. This pass re-checks the requirement column against the actual document, starting with the rows you filled in fastest. **If not:** a requirement written *after* the component would pass as a real one.
 
 The two-direction table catches unjustified and missing pieces — but it assumes the "requirement" column is honest. It might not be, because the same person filling it in is the person who already chose every component. Run a bias pass over the table above:
 
@@ -66,4 +76,4 @@ The dangerous row here isn't the dashboard — that one's an easy catch. It's th
 
 **Why this is the harder half of the exercise:** Direction 1 and Direction 2 are mechanical — fill in a table, look for gaps. This pass isn't mechanical, because the failure mode is your own reasoning, and your own reasoning doesn't announce itself as biased. The tell is speed and confidence: a row you filled in instantly, without hesitation, for a component you already liked, is exactly the row worth re-checking against the actual requirements document instead of your memory of "why I built it that way."
 
-**Which one should you actually run?** Do the Basic pass first — fast, catches the obvious cases. Run the Intermediate two-direction check before calling Stage 1 done — it's the harder discipline most people skip under time pressure, and it catches real gaps as often as real excess. Run the Advanced bias pass specifically on whichever rows you filled in fastest and most confidently — those are statistically the ones worth a second look, precisely because confidence and correctness aren't the same thing when you're grading your own work.
+**Which one should you actually run?** Do the Basic pass first — fast, catches the obvious cases. Run Approach 1's two-direction check before calling Stage 1 done — it's the harder discipline most people skip under time pressure, and it catches real gaps as often as real excess. Run Approach 2's bias pass specifically on whichever rows you filled in fastest and most confidently — those are statistically the ones worth a second look, precisely because confidence and correctness aren't the same thing when you're grading your own work.

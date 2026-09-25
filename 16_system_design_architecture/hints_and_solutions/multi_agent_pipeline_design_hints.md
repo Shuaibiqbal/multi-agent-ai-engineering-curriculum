@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
 
-Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 3 depth levels: **Basic** (the plain framing), **Intermediate** (the real architectural vocabulary and trade-offs), **Advanced** (the senior-level judgment call). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing) and **Intermediate** (the real architectural vocabulary and trade-offs, including the senior-level judgment call). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — What to ask, and the obvious first design](#hint-1)
 - [Hint 2 — The plan, and almost the whole design](#hint-2)
@@ -32,17 +32,13 @@ This starts as a **sequential pipeline** pattern from Doc11, but "only publish i
 
 State design: a shared "article state" object carrying the draft text, the fact-checker's notes, and a revision counter — every downstream agent needs to see not just the current draft but *why* the previous attempt was rejected, or the writer is revising blind.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
-
-### Advanced Version
+**What a senior reviewer pushes on:**
 
 The naive design — loop fact-check → writer with no cap — can loop forever if the fact-checker's bar can never be met: contradictory sources, or a core fact the writer keeps reintroducing because it seems central to the article. This is an infinite-loop failure in Doc14's vocabulary, and the fix is a revision cap (say, 3 attempts) with an escalation path — route to a human editor — when the cap is hit, not an unlimited retry.
 
 A stakeholder will likely push: "why not let the fact-checker just fix the article directly instead of sending it back?" The honest answer is a real trade-off, not a rule: separation of concerns keeps the fact-checker's job narrow and auditable (it flags, it doesn't rewrite), and rewriting is a different skill from checking — but the extra research→writer→fact-checker round trip costs latency and tokens. At small scale, where the round-trip cost is trivial, separation is worth it. At very high volume where every extra round trip is expensive, letting the fact-checker propose a direct, narrowly-scoped edit (not a full rewrite) is a defensible alternative — the point is to be able to say which one you chose and why, not to insist there's only one right answer.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic asks the plain questions and sketches the straight-line pipeline most people draw first. Intermediate names the real pattern (sequential with a conditional loop-back) and the actual decision of where failure feedback goes. Advanced is the judgment call: capping the loop so it can't run forever, naming the escalation path for when it does, and being able to defend — not just assert — the choice between "fact-checker flags" versus "fact-checker fixes."
+**Difference between Basic and Intermediate:** Basic asks the plain questions and sketches the straight-line pipeline most people draw first. Intermediate names the real pattern (sequential with a conditional loop-back), decides where failure feedback goes, caps the loop so it can't run forever, names the escalation path, and defends the choice between "fact-checker flags" and "fact-checker fixes".
 
 <hr class="page-break">
 
@@ -89,11 +85,7 @@ Flow:
             route back to writer
 ```
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
-
-### Advanced Version
+**Hardened for a senior review:**
 
 ```
 Agents: researcher, writer, fact-checker, (on cap-out) human editor
@@ -123,7 +115,7 @@ Monitoring:
     topic or source material itself is the problem, not the writer
 ```
 
-**Difference between Basic, Intermediate, and Advanced:** Basic is the plan anyone sketches first — three agents, one feedback loop, no limit on it. Intermediate names the real state object every agent actually needs and separates "route back to writer" from a vague generic retry. Advanced adds the two things a naive design is missing entirely: a hard cap with a named escalation path so the loop can't run forever, and a way to tell "the wording was wrong" apart from "the underlying research was wrong" so failed articles get routed to the agent that can actually fix the real problem.
+**Difference between Basic and Intermediate:** Basic is the plan anyone sketches first — three agents, one feedback loop, no limit on it. Intermediate names the state every agent needs, then adds what the naive plan is missing: a hard cap with a named escalation path, and a way to tell "the wording was wrong" from "the research was wrong" so a failed article goes to the agent that can actually fix it.
 
 <hr class="page-break">
 

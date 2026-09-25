@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried this against your own finished capstone. Each hint has 3 depth levels: **Basic** (the plain framing — how this differs from a walkthrough), **Intermediate** (the real technique — full-system coverage, not one prepared story), **Advanced** (the senior-level judgment call — knowing which choices are truly defensible versus which were just what you happened to build, and admitting the difference). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried this against your own finished capstone. Each hint has 2 depth levels: **Basic** (the plain framing — how this differs from a walkthrough) and **Intermediate** (the real technique — full-system coverage, not one prepared story, then the senior-level judgment call — knowing which choices are truly defensible versus which were just what you happened to build, and admitting the difference). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and how this differs from Doc17](#hint-1)
 - [Hint 2 — The plan, and a worked example](#hint-2)
@@ -31,21 +31,17 @@ The practical skill: for each subsystem, be ready with the same shape Doc16 and 
 
 Go through your own capstone's build list now and rate your own readiness on each piece — honestly — before Hint 2.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
-
-### Advanced Version
+**When the reviewer finds a seam:**
 
 The senior-level trap in this exercise isn't forgetting a piece of your system — it's treating every choice as if it were a deeply reasoned decision, when some of them genuinely weren't. Some pieces of your capstone were built because the requirements demanded them specifically. Others were built because that was simply the first reasonable option you reached for, and you never seriously considered an alternative. A design-review interviewer at real senior-architect depth can usually tell the difference between the two from how you answer — a genuine decision has a specific cost you can name; a default has a vague one, or none.
 
-The advanced move is being willing to say, out loud, "that one was arbitrary — I'd pick differently with more time, and here's what I'd pick" for the pieces that actually were arbitrary, instead of reflexively defending everything as if it were principled. Over-defending an arbitrary choice is a worse signal than admitting it plainly, because it suggests you can't tell the difference between a decision and a default — which is exactly the judgment a senior architect is being hired to have.
+The senior move is being willing to say, out loud, "that one was arbitrary — I'd pick differently with more time, and here's what I'd pick" for the pieces that actually were arbitrary, instead of reflexively defending everything as if it were principled. Over-defending an arbitrary choice is a worse signal than admitting it plainly, because it suggests you can't tell the difference between a decision and a default — which is exactly the judgment a senior architect is being hired to have.
 
 There's a second, harder version of this same trap: two of your decisions can be in tension with each other — a principle you invoked to defend one choice quietly contradicts a different choice elsewhere in the same system. A cold interviewer who has looked at your whole design, not just the piece you're currently discussing, may find that seam and ask you to reconcile it live. The honest move is the same one Doc16 and Doc17's harder pushback scenarios already train: name the inconsistency plainly, say which side you'd actually fix, and don't invent a reason on the spot that makes both halves sound intentional when they weren't.
 
 Before Hint 2, go back through your own build list and mark each piece as either "genuine decision — I can name the specific requirement and the alternative's real cost" or "default — I'd reconsider this with more time." Being honest about which pile each piece belongs in is the actual preparation for this exercise.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic says the interviewer controls the order, so be ready for anything. Intermediate says be ready for *every* subsystem, not just one. Advanced says the real test isn't whether you can defend everything — it's whether you can tell your genuine decisions apart from your defaults, admit the defaults plainly, and reconcile it honestly if two of your own choices turn out to contradict each other.
+**Difference between Basic and Intermediate:** Basic answers whatever is asked, in whatever order, and admits defaults plainly. Intermediate ties every answer to a specific requirement or failure mode — and then handles the hardest move: a reviewer connecting two of your own answers that contradict each other.
 
 <hr class="page-break">
 
@@ -106,11 +102,7 @@ What the alternative would have cost: fewer moving parts to operate,
     neighbor search) into one system's tuning trade-offs
 ```
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
-
-### Advanced Version
+**Finding the seams, as a plan:**
 
 The same table, with the "genuine decision vs. default" column added, plus a rapid-fire, cross-subsystem exchange to rehearse:
 
@@ -151,7 +143,7 @@ Your move: don't defend the deployment choice as if it were planned
 
 Try writing your own full-coverage table plus at least one honest "default, not genuine decision" row, and rehearse a reconciliation for wherever two of your own choices might be in tension, before checking the [Solution](capstone_review_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic lists what to be ready for. Intermediate turns that into a real per-subsystem defense table, the same structure Doc16 trained, applied to the whole system at once. Advanced adds the harder, more honest layer underneath the table: marking which rows are genuine decisions versus defaults, and rehearsing what happens when the reviewer finds a real seam between two of your own answers.
+**Difference between Basic and Intermediate:** Basic plans answers piece by piece. Intermediate plans for cross-examination — the specific requirement behind each piece, the gaps you'll volunteer, and how to concede a real contradiction with a concrete fix.
 
 <hr class="page-break">
 

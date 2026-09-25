@@ -24,13 +24,23 @@ sentences = [
 ]
 
 def get_embedding(text):
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
 embeddings = []
@@ -79,23 +89,37 @@ SENTENCES: list[str] = [
 
 
 def get_embedding(text: str) -> list[float]:
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
 
 def main() -> None:
-    embeddings = {sentence: get_embedding(sentence) for sentence in SENTENCES}
+    embeddings = {}
+    for sentence in SENTENCES:
+        embeddings[sentence] = get_embedding(sentence)
 
     scored_pairs = []
     for sentence_a, sentence_b in combinations(SENTENCES, 2):
-        score = cosine_similarity(embeddings[sentence_a], embeddings[sentence_b])
+        score = cosine_similarity(
+            embeddings[sentence_a], embeddings[sentence_b]
+        )
         scored_pairs.append((score, sentence_a, sentence_b))
 
     scored_pairs.sort(reverse=True)
@@ -132,18 +156,29 @@ SENTENCES: list[str] = [
 
 
 def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
-    response = client.embeddings.create(model="text-embedding-3-small", input=texts)
-    return [item.embedding for item in response.data]
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=texts
+    )
+    embeddings = []
+    for item in response.data:
+        embeddings.append(item.embedding)
+    return embeddings
 
 
 def assert_unit_length(vector: list[float]) -> None:
-    norm = math.sqrt(sum(x * x for x in vector))
+    squares = 0.0
+    for x in vector:
+        squares = squares + x * x
+    norm = math.sqrt(squares)
     assert abs(norm - 1.0) < 1e-6, f"expected a unit vector, got norm={norm}"
 
 
 def fast_cosine_similarity(a: list[float], b: list[float]) -> float:
     # why: a and b are already unit-length, verified below -- skip norm()
-    return sum(x * y for x, y in zip(a, b))
+    total = 0.0
+    for x, y in zip(a, b):
+        total = total + x * y
+    return total
 
 
 def main() -> None:
@@ -195,18 +230,27 @@ _embedding_cache: dict[str, list[float]] = {}
 def get_embeddings_batch(texts: list[str]) -> dict[str, list[float]]:
     # how: only embed text this cache hasn't seen before -- protects
     # against a caller accidentally passing the same sentence twice
-    uncached = [text for text in texts if text not in _embedding_cache]
+    uncached = []
+    for text in texts:
+        if text not in _embedding_cache:
+            uncached.append(text)
     if uncached:
         response = client.embeddings.create(
             model="text-embedding-3-small", input=uncached,
         )
         for text, item in zip(uncached, response.data):
             _embedding_cache[text] = item.embedding
-    return {text: _embedding_cache[text] for text in texts}
+    result = {}
+    for text in texts:
+        result[text] = _embedding_cache[text]
+    return result
 
 
 def fast_cosine_similarity(a: list[float], b: list[float]) -> float:
-    return sum(x * y for x, y in zip(a, b))
+    total = 0.0
+    for x, y in zip(a, b):
+        total = total + x * y
+    return total
 
 
 def main() -> None:

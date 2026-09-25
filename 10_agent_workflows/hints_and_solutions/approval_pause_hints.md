@@ -131,7 +131,9 @@ graph.invoke(Command(resume="approved"), config)      # resumes and finishes
 ```
 define:
     def approval_node(state: dict) -> dict:
-        decision = interrupt({"draft": state["draft"], "sources": state["sources"]})
+        decision = interrupt(
+            {"draft": state["draft"], "sources": state["sources"]}
+        )
         return {"approved": decision == "approved"}
 
 compile the graph with a checkpointer:
@@ -199,7 +201,9 @@ def approval_node(state: dict) -> dict:
     }
 
 
-def is_stale(paused_at: str, max_age_hours: int = MAX_APPROVAL_AGE_HOURS) -> bool:
+def is_stale(
+    paused_at: str, max_age_hours: int = MAX_APPROVAL_AGE_HOURS
+) -> bool:
     paused_time = datetime.fromisoformat(paused_at)
     # your turn: compare how much time has passed between paused_time and
     # datetime.now(timezone.utc) against max_age_hours, and return True if

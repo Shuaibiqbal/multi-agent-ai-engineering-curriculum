@@ -226,6 +226,16 @@ Every code block below is runnable against the `Suggested files` layout from the
 
 #### Approach 1 — the direct way
 
+**Story:** get all five agents talking through one shared state, with the simplest rule-based supervisor from Core Concepts, before adding anything else. **If not:** you'd be debugging routing, logging and saved state all at once, with no working baseline to compare against.
+
+**`llm.py`** — the one chat model every agent imports:
+```python
+from langchain_openai import ChatOpenAI
+
+# why: one place to change the model for every agent at once
+model = ChatOpenAI(model="gpt-4o-mini")
+```
+
 **`state.py`**
 ```python
 from typing import TypedDict
@@ -279,6 +289,7 @@ def supervisor(state):
 **`agents/research_agent.py`**
 ```python
 from langgraph.types import Command
+from llm import model
 
 
 def research_agent(state):
@@ -291,6 +302,7 @@ def research_agent(state):
 **`agents/analysis_agent.py`**
 ```python
 from langgraph.types import Command
+from llm import model
 
 
 def analysis_agent(state):
@@ -303,6 +315,7 @@ def analysis_agent(state):
 **`agents/writer_agent.py`**
 ```python
 from langgraph.types import Command
+from llm import model
 
 
 def writer_agent(state):
@@ -319,6 +332,7 @@ def writer_agent(state):
 **`agents/reviewer_agent.py`**
 ```python
 from langgraph.types import Command
+from llm import model
 
 MAX_REVISIONS = 3
 
@@ -335,14 +349,17 @@ def reviewer_agent(state):
         return Command(update={"accepted": True}, goto="supervisor")
 
     new_count = state["revision_count"] + 1
-    return Command(
-        update={
-            "revision_count": new_count,
-            "review_feedback": verdict,
-            "accepted": False,
-        },
-        goto="supervisor",
-    )
+    update = {
+        "revision_count": new_count,
+        "review_feedback": verdict,
+        "accepted": False,
+    }
+    # why: while revisions are left, clearing the draft makes the
+    # supervisor send the task back to the Writer, with the feedback;
+    # at the limit, the last draft stays for the final report
+    if new_count < MAX_REVISIONS:
+        update["draft"] = ""
+    return Command(update=update, goto="supervisor")
 ```
 
 **`graph.py`**
@@ -408,6 +425,8 @@ This works and satisfies the Build Task's basic flow. It's missing anything expl
 
 #### Approach 1 — type hints, `END` instead of a bare string, and a proper revision loop test
 
+**Story:** `"__end__"` is a magic string a typo can break silently; the imported `END` can't be misspelled. And the README's "never agrees" test case deserves a real check, not an eyeball. **If not:** a misspelled end marker would quietly end nothing, and the revision limit would go untested until it mattered.
+
 ```python
 # agents/supervisor.py
 from langgraph.graph import END
@@ -448,6 +467,23 @@ This test file uses the same plain style as every exercise in this document: cal
 
 ```python
 # test_project4.py -- proving the "reviewer rejects, writer improves" case
+from agents.supervisor import MAX_REVISIONS
+from graph import build_graph
+
+graph = build_graph()
+
+initial_state = {
+    "task": "research the benefits of remote work and write a short brief",
+    "research_findings": "",
+    "analysis": "",
+    "draft": "",
+    "review_feedback": "",
+    "accepted": False,
+    "revision_count": 0,
+    "routing_log": [],
+}
+
+
 def check_revision_loop_recovers() -> None:
     # deliberately weak first draft: writer_agent's prompt is swapped for one
     # that produces a too-short, low-effort draft on the first pass only
@@ -478,6 +514,8 @@ if __name__ == "__main__":
 > [Back to the Build Task](../README.md#build-task-project-4-multi-agent-system) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 #### Approach 2 — a reasoned routing log, full rejection history, and a checkpointer
+
+**Story:** the Build Task asks for a log of *why* the supervisor routed each way, and the saved state Project 3 already had. A reason next to every routing step, the full rejection history, and a checkpointer give you all three. **If not:** a bad run would show only a list of node names, and a crash would mean starting over.
 
 **`state.py`**
 ```python
@@ -533,6 +571,7 @@ def supervisor(state: SharedState) -> Command:
             update={"routing_log": _log(state, "END", reason)},
             goto=END,
         )
+    # when: the hard limit — end with a clear report, never loop forever
     if state["revision_count"] >= MAX_REVISIONS:
         reason = f"revision limit ({MAX_REVISIONS}) reached without agreement"
         return Command(
@@ -549,6 +588,8 @@ def supervisor(state: SharedState) -> Command:
 **`agents/reviewer_agent.py`**
 ```python
 from langgraph.types import Command
+from agents.supervisor import MAX_REVISIONS
+from llm import model
 from state import SharedState
 
 
@@ -564,15 +605,18 @@ def reviewer_agent(state: SharedState) -> Command:
         return Command(update={"accepted": True}, goto="supervisor")
 
     new_count = state["revision_count"] + 1
+    # why: keep EVERY rejection reason, so a "couldn't agree" report
+    # shows the whole pattern, not just the last one
     history = state["review_feedback_history"] + [verdict]
-    return Command(
-        update={
-            "revision_count": new_count,
-            "review_feedback_history": history,
-            "accepted": False,
-        },
-        goto="supervisor",
-    )
+    update = {
+        "revision_count": new_count,
+        "review_feedback_history": history,
+        "accepted": False,
+    }
+    # how: under the limit, clear the draft so the Writer revises it
+    if new_count < MAX_REVISIONS:
+        update["draft"] = ""
+    return Command(update=update, goto="supervisor")
 ```
 
 **`main.py`**
@@ -655,9 +699,17 @@ With a checkpointer wired in, `graph.get_state(config)` can inspect the run at a
 
 #### Approach 3 — preventing redundant tool calls with an explicit "already ran" guard
 
+**Story:** the supervisor should never send work twice, but a routing bug could — this guard makes a duplicate paid call impossible even then. **If not:** one routing mistake could double your search-API bill with nothing in the logs to explain it.
+
 The README's Constraints specifically forbid two agents redundantly calling the same tool for the same sub-task. The supervisor's own `if not state.get(...)` checks already prevent re-running a *finished* stage, but a stricter guard is worth adding for any agent whose work involves an external tool call (like `research_agent` hitting a real search API):
 
 ```python
+# agents/research_agent.py
+from langgraph.types import Command
+from llm import model
+from state import SharedState
+
+
 def research_agent(state: SharedState) -> Command:
     if state.get("research_findings"):
         # already done -- supervisor shouldn't have routed here again,

@@ -235,8 +235,11 @@ checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
 config = {"configurable": {"thread_id": "run-1"}}
 
-result = graph.invoke({"task": "send an email", "approved": False}, config=config)
-print("Paused. Now exit this process entirely and run resume_script.py separately.")
+result = graph.invoke(
+    {"task": "send an email", "approved": False}, config=config
+)
+print("Paused. Now exit this process entirely and run resume_script.py "
+      "separately.")
 print(result)
 ```
 

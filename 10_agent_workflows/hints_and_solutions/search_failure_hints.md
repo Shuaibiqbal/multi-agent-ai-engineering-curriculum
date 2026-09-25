@@ -37,7 +37,8 @@ LangGraph checkpoints state *between* node executions, not just at the very end.
 ```python
 # search_failure_practice.py
 def search_node(state: dict) -> dict:
-    raise RuntimeError("simulated vector store outage")  # temporary, for this test
+    # temporary, for this test
+    raise RuntimeError("simulated vector store outage")
 ```
 
 The exact pieces:

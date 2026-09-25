@@ -2,9 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
 
+**Story — `token_count_guessing_practice.md`:** every cost and every context limit is counted in tokens, not words. Guessing first and then checking shows where the quick rule works and where it breaks. **If not:** you'd plan prompts and budgets with a rule you've never tested.
+
 ## Basic Version
 
 ### Approach 1 — word count × 1.3
+
+**Story:** the simplest estimate, checked against the real tokenizer on a few kinds of text. **If not:** you'd trust words × 1.3 everywhere, including where it's badly wrong.
 
 There's no single "correct" set of 5 sentences — this is about the process, not a fixed answer. Here's a worked example table you can compare your own results against:
 
@@ -25,6 +29,8 @@ There's no single "correct" set of 5 sentences — this is about the process, no
 ## Intermediate Version
 
 ### Approach 1 — chars ÷ 4 and words × 1.3, side by side
+
+**Story:** two quick estimates next to the real count, so you can see which one fails on which kind of text — and why. **If not:** you'd keep one rule of thumb and never notice its blind spots.
 
 The same table, with both estimation methods shown side by side, and the actual mechanism explained for each surprising row:
 

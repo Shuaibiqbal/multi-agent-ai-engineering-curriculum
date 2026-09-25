@@ -2,7 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-induced_hallucination) · [Hint 1](induced_hallucination_hints.md#hint-1) · [Hint 2](induced_hallucination_hints.md#hint-2) · [Solution](induced_hallucination_solution.md)
 
+**Story — `induced_hallucination_practice.md`:** a model will state made-up facts with full confidence. Causing it on purpose, and explaining why it happens, is what makes you design around it instead of being surprised by it. **If not:** you'd trust fluent answers as if fluency meant truth.
+
 ## Basic Version
+
+**Story:** make it happen once, and explain it in plain words. **If not:** "hallucination" would stay a word you've read, not something you've seen.
 
 **Prompt used:** "What was the exact attendance figure at the third annual Millbrook Founders' Day parade?" (a plausible-sounding but invented local event).
 
@@ -15,6 +19,8 @@
 > [Back to the exercise](../README.md#ex-induced_hallucination) · [Hint 1](induced_hallucination_hints.md#hint-1) · [Hint 2](induced_hallucination_hints.md#hint-2) · [Solution](induced_hallucination_solution.md)
 
 ## Intermediate Version
+
+**Story:** a subtler case, and the actual mechanism — a next-token predictor completing a likely-sounding answer. **If not:** you'd try to "fix" it like a bug instead of designing around it (sources, checks, refusals).
 
 **Prompt used:** "In which chapter does the narrator of [a real, well-known novel] first describe the color of the house on Elm Street?" (a specific, invented detail about a real book).
 

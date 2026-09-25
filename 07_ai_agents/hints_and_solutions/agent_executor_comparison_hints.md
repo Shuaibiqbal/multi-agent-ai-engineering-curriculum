@@ -18,6 +18,7 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 You just built the loop by hand. Now do the exact same task, but let LangChain's own agent function run the loop for you instead. Run the same 3 questions through both, and compare: same final answers? Same number of steps?
 
 Things to use:
+
 - `from langchain.agents import create_agent` — the current, standard way to get a ready-made tool-calling agent (this replaced the older `AgentExecutor` + `create_tool_calling_agent` pair, which are now legacy).
 - Wrap your existing Python function as a LangChain tool with the `@tool` decorator from Doc06.
 - `create_agent(model, tools=[your_tool])` — one function call builds the whole loop for you.
@@ -73,7 +74,9 @@ agent = create_agent(llm, tools=[get_weather])
 test_questions = [...]  # your 3 questions
 for q in test_questions:
     my_answer = run_agent(q)
-    lib_result = agent.invoke({"messages": [("user", q)]}, {"recursion_limit": 11})
+    lib_result = agent.invoke(
+        {"messages": [("user", q)]}, {"recursion_limit": 11}
+    )
     lib_answer = lib_result["messages"][-1].content
     print(my_answer, "vs", lib_answer)
 ```
@@ -91,7 +94,8 @@ for each test question:
         {"messages": [("user", question)]}, {"recursion_limit": 11},
     )
     compare result_mine.final_answer vs result_lib["messages"][-1].content
-    compare len(result_mine.steps) vs tool-call messages in result_lib["messages"]
+    compare len(result_mine.steps)
+        vs tool-call messages in result_lib["messages"]
 ```
 
 `recursion_limit=11` here mirrors your own `max_iterations=5` — LangGraph counts each side of a think/act round as its own step, so a 5-round loop needs roughly `2 * 5 + 1` as its limit. Run this for all 3 questions, and write down anywhere the two disagreed.

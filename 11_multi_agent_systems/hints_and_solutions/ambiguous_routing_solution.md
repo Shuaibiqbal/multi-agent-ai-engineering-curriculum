@@ -2,17 +2,25 @@
 
 > [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
 
+**Story — `supervisor_routing_practice.py`:** routing looks fine until two specialists both plausibly fit a task. This file makes that happen on purpose, counts how often the supervisor wobbles, and adds a way to recover. **If not:** Project 4's Research-vs-Analysis boundary would misroute in production, with no test that ever showed it.
+
 Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
 ### Approach 1 — the direct way
 
+**Story:** first just watch it happen — five tasks that could go either way, one routing call each. **If not:** "the descriptions overlap" would stay a theory.
+
 ```python
 # supervisor_routing_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
+from langchain_openai import ChatOpenAI
+
+# the chat model the supervisor calls (Doc05's ChatOpenAI)
+model = ChatOpenAI(model="gpt-4o-mini")
 
 SPECIALISTS = {
     "research_agent": "Looks up facts and data relevant to the task.",
@@ -77,6 +85,8 @@ This works and shows real routing decisions on genuinely ambiguous prompts. It's
 
 ### Approach 1 — repeated runs, to check routing consistency
 
+**Story:** one run per task can't tell a stable choice from a coin flip; three runs of the same task can. **If not:** an inconsistent route would pass every one-shot test and fail at random for users.
+
 ```python
 # supervisor_routing_practice.py
 def run_ambiguity_check(prompts: list[str], attempts: int = 3) -> dict:
@@ -125,11 +135,17 @@ if __name__ == "__main__":
 
 ### Approach 2 — a guard in each specialist, and a supervisor that can recover from a misroute
 
+**Story:** some misroutes will happen no matter how good the descriptions are, so each specialist checks its own inputs and sends the task back if it isn't ready. **If not:** a misrouted Analysis agent would confidently analyze nothing.
+
 ```python
 # supervisor_routing_practice.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
+from langchain_openai import ChatOpenAI
+
+# the chat model the supervisor calls (Doc05's ChatOpenAI)
+model = ChatOpenAI(model="gpt-4o-mini")
 
 
 class RoutingState(TypedDict):
@@ -175,6 +191,8 @@ def research_agent(state: RoutingState) -> Command:
 
 
 def analysis_agent(state: RoutingState) -> Command:
+    # why: check my own inputs first — a misroute becomes an extra hop,
+    # not a confident answer built on nothing
     if not state.get("research_data"):
         # picked first, but nothing to analyze yet -- signal instead of
         # forging ahead

@@ -99,7 +99,8 @@ builder.add_node("node_a", node_a)
 builder.add_node("node_b", node_b)
 builder.add_edge(START, "node_a")
 builder.add_edge("node_a", "node_b")
-builder.add_edge("node_b", "node_a")  # why: no exit -- the endless loop, on purpose
+# why: no exit -- the endless loop, on purpose
+builder.add_edge("node_b", "node_a")
 ```
 **Expected output if you run just this:** nothing — add `compile()` and an `invoke({"count": 0}, config={"recursion_limit": 5})` inside a `try`/`except GraphRecursionError` to see it fail on purpose, fast.
 

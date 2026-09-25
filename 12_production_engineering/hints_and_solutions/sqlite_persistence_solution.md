@@ -2,13 +2,16 @@
 
 > [Back to the exercise](../README.md#ex-sqlite_persistence) · [Hint 1](sqlite_persistence_hints.md#hint-1) · [Hint 2](sqlite_persistence_hints.md#hint-2) · [Solution](sqlite_persistence_solution.md)
 
-Every version below creates `runs.db` in the current folder the first time it runs. Delete that file between tries if you want a clean slate. Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `sqlite_persistence_practice.py`:** this is the Build Task's run history in miniature — save every request's input and output, then read one back by its ID. Doing it first on a one-line fake chat keeps the SQL the only new thing. **If not:** the Build Task's `runs` table, its `GET /runs/{id}` route, and its 404 case would all be first attempts, mixed in with a multi-agent pipeline.
+
+Every version below creates `runs.db` in `practice/` the first time it runs. Delete that file between tries if you want a clean slate. Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
 ### Approach 1 — the direct way
 
 ```python
+# practice/sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI
@@ -49,7 +52,7 @@ def get_runs():
 POST /chat -> {"reply":"You said: hi"}
 GET  /runs -> [[1,"hi","You said: hi","2026-01-01T00:00:00.000000+00:00"]]
 ```
-This saves and reads back real data — the core requirement — but `GET /runs` returns unlabeled tuples, which is technically valid JSON but not something a real client could use without guessing field order.
+This saves and reads back real data — the core requirement — but `GET /runs` returns unlabeled tuples, which is valid JSON but not something a real client could use without guessing the field order.
 
 <hr class="page-break">
 
@@ -59,7 +62,10 @@ This saves and reads back real data — the core requirement — but `GET /runs`
 
 ### Approach 1 — `sqlite3.Row`, real dicts back out
 
+**Story:** a client reading `row[2]` has to know the table's column order by heart, and breaks the day a column is added. Named fields fix that. **If not:** the Build Task's `GET /runs/{id}` would hand back a bare list, and no response model could check it.
+
 ```python
+# practice/sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI
@@ -67,6 +73,7 @@ from pydantic import BaseModel
 
 app = FastAPI()
 conn = sqlite3.connect("runs.db", check_same_thread=False)
+# how: every row now behaves like a dict — row["input"] works
 conn.row_factory = sqlite3.Row
 conn.execute("""
     CREATE TABLE IF NOT EXISTS runs (
@@ -84,6 +91,7 @@ class ChatRequest(BaseModel):
 def chat(request: ChatRequest):
     reply = "You said: " + request.message
     now = datetime.now(timezone.utc).isoformat()
+    # why: ? placeholders — values are never pasted into the SQL text
     conn.execute(
         "INSERT INTO runs (input, output, created_at) VALUES (?, ?, ?)",
         (request.message, reply, now),
@@ -94,17 +102,24 @@ def chat(request: ChatRequest):
 @app.get("/runs")
 def get_runs():
     rows = conn.execute("SELECT * FROM runs").fetchall()
-    return [dict(row) for row in rows]
+    result = []
+    for row in rows:
+        # how: dict(row) turns a sqlite3.Row into a real dict
+        result.append(dict(row))
+    return result
 ```
-**Expected output (`GET /runs`):**
+**Expected output (`GET /runs`; shown wrapped onto 2 lines just to fit the page — really one line of output):**
 ```
-[{"id":1,"input":"hi","output":"You said: hi","created_at":"2026-01-01T00:00:00.000000+00:00"}]
+[{"id":1,"input":"hi","output":"You said: hi",
+  "created_at":"2026-01-01T00:00:00.000000+00:00"}]
 ```
 
-### Approach 2 — a small `db.py` helper instead of a bare module-level `conn`
+### Approach 2 — a small helper file instead of SQL inside the routes
+
+**Story:** SQL scattered through route functions is hard to find and hard to change. A helper file keeps all database code in one place, and the routes just call named functions. **If not:** the Build Task's `db/database.py` split would be a new idea instead of one you've already practiced.
 
 ```python
-# db.py
+# practice/runs_db.py
 import sqlite3
 
 def get_connection():
@@ -129,14 +144,17 @@ def insert_run(conn, input_text, output_text, created_at):
 
 def fetch_all_runs(conn):
     rows = conn.execute("SELECT * FROM runs").fetchall()
-    return [dict(row) for row in rows]
+    result = []
+    for row in rows:
+        result.append(dict(row))
+    return result
 ```
 ```python
-# main.py
+# practice/sqlite_persistence_practice.py — Real-world section
 from datetime import datetime, timezone
 from fastapi import FastAPI
 from pydantic import BaseModel
-from db import get_connection, insert_run, fetch_all_runs
+from runs_db import get_connection, insert_run, fetch_all_runs
 
 app = FastAPI()
 conn = get_connection()
@@ -155,19 +173,14 @@ def chat(request: ChatRequest):
 def get_runs():
     return fetch_all_runs(conn)
 ```
-**Expected output:** identical to Approach 1 — this only reorganizes the code, matching the `db/database.py` / `db/models.py` split the Build Task's `Suggested files` section uses.
+**Expected output:** identical to Approach 1 — this only reorganizes the code.
 
-**Difference from Basic:** both Intermediate approaches add `conn.row_factory = sqlite3.Row` and convert each row with `dict(row)`, so `GET /runs` returns real, field-named JSON instead of positional tuples a client would have to guess the order of. Approach 2 additionally moves the SQL into a dedicated `db.py`, keeping `main.py` focused on routing — the same separation-of-concerns move `chat_route`'s Approach 2 made for its Pydantic models.
+### Approach 3 — a typed `response_model`, and `GET /runs/{id}` with a 404
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sqlite_persistence) · [Hint 1](sqlite_persistence_hints.md#hint-1) · [Hint 2](sqlite_persistence_hints.md#hint-2) · [Solution](sqlite_persistence_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a typed `response_model`, and a real `GET /runs/{id}` with a 404
+**Story:** real clients rarely want the whole table — they want "what happened in run 7?". A lookup by ID has to handle "there is no run 7" as a clear 404, not a crash. **If not:** the Build Task's `GET /runs/{id}` and its "wrong ID" case would be written for the first time there.
 
 ```python
+# practice/sqlite_persistence_practice.py — Real-world section
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
@@ -188,6 +201,8 @@ conn.execute("""
 class ChatRequest(BaseModel):
     message: str
 
+# why: one saved row's shape, checked on the way out —
+# same idea as ChatResponse in chat_route
 class RunRecord(BaseModel):
     id: int
     input: str
@@ -208,85 +223,32 @@ def chat(request: ChatRequest):
 @app.get("/runs", response_model=list[RunRecord])
 def get_runs():
     rows = conn.execute("SELECT * FROM runs").fetchall()
-    return [dict(row) for row in rows]
+    result = []
+    for row in rows:
+        result.append(dict(row))
+    return result
 
 @app.get("/runs/{run_id}", response_model=RunRecord)
 def get_run(run_id: int):
-    row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+    # how: (run_id,) — even one value must be passed as a tuple
+    sql = "SELECT * FROM runs WHERE id = ?"
+    row = conn.execute(sql, (run_id,)).fetchone()
+    # when: fetchone() returns None when no row matches
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
     return dict(row)
 ```
-**Expected output for `GET /runs/1` (existing row):**
+**Expected output for `GET /runs/1` (existing row; shown wrapped onto 2 lines just to fit the page — really one line of output):**
 ```
-200 {"id":1,"input":"hi","output":"You said: hi","created_at":"2026-01-01T00:00:00.000000+00:00"}
+200 {"id":1,"input":"hi","output":"You said: hi",
+     "created_at":"2026-01-01T00:00:00.000000+00:00"}
 ```
 **Expected output for `GET /runs/999` (no such row):**
 ```
 404 {"detail":"run not found"}
 ```
-Note the `?` placeholder and `(run_id,)` tuple — even with a single value, it still has to be passed as a tuple, and it's still never string-formatted directly into the SQL.
+`GET /runs/abc` gives a 422 on its own, because `run_id` must be an `int` — FastAPI checks path values too.
 
-### Approach 2 — one shared connection via FastAPI's lifespan, not a bare module-level global
+**Difference from Basic:** Approach 1 adds `conn.row_factory = sqlite3.Row` and converts each row with `dict(row)`, so `GET /runs` returns field-named JSON instead of positional tuples. Approach 2 moves the SQL into a dedicated `runs_db.py`, keeping the route file focused on routing — the same move `chat_route`'s Approach 2 made for its models. Approach 3 adds a typed `RunRecord` response model and a single-row lookup that handles "not found" as a clean 404.
 
-Opening the connection as a bare module-level `conn = sqlite3.connect(...)` (every approach above) works for this exercise, but ties database setup to *import time*, which makes it awkward to test (you can't easily swap in a test database) and doesn't give you a clean shutdown hook. FastAPI's `lifespan` runs setup once at startup and teardown once at shutdown.
-
-```python
-import sqlite3
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
-
-class RunRecord(BaseModel):
-    id: int
-    input: str
-    output: str
-    created_at: str
-
-class ChatRequest(BaseModel):
-    message: str
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    conn = sqlite3.connect("runs.db", check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            input TEXT,
-            output TEXT,
-            created_at TEXT
-        )
-    """)
-    app.state.db = conn
-    yield
-    conn.close()
-
-app = FastAPI(lifespan=lifespan)
-
-@app.post("/chat")
-def chat(request: ChatRequest, http_request: Request):
-    conn = http_request.app.state.db
-    reply = "You said: " + request.message
-    now = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        "INSERT INTO runs (input, output, created_at) VALUES (?, ?, ?)",
-        (request.message, reply, now),
-    )
-    conn.commit()
-    return {"reply": reply}
-
-@app.get("/runs/{run_id}", response_model=RunRecord)
-def get_run(run_id: int, http_request: Request):
-    conn = http_request.app.state.db
-    row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="run not found")
-    return dict(row)
-```
-**Expected output:** identical to Approach 1 — the connection now lives on `app.state.db`, opened once at startup and closed once at shutdown, instead of a bare global created the instant the module is imported.
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate returns usable JSON but only ever hands back the *whole* table. Approach 1 adds a typed `RunRecord` response model (validated on the way out, same pattern as `chat_route`'s `ChatResponse`) and a genuine single-row lookup that handles "not found" as a clean 404 instead of crashing or returning `null`. Approach 2 doesn't change the SQL at all — it moves connection setup out of import-time and into FastAPI's `lifespan`, which is what actually lets you swap in a separate test database later without editing route code.
-
-**Which one should you actually write?** Intermediate Approach 1 (`row_factory` + `dict(row)`) is the minimum any SQLite-backed route needs — never return a raw `sqlite3.Row` or tuple from a route. Add Advanced Approach 1's typed `response_model` and `GET /runs/{id}` as soon as a client needs to look up one specific run, which the Build Task's requirements explicitly ask for. Reach for Approach 2's `lifespan` pattern once you're writing tests for this (a fresh `:memory:` database per test is the standard move) or once you have real startup/shutdown work beyond just `CREATE TABLE`.
+**Which one should you actually write?** Approach 1 (`row_factory` + `dict(row)`) is the minimum any SQLite-backed route needs — never return a raw `sqlite3.Row` or tuple from a route. Add Approach 3's `RunRecord` and `GET /runs/{id}` as soon as a client needs to look up one specific run, which the Build Task requires. Use Approach 2's helper file once there's more than one or two SQL statements — the Build Task's `db/database.py` is exactly this file.

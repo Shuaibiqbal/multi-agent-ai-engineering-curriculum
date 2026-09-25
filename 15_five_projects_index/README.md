@@ -5,6 +5,7 @@
 Not new content. This is a standing page you come back to — not something you read once and move past. Each project has its own full plan; this page just maps them out and shows the "plan before you code" steps (§17 of the original plan: Problem → Requirements → Architecture → Components → Data Flow → Implementation Plan → Coding Tasks) you should redo fresh at the start of every project.
 
 ## How to Read & Practice This Document
+
 - **What:** the fixed process every project starts with, before any code: **Problem → Requirements → Architecture → Components → Data Flow → Implementation Plan → Coding Tasks.**
 - **Why:** at the start of every project, it's tempting to just start typing. Projects that skip straight to code end up as working demos with an architecture you can't explain in an interview.
 - **When:** at the start of every one of the projects, every time, no skipping — including the capstone.
@@ -14,7 +15,7 @@ Not new content. This is a standing page you come back to — not something you 
 
 ## The Story — what this document is actually building
 
-You've just finished (or are about to start) a run of six real projects, and it's easy to lose the thread of how they connect — each one has its own folder, its own README, its own requirements. This page is the map that ties them together: one table showing all six projects side by side, how many agents each one uses, which documents taught you what you needed for it, and what it's meant to prove you can do.
+You've just finished (or are about to start) a run of real projects — five core ones, plus eight bonus ones — and it's easy to lose the thread of how they connect — each one has its own folder, its own README, its own requirements. This page is the map that ties them together: one table showing every project side by side, how many agents each one uses, which documents taught you what you needed for it, and what it's meant to prove you can do.
 
 Notice the pattern in the "Agents" column: 2 → 2 → 3 → 5 → 5. Each project is deliberately not a huge jump from the last one — it adds *one* new idea (a second agent, an approval step, a supervisor) instead of several at once, so by the time you reach Project 4's five-agent team, none of the individual pieces are new to you, only the way they're combined.
 
@@ -41,13 +42,27 @@ Every project is a real multi-agent system — the number of agents grows across
 | 13 (bonus) | CodeGuard: PR-Review Team | 4 | [project_13_codeguard_pr_review](../project_13_codeguard_pr_review/) | All of Docs 01-19, used again | You can apply the whole architecture to a new problem, with less help from this curriculum |
 
 ## Practice Exercises
-**Why only 1 here:** this page's whole job is the 7-step process, not code — one worked example is enough to show you how to actually use it. Real practice is running these 7 steps yourself, fresh, at the start of each of the 6 projects.
+
+**Where your answer lives:** `15_five_projects_index/practice/` (`mkdir -p practice`). This exercise is written, not coded, so it's a Markdown file:
+
+```
+practice/
+└── seven_step_practice.md   the 7 steps for the email scenario
+```
+
+**Why this file exists:**
+
+- `seven_step_practice.md` — your own first run of the 7 steps on a real, underspecified request, written down so you can compare it with the worked example — and re-read it before starting each project.
+
+**Why only 1 here:** this page's whole job is the 7-step process, not code — one worked example is enough to show you how to actually use it. Real practice is running these 7 steps yourself, fresh, at the start of every project.
 
 ### Basic — run the 7-step process on a mini scenario {: #ex-seven_step_practice }
+
 - **What:** given a one-sentence feature request, write out all 7 steps (Problem → Requirements → Architecture → Components → Data Flow → Implementation Plan → Coding Tasks) yourself, on paper, before looking at a worked example.
 - **Why:** reading the 7-step list isn't the same skill as actually using it under a real, underspecified request — the first time you try it for real shouldn't be at the start of Project 1.
 - **When you'll hit this for real:** literally the first thing you do at the start of every project in this curriculum, and every new feature request for the rest of your career.
 - **How to do it:** use this scenario — *"Build something that reads a team's daily emails and flags the urgent ones."* Write your own 7 steps first. Then compare against the worked example.
+- **Save as:** `practice/seven_step_practice.md`.
 - **Stuck?** [Hint 1](hints_and_solutions/seven_step_practice_hints.md#hint-1) · [Hint 2](hints_and_solutions/seven_step_practice_hints.md#hint-2) · [Show me the solution](hints_and_solutions/seven_step_practice_solution.md)
 
 ## Go Deeper (Optional)

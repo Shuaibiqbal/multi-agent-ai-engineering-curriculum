@@ -26,7 +26,7 @@ Things to use:
 - `response.status_code // 100` — dividing by 100 gives you the status category (2, 4, or 5) without writing out every code.
 - `random.uniform(0, 1)` — adds jitter (a small random extra wait) on top of your backoff delay.
 - The logger from `01_python_foundations`'s `logging_setup.py` — `get_logger(__name__)`, then `.debug(...)` per attempt, `.error(...)` on final failure.
-- Your two new error classes go in `exceptions.py`, just like Doc01's `MissingConfigError`.
+- Your two new error classes go in `exceptions.py`, next to Doc01's `MissingConfigError` — keep that one in the file, because the copied `config.py` imports it from there.
 
 <hr class="page-break">
 
@@ -73,6 +73,7 @@ The extra pieces:
 
 ```
 exceptions.py:
+    keep Doc01's MissingConfigError exactly as it was
     make TransientHTTPError, a kind of Exception
     make PermanentHTTPError, a kind of Exception, stores the response body
 
@@ -86,12 +87,14 @@ http_client.py:
             try:
                 call requests.request with a timeout
             except timeout or connection error:
-                if this was the last attempt: log ERROR, raise TransientHTTPError
+                if this was the last attempt:
+                    log ERROR, raise TransientHTTPError
                 else: wait, try again
 
             if status is 2xx: return the parsed JSON
             if status is 429 or 5xx:
-                if this was the last attempt: log ERROR, raise TransientHTTPError
+                if this was the last attempt:
+                    log ERROR, raise TransientHTTPError
                 else: wait, try again
             if status is any other 4xx:
                 log ERROR, raise PermanentHTTPError right away, no retry
@@ -119,6 +122,7 @@ Call this instead of `response.json()` directly inside `request_with_retry`. Try
 
 **`exceptions.py`:**
 ```
+class MissingConfigError is an Exception    (kept from Doc01)
 class TransientHTTPError is an Exception
 class PermanentHTTPError is an Exception, holds status_code and body
 ```
@@ -158,7 +162,8 @@ function request_with_retry(method, url, max_attempts=5, **kwargs) -> dict:
                     f"last status {response.status_code}"
                 )
                 raise TransientHTTPError(
-                    f"status {response.status_code} after {max_attempts} attempts"
+                    f"status {response.status_code} "
+                    f"after {max_attempts} attempts"
                 )
             sleep(compute_backoff_delay(attempt))
             continue
@@ -180,7 +185,9 @@ http_client.py:
         for attempt in range(max_attempts):
             logger.debug(f"attempt {attempt}: {method} {url}")
             try:
-                response = session.request(method, url, timeout=(3, 10), **kwargs)
+                response = session.request(
+                    method, url, timeout=(3, 10), **kwargs
+                )
             except (Timeout, ConnectionError) as e:
                 if attempt == max_attempts - 1:
                     raise TransientHTTPError(...) from e
@@ -281,6 +288,15 @@ Every code block below shows what you'd see running it against a real, working c
 
 ```python
 # exceptions.py
+# kept from Doc01, unchanged — config.py imports it from this file
+# Why: gives load_config() its own error type, so calling code can catch a
+# missing
+# setting specifically, instead of catching every possible Exception blindly.
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
+
+
 # Why: two separate types so callers can catch "worth retrying" and
 # "my mistake, don't retry" differently, instead of one generic Exception.
 class TransientHTTPError(Exception):
@@ -327,7 +343,8 @@ def request_with_retry(method, url, max_attempts=5, **kwargs):
         ) as e:
             if attempt == max_attempts - 1:
                 logger.error(
-                    "gave up after " + str(max_attempts) + " attempts: " + str(e)
+                    "gave up after " + str(max_attempts)
+                    + " attempts: " + str(e)
                 )
                 raise TransientHTTPError(str(e))
             time.sleep(compute_backoff_delay(attempt))
@@ -341,7 +358,9 @@ def request_with_retry(method, url, max_attempts=5, **kwargs):
 
         if response.status_code == 429 or response.status_code // 100 == 5:
             if attempt == max_attempts - 1:
-                logger.error("gave up, last status " + str(response.status_code))
+                logger.error(
+                    "gave up, last status " + str(response.status_code)
+                )
                 raise TransientHTTPError("status " + str(response.status_code))
             time.sleep(compute_backoff_delay(attempt))
             continue
@@ -370,6 +389,15 @@ This version works correctly and meets every Build Task requirement. It's missin
 
 **`exceptions.py`**
 ```python
+# kept from Doc01, unchanged — config.py imports it from this file
+# Why: gives load_config() its own error type, so calling code can catch a
+# missing
+# setting specifically, instead of catching every possible Exception blindly.
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
+
+
 class TransientHTTPError(Exception):
     """Raised when a retryable failure (timeout, 5xx, 429) exhausts all
     attempts."""
@@ -439,7 +467,8 @@ def request_with_retry(
             if attempt == max_attempts - 1:
                 logger.error(f"gave up, last status {response.status_code}")
                 raise TransientHTTPError(
-                    f"status {response.status_code} after {max_attempts} attempts"
+                    f"status {response.status_code} "
+                    f"after {max_attempts} attempts"
                 )
             time.sleep(compute_backoff_delay(attempt))
             continue
@@ -495,7 +524,8 @@ def request_with_retry(
             if attempt == max_attempts - 1:
                 logger.error(f"gave up, last status {response.status_code}")
                 raise TransientHTTPError(
-                    f"status {response.status_code} after {max_attempts} attempts"
+                    f"status {response.status_code} "
+                    f"after {max_attempts} attempts"
                 )
             time.sleep(compute_backoff_delay(attempt))
             continue
@@ -512,6 +542,15 @@ def request_with_retry(
 
 ```python
 # exceptions.py
+# kept from Doc01, unchanged — config.py imports it from this file
+# Why: gives load_config() its own error type, so calling code can catch a
+# missing
+# setting specifically, instead of catching every possible Exception blindly.
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
+
+
 # Why: two separate types so callers can catch "worth retrying" and
 # "my mistake, don't retry" differently, instead of one generic Exception.
 class TransientHTTPError(Exception):
@@ -576,7 +615,8 @@ def parse_retry_after(value):
         pass
     try:
         target_time = parsedate_to_datetime(value)
-        seconds_left = (target_time - datetime.now(timezone.utc)).total_seconds()
+        now = datetime.now(timezone.utc)
+        seconds_left = (target_time - now).total_seconds()
         return max(seconds_left, 0.0)
     except (TypeError, ValueError):
         return None
@@ -640,7 +680,8 @@ def request_with_retry(
             if attempt == max_attempts - 1:
                 logger.error(f"gave up, last status {response.status_code}")
                 raise TransientHTTPError(
-                    f"status {response.status_code} after {max_attempts} attempts"
+                    f"status {response.status_code} "
+                    f"after {max_attempts} attempts"
                 )
             # how: honors Retry-After if the server sent one
             time.sleep(decide_wait_seconds(response.headers, attempt))

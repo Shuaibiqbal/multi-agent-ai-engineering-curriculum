@@ -75,7 +75,8 @@ for every pair of sentences:
     compute cosine_similarity between their embeddings
     print the pair and the score
 
-check: does the pair (sentence_1, sentence_2) score higher than every other pair?
+check: does the pair (sentence_1, sentence_2)
+    score higher than every other pair?
 ```
 
 Here's almost the whole thing — just try running it and reading it line by line:
@@ -87,13 +88,23 @@ from openai import OpenAI
 client = OpenAI()
 
 def get_embedding(text):
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 ```
 **Expected output if you run just this (nothing calls these functions yet):** nothing — defining a function doesn't run it. Add your 5 sentences and the comparison loop below it to see any scores print.
@@ -132,13 +143,23 @@ from openai import OpenAI
 client = OpenAI()
 
 def get_embedding(text: str) -> list[float]:
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 ```
 
@@ -181,8 +202,13 @@ SENTENCES: list[str] = [
 
 
 def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
-    response = client.embeddings.create(model="text-embedding-3-small", input=texts)
-    return [item.embedding for item in response.data]
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=texts
+    )
+    embeddings = []
+    for item in response.data:
+        embeddings.append(item.embedding)
+    return embeddings
 
 
 def fast_cosine_similarity(a: list[float], b: list[float]) -> float:
@@ -194,7 +220,10 @@ def fast_cosine_similarity(a: list[float], b: list[float]) -> float:
 # one-time sanity check that the "already unit-length" assumption really holds
 # for this model, instead of trusting it blindly
 def assert_unit_length(vector: list[float]) -> None:
-    norm = math.sqrt(sum(x * x for x in vector))
+    squares = 0.0
+    for x in vector:
+        squares = squares + x * x
+    norm = math.sqrt(squares)
     assert abs(norm - 1.0) < 1e-6, f"expected a unit vector, got norm={norm}"
 ```
 

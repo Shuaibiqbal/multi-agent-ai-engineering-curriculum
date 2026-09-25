@@ -35,8 +35,6 @@ If you also want to build up the full reply text (useful if you need to save it 
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-streaming_replies) · [Hint 1](streaming_replies_hints.md#hint-1) · [Hint 2](streaming_replies_hints.md#hint-2) · [Solution](streaming_replies_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

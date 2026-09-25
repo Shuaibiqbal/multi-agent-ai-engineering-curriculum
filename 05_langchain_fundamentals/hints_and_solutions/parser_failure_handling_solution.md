@@ -57,7 +57,9 @@ def main() -> None:
         # differently to "didn't match my shape" than to anything else.
         print(f"Caught a ValidationError (expected): {e}")
     except Exception as e:
-        print(f"Caught a different error than expected: {type(e).__name__}: {e}")
+        print(
+            f"Caught a different error than expected: {type(e).__name__}: {e}"
+        )
         print(f"Full class chain: {type(e).__mro__}")
 
 

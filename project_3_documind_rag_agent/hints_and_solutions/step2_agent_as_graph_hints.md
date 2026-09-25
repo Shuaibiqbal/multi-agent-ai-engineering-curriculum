@@ -1,6 +1,6 @@
 # Step 2 — Project 2's Agent, Rebuilt as a Graph With Saved State — Hints
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper LangGraph), **Advanced** (what actually proves the pause/resume cycle works, not just that it compiles). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what each deeper level adds.
 
@@ -9,7 +9,7 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
 
@@ -21,7 +21,7 @@ Nothing about the *behavior* changes here — same tools, same model, same decis
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ### Intermediate Version
 
@@ -48,7 +48,7 @@ For the checkpointer: `from langgraph.checkpoint.memory import MemorySaver`, `gr
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ### Advanced Version
 
@@ -66,7 +66,7 @@ Sketch what your "second, separate resume" test actually proves versus what an i
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
 
@@ -97,7 +97,7 @@ build_graph():
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ### Intermediate Version
 
@@ -160,7 +160,7 @@ Write the full typed version yourself, then confirm you can call `graph.invoke(N
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 ### Advanced Version
 
@@ -205,6 +205,6 @@ Fill in `resume.py`, run `main.py` then `resume.py` as two truly separate `pytho
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-project-2s-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
+> [Back to this step](../README.md#step-2-your-existing-agent-rebuilt-as-a-graph-with-saved-state) · [Hint 1](step2_agent_as_graph_hints.md#hint-1) · [Hint 2](step2_agent_as_graph_hints.md#hint-2) · [Solution](step2_agent_as_graph_solution.md)
 
 Full solution: [Show me the solution](step2_agent_as_graph_solution.md)

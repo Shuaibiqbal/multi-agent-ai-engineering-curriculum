@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
 
-Only 2 hints — work through them in order against your own design before reading ahead. Each hint has 3 depth levels: **Basic** (the plain framing — how to pick a decision and find a real objection), **Intermediate** (the real structure a defense needs), **Advanced** (the senior-level judgment call — defending it under a second, harder round of pushback, not just the first objection). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing — how to pick a decision and find a real objection) and **Intermediate** (the real structure a defense needs, then the senior-level judgment call — defending it under a second, harder round of pushback, not just the first objection). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and finding a real objection](#hint-1)
 - [Hint 2 — The plan, and a worked defense](#hint-2)
@@ -33,13 +33,9 @@ Common categories of real objections, if you're stuck finding one: **simplicity*
 
 Write out your decision and its strongest counter-argument now, before Hint 2.
 
-<hr class="page-break">
+**When the pushback comes back a second time:**
 
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
-
-### Advanced Version
-
-A defense that survives exactly one round of pushback and then stops isn't fully tested — a real senior reviewer doesn't ask one question and move on. The harder, more realistic version: after you answer the first objection, the reviewer attacks your *mitigation* instead of your original decision. You said "I accepted risk X, but I mitigate it with Y" — the advanced pushback is "fine, but Y itself has a hole. What then?"
+A defense that survives exactly one round of pushback and then stops isn't fully tested — a real senior reviewer doesn't ask one question and move on. The harder, more realistic version: after you answer the first objection, the reviewer attacks your *mitigation* instead of your original decision. You said "I accepted risk X, but I mitigate it with Y" — the harder pushback is "fine, but Y itself has a hole. What then?"
 
 This is a different skill than the first round. The first round tests whether you weighed a real alternative. The second round tests whether your answer was a genuine, load-bearing part of the design, or just a reassuring sentence you added to sound thorough. If Y turns out to be as weak as the reviewer suggests, the honest move is to say so and describe what you'd actually add — not to invent a second, equally thin justification on the spot to avoid conceding anything.
 
@@ -47,7 +43,7 @@ A second, related curveball worth rehearsing: the reviewer names a *different* d
 
 Try defending your chosen decision through two full rounds of pushback — first on the decision, then on your own mitigation — before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic finds one real objection and answers it. Intermediate gives that answer a proper structure — alternative, specific cost, honest trade-off. Advanced assumes the first answer isn't the end of the conversation: a real reviewer pushes on your mitigation next, and the skill being tested is whether you can adapt honestly under a second round, not just deliver a single rehearsed defense.
+**Difference between Basic and Intermediate:** Basic states the decision, the strongest objection, and an honest answer. Intermediate names what the alternative would really have cost and the mitigation you built — and then holds up when the reviewer attacks the mitigation itself, or finds a second decision that conflicts with the first.
 
 <hr class="page-break">
 
@@ -106,13 +102,9 @@ Answer: ___ (fill in: what does your system specifically need that a
     fixed pipeline can't do?)
 ```
 
-Fill in your own answer, then move to the Advanced Version below.
+Fill in your own answer, then plan for the second round of pushback below.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
-
-### Advanced Version
+**Round 2, as a plan:**
 
 The same decision, taken through a second round — the reviewer doesn't accept your mitigation and pushes again:
 
@@ -145,7 +137,7 @@ Round 2 answer: fill this in yourself before checking the Solution --
 
 Write your own Round 2 answer, then compare against the [Solution](defend_tradeoff_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both stop once the first objection has a real answer. Advanced keeps going — the reviewer finds the specific hole in your own mitigation and asks about it directly, which is where a rehearsed answer runs out and genuine reasoning has to take over.
+**Difference between Basic and Intermediate:** Basic plans one round of pushback. Intermediate plans for the second round too: separating what your fix covers from what it doesn't, and conceding a real gap with a prioritisation reason instead of inventing a justification.
 
 <hr class="page-break">
 

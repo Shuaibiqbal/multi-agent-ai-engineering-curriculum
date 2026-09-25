@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
 
-Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 3 depth levels: **Basic** (the plain framing — what to ask, what the obvious first design looks like), **Intermediate** (the real architectural vocabulary and trade-offs), **Advanced** (the senior-level judgment call — what a naive design gets wrong, and what a stakeholder would push back on). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing — what to ask, what the obvious first design looks like) and **Intermediate** (the real architectural vocabulary and trade-offs, including the senior-level judgment call — what a naive design gets wrong, and what a stakeholder would push back on). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — What to ask, and the obvious first design](#hint-1)
 - [Hint 2 — The plan, and almost the whole design](#hint-2)
@@ -35,11 +35,7 @@ This is a retrieval-augmented generation (RAG) design — Doc08 material — wra
 
 State here is simple: per-conversation history plus the most recent retrieval result, so the agent's answer can be traced back to what it actually found.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
-
-### Advanced Version
+**What a senior reviewer pushes on:**
 
 The naive version of this design uses the LLM's own stated confidence to decide when to hand off — and that's exactly the piece a senior reviewer will push on. A model can sound completely confident while stating something the docs never said, because "sounding confident" and "grounded in retrieved text" are not the same signal. The safer check asks a narrower question: does at least one retrieved chunk actually support this specific claim — and treats an answer that leans on the model's general knowledge instead of the retrieved text as automatically unsure, no matter how fluent it sounds.
 
@@ -47,7 +43,7 @@ A stakeholder will also ask "why hand off to a human at all instead of just sayi
 
 Cost/latency: RAG adds one retrieval step before generation. For a single-agent bot at modest traffic that's fine as-is. Caching repeated queries only becomes a justified addition once volume actually requires it — adding it now, for traffic nobody mentioned, is the exact "inspiration instead of matching" mistake Core Concepts warns about.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the questions to ask and sketches one clean agent-plus-retrieval design. Intermediate supplies the real vocabulary and three concrete ways to implement "unsure," each with a real trade-off. Advanced is the judgment call an interviewer is actually listening for: which of those three "unsure" definitions is trustworthy versus which one just sounds trustworthy, and what the handoff needs to carry to actually be useful downstream.
+**Difference between Basic and Intermediate:** Basic names the questions to ask and sketches one clean agent-plus-retrieval design. Intermediate supplies the real vocabulary, three concrete ways to implement "unsure" with their trade-offs, and the judgment call an interviewer is listening for: which "unsure" signal is trustworthy versus which only sounds trustworthy, and what the handoff must carry to be useful.
 
 <hr class="page-break">
 
@@ -95,11 +91,7 @@ Human handoff:
     business already uses — ticketing, live-chat escalation, etc.)
 ```
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
-
-### Advanced Version
+**Hardened for a senior review:**
 
 ```
 Agent: single support agent
@@ -130,7 +122,7 @@ Scaling note (only if traffic actually requires it):
     cache repeated queries' retrieval results
 ```
 
-**Difference between Basic, Intermediate, and Advanced:** Basic is the one-paragraph plan anyone could sketch on a whiteboard in two minutes. Intermediate names the actual pieces — tool signature, state, routing condition, handoff payload — the way you'd actually write them in a design doc. Advanced adds what a naive design forgets entirely: what happens when the retrieval tool itself fails (not just when it finds nothing), a retry-then-escalate policy instead of an infinite retry loop, and turning escalations into a monitoring signal about the docs themselves, not just about the bot.
+**Difference between Basic and Intermediate:** Basic is the one-paragraph plan anyone could sketch in two minutes. Intermediate names the actual pieces — tool signature, state, routing condition, handoff payload — and then hardens them: what happens when the search tool itself fails, a retry-then-escalate policy instead of endless retries, and escalations turned into a signal about gaps in the docs.
 
 <hr class="page-break">
 

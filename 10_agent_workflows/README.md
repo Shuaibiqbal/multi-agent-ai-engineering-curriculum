@@ -6,6 +6,7 @@
 [09_langgraph](../09_langgraph/)
 
 ## How to Read & Practice This Document
+
 - **What:** putting tools, RAG, branching, and saved state together into one working agent.
 - **Why:** this is what "building an agent" actually looks like in real work — combining what you already know, not new theory.
 - **When:** this is the shape of most real single-agent production systems you'll run into at a job.
@@ -84,7 +85,10 @@ DOC_WORDS = ("policy", "refund", "warranty", "contract", "handbook")
 
 def route_after_start(state: AgentState) -> str:
     task = state["task"].lower()
-    return "retrieve" if any(word in task for word in DOC_WORDS) else "answer"
+    for word in DOC_WORDS:
+        if word in task:
+            return "retrieve"
+    return "answer"
 
 builder = StateGraph(AgentState)
 builder.add_node("retrieve", retrieve_node)
@@ -112,12 +116,19 @@ router_model = ChatOpenAI(
 ).with_structured_output(SearchDecision)
 
 def route_after_start(state: AgentState) -> str:
-    question = f"Does this task need our internal documents? Task: {state['task']}"
+    question = (
+        "Does this task need our internal documents? "
+        f"Task: {state['task']}"
+    )
     decision = router_model.invoke(question)
     logger.info(
-        "route: needs_search=%s reason=%s", decision.needs_search, decision.reason
+        "route: needs_search=%s reason=%s",
+        decision.needs_search,
+        decision.reason,
     )
-    return "retrieve" if decision.needs_search else "answer"
+    if decision.needs_search:
+        return "retrieve"
+    return "answer"
 ```
 
 Approach 1 costs nothing and is instant, but only ever catches the exact words you thought of. Approach 2 catches paraphrased questions rules would miss, at the cost of one small, cheap model call and one more thing that can be wrong. Approach 3 — search as a tool the main model chooses for itself — is covered with its own code in [Combining retrieval with tool calls](#combining-retrieval-with-tool-calls).
@@ -167,7 +178,7 @@ Plain RAG (Doc08) is a fixed pipeline: always search, then always answer from wh
 
 ```
 START → route ─┬─→ retrieve → grade ─┬─→ answer → END
-               │                     ├─→ rewrite_query → retrieve   (loop, max 3)
+               │                     ├─→ rewrite_query → retrieve (loop, max 3)
                │                     └─→ cannot_answer → END
                └─→ answer → END
 ```
@@ -177,7 +188,11 @@ START → route ─┬─→ retrieve → grade ─┬─→ answer → END
 def grade_by_score(chunks: list[dict], threshold: float = 0.75) -> bool:
     if not chunks:
         return False
-    return max(c["score"] for c in chunks) >= threshold
+    best_score = chunks[0]["score"]
+    for c in chunks:
+        if c["score"] > best_score:
+            best_score = c["score"]
+    return best_score >= threshold
 
 # Approach 2 — grade with a small model call (more reliable, costs a call)
 class ResultsGrade(BaseModel):
@@ -189,7 +204,10 @@ grader_model = ChatOpenAI(
 ).with_structured_output(ResultsGrade)
 
 def grade_by_model(question: str, chunks: list[dict]) -> bool:
-    text = "\n\n".join(c["text"] for c in chunks)
+    pieces = []
+    for c in chunks:
+        pieces.append(c["text"])
+    text = "\n\n".join(pieces)
     prompt = (
         f"Question: {question}\n\nFound text:\n{text}\n\n"
         "Does this text actually answer the question?"
@@ -246,7 +264,8 @@ import operator
 
 class AgentState(TypedDict, total=False):
     task: str                    # what was asked
-    query: str                   # the search text actually used, may be rewritten
+    # the search text actually used, may be rewritten
+    query: str
     found_chunks: list[dict]     # what was found: text + source + score
     draft_answer: str            # what the model wrote from those chunks
     decision: str                # "approved" / "rejected", filled on resume
@@ -267,9 +286,12 @@ class AgentState(TypedDict, total=False):
 from langgraph.types import interrupt
 
 def approval_node(state: AgentState) -> dict:
+    sources = []
+    for c in state["found_chunks"]:
+        sources.append(c["source"])
     decision = interrupt({
         "draft": state["draft_answer"],
-        "sources": [c["source"] for c in state["found_chunks"]],
+        "sources": sources,
     })
     return {"decision": decision, "path_log": [f"approval:{decision}"]}
 
@@ -397,12 +419,16 @@ def search_documents(query: str) -> str:
     chunks = retrieve(query, k=3)
     if not chunks:
         return "NO_RESULTS: nothing in the knowledge base matched this query."
-    return "\n\n".join(f"[{c['source']}] {c['text']}" for c in chunks)
+    pieces = []
+    for c in chunks:
+        pieces.append(f"[{c['source']}] {c['text']}")
+    return "\n\n".join(pieces)
 
 @tool
 def check_order_status(order_id: str) -> str:
     """Return the current status of one order, by order id like 'A-1042'."""
-    return orders_api.get_status(order_id)   # Doc02's http_client already retries
+    # Doc02's http_client already retries
+    return orders_api.get_status(order_id)
 
 model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 model_with_tools = model.bind_tools([search_documents, check_order_status])
@@ -451,7 +477,8 @@ A cache is a place you keep a result you already got, so you don't have to get i
 
 ```python
 def normalize(query: str) -> str:
-    return " ".join(query.lower().split())      # "Refund  Policy " → "refund policy"
+    # "Refund  Policy " → "refund policy"
+    return " ".join(query.lower().split())
 
 # graph-node version — cache lives in state
 def retrieve_node(state: AgentState) -> dict:
@@ -462,7 +489,8 @@ def retrieve_node(state: AgentState) -> dict:
         return {"found_chunks": cache[key], "path_log": ["search:cache_hit"]}
 
     chunks = retrieve(state["query"], k=4)
-    new_cache = {**cache, key: chunks}      # a NEW dict, don't mutate the old one
+    # a NEW dict, don't mutate the old one
+    new_cache = {**cache, key: chunks}
     return {
         "found_chunks": chunks,
         "search_cache": new_cache,
@@ -480,7 +508,8 @@ def make_search_tool(cache: dict):
         return cache[key]
     return search_documents
 
-run_cache: dict[str, str] = {}                  # new, empty cache for this one run
+# new, empty cache for this one run
+run_cache: dict[str, str] = {}
 tools = [make_search_tool(run_cache), check_order_status]
 ```
 
@@ -559,7 +588,9 @@ def approval_gate(state: ActionState) -> dict:
     }
 
 def route_after_gate(state: ActionState) -> str:
-    return "do_action" if state["decision"] == "approved" else "report_rejected"
+    if state["decision"] == "approved":
+        return "do_action"
+    return "report_rejected"
 
 # Resume later, with the SAME thread_id the run was started with:
 # config = {"configurable": {"thread_id": "refund-881"}}
@@ -722,6 +753,7 @@ project_3_documind_rag_agent/
 **Used later by:** [Doc11](../11_multi_agent_systems/) turns this single search → answer → approve pipeline into several cooperating agents; [Project 4](../project_4_contentforge_multi_agent/) and [Project 11](../project_11_mcpcrew_multi_agent_mcp/) reuse this same search-as-tool and approval-gate shape with multiple specialists instead of one.
 
 ## Expected Behavior
+
 - Full cycle: task comes in → branching decides if search is needed → search happens if so → reasoning uses the found text → interrupt pauses before the risky action → resume continues → grounded final answer.
 - A task that doesn't need search skips that path entirely and still finishes correctly.
 - "Search found nothing" looks visibly different from "search succeeded" in the output/log.
@@ -736,11 +768,13 @@ project_3_documind_rag_agent/
 | Interrupt reached, rejected on resume | Graph stops/reports cleanly, doesn't do the risky action |
 
 ## Break-It / Debug Preview
+
 - A race between the saved-state write and a mid-run interrupt.
 - A routing check that skips search on a task that actually needed it.
 - Full debugging drill in [14_debugging_lab](../14_debugging_lab/).
 
 ## Interview Topics Preview
+
 - How this is different from Project 2 · where saved state actually lives · what human-checking costs in delay/user experience · agentic RAG vs. plain RAG.
 
 ## 🎯 You Can Now Build Project 3

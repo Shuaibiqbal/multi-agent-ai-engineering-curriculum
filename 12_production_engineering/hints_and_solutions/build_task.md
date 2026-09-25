@@ -2,7 +2,7 @@
 
 > [Back to the Build Task](../README.md#build-task-project-4-as-an-api) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper FastAPI/SQLite/Docker), **Advanced** (how a real production service actually handles this). Read Basic first even if you've done every Practice Exercise above — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper FastAPI/SQLite/Docker, split into the suggested files). Read Basic first even if you've done every Practice Exercise above — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -18,49 +18,40 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 You're combining everything from the Practice Exercises above into one working service: a FastAPI route that runs Project 4's multi-agent task, a SQLite table that remembers every run, log lines tagged with which request they belong to, a Dockerfile that packages the whole thing, and a simple limit on how often one caller can hit the route.
 
-Nothing here is a new idea — it's `chat_route` (a route wrapping real logic) plus `sqlite_persistence` (saving and reading back runs) plus `db_failure_and_docker` (a real Dockerfile) plus one new small piece: rate limiting.
+Almost nothing here is new — it's `chat_route` (a route wrapping real logic, 400/500, `logger.exception`, request IDs) plus `sqlite_persistence` (saving runs, `GET /runs/{id}` with a 404) plus `validation_422` (`INSERT` → `lastrowid` → `UPDATE`) plus `db_failure_and_docker` (Dockerfile, `.dockerignore`, startup env check). The one new piece is rate limiting, and it's built from a plain dict, a list, and `time.time()` — nothing you haven't used.
 
 The exact pieces:
 
 - `POST /run-task` — a route wrapping Project 4's task-running function, same shape as `chat_route`'s `/chat`.
-- A `runs` table with `id, input, output, log, status, created_at` — same shape as `sqlite_persistence`'s table, plus `log` and `status` columns.
-- `GET /runs/{id}` — look up one run by ID, same as `sqlite_persistence`'s Advanced version.
-- A request ID: a random short string generated once per request, included in every log line for that request.
-- A dictionary counting recent requests per caller, to reject a caller going over some limit with a `429` status code.
+- A `runs` table with `id, input, output, log, status, created_at` — `sqlite_persistence`'s table, plus `log` and `status` columns.
+- `GET /runs/{id}` — look up one run by ID, same as `sqlite_persistence`'s Approach 3.
+- `GET /health` — same as `health_route`.
+- A request ID, made once per request in a middleware and put on every log line — same as `chat_route`'s Approach 4.
+- A dictionary of recent request times per caller, to reject a caller over the limit with a `429`.
 
 ### Intermediate Version
 
-Think of the whole Build Task as 3 layers stacked on top of each other, each one you've already built separately: the **API layer** (`chat_route`'s pattern — typed request in, typed response out, 4xx/5xx handled correctly), the **storage layer** (`sqlite_persistence`'s pattern — but now recording a `status` that changes as the run progresses: `"started"` when the row is first written, `"completed"` or `"failed"` once it's done), and the **operations layer** (`db_failure_and_docker`'s pattern — a Dockerfile, secrets only via env vars — plus the new pieces: per-request log tagging, and rate limiting).
+Think of the Build Task as 3 layers, each one you've already built separately: the **API layer** (`chat_route` — typed request in, typed response out, 4xx/5xx handled correctly, real errors logged on the server only), the **storage layer** (`sqlite_persistence` + `validation_422` — but now with a `status` that changes as the run moves: `"started"` when the row is first written, `"completed"` or `"failed"` once it's done), and the **operations layer** (`db_failure_and_docker` — Dockerfile, secrets only via env vars, startup check — plus rate limiting).
 
-**Why status needs 3 states, not just "done":** unlike `sqlite_persistence`'s single-step insert, a task run can fail partway through — the agent might crash, an API call might time out. Writing a `"started"` row *before* running the task, then updating it to `"completed"` or `"failed"` after, means a crashed run still leaves a real, honest record instead of either nothing (if you only write at the end) or a silently wrong "success" row.
+**Why status needs 3 states, not just "done":** a task run can fail partway through — an agent might crash, an API call might time out. Saving a `"started"` row *before* running the task (in its own `with conn:`), then updating it to `"completed"` or `"failed"` after, means a crashed run still leaves a real, honest record. That's the one deliberate difference from `validation_422`'s Approach 3, which rolled both writes back together.
 
-**Why the request ID matters here specifically:** a multi-agent run produces many log lines across several steps (planning, tool calls, sub-agent handoffs). Without a shared ID on every one of those lines, you can't tell which log lines belong to which HTTP request once two people are calling your API at the same time — this is exactly `chat_route` Advanced's request-ID middleware, applied to a run that produces far more log output per request.
+**Why the request ID matters here specifically:** a multi-agent run writes many log lines per request. Without a shared ID on each, you can't tell which lines belong to which request once two people call your API at the same time.
+
+**The honest limitation of an in-memory rate limiter (the Requirements ask you to write it down):** a Python dict forgets everything when the process restarts, and if you run more than one copy of the API (which real deployments do), each copy has its *own* dict — so a caller could get 3x their limit by landing on 3 copies. The real fix is a shared store all copies can see (Redis is the standard choice). Put this in a comment right next to the dict.
+
+**Keeping secrets out of logs:** never log the API key, request headers, or `str(exc)` from a provider SDK error without looking at it first. `logger.exception()` with your own short message, as in `chat_route`, is the safe default.
 
 The exact pieces:
 
-- `import uuid; request_id = str(uuid.uuid4())[:8]` — generated once per request, in middleware, stored on `request.state.request_id`.
-- `logging.Formatter` with `%(request_id)s` in the format string, or `extra={"request_id": request_id}` passed to every `logger.info(...)` call for that request.
-- A `Run` table: `id, input, output, log, status, created_at` — `log` can just be a text column holding the agent's step-by-step trace as one string (join it with `\n`, or store JSON).
-- A plain-dictionary rate limiter: `request_counts: dict[str, list[float]] = {}`, storing timestamps per caller (by IP, or an API key if you have one), and rejecting once too many timestamps fall inside your time window.
-- `raise HTTPException(status_code=429, detail="Rate limit exceeded")`.
+- `api/schemas.py` → `TaskRequest(task: str)`, `TaskResponse(run_id, result, status)` — like `chat_schemas.py`.
+- `db/database.py` → `get_connection()`, `insert_started_run()`, `finish_run()`, `fail_run()`, `fetch_run()` — like `runs_db.py`, each write in its own `with conn:`.
+- `db/models.py` → a `Run(BaseModel)` for `GET /runs/{id}`'s `response_model`; `output` and `log` are `str | None`, since they're empty while a run is `"started"` or `"failed"`.
+- `api/routes.py` → an `APIRouter` with the 3 routes, plus `check_rate_limit(caller_key)`, called with `http_request.client.host` (the caller's IP address).
+- `api/main.py` → the startup env check, `app.include_router(router)`, and the request-ID middleware.
+- `"\n".join(steps)` — turns the agent's list of steps into one text value for the `log` column.
+- `test_api.py` → `TestClient`, one check per row of the Test Cases table, printed with `# expected:` comments — like `health_route`'s Approach 2.
 
-### Advanced Version
-
-Three real design questions the Requirements don't spell out, that a production version has to answer:
-
-**Does the route block until the whole multi-agent run finishes, or return immediately and let the client poll?** A multi-agent task can take much longer than a typical HTTP request should — if `POST /run-task` blocks synchronously for 30+ seconds, you tie up a worker thread the whole time, and a client's own HTTP client might time out waiting. The two real options: keep it synchronous for this Build Task (simplest, matches "same shape as Project 4's terminal input, now over HTTP" from the Requirements) and note the limitation, or return immediately with a `"started"` status and `id`, run the task with `BackgroundTasks` (or a real task queue, which Doc12's "Advanced" topic tier mentions), and let the client poll `GET /runs/{id}` until `status` becomes `"completed"`.
-
-**What's the actual, honest limitation of an in-memory rate limiter — and why does the Requirements section ask you to write it down?** A plain Python dictionary living in your process's memory forgets everything the moment the process restarts, and — more importantly — if you ever run more than one instance/worker of this API (which any real deployment eventually does, for redundancy or throughput), each instance has its *own* separate dictionary, so a caller could get 3x their real limit just by landing on 3 different instances. The honest fix for a real deployment is a shared store all instances can see (Redis is the standard choice) — writing this limitation down, instead of pretending an in-memory dict fully solves rate limiting, is itself part of the exercise.
-
-**How do you guarantee no secret ever reaches a log line?** `chat_route`'s Advanced hint already established: never put raw exception text in a client-facing reply. The same discipline applies to logs — an agent's step log or a caught exception's message can, in the wrong situation, contain something sensitive (an API key echoed back in an error message from a provider, for instance). A production system usually adds a small redaction step before anything is logged or saved, not just trusts every log line is automatically safe.
-
-Pieces:
-
-- `from fastapi import BackgroundTasks` — `def run_task(request: TaskRequest, background_tasks: BackgroundTasks):` then `background_tasks.add_task(execute_task, run_id, request.input)`.
-- A rate limiter's docstring or comment naming its own limitation directly: `# LIMITATION: in-memory only — resets on restart, and each process/worker has its own separate counts.`
-- A tiny `redact(text: str) -> str` helper, run over anything before it's logged or saved, replacing anything that looks like a known secret pattern (or, simpler: never log full exception text from a provider SDK call — log the exception *type* and a short summary instead).
-
-**Difference between Basic, Intermediate, and Advanced:** Basic names the 5 pieces and maps each one straight back to a Practice Exercise you already did. Intermediate explains why a 3-state status matters once a run can fail partway through, and gives the exact tools for request-ID logging and a dictionary-based rate limiter. Advanced asks the 3 questions a real deployment can't avoid — synchronous vs. background execution, the actual, honest limitation of an in-memory rate limiter (and why writing it down is required, not optional), and making sure no secret reaches a log line — which is the real difference between "meets the Requirements" and "would survive being someone else's production system."
+**Difference between Basic and Intermediate:** Basic names the pieces and maps each one straight back to a Practice Exercise. Intermediate explains why a 3-state status matters once a run can fail partway through, why the request ID matters under real traffic, the honest limit of an in-memory rate limiter, and how the pieces split across the suggested files.
 
 <hr class="page-break">
 
@@ -71,215 +62,99 @@ Pieces:
 ### Basic Version
 
 ```
-db/database.py:
-    connect to runs.db
-    create table runs (id, input, output, log, status, created_at) if missing
+one file, main.py:
+    connect to runs.db, create table runs
+        (id, input, output, log, status, created_at) if missing
 
-api/schemas.py:
-    TaskRequest(BaseModel): input: str
-    TaskResponse(BaseModel): id, output, status
-
-api/routes.py:
     route GET /health: return {"status": "ok"}
 
     route POST /run-task, takes a TaskRequest:
-        insert a row with status "started"
+        with conn: insert a row with status "started", keep lastrowid
         try:
-            output = call project 4's task-running function with request.input
-            update that row: output, status "completed"
+            output, steps = run project 4's task
         except:
-            update that row: status "failed"
-            raise a 500
-        return TaskResponse
+            with conn: update that row to status "failed"
+            raise a 500 with a plain message
+        with conn: update that row: output, log, status "completed"
+        return run_id, result, status
 
     route GET /runs/{id}:
-        look up the row
-        if missing: 404
-        return it
+        look up the row; if missing: 404; return it
 
-api/main.py:
-    app = FastAPI()
-    include the routes
-
-Dockerfile: same shape as db_failure_and_docker's exercise
+Dockerfile: same shape as db_failure_and_docker's
 ```
 
-Here's a simplified, all-in-one-file version to get something running before splitting into the suggested files — `run_project_4_task` below is a stand-in, swap in your real one:
+Here's the `POST /run-task` route — fill in the two `UPDATE`s yourself:
 ```python
-import sqlite3
-from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
-app = FastAPI()
-conn = sqlite3.connect("runs.db", check_same_thread=False)
-conn.row_factory = sqlite3.Row
-conn.execute("""
-    CREATE TABLE IF NOT EXISTS runs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        input TEXT, output TEXT, log TEXT, status TEXT, created_at TEXT
-    )
-""")
-
-class TaskRequest(BaseModel):
-    input: str
-
-def run_project_4_task(task_input: str) -> str:
-    # stand-in for Project 4's real multi-agent entry point
-    return "result for: " + task_input
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-
 @app.post("/run-task")
 def run_task(request: TaskRequest):
     now = datetime.now(timezone.utc).isoformat()
-    cursor = conn.execute(
-        "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
-        (request.input, "started", now),
-    )
-    conn.commit()
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
+            (request.task, "started", now),
+        )
     run_id = cursor.lastrowid
     try:
-        output = run_project_4_task(request.input)
-        conn.execute("UPDATE runs SET output = ?, status = 'completed' WHERE id = ?", (output, run_id))
-        conn.commit()
-        return {"id": run_id, "output": output, "status": "completed"}
+        output, steps = run_project_4_task(request.task)
     except Exception:
-        conn.execute("UPDATE runs SET status = 'failed' WHERE id = ?", (run_id,))
-        conn.commit()
-        raise HTTPException(status_code=500, detail="Something went wrong.")
-
-@app.get("/runs/{run_id}")
-def get_run(run_id: int):
-    row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="run not found")
-    return dict(row)
+        # your turn: with conn, UPDATE this run's status to "failed"
+        ...
+        raise HTTPException(status_code=500, detail="Internal error.")
+    log_text = "\n".join(steps)
+    # your turn: with conn, UPDATE output, log, and status "completed"
+    ...
+    return {"run_id": run_id, "result": output, "status": "completed"}
 ```
-Run it, `POST /run-task` a couple of times, then `GET /runs/1` and confirm the saved row matches. Rate limiting and per-request log tags aren't in this version yet — that's Intermediate and Advanced.
 
 ### Intermediate Version
 
 ```
-same as Basic, plus:
-
-middleware: generate a short request_id per request, store it on request.state,
-            add it to the response headers, and include it in every log line
-
-logging: configure a logger with a formatter that includes %(request_id)s
-         (or pass extra={"request_id": ...} on every call)
-
-rate limiting: a dict of {caller_key: [timestamp, timestamp, ...]}
-    on each request: drop timestamps older than the window, then:
-        if len(remaining timestamps) >= limit: raise 429
-        else: append this request's timestamp, proceed
-
 split into the suggested files:
     api/main.py, api/routes.py, api/schemas.py
     db/database.py, db/models.py
+    logging_setup.py (copied from Doc01, unchanged)
+
+db/database.py: get_connection, insert_started_run, finish_run,
+                fail_run, fetch_run — each write inside its own "with conn:"
+
+api/main.py: startup env check (MissingConfigError), app,
+             include_router, request-ID middleware
+
+api/routes.py:
+    rate limiting: a dict of {caller: [timestamp, timestamp, ...]}
+        on each request: keep only timestamps inside the window, then:
+            if len(recent) >= limit: raise 429
+            else: add this request's timestamp, carry on
+    every log line starts with "[request_id]"
 ```
 
-Here's most of the middleware and rate limiter, wired into the Basic version's route — fill in the request-ID logging calls yourself:
+Here's the rate limiter — fill in the loop yourself:
 ```python
-import logging
 import time
-import uuid
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import HTTPException
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(request_id)s] %(message)s")
-logger = logging.getLogger(__name__)
-
-RATE_LIMIT = 5          # max requests
-RATE_WINDOW = 60         # per this many seconds
-request_counts: dict[str, list[float]] = {}
+RATE_LIMIT = 5             # max requests per caller...
+RATE_WINDOW_SECONDS = 60   # ...inside this many seconds
+# LIMITATION: write the honest limitation here, in your own words
+request_times = {}         # caller -> list of request timestamps
 
 def check_rate_limit(caller_key: str) -> None:
     now = time.time()
-    recent = [t for t in request_counts.get(caller_key, []) if now - t < RATE_WINDOW]
+    old_times = request_times.get(caller_key, [])
+    recent = []
+    # your turn: loop over old_times, append the ones where
+    # now - t < RATE_WINDOW_SECONDS to recent
+    ...
     if len(recent) >= RATE_LIMIT:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     recent.append(now)
-    request_counts[caller_key] = recent
-
-app = FastAPI()
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    request_id = str(uuid.uuid4())[:8]
-    request.state.request_id = request_id
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-    return response
-
-@app.post("/run-task")
-def run_task(request: "TaskRequest", http_request: Request):
-    check_rate_limit(http_request.client.host)
-    request_id = http_request.state.request_id
-    # your turn: pass extra={"request_id": request_id} on every logger.info/.exception
-    # call inside this route, so every log line for this run shares the same ID
-    ...
+    request_times[caller_key] = recent
 ```
 **Expected output for the 6th request within 60 seconds from the same caller:**
 ```
 429 {"detail":"Rate limit exceeded"}
 ```
-
-### Advanced Version
-
-```
-same as Intermediate, plus:
-
-run the task in the background instead of blocking the whole request:
-    POST /run-task returns immediately with {"id": ..., "status": "started"}
-    the actual task execution happens via BackgroundTasks, updating the row
-    when it finishes (completed or failed)
-    client polls GET /runs/{id} until status is no longer "started"
-
-document the rate limiter's real limitation directly in a comment
-
-redact anything log-worthy before it's written, instead of logging raw
-exception text from a provider SDK call
-```
-
-Here's most of the background-task version — fill in the redaction call yourself:
-```python
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-
-def redact(text: str) -> str:
-    # your turn: replace anything that looks like a secret (an API key pattern,
-    # for instance) with "[redacted]" before this text is ever logged or saved
-    ...
-    return text
-
-def execute_task_in_background(run_id: int, task_input: str, request_id: str) -> None:
-    try:
-        output = run_project_4_task(task_input)
-        conn.execute("UPDATE runs SET output = ?, status = 'completed' WHERE id = ?", (output, run_id))
-        conn.commit()
-        logger.info(f"run {run_id} completed", extra={"request_id": request_id})
-    except Exception as exc:
-        conn.execute("UPDATE runs SET status = 'failed' WHERE id = ?", (run_id,))
-        conn.commit()
-        logger.error(f"run {run_id} failed: {redact(str(exc))}", extra={"request_id": request_id})
-
-@app.post("/run-task")
-def run_task(request: "TaskRequest", http_request: Request, background_tasks: BackgroundTasks):
-    check_rate_limit(http_request.client.host)
-    request_id = http_request.state.request_id
-    cursor = conn.execute(
-        "INSERT INTO runs (input, status, created_at) VALUES (?, 'started', datetime('now'))",
-        (request.input,),
-    )
-    conn.commit()
-    run_id = cursor.lastrowid
-    background_tasks.add_task(execute_task_in_background, run_id, request.input, request_id)
-    return {"id": run_id, "status": "started"}
-```
-Try it: `POST /run-task`, note the `id` in the immediate `"started"` reply, then `GET /runs/{id}` repeatedly until `status` becomes `"completed"`.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic runs the task synchronously and saves a 3-state row, all in one file. Intermediate adds real per-request log tagging via middleware and a working (if limited) in-memory rate limiter, split across the suggested files. Advanced questions whether blocking the request for the whole task duration is even right, moves execution to `BackgroundTasks` with client-side polling, and adds the redaction step that keeps a caught exception's raw text out of both logs and the database.
 
 <hr class="page-break">
 
@@ -287,14 +162,16 @@ Try it: `POST /run-task`, note the `id` in the immediate `"started"` reply, then
 
 ## Solution {: #solution }
 
-`run_project_4_task()` below stands in for Project 4's real multi-agent entry point — everything around it (routing, storage, logging, rate limiting, Docker) is what this Build Task is actually about, and doesn't change once you swap the real function in. Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to meet the same Requirements, with real tradeoffs between them.
+`run_project_4_task()` below stands in for Project 4's real multi-agent entry point — it returns the result plus a list of agent steps, and crashes on purpose for the input `"boom"`. Everything around it (routing, storage, logging, rate limiting, Docker) is what this Build Task is about, and doesn't change once you swap the real function in. Read both depths — they're not "wrong, right," they're 2 real, valid ways to meet the same Requirements, with real tradeoffs between them.
 
 ### Basic Version
 
-#### Approach 1 — one file, synchronous, meets every stated Requirement
+#### Approach 1 — one file, synchronous
+
+**Story:** before splitting anything into folders, get the whole loop — request in, row saved, task run, row updated, reply out — working in one file you can read top to bottom. **If not:** a bug could be in any of five files at once, and you'd be debugging the file layout instead of the logic.
 
 ```python
-# main.py
+# practice/build_task/main.py
 import sqlite3
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
@@ -306,15 +183,27 @@ conn.row_factory = sqlite3.Row
 conn.execute("""
     CREATE TABLE IF NOT EXISTS runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        input TEXT, output TEXT, log TEXT, status TEXT, created_at TEXT
+        input TEXT,
+        output TEXT,
+        log TEXT,
+        status TEXT,
+        created_at TEXT
     )
 """)
 
 class TaskRequest(BaseModel):
-    input: str
+    task: str
 
-def run_project_4_task(task_input: str) -> str:
-    return "result for: " + task_input
+def run_project_4_task(task_input: str):
+    # stand-in for Project 4's real graph — swap in the real one
+    if task_input == "boom":
+        raise RuntimeError("simulated internal failure")
+    steps = [
+        "supervisor -> research_agent",
+        "supervisor -> writer_agent",
+        "supervisor -> reviewer_agent: approved",
+    ]
+    return "result for: " + task_input, steps
 
 @app.get("/health")
 def health():
@@ -323,25 +212,33 @@ def health():
 @app.post("/run-task")
 def run_task(request: TaskRequest):
     now = datetime.now(timezone.utc).isoformat()
-    cursor = conn.execute(
-        "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
-        (request.input, "started", now),
-    )
-    conn.commit()
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
+            (request.task, "started", now),
+        )
     run_id = cursor.lastrowid
     try:
-        output = run_project_4_task(request.input)
-        conn.execute("UPDATE runs SET output = ?, status = 'completed' WHERE id = ?", (output, run_id))
-        conn.commit()
-        return {"id": run_id, "output": output, "status": "completed"}
+        output, steps = run_project_4_task(request.task)
     except Exception:
-        conn.execute("UPDATE runs SET status = 'failed' WHERE id = ?", (run_id,))
-        conn.commit()
-        raise HTTPException(status_code=500, detail="Something went wrong.")
+        with conn:
+            conn.execute(
+                "UPDATE runs SET status = ? WHERE id = ?",
+                ("failed", run_id),
+            )
+        raise HTTPException(status_code=500, detail="Internal error.")
+    log_text = "\n".join(steps)
+    with conn:
+        conn.execute(
+            "UPDATE runs SET output = ?, log = ?, status = ? WHERE id = ?",
+            (output, log_text, "completed", run_id),
+        )
+    return {"run_id": run_id, "result": output, "status": "completed"}
 
 @app.get("/runs/{run_id}")
 def get_run(run_id: int):
-    row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+    sql = "SELECT * FROM runs WHERE id = ?"
+    row = conn.execute(sql, (run_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="run not found")
     return dict(row)
@@ -354,14 +251,17 @@ RUN pip install -r requirements.txt
 COPY . .
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
-**Expected output:**
+**Expected output (shown wrapped just to fit the page — each reply is really one line):**
 ```
-$ curl -X POST localhost:8000/run-task -d '{"input": "summarize this"}'
-{"id":1,"output":"result for: summarize this","status":"completed"}
+$ curl -X POST localhost:8000/run-task \
+    -H "Content-Type: application/json" -d '{"task": "summarize this"}'
+{"run_id":1,"result":"result for: summarize this","status":"completed"}
 $ curl localhost:8000/runs/1
-{"id":1,"input":"summarize this","output":"result for: summarize this","log":null,"status":"completed","created_at":"2026-09-11T00:00:00+00:00"}
+{"id":1,"input":"summarize this","output":"result for: summarize this",
+ "log":"supervisor -> research_agent\nsupervisor -> writer_agent\n...",
+ "status":"completed","created_at":"2026-01-01T00:00:00.000000+00:00"}
 ```
-This satisfies every line in the Requirements list except the two not yet added: per-request log tagging, and rate limiting — both below. It's missing the suggested file split, and the `log` column is never populated yet.
+This covers the route, the saved run with its log, the 422 (for free), the 500, and the 404. It's still missing the per-request log tags, the rate limit, the startup env check, and the suggested file split — all below.
 
 <hr class="page-break">
 
@@ -369,133 +269,211 @@ This satisfies every line in the Requirements list except the two not yet added:
 
 ### Intermediate Version
 
-#### Approach 1 — split into the suggested files, request-ID logging, and a working rate limiter
+#### Approach 1 — split into the suggested files, request-ID logging, and a rate limiter
 
-**`db/database.py`**
+Copy Doc01's `logging_setup.py` into `practice/build_task/` first, unchanged.
+
+**Story — `db/database.py`:** every SQL statement lives here, behind small named functions, like `runs_db.py` in `sqlite_persistence`. Each write gets its own `with conn:`, so the "started" row is saved on its own and a crash later leaves an honest "failed" record. **If not:** SQL would be scattered through the routes, and a crashed run could leave either nothing or a row stuck at "started" forever.
+
 ```python
+# practice/build_task/db/database.py
 import sqlite3
+from datetime import datetime, timezone
+
+# why: the Build Task's one table — same columns as sqlite_persistence,
+# plus log and status
+CREATE_RUNS_TABLE = """
+    CREATE TABLE IF NOT EXISTS runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        input TEXT,
+        output TEXT,
+        log TEXT,
+        status TEXT,
+        created_at TEXT
+    )
+"""
 
 def get_connection():
     conn = sqlite3.connect("runs.db", check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            input TEXT, output TEXT, log TEXT, status TEXT, created_at TEXT
-        )
-    """)
+    conn.execute(CREATE_RUNS_TABLE)
     return conn
+
+def insert_started_run(conn, task_input):
+    now = datetime.now(timezone.utc).isoformat()
+    # why: its own transaction — the "started" row is saved right away,
+    # so a crash later still leaves a record to look up
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
+            (task_input, "started", now),
+        )
+    return cursor.lastrowid
+
+def finish_run(conn, run_id, output, log_text):
+    with conn:
+        conn.execute(
+            "UPDATE runs SET output = ?, log = ?, status = ? WHERE id = ?",
+            (output, log_text, "completed", run_id),
+        )
+
+def fail_run(conn, run_id):
+    with conn:
+        conn.execute(
+            "UPDATE runs SET status = ? WHERE id = ?",
+            ("failed", run_id),
+        )
+
+def fetch_run(conn, run_id):
+    sql = "SELECT * FROM runs WHERE id = ?"
+    row = conn.execute(sql, (run_id,)).fetchone()
+    # when: no row with this id — the route turns None into a 404
+    if row is None:
+        return None
+    return dict(row)
 ```
 
-**`db/models.py`**
-```python
-from pydantic import BaseModel
-from typing import Optional
+**Story — `db/models.py` and `api/schemas.py`:** the shapes going in and out of the API, written down once, like `RunRecord` and `chat_schemas.py`. **If not:** `GET /runs/{id}` could leak any column you add to the table later, and a wrong field name would only be found by the client.
 
+```python
+# practice/build_task/db/models.py
+from pydantic import BaseModel
+
+# why: one saved run's shape, checked on the way out —
+# same idea as RunRecord in sqlite_persistence
 class Run(BaseModel):
     id: int
     input: str
-    output: Optional[str]
-    log: Optional[str]
+    output: str | None     # None while the run is "started" or "failed"
+    log: str | None
     status: str
     created_at: str
 ```
-
-**`api/schemas.py`**
 ```python
+# practice/build_task/api/schemas.py
 from pydantic import BaseModel
 
 class TaskRequest(BaseModel):
-    input: str
+    task: str
 
 class TaskResponse(BaseModel):
-    id: int
-    output: str
+    run_id: int
+    result: str
     status: str
 ```
 
-**`api/routes.py`**
-```python
-import logging
-import time
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Request
-from api.schemas import TaskRequest, TaskResponse
-from db.database import get_connection
-from db.models import Run
+**Story — `api/routes.py`:** the three routes on an `APIRouter` (like `health_routes.py`), plus the rate limiter. `POST /run-task` is `chat_route`'s Approach 4 with a database around it: the same 400/500 split, the same `logger.exception`, the same `[request_id]` at the start of every log line. **If not:** a failed run would leave no trace in the logs, and one caller could run up your OpenAI bill with no limit at all.
 
-logger = logging.getLogger(__name__)
+```python
+# practice/build_task/api/routes.py
+import time
+from fastapi import APIRouter, HTTPException, Request
+
+from api.schemas import TaskRequest, TaskResponse
+from db.database import get_connection, insert_started_run
+from db.database import finish_run, fail_run, fetch_run
+from db.models import Run
+from logging_setup import get_logger   # Doc01 Build Task
+
+logger = get_logger(__name__)
 router = APIRouter()
 conn = get_connection()
 
-RATE_LIMIT = 5
-RATE_WINDOW = 60
-request_counts: dict[str, list[float]] = {}
-# LIMITATION: in-memory only. Resets on restart, and each worker/instance
-# keeps its own separate counts, so real limits under multiple workers or
-# instances are effectively RATE_LIMIT * number_of_workers, not RATE_LIMIT.
+RATE_LIMIT = 5             # max requests per caller...
+RATE_WINDOW_SECONDS = 60   # ...inside this many seconds
+# LIMITATION: in-memory only. It resets on every restart, and each
+# worker/container keeps its own separate counts — so 3 containers
+# really allow 3 x RATE_LIMIT. A shared store (like Redis) fixes that.
+request_times = {}         # caller -> list of request timestamps
 
 def check_rate_limit(caller_key: str) -> None:
     now = time.time()
-    recent = [t for t in request_counts.get(caller_key, []) if now - t < RATE_WINDOW]
+    old_times = request_times.get(caller_key, [])
+    recent = []
+    for t in old_times:
+        # how: keep only the timestamps still inside the window
+        if now - t < RATE_WINDOW_SECONDS:
+            recent.append(t)
     if len(recent) >= RATE_LIMIT:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
     recent.append(now)
-    request_counts[caller_key] = recent
+    request_times[caller_key] = recent
 
-def run_project_4_task(task_input: str) -> str:
-    return "result for: " + task_input
+def run_project_4_task(task_input: str):
+    # stand-in for Project 4's real graph — swap in the real one
+    # why: a fake crash on command, same trick as chat_route's "boom"
+    if task_input == "boom":
+        raise RuntimeError("simulated internal failure")
+    steps = [
+        "supervisor -> research_agent",
+        "supervisor -> writer_agent",
+        "supervisor -> reviewer_agent: approved",
+    ]
+    return "result for: " + task_input, steps
 
 @router.get("/health")
 def health():
     return {"status": "ok"}
 
 @router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest, http_request: Request):
-    check_rate_limit(http_request.client.host)
+def run_task(request: TaskRequest, http_request: Request) -> TaskResponse:
     request_id = http_request.state.request_id
+    check_rate_limit(http_request.client.host)
+    # why: "" passes Pydantic (it IS a str) — our own 400, like chat_route
+    if not request.task.strip():
+        raise HTTPException(status_code=400, detail="task cannot be empty")
 
-    now = datetime.now(timezone.utc).isoformat()
-    cursor = conn.execute(
-        "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
-        (request.input, "started", now),
-    )
-    conn.commit()
-    run_id = cursor.lastrowid
-    logger.info(f"run {run_id} started", extra={"request_id": request_id})
-
+    run_id = insert_started_run(conn, request.task)
+    logger.info("[%s] run %s started", request_id, run_id)
     try:
-        output = run_project_4_task(request.input)
-        conn.execute("UPDATE runs SET output = ?, status = 'completed' WHERE id = ?", (output, run_id))
-        conn.commit()
-        logger.info(f"run {run_id} completed", extra={"request_id": request_id})
-        return TaskResponse(id=run_id, output=output, status="completed")
+        output, steps = run_project_4_task(request.task)
     except Exception:
-        conn.execute("UPDATE runs SET status = 'failed' WHERE id = ?", (run_id,))
-        conn.commit()
-        logger.exception(f"run {run_id} failed", extra={"request_id": request_id})
-        raise HTTPException(status_code=500, detail="Something went wrong.")
+        fail_run(conn, run_id)
+        # how: full traceback in the server log only
+        logger.exception("[%s] run %s failed", request_id, run_id)
+        raise HTTPException(
+            status_code=500, detail="Internal error. Please try again later."
+        )
+
+    log_text = "\n".join(steps)
+    finish_run(conn, run_id, output, log_text)
+    logger.info("[%s] run %s completed", request_id, run_id)
+    return TaskResponse(run_id=run_id, result=output, status="completed")
 
 @router.get("/runs/{run_id}", response_model=Run)
 def get_run(run_id: int):
-    row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-    if row is None:
+    run = fetch_run(conn, run_id)
+    if run is None:
         raise HTTPException(status_code=404, detail="run not found")
-    return dict(row)
+    return run
 ```
 
-**`api/main.py`**
+**Story — `api/main.py`:** the one file uvicorn starts. It checks the required setting first, then builds the app, adds the routes, and adds the request-ID middleware from `chat_route`'s Approach 4. **If not:** a container started without its key would look healthy and fail on every real request, and log lines from two requests would be impossible to tell apart.
+
 ```python
-import logging
+# practice/build_task/api/main.py
+import os
 import uuid
 from fastapi import FastAPI, Request
+
 from api.routes import router
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(request_id)s] %(message)s")
+
+class MissingConfigError(Exception):
+    """Same custom error as Doc01's exceptions.py."""
+
+
+# why: fail at startup, not on the first real request
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise MissingConfigError(
+        "OPENAI_API_KEY is not set — pass it with docker run -e"
+    )
 
 app = FastAPI()
 app.include_router(router)
 
+# why: one short ID per request, made in one place for every route
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
     request_id = str(uuid.uuid4())[:8]
@@ -504,136 +482,33 @@ async def add_request_id(request: Request, call_next):
     response.headers["X-Request-ID"] = request_id
     return response
 ```
-
-**Expected output:**
+**Expected output (`OPENAI_API_KEY=sk-test-123 uvicorn api.main:app`, then the same `curl` as Basic):**
 ```
-$ curl -i -X POST localhost:8000/run-task -d '{"input": "summarize this"}'
 HTTP/1.1 200 OK
-X-Request-ID: a1b2c3d4
-{"id":1,"output":"result for: summarize this","status":"completed"}
+x-request-id: a1b2c3d4
+{"run_id":1,"result":"result for: summarize this","status":"completed"}
 ```
+**Server log for that request (both lines share the same ID):**
 ```
-$ for i in 1 2 3 4 5 6; do curl -s -o /dev/null -w "%{http_code}\n" -X POST localhost:8000/run-task -d '{"input": "x"}'; done
-200
-200
-200
-200
-200
-429
+2026-01-01 00:00:00,000 api.routes INFO [a1b2c3d4] run 1 started
+2026-01-01 00:00:00,002 api.routes INFO [a1b2c3d4] run 1 completed
 ```
-The 6th request within the window is rejected, and every server log line for one request shares the same `request_id` shown in its `X-Request-ID` header.
 
-**Difference from Basic:** Approach 1 splits the single file into the suggested `api/` and `db/` layout, adds real per-request log tagging via middleware (every log line for one run now carries the same short ID), and adds a working — if honestly limited — rate limiter, with its limitation written directly into the code as a comment, not left implicit.
+#### Approach 2 — Dockerfile, `.dockerignore`, and `test_api.py`
 
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-4-as-an-api) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-#### Approach 1 — background execution with polling, plus log redaction
-
-**`api/routes.py`** (replacing the synchronous `run_task` from Intermediate)
-```python
-import logging
-import re
-import time
-from datetime import datetime, timezone
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
-from api.schemas import TaskRequest
-from db.database import get_connection
-from db.models import Run
-
-logger = logging.getLogger(__name__)
-router = APIRouter()
-conn = get_connection()
-
-RATE_LIMIT = 5
-RATE_WINDOW = 60
-request_counts: dict[str, list[float]] = {}
-# LIMITATION: in-memory only. Resets on restart, and each worker/instance
-# keeps its own separate counts — a real multi-instance deployment needs a
-# shared store (e.g. Redis) for this limit to mean what it says.
-
-def check_rate_limit(caller_key: str) -> None:
-    now = time.time()
-    recent = [t for t in request_counts.get(caller_key, []) if now - t < RATE_WINDOW]
-    if len(recent) >= RATE_LIMIT:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    recent.append(now)
-    request_counts[caller_key] = recent
-
-_SECRET_PATTERN = re.compile(r"(sk-[A-Za-z0-9]{10,}|api[_-]?key\s*[:=]\s*\S+)", re.IGNORECASE)
-
-def redact(text: str) -> str:
-    return _SECRET_PATTERN.sub("[redacted]", text)
-
-def run_project_4_task(task_input: str) -> str:
-    return "result for: " + task_input
-
-def execute_task_in_background(run_id: int, task_input: str, request_id: str) -> None:
-    try:
-        output = run_project_4_task(task_input)
-        conn.execute("UPDATE runs SET output = ?, status = 'completed' WHERE id = ?", (output, run_id))
-        conn.commit()
-        logger.info(f"run {run_id} completed", extra={"request_id": request_id})
-    except Exception as exc:
-        conn.execute("UPDATE runs SET status = 'failed' WHERE id = ?", (run_id,))
-        conn.commit()
-        logger.error(f"run {run_id} failed: {redact(str(exc))}", extra={"request_id": request_id})
-
-@router.get("/health")
-def health():
-    return {"status": "ok"}
-
-@router.post("/run-task")
-def run_task(request: TaskRequest, http_request: Request, background_tasks: BackgroundTasks):
-    check_rate_limit(http_request.client.host)
-    request_id = http_request.state.request_id
-
-    now = datetime.now(timezone.utc).isoformat()
-    cursor = conn.execute(
-        "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
-        (request.input, "started", now),
-    )
-    conn.commit()
-    run_id = cursor.lastrowid
-    logger.info(f"run {run_id} started", extra={"request_id": request_id})
-
-    background_tasks.add_task(execute_task_in_background, run_id, request.input, request_id)
-    return {"id": run_id, "status": "started"}
-
-@router.get("/runs/{run_id}", response_model=Run)
-def get_run(run_id: int):
-    row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="run not found")
-    return dict(row)
-```
-**Expected output:**
-```
-$ curl -X POST localhost:8000/run-task -d '{"input": "summarize this"}'
-{"id":1,"status":"started"}
-$ curl localhost:8000/runs/1
-{"id":1,...,"status":"started"}
-$ sleep 1
-$ curl localhost:8000/runs/1
-{"id":1,"input":"summarize this","output":"result for: summarize this","log":null,"status":"completed",...}
-```
-The client gets an immediate reply instead of waiting for the full task, and polls `GET /runs/{id}` until `status` moves past `"started"` — the shape that matters once a real multi-agent task takes long enough that blocking the HTTP request for it would be a mistake.
-
-#### Approach 2 — Dockerfile + `.dockerignore` + required-env-var check, and `test_api.py`
+**Story:** Approach 1 runs on your laptop; this makes it run anywhere, and proves every row of the Test Cases table in one command. The Dockerfile and `.dockerignore` are `db_failure_and_docker`'s, pointed at `api.main:app`. **If not:** "it works" would mean "it worked once, on my machine, when I clicked around" — not something you could hand to anyone.
 
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+EXPOSE 8000
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 ```
-# .dockerignore
+# practice/build_task/.dockerignore
 .env
 .git
 __pycache__/
@@ -642,48 +517,76 @@ __pycache__/
 *.db
 ```
 ```python
-# api/main.py — add this near the top, before app = FastAPI()
-import os
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]  # fails the container immediately if missing
-```
-```python
-# test_api.py
+# practice/build_task/test_api.py
+# Run from inside practice/build_task/:
+#   OPENAI_API_KEY=sk-test-123 python test_api.py
 from fastapi.testclient import TestClient
+
 from api.main import app
+from api.routes import conn
 
 client = TestClient(app)
 
-def test_health():
-    assert client.get("/health").status_code == 200
+def row_count() -> int:
+    return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
 
-def test_run_task_and_lookup():
-    response = client.post("/run-task", json={"input": "hello"})
-    assert response.status_code == 200
-    run_id = response.json()["id"]
-    lookup = client.get(f"/runs/{run_id}")
-    assert lookup.status_code == 200
+# 1. Valid POST /run-task: 200, result returned, row saved
+response = client.post("/run-task", json={"task": "summarize this"})
+print(response.status_code)                    # expected: 200
+run_id = response.json()["run_id"]
+saved = client.get("/runs/" + str(run_id)).json()
+print(saved["status"])                         # expected: completed
 
-def test_bad_request_returns_422_and_writes_nothing():
-    response = client.post("/run-task", json={})
-    assert response.status_code == 422
+# 2. Bad request body: 422, no database write
+before = row_count()
+response = client.post("/run-task", json={})
+print(response.status_code)                    # expected: 422
+print(row_count() == before)                   # expected: True
 
-def test_rate_limit_returns_429_eventually():
-    statuses = [client.post("/run-task", json={"input": "x"}).status_code for _ in range(10)]
-    assert 429 in statuses
+# 3. Fake internal error: 500, plain message, full trace in logs only
+response = client.post("/run-task", json={"task": "boom"})
+print(response.status_code)                    # expected: 500
+print(response.json())
+# expected: {'detail': 'Internal error. Please try again later.'}
+
+# 4. Wrong run ID: 404
+print(client.get("/runs/999999").status_code)  # expected: 404
+
+# 5. Over the rate limit: 429
+# (2 of the 5 allowed requests were used above: tests 1 and 3 —
+#  the 422 request never reached the route, so it didn't count)
+statuses = []
+for i in range(4):
+    response = client.post("/run-task", json={"task": "x"})
+    statuses.append(response.status_code)
+print(statuses)                                # expected: [200, 200, 200, 429]
 ```
-**Expected output:**
+**Expected output (`OPENAI_API_KEY=sk-test-123 python test_api.py`; the server's own log lines, including test 3's full traceback, are printed too and left out here):**
+```
+200
+completed
+422
+True
+500
+{'detail': 'Internal error. Please try again later.'}
+404
+[200, 200, 200, 429]
+```
+**Expected output for the container:**
 ```
 $ docker build -t project-5-api .
 $ docker run -p 8000:8000 -e OPENAI_API_KEY=sk-test-123 project-5-api
 $ curl localhost:8000/health
 {"status":"ok"}
-$ docker history --no-trunc project-5-api | grep -i "sk-test-123"
+$ docker history --no-trunc project-5-api | grep "sk-test-123"
 (no output)
-
-$ pytest test_api.py
-4 passed
+$ docker run project-5-api
+...
+api.main.MissingConfigError: OPENAI_API_KEY is not set — pass it with
+docker run -e
 ```
+(That last error is really one line — shown wrapped to fit the page.)
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's synchronous route already meets every stated Requirement, but blocks the whole HTTP request for as long as the multi-agent task takes. Approach 1 changes the execution model — respond immediately, run the task via `BackgroundTasks`, poll for the result — and adds the `redact()` step so a caught exception's raw text (which could echo back something sensitive from a provider SDK) never reaches a log line. Approach 2 doesn't touch route logic at all — it closes out the operational requirements: a Dockerfile and `.dockerignore` that keep secrets out of every image layer, a required-env-var check that fails the container loudly at startup, and a real `test_api.py` covering the 5 scenarios from this Build Task's own Test Cases table.
+**Difference from Basic:** Approach 1 splits the single file into the suggested `api/` and `db/` layout, adds per-request log tagging via middleware, a 400 for an empty task, and a working — honestly limited — rate limiter, with its limitation written into the code. Approach 2 doesn't touch route logic — it closes out the operational requirements: a Dockerfile and `.dockerignore` that keep secrets out of every image layer, a startup check that stops the container loudly, and a `test_api.py` covering every row of the Test Cases table.
 
-**Which one should you actually write?** Intermediate Approach 1 already satisfies every line in the Requirements section, and is what most people should ship first — get the whole loop (route → database → logs tagged by request → Docker → rate limit) working synchronously before making it more complex. Move to Advanced Approach 1's background execution once you notice `run_project_4_task()` genuinely takes long enough that a blocked HTTP request becomes its own problem (a client-side timeout, a tied-up worker) — which, per this document's Goal, is exactly what happens once you plug in the real Project 4 multi-agent system instead of the stand-in used here. Do Advanced Approach 2's Dockerfile, `.dockerignore`, required-env-var check, and `test_api.py` regardless of which execution model you chose — none of it is optional for something you'd actually deploy, and it's exactly what [14_debugging_lab](../../14_debugging_lab/)'s Break-It drills will test against.
+**Which one should you actually write?** Basic Approach 1 first — get the whole loop working in one file before splitting it. Then Intermediate Approach 1 and 2 together: that's what the Requirements ask for, and what you'd actually ship. The route stays synchronous here on purpose (a plain `def` route runs in FastAPI's thread pool, so other requests keep moving). Once the real Project 4 pipeline takes long enough that clients time out waiting, the next step is the "queues for long-running agent work" item under **Later** in this document's Topic tiers — not something this Build Task needs.

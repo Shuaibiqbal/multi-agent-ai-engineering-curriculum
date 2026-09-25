@@ -143,7 +143,7 @@ a task timed out or failed:
 
 ### Approach 3 — the same fix applied to a whole list of tasks, not just one
 
-**Story:** Approach 2 caps one risky task — a real agent step usually fans out to several independent sources at once, and any one of them could be the slow or dead one. **If not:** the fix from Approach 2 would need re-deriving by hand every time the group's size changed, instead of generalizing to a list comprehension once.
+**Story:** Approach 2 caps one risky task — a real agent step usually fans out to several independent sources at once, and any one of them could be the slow or dead one. **If not:** the fix from Approach 2 would need re-deriving by hand every time the group's size changed, instead of generalizing to one loop that wraps every task.
 
 ```python
 # gather_practice.py — Edge cases section
@@ -158,10 +158,11 @@ async def fetch(source_id: int, delay: float) -> str:
 async def fetch_all(
     sources: list[tuple[int, float]], per_task_timeout: float,
 ) -> list:
-    bounded_tasks = [
-        asyncio.wait_for(fetch(source_id, delay), timeout=per_task_timeout)
-        for source_id, delay in sources
-    ]
+    bounded_tasks = []
+    for source_id, delay in sources:
+        bounded_tasks.append(
+            asyncio.wait_for(fetch(source_id, delay), timeout=per_task_timeout)
+        )
     return await asyncio.gather(*bounded_tasks, return_exceptions=True)
 
 
@@ -170,7 +171,10 @@ async def main() -> None:
     sources = [(1, 0.2), (2, 0.3), (3, 0.1), (4, 120)]
     results = await fetch_all(sources, per_task_timeout=3)
     for source_id, result in zip((s[0] for s in sources), results):
-        status = "timed out" if isinstance(result, Exception) else result
+        if isinstance(result, Exception):
+            status = "timed out"
+        else:
+            status = result
         print(f"source {source_id}: {status}")
 
 
@@ -186,6 +190,6 @@ source 4: timed out
 ```
 This is the same pattern as Approach 1, generalized: wrap *every* task in `asyncio.wait_for(..., timeout=...)` before handing the whole list to `gather(*tasks, return_exceptions=True)`. One slow or dead source costs the group exactly `per_task_timeout` seconds, not however long that one source decides to take.
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1's `slow_task` is slow but always, eventually, bounded at 5 seconds — the exercise proves `gather` waits for it, but never asks what if it didn't come back at all. Approach 2 answers that for a single task. Approach 3 shows the same fix scales cleanly to any number of tasks in a list comprehension, which is the shape a real "search 4 independent sources and combine what comes back" agent step actually takes.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1's `slow_task` is slow but always, eventually, bounded at 5 seconds — the exercise proves `gather` waits for it, but never asks what if it didn't come back at all. Approach 2 answers that for a single task. Approach 3 shows the same fix scales cleanly to any number of tasks with one simple loop, which is the shape a real "search 4 independent sources and combine what comes back" agent step actually takes.
 
 **Which one should you actually write?** Any time you're `gather`-ing calls to something outside your program's control — an API, a database, a vector store — wrap each individual call in `asyncio.wait_for(..., timeout=...)` before it joins the group, the way Approach 2 and 3 both do. Skip it only for tasks you've deliberately bounded some other way already (like `asyncio.sleep(2)` in the earlier exercises, which can never hang). Combined with `return_exceptions=True` from the `gather_speed` exercise, this is what turns "one slow or dead source can freeze the whole group forever" into "the group always finishes within a time you chose, with each source's outcome clearly labeled."

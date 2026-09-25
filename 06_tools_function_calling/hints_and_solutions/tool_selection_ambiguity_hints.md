@@ -46,8 +46,6 @@ A 5-run split like `{"get_weather": 3, "get_forecast": 2}` raises a harder quest
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-tool_selection_ambiguity) · [Hint 1](tool_selection_ambiguity_hints.md#hint-1) · [Hint 2](tool_selection_ambiguity_hints.md#hint-2) · [Solution](tool_selection_ambiguity_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
@@ -91,7 +89,10 @@ model_with_tools = ChatOpenAI().bind_tools([get_weather, get_forecast])
 counts = {"get_weather": 0, "get_forecast": 0, "none": 0}
 for i in range(5):
     response = model_with_tools.invoke("what's the weather like")
-    picked = response.tool_calls[0]["name"] if response.tool_calls else "none"
+    if response.tool_calls:
+        picked = response.tool_calls[0]["name"]
+    else:
+        picked = "none"
     counts[picked] = counts.get(picked, 0) + 1
 
 print(counts)
@@ -118,7 +119,10 @@ function run_selection_trial(prompt, runs=5) -> Counter:
     tally = Counter()
     for run_number in range(1, runs + 1):
         response = model_with_tools.invoke(prompt)
-        picked = response.tool_calls[0]["name"] if response.tool_calls else "none"
+        if response.tool_calls:
+            picked = response.tool_calls[0]["name"]
+        else:
+            picked = "none"
         print(f"Run {run_number}: picked {picked}")
         tally[picked] += 1
     return tally

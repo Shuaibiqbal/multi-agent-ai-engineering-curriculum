@@ -81,7 +81,9 @@ def get_required_field(data: dict[str, Any], key: str) -> Any:
     return data[key]
 
 
-def get_optional_field(data: dict[str, Any], key: str, default: Any = None) -> Any:
+def get_optional_field(
+    data: dict[str, Any], key: str, default: Any = None
+) -> Any:
     """Read a field that's genuinely optional — a missing value is normal."""
     # when: use this for a field that's fine to be absent — the opposite
     # case from get_required_field above.
@@ -106,10 +108,12 @@ if __name__ == "__main__":
 ```
 **Expected output:**
 ```
-caught: response body is not valid JSON: Expecting value: line 1 column 1 (char 0)
+caught: response body is not valid JSON: Expecting value: line 1 column 1
+(char 0)
 optional field: no message
 caught: "expected field 'message' was missing from the response"
 ```
+(The first line is shown wrapped onto 2 lines just to fit the page — really one line of output.)
 
 **Difference from Basic:** wrapping the two behaviors in named functions (`get_required_field` vs. `get_optional_field`) turns an implicit choice (`[key]` vs `.get(key)`, easy to pick inconsistently across a codebase) into an explicit, self-documenting decision every caller makes on purpose. `parse_body()` also re-raises `json.JSONDecodeError` as a named `InvalidResponseBodyError` with `from e` — this keeps the original traceback attached while giving callers one predictable, purpose-named error type to catch, instead of needing to know about `requests`' or `json`'s specific exception classes (or a generic `ValueError` that could mean anything in a bigger codebase).
 

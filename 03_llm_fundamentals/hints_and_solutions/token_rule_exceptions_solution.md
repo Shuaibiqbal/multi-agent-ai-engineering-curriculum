@@ -2,7 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-token_rule_exceptions) · [Hint 1](token_rule_exceptions_hints.md#hint-1) · [Hint 2](token_rule_exceptions_hints.md#hint-2) · [Solution](token_rule_exceptions_solution.md)
 
+**Story — `token_rule_exceptions_practice.md`:** the ¾-word rule works for plain English and breaks for code, other languages, and data. Finding the exceptions on purpose tells you when to count tokens properly. **If not:** a prompt full of JSON or Urdu text would cost and overflow far more than you planned.
+
 ## Basic Version
+
+**Story:** a few kinds of text, the rule's guess, and the real count — the gap is the lesson. **If not:** you'd apply the rule to content it was never meant for.
 
 | Text | Word-count guess | Actual (tokenizer tool) |
 |---|---|---|
@@ -18,6 +22,8 @@ Code costs more than it looks like because punctuation (`(`, `'`, `)`) usually t
 > [Back to the exercise](../README.md#ex-token_rule_exceptions) · [Hint 1](token_rule_exceptions_hints.md#hint-1) · [Hint 2](token_rule_exceptions_hints.md#hint-2) · [Solution](token_rule_exceptions_solution.md)
 
 ## Intermediate Version
+
+**Story:** the same cases with the reason behind the gap — how the tokenizer's vocabulary was built. **If not:** you'd memorise exceptions instead of being able to predict new ones.
 
 **Code:** `print('hello world')`
 ```

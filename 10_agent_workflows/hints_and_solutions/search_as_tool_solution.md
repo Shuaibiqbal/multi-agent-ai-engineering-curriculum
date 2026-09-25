@@ -60,7 +60,10 @@ def search_docs(query: str) -> str:
     results = retrieve(query)
     if not results:
         return "No relevant documents found."
-    return "\n\n".join(chunk.page_content for chunk in results)
+    pieces = []
+    for chunk in results:
+        pieces.append(chunk.page_content)
+    return "\n\n".join(pieces)
 
 
 # wire it into the graph's model node
@@ -108,7 +111,10 @@ def search_docs(query: str) -> str:
         return "No relevant documents found."
 
     capped_results = results[:MAX_RESULTS]
-    return "\n\n".join(chunk.page_content for chunk in capped_results)
+    pieces = []
+    for chunk in capped_results:
+        pieces.append(chunk.page_content)
+    return "\n\n".join(pieces)
 
 
 model_with_tools = model.bind_tools([search_docs])
@@ -149,8 +155,13 @@ def search_docs_with_sources(query: str) -> SearchResult:
         return SearchResult(text="No relevant documents found.", sources=[])
 
     capped_results = results[:MAX_RESULTS]
-    text = "\n\n".join(chunk.page_content for chunk in capped_results)
-    sources = [chunk.metadata.get("source", "unknown") for chunk in capped_results]
+    pieces = []
+    for chunk in capped_results:
+        pieces.append(chunk.page_content)
+    text = "\n\n".join(pieces)
+    sources = []
+    for chunk in capped_results:
+        sources.append(chunk.metadata.get("source", "unknown"))
     return SearchResult(text=text, sources=sources)
 
 

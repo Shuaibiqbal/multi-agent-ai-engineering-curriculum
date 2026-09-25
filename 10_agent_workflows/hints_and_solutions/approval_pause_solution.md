@@ -144,12 +144,19 @@ def approval_node(state: dict) -> dict:
         "paused_at": paused_at,
     })
 
-    if is_stale(decision["paused_at"] if "paused_at" in decision else paused_at):
+    if "paused_at" in decision:
+        decision_paused_at = decision["paused_at"]
+    else:
+        decision_paused_at = paused_at
+    if is_stale(decision_paused_at):
         return {
             "approved": False,
             "stale": True,
-            "answer": "This approval is stale -- the underlying documents may have "
-                      "changed since this was searched. Please re-run the search.",
+            "answer": (
+                "This approval is stale -- the underlying documents may "
+                "have changed since this was searched. "
+                "Please re-run the search."
+            ),
         }
 
     return {
@@ -160,7 +167,9 @@ def approval_node(state: dict) -> dict:
     }
 
 
-def is_stale(paused_at: str, max_age_hours: int = MAX_APPROVAL_AGE_HOURS) -> bool:
+def is_stale(
+    paused_at: str, max_age_hours: int = MAX_APPROVAL_AGE_HOURS
+) -> bool:
     paused_time = datetime.fromisoformat(paused_at)
     age = datetime.now(timezone.utc) - paused_time
     return age > timedelta(hours=max_age_hours)

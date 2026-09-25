@@ -2,7 +2,7 @@
 
 > [Back to this step](../README.md#step-2-wrap-it-as-a-single-mcp-tool) · [Hint 1](step2_mcp_wrapper_hints.md#hint-1) · [Hint 2](step2_mcp_wrapper_hints.md#hint-2) · [Solution](step2_mcp_wrapper_solution.md)
 
-Only 2 hints — work through them in order. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (real `FastMCP` code), **Advanced** (the part of this step that's easy to get subtly wrong). Read Basic first even if you already built Project 7's server — it's the fastest way to see exactly what's new here.
+Only 2 hints — work through them in order. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (real `MCPServer` code), **Advanced** (the part of this step that's easy to get subtly wrong). Read Basic first even if you already built Project 7's server — it's the fastest way to see exactly what's new here.
 
 - [Hint 1 — The thinnest possible wrapper](#hint-1)
 - [Hint 2 — Testing it, and the stdout trap again](#hint-2)
@@ -15,7 +15,7 @@ Only 2 hints — work through them in order. Each hint has 3 depth levels: **Bas
 
 ### Basic Version
 
-`mcp_server.py` needs exactly three things: a `FastMCP` instance, one function decorated with `@mcp.tool()` that calls Step 1's `run_pipeline()`, and a line at the bottom that actually starts the server. Nothing else belongs in this file yet.
+`mcp_server.py` needs exactly three things: a `MCPServer` instance, one function decorated with `@mcp.tool()` that calls Step 1's `run_pipeline()`, and a line at the bottom that actually starts the server. Nothing else belongs in this file yet.
 
 <hr class="page-break">
 
@@ -23,11 +23,11 @@ Only 2 hints — work through them in order. Each hint has 3 depth levels: **Bas
 
 ### Intermediate Version
 
-This is nearly identical in shape to Project 7's `server.py` — the same `FastMCP("some-name")`, the same `@mcp.tool()` decorator, the same `mcp.run(transport="stdio")` at the bottom. The only real difference is what's inside the function: instead of touching a database directly, it calls `run_pipeline()`, a function you already wrote and already tested in Step 1.
+This is nearly identical in shape to Project 7's `server.py` — the same `MCPServer("some-name")`, the same `@mcp.tool()` decorator, the same `mcp.run(transport="stdio")` at the bottom. The only real difference is what's inside the function: instead of touching a database directly, it calls `run_pipeline()`, a function you already wrote and already tested in Step 1.
 
 Pieces to use:
-- `from mcp.server.fastmcp import FastMCP`
-- `mcp = FastMCP("deep-research-service")`
+- `from mcp.server.mcpserver import MCPServer`
+- `mcp = MCPServer("deep-research-service")`
 - `@mcp.tool()` above a function with a type-hinted signature: `def deep_research(topic: str) -> str:`
 - `if __name__ == "__main__": mcp.run(transport="stdio")`
 
@@ -41,7 +41,7 @@ The temptation at this step is to make `deep_research`'s body "smarter" right aw
 
 The one thing worth doing carefully here is the tool's docstring. A caller deciding whether to use `deep_research` has no way to know, from the name alone, that it might take several seconds and run multiple model calls internally — say that plainly in the docstring, the same "a tool's description is really a prompt" lesson from Doc06, now protecting a caller from a bad surprise about *cost and time*, not just about what the tool does.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic names the three required pieces. Intermediate gives the exact `FastMCP` shape, reusing Project 7's pattern almost unchanged. Advanced is a warning: this step's whole point is a deliberately thin wrapper, and the real skill is resisting the urge to add more to it before Step 3 and Step 4 actually ask you to.
+**Difference between Basic, Intermediate, and Advanced:** Basic names the three required pieces. Intermediate gives the exact `MCPServer` shape, reusing Project 7's pattern almost unchanged. Advanced is a warning: this step's whole point is a deliberately thin wrapper, and the real skill is resisting the urge to add more to it before Step 3 and Step 4 actually ask you to.
 
 <hr class="page-break">
 

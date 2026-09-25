@@ -98,7 +98,8 @@ except MissingConfigError as e:
 ```
 **Expected output:**
 ```
-Case 1 - not set at all: Required environment variable is missing: OPENAI_API_KEY
+Case 1 - not set at all: Required environment variable is missing:
+OPENAI_API_KEY
 Case 2 - set but empty: Required environment variable is missing: OPENAI_API_KEY
 ```
 
@@ -136,7 +137,8 @@ print(f"Case 2 - set but empty, returned: {result!r}")
 ```
 **Expected output:**
 ```
-Case 1 - not set at all: Required environment variable is missing: OPENAI_API_KEY
+Case 1 - not set at all: Required environment variable is missing:
+OPENAI_API_KEY
 Case 2 - set but empty, returned: ''
 ```
 

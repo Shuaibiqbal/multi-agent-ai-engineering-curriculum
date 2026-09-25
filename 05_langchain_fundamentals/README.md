@@ -267,8 +267,8 @@ practice/
     ├── chain.py                     build_extraction_chain() -> Runnable
     ├── prompts.py                   PromptTemplate/ChatPromptTemplate
     ├── compare_with_raw_sdk.py      runs both versions, prints the diff
-    ├── config.py                    copied from 01_python_foundations, unchanged
-    └── logging_setup.py             copied from 01_python_foundations, unchanged
+    ├── config.py                    copied from Doc01, unchanged
+    └── logging_setup.py             copied from Doc01, unchanged
 ```
 
 **Why each script exists:**

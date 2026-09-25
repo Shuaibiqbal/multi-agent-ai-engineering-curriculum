@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried answering out loud or in writing first. Each hint has 3 depth levels: **Basic** (the plain answer a nervous first-timer would give), **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format), **Advanced** (handling the curveball follow-up that lands the instant you stop talking). Read Basic first even if you already know the material — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried answering out loud or in writing first. Each hint has 2 depth levels: **Basic** (the plain answer a nervous first-timer would give) and **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format, then handling the curveball follow-up that lands the instant you stop talking). Read Basic first even if you already know the material — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and the exact shape](#hint-1)
 - [Hint 2 — The plan, and almost the whole answer](#hint-2)
@@ -31,15 +31,11 @@ This exercise trains specifically the **first** rung of this document's own [Fou
 
 Draft your one-line claim and one-line reason now, for the Doc01 logging-vs-`print()` topic, before Hint 2.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
-
-### Advanced Version
+**When the follow-up lands early:**
 
 Think about what actually happens the instant you finish a good 30-second answer in a real interview: the interviewer usually doesn't nod and move on. They fire a follow-up immediately — "okay, but why not just fake severity levels with `print()` and some `if` statements?" — before you've had a second to breathe, let alone consult notes you don't have.
 
-A cold-recall answer that only exists as a memorized 30-second script falls apart here, because the candidate never built anything past rung 1 of the Four-Depth Format. The real skill this Advanced level trains is **pivoting from a finished 30-second answer straight into a Normal-depth answer, on the spot, using the same claim you just gave as the anchor** — not starting over, not stalling, not repeating the claim louder.
+A cold-recall answer that only exists as a memorized 30-second script falls apart here, because the candidate never built anything past rung 1 of the Four-Depth Format. The real skill this level trains is **pivoting from a finished 30-second answer straight into a Normal-depth answer, on the spot, using the same claim you just gave as the anchor** — not starting over, not stalling, not repeating the claim louder.
 
 The move: treat your one-line "mechanism" from the 30-second answer as a thread to pull, not a closed statement. If your claim was "logging lets you control verbosity without changing code," the instant follow-up thread is *how, specifically* — which pulls straight into levels and handlers, the Normal-depth material, without you needing to have pre-scripted the transition.
 
@@ -47,7 +43,7 @@ The real design question isn't "what's my 30-second answer" — it's "what's the
 
 Sketch that next sentence yourself, for the logging topic, before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic gets the plain idea across for the tidy case where you get to finish talking. Intermediate gives that same case its proper shape — claim, mechanism, stop — tied explicitly to rung 1 of this document's Four-Depth Format. Advanced handles the case that actually happens most often in a real interview: getting cut off by a follow-up before you'd planned to stop, and needing your claim to already be built so the next rung follows naturally instead of requiring a restart.
+**Difference between Basic and Intermediate:** Basic gets the plain idea across for the tidy case where you get to finish talking. Intermediate gives it a proper shape — claim, mechanism, stop — tied to rung 1 of the Four-Depth Format, and then handles what actually happens most often: getting cut off by a follow-up, with your claim already built so the next rung follows naturally instead of a restart.
 
 <hr class="page-break">
 
@@ -102,11 +98,7 @@ Notice "claim first" is doing real work here — a rambling build-up that arrive
 
 Fill this in for the logging topic yourself, say it out loud once, then compare against the [Solution](cold_recall_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
-
-### Advanced Version
+**Under pushback:**
 
 Here's the plan for the curveball case — the interviewer doesn't let your 30-second answer stand, and pushes back immediately:
 
@@ -126,9 +118,9 @@ your move:
     unless pushed again
 ```
 
-Try answering the curveball follow-up yourself, using your own claim from Hint 1's Advanced Version as the starting thread, then compare against the [Solution](cold_recall_solution.md).
+Try answering the curveball follow-up yourself, using your own claim from Hint 1 as the starting thread, then compare against the [Solution](cold_recall_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both assume you get to finish your 30-second answer uninterrupted — they differ only in how deliberately the claim/mechanism/stop shape is built. Advanced assumes the more realistic case: the follow-up arrives before you're done being nervous about the first answer, and the actual skill is climbing exactly one rung of the Four-Depth Format at a time, anchored to what you already said, instead of freezing or restarting.
+**Difference between Basic and Intermediate:** Basic assumes you get to finish your 30-second answer uninterrupted. Intermediate builds the claim/mechanism/stop shape on purpose, then covers the realistic case: the follow-up arrives early, and the skill is climbing exactly one rung of the Four-Depth Format at a time, anchored to what you already said.
 
 <hr class="page-break">
 

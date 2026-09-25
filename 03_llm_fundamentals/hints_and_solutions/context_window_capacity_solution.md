@@ -2,7 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-context_window_capacity) · [Hint 1](context_window_capacity_hints.md#hint-1) · [Hint 2](context_window_capacity_hints.md#hint-2) · [Solution](context_window_capacity_solution.md)
 
+**Story — `context_window_capacity_practice.md`:** "how long can this conversation go?" decides whether you need history trimming at all. Working it out once, with real numbers, turns a guess into a design input. **If not:** a chatbot would work in testing and fail on long real conversations.
+
 ## Basic Version
+
+**Story:** the straight calculation — the window, minus the system prompt, divided by an average turn. **If not:** you'd find the limit when a user hits it.
 
 Chosen numbers: a 128,000-token context window, a short-message chat feature where each user message is about 50 tokens and each reply is about 300 tokens.
 
@@ -19,6 +23,8 @@ About 365 back-and-forth turns before the window is technically full. In practic
 > [Back to the exercise](../README.md#ex-context_window_capacity) · [Hint 1](context_window_capacity_hints.md#hint-1) · [Hint 2](context_window_capacity_hints.md#hint-2) · [Solution](context_window_capacity_solution.md)
 
 ## Intermediate Version
+
+**Story:** the same formula with a safety margin, because real turns vary and the reply needs room too. **If not:** you'd trim exactly at the limit and still overflow on a long reply.
 
 ```
 window_size            = 128_000

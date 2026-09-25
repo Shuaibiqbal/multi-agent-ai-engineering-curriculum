@@ -2,9 +2,17 @@
 
 > [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
 
-**Model interview for:** "Interview me about my capstone" — this solution uses the same ContentForge / Project 5 system from Docs 16 and 17 as the running example, extended to the full production system (RAG, database, auth, deployment, cost) this document actually asks you to build.
+**Story — `capstone_review.md`:** the final exam of the curriculum: a cold review of your finished capstone, jumping between cost, testing, database and auth at a reviewer's pace. **If not:** the first time you faced this kind of cross-examination would be a final-round interview.
+
+Write your own version first, in `practice/capstone_review.md`, then compare. Read both depths — they're 2 real levels of the same answer.
+
+**Model interview for:** "Interview me about my capstone" — this solution uses the same ContentForge / Project 5 system from Docs 16 and 17 as the running example, extended to the full production system (RAG, database, auth, deployment, cost) this document actually asks you to build. (In this example, the capstone design added a fact-checker agent to Project 4's team, to check each draft's claims against the RAG sources.)
 
 ## Basic Version
+
+### Approach 1 — the plain version
+
+**Story:** answer whatever is asked, in whatever order, and say plainly when a choice was a default. **If not:** you'd invent a reason for every number, and a reviewer would catch the first invented one.
 
 **Reviewer:** "Walk me through it, then I'll ask about whatever I want."
 
@@ -26,6 +34,10 @@ This is a complete, honest Basic pass — it answers whatever's asked, in whatev
 
 ## Intermediate Version
 
+### Approach 1 — specific and tied to requirements
+
+**Story:** every answer tied to a specific requirement or failure mode, including the gaps you volunteer. **If not:** your answers would describe the pieces without saying why each one is there.
+
 **Reviewer:** "Same as before, but I'm not going in system order — I'll jump around."
 
 **Reviewer, opening on cost, not architecture:** "Your requirements said $200/month. Walk me through what's actually keeping you under that."
@@ -42,11 +54,9 @@ This is a complete, honest Basic pass — it answers whatever's asked, in whatev
 
 **Why this level works:** each answer is specific to the actual requirement or actual failure mode, not a generic description of the piece. The testing answer volunteers the real gap (no automated load test) unprompted, which is what Doc17's material already established as a stronger signal than waiting to be caught. The database-availability answer shows the design was thought through past the happy path, tying back to Doc14's failure-handling vocabulary.
 
-<hr class="page-break">
+### Approach 2 — when the pushback comes back harder
 
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
-
-## Advanced Version
+**Story:** a strong reviewer connects two of your own answers and asks which one is true. This practices admitting a real contradiction, naming which answer holds, and giving a concrete fix. **If not:** you'd defend both answers with reasoning invented on the spot.
 
 **Reviewer, pushing on the auth answer from the Basic pass:** "You told me 3 roles was closer to a default than a real requirement. If I push on that right now — defend it anyway, or tell me what you'd actually check."
 
@@ -62,7 +72,7 @@ This is a complete, honest Basic pass — it answers whatever's asked, in whatev
 
 **Why this level works:** the auth answer refuses to invent a justification under direct pressure and instead names the specific check that would resolve it — which is the same discipline as this document's own design_self_review exercise, applied live instead of on paper. The seam-finding exchange is the hardest realistic move in the whole document: admitting, in real time, that two of your own answers contradict each other, naming which one is more true, and proposing a specific fix instead of defending both as if they'd always been compatible. The final unprompted admission shows the "genuine decision vs. default" instinct has actually generalized, not just been rehearsed for the one row prepared in advance.
 
-**What a weaker answer misses:** on the auth pushback, a weaker answer either invents a retroactive justification for exactly 3 roles (the rationalization Advanced Hint 1 warns about) or collapses entirely ("you're right, it's wrong") without proposing what to actually check. On the seam-finding exchange, a weaker answer either fails to notice the two answers conflict at all, or notices but defends both as compatible with strained reasoning invented on the spot — both read as less trustworthy than a plain "you're right, here's the actual fix."
+**What a weaker answer misses:** on the auth pushback, a weaker answer either invents a retroactive justification for exactly 3 roles (the rationalization Hint 1 warns about) or collapses entirely ("you're right, it's wrong") without proposing what to actually check. On the seam-finding exchange, a weaker answer either fails to notice the two answers conflict at all, or notices but defends both as compatible with strained reasoning invented on the spot — both read as less trustworthy than a plain "you're right, here's the actual fix."
 
-### Which depth should you actually deliver, and when?
-Open every answer at the Basic version's plain, direct level — state what you built and why, without over-explaining. Let it rise into the Intermediate version's specificity as the reviewer asks follow-ups. Don't pre-load the Advanced version's contradictions or your own weakest points before anyone asks — but the moment a reviewer finds a real seam between two of your decisions, or pushes on something you already flagged as a default, that's exactly the cue to do what this document's whole final stage is testing: hold your ground where you actually should, and concede plainly, with a specific fix, where you actually shouldn't. That's the entire difference between defending a capstone and having genuinely built one.
+**Which depth should you actually deliver, and when?**
+Open every answer at the Basic answer's plain, direct level — state what you built and why, without over-explaining. Let it rise into Approach 1's specificity as the reviewer asks follow-ups. Don't pre-load Approach 2's contradictions or your own weakest points before anyone asks — but the moment a reviewer finds a real seam between two of your decisions, or pushes on something you already flagged as a default, that's exactly the cue to do what this document's whole final stage is testing: hold your ground where you actually should, and concede plainly, with a specific fix, where you actually shouldn't. That's the entire difference between defending a capstone and having genuinely built one.

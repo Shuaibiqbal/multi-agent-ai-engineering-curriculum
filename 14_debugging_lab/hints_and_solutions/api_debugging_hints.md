@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Solution](api_debugging_solution.md)
 
-One scenario, followed across all 4 rounds: Doc02's `http_client.py` — the `request_with_retry()` wrapper every later document, including OpenAI calls, calls through. Work through the rounds in order. Each ends with **"What do you think is wrong?"** — stop and actually answer before reading on.
+One scenario, followed across all 4 rounds: a teammate's modified copy of Doc02's `http_client.py` — the `request_with_retry()` wrapper every later document, including OpenAI calls, calls through. Work through the rounds in order. Each ends with **"What do you think is wrong?"** — stop and actually answer before reading on.
 
 - [Round 1: Basic](#round-basic)
 - [Round 2: Intermediate](#round-intermediate)
@@ -15,7 +15,7 @@ One scenario, followed across all 4 rounds: Doc02's `http_client.py` — the `re
 
 ## Round: Basic {: #round-basic }
 
-**Setup:** `http_client.py` declares the retry wrapper with the retry/timeout settings as keyword-only:
+**Setup:** a teammate changed the retry wrapper in their copy of `http_client.py`, making the retry/timeout settings keyword-only:
 
 ```python
 def request_with_retry(method, url, *, max_attempts=3, timeout=(3, 5)):
@@ -39,6 +39,7 @@ TypeError: request_with_retry() takes 2 positional arguments but 3 were given
 ```
 
 **Expected vs. actual:**
+
 - Expected: `request_with_retry("GET", url, max_attempts=3)` runs the request, retrying as needed.
 - Actual: Python refuses to even start the call.
 
@@ -73,6 +74,7 @@ json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
 ```
 
 **Expected vs. actual:**
+
 - Expected: after retries are exhausted on repeated 5xx responses, `request_with_retry()` raises a clear `TransientHTTPError` naming the status code.
 - Actual: it crashes with an unrelated `JSONDecodeError` *while trying to build that very error message* — before `TransientHTTPError` is ever raised.
 
@@ -84,7 +86,7 @@ json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
 
 ## Round: Real-world {: #round-real-world }
 
-**Setup:** the error-message bug is fixed too. Retry backoff is implemented exactly as Doc02 describes:
+**Setup:** the error-message bug is fixed too. The teammate's copy wrote its own backoff line, instead of using Doc02's `compute_backoff_delay()`:
 
 ```python
 time.sleep(2 ** attempt)
@@ -106,6 +108,7 @@ time.sleep(2 ** attempt)
 ```
 
 **Expected vs. actual:**
+
 - Expected: callers that hit a shared rate limit at the same moment spread their retries out, so at least one of them gets through soon after the limit clears.
 - Actual: every caller sleeps the exact same fixed durations (1s, 2s, 4s, 8s…), so they keep retrying in lockstep and colliding with the same limit, again and again — reproducible only when multiple callers are actually hitting the limit together, not with one caller alone.
 
@@ -131,6 +134,7 @@ time.sleep(2 ** attempt)
 ```
 
 **Expected vs. actual:**
+
 - Expected: if the underlying API is unrecoverable, the pipeline fails fast with a clear error, instead of the Supervisor and everyone watching the run assuming something in the graph itself is hung.
 - Actual: `request_with_retry()`'s backoff runs its full course (1+2+4+8+16 = 31s) silently, inside one single tool call the Supervisor has no visibility into — a fixed retry-count cap did nothing to bound how long that felt like a hang, because it never bounded *total* time, only attempt count.
 

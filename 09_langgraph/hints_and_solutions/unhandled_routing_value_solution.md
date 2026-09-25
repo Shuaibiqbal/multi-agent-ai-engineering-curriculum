@@ -36,7 +36,9 @@ def node_b(state):
 def route(state):
     if state["flag"] is None:
         return "path_c"  # deliberately not a key in the mapping below
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 
 builder = StateGraph(GraphState)
@@ -102,7 +104,9 @@ def node_b(state: GraphState) -> dict:
 def route(state: GraphState) -> str:
     if state["flag"] is None:
         return "path_c"
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 
 builder = StateGraph(GraphState)
@@ -149,7 +153,8 @@ VALID_PATHS = {"path_a", "path_b"}
 
 
 class UnhandledRouteError(Exception):
-    """Raised when route() produces a value the graph's mapping doesn't handle."""
+    """Raised when route() produces a value the graph's mapping
+    doesn't handle."""
 
 
 class GraphState(TypedDict):
@@ -173,7 +178,10 @@ def route(state: GraphState) -> str:
     if state["flag"] is None:
         result = "path_c"
     else:
-        result = "path_a" if state["flag"] else "path_b"
+        if state["flag"]:
+            result = "path_a"
+        else:
+            result = "path_b"
 
     if result not in VALID_PATHS:
         raise UnhandledRouteError(
@@ -226,7 +234,9 @@ logger = logging.getLogger(__name__)
 def route_with_fallback(state: GraphState) -> str:
     if state["flag"] is None:
         return "unhandled"
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 
 def unhandled_node(state: GraphState) -> dict:

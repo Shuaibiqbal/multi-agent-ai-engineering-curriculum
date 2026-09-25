@@ -18,6 +18,7 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 You already know how to make one tool call and get one result back (Doc06). An agent loop just repeats that: call the model, if it asks for a tool run it and feed the result back in, ask the model again — over and over — until it stops asking for tools and just answers.
 
 Things to use:
+
 - A `while` or `for` loop with a step counter, and a max-steps number so it can't run forever.
 - One tool registered, with a Pydantic model for its arguments (from Doc06).
 - Each round: call the model with the tools list and the messages so far.
@@ -29,6 +30,7 @@ Things to use:
 The loop's state is just the growing `messages` list (the "scratchpad" from Core Concepts) — each round appends the model's tool-call request, then your tool's result, before calling the model again. The loop ends when a model response has no `tool_calls` in it — that's your signal it decided to answer directly instead of asking for another tool.
 
 The exact pieces:
+
 - `for step in range(max_iterations):` — bounding the loop from the very first line, not as an afterthought (Core Concepts' "the limit isn't optional" point, now actually in code).
 - `response = client.chat.completions.create(model=..., messages=messages, tools=[tool_schema])` each round.
 - `if response.choices[0].message.tool_calls:` — checking specifically for tool calls, not just "did it reply."
@@ -61,7 +63,8 @@ function run_agent(task, max_iterations) -> answer:
         else:
             this is the final answer -- stop and return it
 
-    if we ran out of steps: raise MaxIterationsExceeded, don't just silently give up
+    if we ran out of steps:
+        raise MaxIterationsExceeded, don't just silently give up
 ```
 
 Here's almost the whole thing — fill in the tool-running part yourself:
@@ -78,7 +81,8 @@ def run_agent(task, max_iterations=5):
         message = response.choices[0].message
         if message.tool_calls:
             messages.append(message)
-            # for each tool call: run it, append the {"role": "tool", ...} result
+            # for each tool call: run it,
+            # append the {"role": "tool", ...} result
             # write this part yourself
         else:
             return message.content
@@ -102,7 +106,11 @@ function run_agent(task: str, max_iterations: int = 5) -> str:
             for call in message.tool_calls:
                 result = run_tool(call)
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result,
+                    },
                 )
         else:
             return message.content

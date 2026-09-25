@@ -33,8 +33,6 @@ Each model has a fixed token budget for the whole request (system + user + histo
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-context_limit_error) · [Hint 1](context_limit_error_hints.md#hint-1) · [Hint 2](context_limit_error_hints.md#hint-2) · [Solution](context_limit_error_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

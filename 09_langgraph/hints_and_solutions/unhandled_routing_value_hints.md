@@ -49,18 +49,25 @@ The extra piece that helps:
 ```python
 # conditional_routing_practice.py — Edge cases section
 class UnhandledRouteError(Exception):
-    """Raised when route() produces a value the graph's mapping doesn't handle."""
+    """Raised when route() produces a value the graph's mapping
+    doesn't handle."""
 
 
 def route(state: AgentState) -> str:
     if state["flag"] is None:
         result = "path_c"  # deliberately not in the mapping
     else:
-        result = "path_a" if state["flag"] else "path_b"
+        if state["flag"]:
+            result = "path_a"
+        else:
+            result = "path_b"
 
     valid_paths = {"path_a", "path_b"}
     if result not in valid_paths:
-        message = f"route() returned {result!r}, which isn't one of {valid_paths}"
+        message = (
+            f"route() returned {result!r}, "
+            f"which isn't one of {valid_paths}"
+        )
         raise UnhandledRouteError(message)
     return result
 ```
@@ -78,7 +85,8 @@ def route(state: AgentState) -> str:
 ```
 reuse the conditional-routing graph from the Intermediate exercise
 
-change route so it can return "path_c" -- a string the mapping doesn't know about
+change route so it can return "path_c"
+    -- a string the mapping doesn't know about
 
 wrap the invoke call in try/except
 
@@ -92,9 +100,12 @@ Here's almost the whole thing — just try running it and reading it line by lin
 def route(state):
     if state["flag"] is None:
         return "path_c"
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
-# ... same graph wiring as conditional_routing, mapping only has path_a/path_b ...
+# ... same graph wiring as conditional_routing,
+# mapping only has path_a/path_b ...
 
 try:
     graph.invoke({"flag": None, "message": ""})
@@ -155,7 +166,10 @@ def route(state) -> str:
         result = "path_a" if state["flag"] else "path_b"
     valid_paths = {"path_a", "path_b"}
     if result not in valid_paths:
-        message = f"route() returned {result!r}, which isn't one of {valid_paths}"
+        message = (
+            f"route() returned {result!r}, "
+            f"which isn't one of {valid_paths}"
+        )
         raise UnhandledRouteError(message)
     return result
 

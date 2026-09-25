@@ -24,40 +24,14 @@ LangChainPro is a customer-support ticket processing pipeline built entirely wit
 - Pydantic
 - python-dotenv
 
+## Prerequisites
+- Comfortable chaining steps together with LangChain's LCEL `|` operator (for example `prompt | model | parser`)
+- Know the difference between a straight-line LangChain pipeline and a LangGraph graph — loops, branches that route back, and pause/resume
+- Familiar with Pydantic models, used here for structured output
+- Comfortable with the basic idea of retries and fallbacks for handling a flaky API call
+
 ## Architecture
 A single straight-line LCEL chain, no agent loop and no LangGraph: a `RunnableBranch` classifier routes each ticket to a billing, technical, or general handler; billing and technical handlers first run a `RunnableParallel` step that fetches account info and order history concurrently; the drafting call in every handler is wrapped in `.with_retry()` and `.with_fallbacks()` for resilience; and a final step feeds the drafted answer into both `.with_structured_output()` (a `TicketResolution` record) and `.stream()` (an incremental human-readable draft), so one shared answer serves both a downstream system and a person reading it live. Every decision is made once, in one direction — nothing loops back or pauses mid-run, which is exactly why LCEL alone is enough here.
-
-## Charter (what this project is)
-Build **LangChainPro-Branching-Parallel-And-Retry-Patterns-For-A-Real-Customer-Support-Pipeline**: a customer-support ticket processing pipeline built entirely with real LCEL patterns — the LangChain-native ways of handling branching, parallelism, retries, and fallbacks, without ever reaching for LangGraph.
-
-Here's the gap this project fills. No project anywhere in this curriculum actually centers on LangChain itself. Project 1 (Doc04) deliberately uses the raw OpenAI SDK instead — that's Doc04's own teaching point. Project 3 onward is built on LangGraph instead — that's Doc09's territory. Doc05's own Build Task (a small reusable chain module) is the only hands-on LangChain work anywhere in the whole curriculum, and it's just one file. This project is the missing piece: real production LCEL, on its own, proven to be enough for a real job.
-
-That last part matters. This pipeline is genuinely multi-step — classify, look things up, draft a reply, produce a final record — but it never branches back on itself, never loops until some condition is met, and never pauses mid-run for a human to approve something before continuing. The moment any of those three things become real requirements, [Doc09's comparison topic](../09_langgraph/README.md#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate) says you'd reach for LangGraph instead. This project is built to sit right on the LangChain side of that line, on purpose, so you can feel exactly where the line is.
-
-**Jump to:** [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-classification-chain-with-runnablebranch) · [Step 2](#step-2-parallel-lookups-with-runnableparallel) · [Step 3](#step-3-retry-and-fallback-for-the-drafting-call) · [Step 4](#step-4-structured-output-and-streaming-the-final-response)
-
-## The Story — what you're actually building
-
-Picture a support ticket landing in a queue: "I was charged twice for my subscription this month." Before any human touches it, a lot of useful work can already happen automatically. First, figure out what kind of ticket this even is — billing, technical, or general — and hand it to the right kind of response logic, the same way a real help desk routes a ticket to the right team. Second, for a billing or technical ticket, pull up the customer's account info and their recent order history at the same time, since neither lookup depends on the other finishing first. Third, draft a reply using all of that — and do it in a way that survives a flaky model call instead of crashing the whole pipeline the moment one API call times out. Fourth, turn that draft into two different things at once: a clean, human-readable message a support agent can read as it's being written, and a structured record — category, summary, confidence, does a human need to check this — that your ticketing system can log and route on.
-
-Every one of those four steps is a real LangChain pattern, not a toy example. `RunnableBranch` is what real routing looks like in LCEL. `RunnableParallel` is what real concurrent lookups look like. `.with_retry()` and `.with_fallbacks()` are what real production resilience looks like, without a single `try/except` scattered through your code. `.with_structured_output()` and `.stream()` are how one chain's output becomes two different useful things for two different audiences (a machine and a person). None of this needs a graph — it's a straight-line pipeline the whole way through, and that's exactly the point.
-
-> **Before you read further — think about it yourself:** Step 1 asks you to build a classifier that routes to exactly 3 handlers. What should happen to a ticket that's genuinely ambiguous — one that reads half like a billing complaint and half like a technical bug report? Should `RunnableBranch`'s default branch silently swallow it into "general," or does something about that ambiguity need to be visible later in the pipeline, not just quietly decided and forgotten? Second: Step 3 asks you to add a fallback for when the primary drafting call fails. A fallback response is, by definition, worse than what you originally wanted. For a billing ticket about a real double-charge, is a cheerful canned "we got your message" reply actually an acceptable thing to send — or is that a case where failing loudly and flagging a human is the more honest choice than silently shipping a lower-quality answer? Sit with both questions before you read the Steps below.
-
-**What you're actually building, in one line:** a support-ticket pipeline built entirely from LangChain's LCEL pieces, chained together with `|` — no agent loop, no LangGraph.
-
-**Why this needs to exist:** to prove, with real working code, that a fixed multi-step job (classify, look things up, draft, format) doesn't need a heavier framework just because a heavier one exists — most real backend pipelines are exactly this shape, not a looping agent.
-
-**When you'd reach for this at a real job:** when a request or ticket has a small, fixed set of categories and paths, and never needs to loop, pause mid-run, or remember state across a restart — support queues, alert triage, form routing.
-
-**How it works, mechanically:** each step is a `Runnable`, chained with `|`; `RunnableBranch` and `RunnableParallel` handle routing and concurrent lookups, and `.with_retry()` / `.with_fallbacks()` wrap the parts that can fail.
-
-**Why not just do it some simpler/different way:** you could skip LCEL and write plain Python `if/else` plus `requests.post` calls straight to the model instead. That works, but you lose everything LCEL gives you for free — retries, streaming, and parallel calls all become code you write and debug yourself, and the pipeline stops being one object you can test piece by piece. You could also wrap every model call in a manual `try/except` instead of `.with_retry()` / `.with_fallbacks()` — but then every handler needs its own copy of the same retry logic, and it's easy to end up retrying a bug that will fail the same way every time (exactly the mistake Step 3 warns about), because nothing separates "this failure is temporary" from "this failure is permanent."
-
-## Where This Fits
-This is a bonus/portfolio project, not part of the main 5-project arc (Projects 1-5). It exists to give plain LangChain — no agent loop, no LangGraph — its own real, hands-on project, since every other project in this curriculum either deliberately skips LangChain (Project 1, per Doc04) or is built on LangGraph instead (Projects 3 onward, per Doc09). This is the LangChain-focused counterpart to those LangGraph-based projects: same idea of "a real multi-step pipeline," built with the tool that fits it, instead of defaulting to the heavier one out of habit.
-
-[09_langgraph](../09_langgraph/README.md#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate)'s "LangChain vs. LangGraph vs. RAG" Core Concepts topic lays out exactly when each tool fits: LangChain (and LCEL specifically) is enough for a straight-line pipeline, even one with a single fixed branching point (`RunnableBranch`) or a single fixed parallel merge (`RunnableParallel`). LangGraph earns its cost once you need a decision that can route back to an earlier step, a loop with a real stopping rule, or a pause-and-resume for a human — none of which this pipeline needs. This project is built specifically to prove that boundary with real, working code, not just to repeat the claim.
 
 ## Setup (do this once, before Step 1)
 ```bash
@@ -72,9 +46,19 @@ Same `.env` / `.env.example` setup as every other project:
 OPENAI_API_KEY=sk-...
 LOG_LEVEL=INFO
 ```
-This project reuses Doc05's Build Task shape (one small `Runnable` chain module, config-driven model choice) directly — if `prompt | model | parser` doesn't feel comfortable yet, re-read [05_langchain_fundamentals's Core Concepts](../05_langchain_fundamentals/README.md#core-concepts-read-this-first-everything-you-need-is-here) before Step 1, not during it. You do **not** need LangGraph, `langgraph`, or a checkpointer anywhere in this project — if you find yourself reaching for one, stop and re-read **Where This Fits** above.
+This project reuses the small reusable `Runnable` chain module pattern (one small chain module, config-driven model choice) directly — if `prompt | model | parser` doesn't feel comfortable yet, review it before Step 1, not during it. You do **not** need LangGraph, `langgraph`, or a checkpointer anywhere in this project — this pipeline never loops, branches back, or pauses mid-run, so plain LCEL is enough on its own.
 
-## A Real Example (so this isn't just theory)
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| The classifier's default branch quietly swallows every ambiguous ticket into "general," and nobody ever notices | Don't just rely on `RunnableBranch`'s default — carry the classifier's own confidence (or a simple "did more than one category look plausible" check) through to Step 4's `needs_human_review` field, so ambiguity becomes visible downstream instead of silently disappearing |
+| `RunnableParallel`'s two lookups don't actually save any time — the total is still the sum of both | Check the two functions are genuinely independent (neither reads the other's output) and that you're not accidentally calling them sequentially before wrapping them — time both a sequential and a parallel run and compare the numbers directly, don't just assume |
+| `.with_retry()` is retrying an error that was never going to succeed anyway (like a bad prompt causing a parsing failure) | Scope retries to real transient failures only — a timeout, a rate limit, a connection error — never to a deterministic bug that will fail identically every time; retrying that just burns time and money |
+| The fallback chain fires silently, and a customer gets a degraded, canned response with no record that anything went wrong | Every time `.with_fallbacks()` triggers, log it and set `needs_human_review=True` on the final `TicketResolution` — a fallback should be visible in your data, not just invisible in your users' inboxes |
+| Streaming and the structured record disagree with each other (the streamed draft says one thing, the logged summary says another) | Build both from the exact same drafting-chain output — stream that output to the UI, and separately feed that same text into the structured-extraction step, instead of generating the draft twice with two separate model calls |
+
+## Usage Example
 Use this scenario, or one close to it, for every step below:
 
 **Scenario:** SupportCo is a small SaaS company. Its support inbox gets tickets like these:
@@ -87,27 +71,7 @@ Use this scenario, or one close to it, for every step below:
 
 **Test every step below against the billing, technical, general, and ambiguous tickets above.**
 
-## Why This Project Is Good for Your Portfolio
-- **What problem it solves:** shows you can build a real, multi-step production pipeline in LangChain alone — branching, concurrency, resilience, and dual-format output — without defaulting to a heavier framework just because it's what the rest of your projects use.
-- **Why it matters:** most real backend work is exactly this shape — a few fixed decision points, a couple of independent lookups, a call that needs to survive a bad day, and one result that two different downstream consumers need in two different formats. Knowing this doesn't need LangGraph is as valuable as knowing LangGraph itself.
-- **When you'd build something like this at a real job:** any ticket, request, or event pipeline with a small, fixed set of categories and no need to loop, pause, or persist state across restarts — support systems, alert triage, content moderation queues.
-- **How it's built:** a `RunnableBranch` classifier and router, a `RunnableParallel` concurrent-lookup step, a drafting chain hardened with `.with_retry()` and `.with_fallbacks()`, and a final step that produces both a `.with_structured_output()` record and a `.stream()`-able human-readable draft from the same underlying answer.
-
-**Problems you'll likely run into, and how to fix them:**
-
-| Problem | Fix |
-|---|---|
-| The classifier's default branch quietly swallows every ambiguous ticket into "general," and nobody ever notices | Don't just rely on `RunnableBranch`'s default — carry the classifier's own confidence (or a simple "did more than one category look plausible" check) through to Step 4's `needs_human_review` field, so ambiguity becomes visible downstream instead of silently disappearing |
-| `RunnableParallel`'s two lookups don't actually save any time — the total is still the sum of both | Check the two functions are genuinely independent (neither reads the other's output) and that you're not accidentally calling them sequentially before wrapping them — time both a sequential and a parallel run and compare the numbers directly, don't just assume |
-| `.with_retry()` is retrying an error that was never going to succeed anyway (like a bad prompt causing a parsing failure) | Scope retries to real transient failures only — a timeout, a rate limit, a connection error — never to a deterministic bug that will fail identically every time; retrying that just burns time and money |
-| The fallback chain fires silently, and a customer gets a degraded, canned response with no record that anything went wrong | Every time `.with_fallbacks()` triggers, log it and set `needs_human_review=True` on the final `TicketResolution` — a fallback should be visible in your data, not just invisible in your users' inboxes |
-| Streaming and the structured record disagree with each other (the streamed draft says one thing, the logged summary says another) | Build both from the exact same drafting-chain output — stream that output to the UI, and separately feed that same text into the structured-extraction step, instead of generating the draft twice with two separate model calls |
-
-## Built During These Documents
-[05_langchain_fundamentals](../05_langchain_fundamentals/) — plus [09_langgraph](../09_langgraph/)'s "LangChain vs. LangGraph vs. RAG" comparison topic (see **Where This Fits** above). No LangGraph document is a prerequisite for actually building this project — only for understanding why it's built this way instead of as a graph.
-
-## Plan Before You Code
-Same process as every project (see [15_five_projects_index](../15_five_projects_index/)): Problem → Requirements → Architecture → Components → Data Flow → Implementation Plan → Coding Tasks. Before you open your editor, write down, in one sentence each, what Step 1 needs to prove, what Step 2 needs to prove, what Step 3 needs to prove, and what Step 4 needs to prove. If you can't state the one thing each step proves, you'll end up building all four patterns at once and never knowing which one is actually doing the work.
+**Jump to:** [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-classification-chain-with-runnablebranch) · [Step 2](#step-2-parallel-lookups-with-runnableparallel) · [Step 3](#step-3-retry-and-fallback-for-the-drafting-call) · [Step 4](#step-4-structured-output-and-streaming-the-final-response)
 
 ## How To Build This — Step by Step
 
@@ -116,9 +80,9 @@ Same process as every project (see [15_five_projects_index](../15_five_projects_
 *Project: **LangChainPro-Branching-Parallel-And-Retry-Patterns-For-A-Real-Customer-Support-Pipeline** — Step 1 of 4: A Classification Chain With `RunnableBranch`*
 
 **What this step does:** builds a category classifier and uses `RunnableBranch` to route a ticket to one of three draft-response chains — billing, technical, or general — all inside one LCEL pipeline, with no agent loop and no manual `if/elif` routing in your own code.
-**Why this step matters:** `RunnableBranch` is LCEL's real answer to "pick one of a few fixed paths based on a decision" — this is the exact capability [Doc09's comparison topic](../09_langgraph/README.md#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate) says LangChain handles fine on its own, right up until a decision needs to route back to an earlier step. Feeling where that line sits starts here.
+**Why this step matters:** `RunnableBranch` is LCEL's real answer to "pick one of a few fixed paths based on a decision" — this is exactly the kind of decision LangChain handles fine on its own, right up until a decision needs to route back to an earlier step. Feeling where that line sits starts here.
 **When you'll hit this for real:** any pipeline with a small, fixed set of categories and a different next step for each one — support tickets, content moderation queues, form submissions sorted by type.
-**Read first:** [05_langchain_fundamentals Core Concepts](../05_langchain_fundamentals/README.md#core-concepts-read-this-first-everything-you-need-is-here) — especially "LCEL: chaining pieces together with `|`", [09_langgraph Core Concepts — "LangChain vs. LangGraph vs. RAG" — the "Branching on the model's decision" capability](../09_langgraph/README.md#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate).
+**Helpful background:** chaining pieces together with LCEL's `|` operator, and how LangChain handles branching on a model's decision compared to LangGraph.
 
 **Stuck on this step?** [Hint 1](hints_and_solutions/step1_runnable_branch_classification_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_runnable_branch_classification_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step1_runnable_branch_classification_solution.md)
 
@@ -133,7 +97,7 @@ What to do:
 ```
 project_13_langchain_patterns/
 ├── .env / .env.example
-├── config.py                     (reused pattern from Doc01: model name, temperature — never hardcoded)
+├── config.py                     (a small reusable config module: model name, temperature — never hardcoded)
 ├── models.py                       → TicketClassification (Pydantic): category: str
 ├── classifier.py                    → build_classification_chain() -> Runnable
 ├── handlers.py                       → billing_chain, technical_chain, general_chain (each prompt | model | StrOutputParser)
@@ -146,10 +110,10 @@ project_13_langchain_patterns/
 *Project: **LangChainPro-Branching-Parallel-And-Retry-Patterns-For-A-Real-Customer-Support-Pipeline** — Step 2 of 4: Parallel Lookups With `RunnableParallel`*
 
 **What this step does:** adds account-info and order-history lookups for billing and technical tickets, running both at the same time with `RunnableParallel`, merged into one dict the drafting chain can actually use.
-**Why this step matters:** `RunnableParallel` is LCEL's real, working answer to "run independent things at once and merge the results" — [Doc09's comparison topic](../09_langgraph/README.md#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate) calls this out specifically as a case where LangChain doesn't need to hand off to LangGraph at all, because it's one fixed merge point, not a runtime decision about what to run in parallel.
+**Why this step matters:** `RunnableParallel` is LCEL's real, working answer to "run independent things at once and merge the results" — this is exactly the kind of case where LangChain doesn't need to hand off to LangGraph at all, because it's one fixed merge point, not a runtime decision about what to run in parallel.
 **What's new vs. Step 1:** `lookups.py` (two mocked, deliberately slow functions) and `RunnableParallel` wired into the billing and technical branches. **What stays the same:** the `RunnableBranch` router from Step 1 — you're enriching what happens *inside* the billing and technical branches, not changing how a ticket gets routed to them.
 **When you'll hit this for real:** any time a response depends on two or more independent lookups (a user profile call and a recent-activity call, a pricing call and an inventory call) — running them one after another instead of concurrently is pure wasted latency for no benefit.
-**Read first:** [09_langgraph Core Concepts — "LangChain vs. LangGraph vs. RAG" — the "Running two things at once and merging results" capability](../09_langgraph/README.md#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate), [05_langchain_fundamentals Core Concepts](../05_langchain_fundamentals/README.md#core-concepts-read-this-first-everything-you-need-is-here) — especially "LCEL: chaining pieces together with `|`".
+**Helpful background:** how LangChain handles running two things at once and merging results, compared to LangGraph, and chaining pieces together with LCEL's `|` operator.
 
 **Stuck on this step?** [Hint 1](hints_and_solutions/step2_runnable_parallel_lookups_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_runnable_parallel_lookups_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_runnable_parallel_lookups_solution.md)
 
@@ -180,7 +144,7 @@ project_13_langchain_patterns/
 **Why this step matters:** a demo pipeline that only ever sees a fast, reliable model call never shows you what a production pipeline actually has to survive — real API calls time out, get rate-limited, and occasionally just fail, and a pipeline that crashes the instant one of those happens isn't production-grade, no matter how good its happy path is.
 **What's new vs. Step 2:** `drafting.py` (a resilient version of the model call, used inside `handlers.py`) and a fallback chain. **What stays the same:** the router and research chains from Steps 1-2 — this step changes how the model call inside each handler survives failure, not what gets routed where or what gets looked up.
 **When you'll hit this for real:** the first time your pipeline is running against real traffic instead of your own test tickets — transient model-call failures are a "when," not an "if," at any real volume.
-**Read first:** [02_apis_http_json Core Concepts](../02_apis_http_json/README.md#core-concepts-read-this-first-everything-you-need-is-here) — especially "Retrying with exponential backoff and jitter" (the general idea — LCEL's `.with_retry()` gives you this same behavior built in), [05_langchain_fundamentals Core Concepts](../05_langchain_fundamentals/README.md#core-concepts-read-this-first-everything-you-need-is-here) — especially "What a library gives you, and what it costs".
+**Helpful background:** retrying with exponential backoff and jitter (the general idea — LCEL's `.with_retry()` gives you this same behavior built in), and what a library gives you, and what it costs.
 
 **Stuck on this step?** [Hint 1](hints_and_solutions/step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_retry_fallback_drafting_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step3_retry_fallback_drafting_solution.md)
 
@@ -214,7 +178,7 @@ project_13_langchain_patterns/
 **Why this step matters:** "one answer" from an LLM is often genuinely needed in two different shapes at once — a machine-readable record for logging, routing, and metrics, and a human-readable stream for a person watching it arrive. Building both from one shared source, instead of two separate model calls, is the difference between a coherent pipeline and two answers that can quietly disagree with each other.
 **What's new vs. Step 3:** `resolution.py` (the structured-output step) and a `stream_draft()` function. **What stays the same:** everything from Steps 1-3 — the drafted text this step works from is exactly what the (now retry-and-fallback-hardened) drafting chain already produces.
 **When you'll hit this for real:** any user-facing feature where a person needs to see a response appear live, while some other part of your system also needs a clean, structured record of what happened — support tools, chat UIs backed by a logging/analytics pipeline, anything with both a person and a downstream system consuming the same answer.
-**Read first:** [05_langchain_fundamentals Core Concepts](../05_langchain_fundamentals/README.md#core-concepts-read-this-first-everything-you-need-is-here) — especially "Output parsers: turning raw text into a real Python object" — and its "Intermediate — swap in a structured parser" exercise (`.with_structured_output()`) at [`#ex-structured_parser_swap`](../05_langchain_fundamentals/README.md#ex-structured_parser_swap), [04_openai_api's "Real-world — make it feel alive with streaming" exercise](../04_openai_api/README.md#ex-streaming_replies).
+**Helpful background:** output parsers — turning raw text into a real Python object — and `.with_structured_output()`, plus how streaming a reply back to a user works.
 
 **Stuck on this step?** [Hint 1](hints_and_solutions/step4_structured_output_streaming_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_structured_output_streaming_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step4_structured_output_streaming_solution.md)
 
@@ -244,7 +208,7 @@ project_13_langchain_patterns/
 
 **Final Deliverable:** **LangChainPro-Branching-Parallel-And-Retry-Patterns-For-A-Real-Customer-Support-Pipeline** — a real customer-support ticket pipeline built entirely from LCEL: `RunnableBranch` routing, `RunnableParallel` concurrent lookups, `.with_retry()` plus `.with_fallbacks()` resilience, and a final step that produces both a structured `TicketResolution` and a streamed human-readable draft from one shared answer.
 
-**Why this genuinely doesn't need LangGraph (said plainly):** every decision in this pipeline is made once, in one direction — classify, then route, then (maybe) research, then draft, then finish. Nothing here ever needs to go back to an earlier step, run an unknown number of times until some condition is met, or freeze mid-run waiting on a person. The moment a real requirement forced any of those three things — "let the customer re-answer if the bot misunderstood," "keep refining the draft until a reviewer approves it," "pause here until a human clicks approve" — that would be the honest signal to rebuild this as a LangGraph graph instead, exactly as [Doc09's comparison topic](../09_langgraph/README.md#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate) describes. This project's whole point is proving that until that happens, LangChain alone is not a compromise — it's the right-sized tool.
+**Why this genuinely doesn't need LangGraph (said plainly):** every decision in this pipeline is made once, in one direction — classify, then route, then (maybe) research, then draft, then finish. Nothing here ever needs to go back to an earlier step, run an unknown number of times until some condition is met, or freeze mid-run waiting on a person. The moment a real requirement forced any of those three things — "let the customer re-answer if the bot misunderstood," "keep refining the draft until a reviewer approves it," "pause here until a human clicks approve" — that would be the honest signal to rebuild this as a LangGraph graph instead. This project's whole point is proving that until that happens, LangChain alone is not a compromise — it's the right-sized tool.
 
 ## Checklist Before You Call This Done
 - [ ] `RunnableBranch` correctly routes the billing, technical, and general example tickets to the right handler
@@ -255,14 +219,7 @@ project_13_langchain_patterns/
 - [ ] You wrote down, on purpose, whether your fallback response is an acceptable degraded answer or something that should fail loudly instead — for at least the billing case
 - [ ] The final `TicketResolution` is a real, validated Pydantic object, and `needs_human_review` is actually `True` for the ambiguous ticket and for any run where the fallback fired
 - [ ] `.stream()` prints the draft incrementally (visibly piece by piece), not the full string printed all at once
-- [ ] No LangGraph import anywhere in this project — if you found yourself wanting one, that's Doc09's comparison topic proving its point, not a bug to fix here
+- [ ] No LangGraph import anywhere in this project — if you found yourself wanting one, that's the LangChain-vs-LangGraph comparison proving its point, not a bug to fix here
 
 ## Status
-Not started. Track your progress in [../PROGRESS.md](../PROGRESS.md).
-
----
-Stuck? Ask for **Hint 1** or **Hint 2** about the exact part you're stuck on. Only ask for the full code if you say **"Show me the solution."**
-
----
-
-*Part of a 13-project multi-agent AI engineering curriculum. See the [full curriculum](../README.md) for the complete learning path and all other projects.*
+Not started. Track your own progress however works for you.

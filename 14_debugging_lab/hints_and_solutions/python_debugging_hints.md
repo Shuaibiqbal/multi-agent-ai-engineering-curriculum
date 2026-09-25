@@ -29,12 +29,14 @@ def trim_history(history, max_turns):
 **Error output:**
 ```
 Traceback (most recent call last):
-  File "project_1_supportdesk_chat_and_triage/chatbot.py", line 42, in send_message
+  File "project_1_supportdesk_chat_and_triage/chatbot.py", line 42,
+      in send_message
     for msg in trim_history(conversation, MAX_TURNS):
 TypeError: 'NoneType' object is not iterable
 ```
 
 **Expected vs. actual:**
+
 - Expected: `trim_history()` returns a list of the most recent messages, ready to loop over.
 - Actual: it crashes immediately — `trim_history(...)` appears to be `None`, every time it's called.
 
@@ -66,6 +68,7 @@ It's called once per turn: `session_notes = log_turn("user", user_text)`.
 Session `abc123` only ever asked about resetting a password. The refund-policy line came from session `xyz789`, which ran earlier in the same process and finished minutes ago.
 
 **Expected vs. actual:**
+
 - Expected: each session's notes list starts empty and only ever contains that session's own turns.
 - Actual: notes from unrelated, already-finished sessions keep showing up in later sessions' notes — but only when the app has been running a while, not on a fresh restart.
 
@@ -97,6 +100,7 @@ RuntimeError: dictionary changed size during iteration
 ```
 
 **Expected vs. actual:**
+
 - Expected: whatever expired entries exist get removed safely, whether there are zero of them or several.
 - Actual: it works fine every time you tested it right after populating a fresh cache — because nothing had expired yet. It only fails once the cache genuinely has at least one expired entry at cleanup time, which in production happens constantly but almost never happened in your quick manual tests.
 
@@ -132,11 +136,13 @@ def route(state, notes=[]):
   'check compliance wording on a contract',
   'write a release blog post'
 ]
-[reviewer] REJECTED: routing_notes references unrelated tasks, draft may be confused
+[reviewer] REJECTED: routing_notes references unrelated tasks,
+  draft may be confused
 ```
 Request #5 was only ever "write a release blog post." The other four lines are requests #1 through #4, run earlier in the same process.
 
 **Expected vs. actual:**
+
 - Expected: `routing_notes` for a given request contains only that request's own routing history.
 - Actual: it silently accumulates every request's task description, for the life of the running process — invisible in `test_route()`, because that test only ever calls `route()` once before the process (and the test) ends.
 

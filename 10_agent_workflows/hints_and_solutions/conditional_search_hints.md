@@ -148,7 +148,11 @@ test:
 def should_search(state: dict) -> str:
     task = state["messages"][-1].content.lower()
     keywords = ["document", "policy", "according to"]
-    if any(keyword in task for keyword in keywords):
+    has_match = False
+    for keyword in keywords:
+        if keyword in task:
+            has_match = True
+    if has_match:
         return "search"
     return "skip"
 ```
@@ -179,7 +183,10 @@ KEYWORDS = ["document", "policy", "according to", "the file says"]
 def should_search(state: dict) -> str:
     task = state["messages"][-1].content
     lowered = task.lower()
-    has_keyword = any(keyword in lowered for keyword in KEYWORDS)
+    has_keyword = False
+    for keyword in KEYWORDS:
+        if keyword in lowered:
+            has_keyword = True
 
     if has_keyword:
         return "search"

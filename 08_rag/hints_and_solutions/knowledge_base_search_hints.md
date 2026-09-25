@@ -178,7 +178,8 @@ SCORE_CUTOFF: float = 0.35
 def build_vector_store(doc_folder: str):
     chroma_client = chromadb.Client()
     collection = chroma_client.get_or_create_collection(name="kb")
-    # your turn: if this collection is already populated (collection.count() > 0),
+    # your turn: if this collection is already populated
+    # (collection.count() > 0),
     # just return it instead of re-embedding and re-adding every file again
     ...
     return collection
@@ -188,7 +189,9 @@ def search(
     collection, question: str, k: int = 3, cutoff: float = SCORE_CUTOFF,
 ) -> list[dict]:
     question_embedding = embed(question)
-    results = collection.query(query_embeddings=[question_embedding], n_results=k)
+    results = collection.query(
+        query_embeddings=[question_embedding], n_results=k
+    )
     # your turn: build a list of {"id":..., "text":..., "score":...} dicts,
     # but only for results whose distance is <= cutoff -- drop the rest
     ...

@@ -59,7 +59,9 @@ def run_agent_with_timeout(task, max_iterations=1000, timeout_seconds=30):
     messages = [{"role": "user", "content": task}]
     for step in range(max_iterations):
         if time.time() - start > timeout_seconds:
-            raise TimeoutError(f"Stopped after {timeout_seconds}s at step {step}")
+            raise TimeoutError(
+                f"Stopped after {timeout_seconds}s at step {step}"
+            )
         # ... same body as run_agent() from build_react_loop ...
 ```
 
@@ -76,7 +78,8 @@ function run_agent_with_timeout(task, max_iterations, timeout_seconds):
         if elapsed time > timeout_seconds:
             raise TimeoutError naming the step it stopped at
         (same body as run_agent: call model, run tool, append to messages)
-    raise MaxIterationsExceeded if the loop finishes without a TimeoutError first
+    raise MaxIterationsExceeded if the loop finishes
+        without a TimeoutError first
 ```
 
 ```python
@@ -96,10 +99,14 @@ def run_agent_with_timeout(
 
     for step in range(max_iterations):
         if time.time() - start > timeout_seconds:
-            raise TimeoutError(f"Stopped after {timeout_seconds}s at step {step}")
+            raise TimeoutError(
+                f"Stopped after {timeout_seconds}s at step {step}"
+            )
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini", messages=messages, tools=[adversarial_tool_schema],
+            model="gpt-4o-mini", messages=messages, tools=[
+                adversarial_tool_schema
+            ],
         )
         message = response.choices[0].message
 
@@ -108,7 +115,11 @@ def run_agent_with_timeout(
             for call in message.tool_calls:
                 result = always_ask_again_tool(call.function.arguments)
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result,
+                    },
                 )
         else:
             return message.content
@@ -144,10 +155,14 @@ def run_agent_with_timeout_and_token_count(
     for step in range(max_iterations):
         if time.time() - start > timeout_seconds:
             print(f"stopped at step {step}, {total_tokens} tokens used so far")
-            raise TimeoutError(f"Stopped after {timeout_seconds}s at step {step}")
+            raise TimeoutError(
+                f"Stopped after {timeout_seconds}s at step {step}"
+            )
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini", messages=messages, tools=[adversarial_tool_schema],
+            model="gpt-4o-mini", messages=messages, tools=[
+                adversarial_tool_schema
+            ],
         )
         # your turn: add response.usage.total_tokens to total_tokens,
         # then handle the tool call same as before

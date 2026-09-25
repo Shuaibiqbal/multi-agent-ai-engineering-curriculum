@@ -114,13 +114,23 @@ def chunk_by_paragraph(text):
     return chunks
 
 def get_embedding(text):
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 ```
 **Expected output if you run just this:** nothing yet — add your test document, question, and the comparison loop below it.
@@ -183,7 +193,8 @@ function chunk_by_chars_with_overlap(text, chunk_size, overlap):
 
 function chunk_by_paragraph_safe(text):
     pieces = chunk_by_paragraph(text)
-    if len(pieces) <= 1:                    # blank-line split found nothing useful
+    # blank-line split found nothing useful
+    if len(pieces) <= 1:
         return chunk_by_chars_with_overlap(text, chunk_size=200, overlap=40)
     return pieces
 ```

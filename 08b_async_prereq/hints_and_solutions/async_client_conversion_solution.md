@@ -139,7 +139,9 @@ async def handle_question_request(question: str) -> dict:
         answer = await ask(question)
         return {"answer": answer}
     except APITimeoutError:
-        return {"error": "The model took too long to respond. Please try again."}
+        return {
+            "error": "The model took too long to respond. Please try again."
+        }
 ```
 **Expected output**, if you call `asyncio.run(handle_question_request("What is 2 + 2?"))` from a script to simulate what the framework would do:
 ```

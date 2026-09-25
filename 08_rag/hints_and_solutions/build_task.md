@@ -25,6 +25,7 @@ You're building three small files that work together: one that splits text into 
 `retriever.py`'s job: one function, `retrieve(query, k)`, that embeds a question and hands back the `k` closest chunks. If there's nothing stored yet, it should hand back an empty list, not blow up.
 
 Things to look up and use:
+
 - `pathlib.Path(folder).glob("*")` — to find every file in your `docs/` folder.
 - Plain string slicing (`text[i:i+300]`) for a fixed-size chunker.
 - `text.split("\n\n")` for a paragraph chunker, then strip each piece and throw away empty ones.
@@ -43,6 +44,7 @@ You're building three small, separate pieces that get used together: a **chunker
 `chunking.py` needs at least two different splitting methods, each its own named function. `ingest.py`'s job is: read every document in a folder, run each one through a chunking function, embed every chunk (same embedding model you'll use for questions later), and store the resulting vectors. The part that's easy to forget: track, for every single chunk, which source file it came from and which position (index) it held within that file's chunk list. `retriever.py`'s job is: one function, `retrieve(query, k)`, that embeds the incoming question with the *same* embedding model used during ingest, searches the store, and returns the top `k` matches — returning `[]` immediately if the store has zero chunks.
 
 Here's what to actually go look at:
+
 - **`pathlib.Path(folder).glob("*.txt")`** (and again for `"*.md"`) — the standard way to list files of a given type in a folder.
 - **String slicing** (`text[i:i+chunk_size]`) is all `chunk_by_chars()` needs.
 - **`text.split("\n\n")`** is the core of `chunk_by_paragraph()`.
@@ -87,7 +89,8 @@ ingest.py:
             chunks = chunk_fn(text)
             for each chunk, remember its index in this file's chunk list
             embed all the chunks
-            add them to the store, along with source_file and chunk_index for each
+            add them to the store,
+                along with source_file and chunk_index for each
         return the store
 
 retriever.py:
@@ -95,7 +98,8 @@ retriever.py:
         if the store is empty: return []
         embed the query
         search the store for the k closest chunks
-        build a small Document for each result: text, source_file, chunk_index, score
+        build a small Document for each result:
+            text, source_file, chunk_index, score
         return the list of Documents
 ```
 
@@ -176,7 +180,8 @@ function retrieve(query, k=3):
         return []
     embed the query with the same embedding model used in ingest.py
     search the store for the k closest chunk embeddings
-    for each result, build a Document with: text, source_file, chunk_index, score
+    for each result, build a Document with:
+        text, source_file, chunk_index, score
     return the list of Documents, ordered closest-first
 ```
 
@@ -185,7 +190,9 @@ One small piece to get you unstuck — keeping each chunk's text lined up with i
 ```python
 from pathlib import Path
 
-def build_vector_store(doc_folder: str, chunk_fn) -> tuple[list[str], list[dict]]:
+def build_vector_store(
+    doc_folder: str, chunk_fn
+) -> tuple[list[str], list[dict]]:
     all_texts: list[str] = []
     all_metadatas: list[dict] = []
 
@@ -210,7 +217,8 @@ Try finishing the rest yourself before looking at the full Solution below.
 Once that's working, sketch the deterministic-ID scheme — this is what makes re-running ingest safe:
 
 ```python
-chunk_id = f"{path.name}-{chunk_index}"   # stable across re-runs on the same file
+# stable across re-runs on the same file
+chunk_id = f"{path.name}-{chunk_index}"
 ```
 
 Then sketch the batched-embedding call: collect `all_texts` across *every* file first (as the hints already do), and make exactly one `client.embeddings.create(model=..., input=all_texts)` call for the whole batch, instead of one call inside the per-file loop. Write both pieces yourself before checking the Solution.
@@ -292,7 +300,9 @@ def build_vector_store(doc_folder, chunk_fn=chunk_by_paragraph):
     response = client.embeddings.create(
         model="text-embedding-3-small", input=all_texts,
     )
-    embeddings = [item.embedding for item in response.data]
+    embeddings = []
+    for item in response.data:
+        embeddings.append(item.embedding)
 
     collection.add(
         ids=all_ids, embeddings=embeddings,
@@ -359,8 +369,12 @@ def chunk_by_chars(text: str, chunk_size: int = 300) -> list[str]:
 
 def chunk_by_paragraph(text: str) -> list[str]:
     raw_pieces = text.split("\n\n")
-    chunks = [piece.strip() for piece in raw_pieces]
-    return [piece for piece in chunks if piece != ""]
+    chunks = []
+    for piece in raw_pieces:
+        stripped = piece.strip()
+        if stripped != "":
+            chunks.append(stripped)
+    return chunks
 ```
 
 ```python
@@ -408,7 +422,9 @@ def build_vector_store(
         return collection
 
     response = client.embeddings.create(model=EMBEDDING_MODEL, input=all_texts)
-    embeddings = [item.embedding for item in response.data]
+    embeddings = []
+    for item in response.data:
+        embeddings.append(item.embedding)
 
     collection.add(
         ids=all_ids, embeddings=embeddings,
@@ -493,7 +509,9 @@ def build_vector_store(
     # why: one batched call for every chunk across every file, not one
     # call per file -- see Approach 3's Story for what this costs otherwise
     response = client.embeddings.create(model=EMBEDDING_MODEL, input=all_texts)
-    embeddings = [item.embedding for item in response.data]
+    embeddings = []
+    for item in response.data:
+        embeddings.append(item.embedding)
 
     collection.add(
         ids=all_ids, embeddings=embeddings,

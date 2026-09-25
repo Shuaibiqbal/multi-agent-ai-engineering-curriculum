@@ -102,7 +102,9 @@ def node_b(state):
     return {"message": "went down path B"}
 
 def route(state):
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 builder = StateGraph(GraphState)
 builder.add_node("node_decide", node_decide)

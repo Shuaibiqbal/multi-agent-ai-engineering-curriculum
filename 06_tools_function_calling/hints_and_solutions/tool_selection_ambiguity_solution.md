@@ -84,7 +84,10 @@ def run_selection_trial(prompt: str, runs: int = 5) -> Counter:
 
     for run_number in range(1, runs + 1):
         response = model_with_tools.invoke(prompt)
-        picked = response.tool_calls[0]["name"] if response.tool_calls else "none"
+        if response.tool_calls:
+            picked = response.tool_calls[0]["name"]
+        else:
+            picked = "none"
         print(f"Run {run_number}: picked {picked}")
         tally[picked] += 1
 

@@ -23,6 +23,7 @@ The chain's job: take the same input Project 1's raw feature takes, and produce 
 The comparison script's job: run both versions on the same inputs and prove, not just claim, that they agree.
 
 Things to look up and use:
+
 - `ChatPromptTemplate.from_template(...)` — build your prompt in `prompts.py`.
 - `.with_structured_output(YourModel)` — attach the same Pydantic shape Project 1 already uses.
 - `|` — chain the prompt and the structured model together.
@@ -40,6 +41,7 @@ You're building two separate, reusable things that get used together: a `prompts
 The key requirement to hold onto: the model name and temperature must come from your Doc01 config, never hardcoded. This means `build_extraction_chain()` should call `load_config()` (or accept a config object as a parameter) rather than writing `ChatOpenAI(model="gpt-4o-mini")` directly inside it.
 
 Here's what to actually go look at:
+
 - **`prompts.py`** should hold a function like `get_extraction_prompt() -> ChatPromptTemplate`, not a bare module-level variable — this makes it easier to test and to swap later without touching `chain.py`.
 - **`chain.py`**'s `build_extraction_chain() -> Runnable` should call `load_config()` from Doc01 (or accept a `Config` object as a parameter — decide which and be consistent).
 - **Reusing Project 1's Pydantic model**, not redefining it, is what actually makes the comparison meaningful.
@@ -48,8 +50,6 @@ Here's what to actually go look at:
 Sketch, in plain English, the exact function signature of `build_extraction_chain()`, then compare against Hint 2.
 
 **Difference between Basic and Intermediate:** Basic names the 3 files and the tools each needs. Intermediate adds the real function signatures and the "config from `load_config()`, never hardcoded" constraint — this is the depth the Solution is written at.
-
-<hr class="page-break">
 
 <hr class="page-break">
 
@@ -257,7 +257,10 @@ def main() -> None:
     test_inputs = ["input one", "input two", "input three"]
     results = run_comparison(test_inputs)
 
-    matched = sum(1 for r in results if r.matched)
+    matched = 0
+    for r in results:
+        if r.matched:
+            matched = matched + 1
     print(f"{matched}/{len(results)} matched")
 
     for r in results:

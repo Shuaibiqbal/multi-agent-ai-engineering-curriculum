@@ -2,7 +2,9 @@
 
 > [Back to the exercise](../README.md#ex-validation_422) · [Hint 1](validation_422_hints.md#hint-1) · [Hint 2](validation_422_hints.md#hint-2) · [Solution](validation_422_solution.md)
 
-All versions below assume your `sqlite_persistence` server (or its Advanced version) is already running on `localhost:8000`. Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to check the same thing, with real tradeoffs between them.
+**Story — `sqlite_persistence_practice.py` (Edge cases section):** "bad input never touches the database" is easy to believe and rarely checked. This section proves it with a real row count, then looks at the one case automatic checking can't cover — a valid request that fails between two writes. **If not:** the Build Task's "bad request body → 422, no database write" test case, and its started → completed/failed status updates, would rest on a guess.
+
+Approaches 1-2 below assume your `sqlite_persistence` server is running on `localhost:8000` (or use `TestClient`, as noted). Read both depths — they're not "wrong, right," they're 2 real, valid ways to check the same thing, with real tradeoffs between them.
 
 ## Basic Version
 
@@ -12,10 +14,12 @@ All versions below assume your `sqlite_persistence` server (or its Advanced vers
 $ sqlite3 runs.db "SELECT COUNT(*) FROM runs;"
 0
 
-$ curl -i -X POST localhost:8000/chat -H "Content-Type: application/json" -d '{}'
+$ curl -i -X POST localhost:8000/chat \
+    -H "Content-Type: application/json" -d '{}'
 HTTP/1.1 422 Unprocessable Entity
 ...
-{"detail":[{"type":"missing","loc":["body","message"],"msg":"Field required", ...}]}
+{"detail":[{"type":"missing","loc":["body","message"],
+  "msg":"Field required", ...}]}
 
 $ sqlite3 runs.db "SELECT COUNT(*) FROM runs;"
 0
@@ -30,7 +34,10 @@ The row count before and after is identical — `0` both times (or whatever it a
 
 ### Approach 1 — a scripted check with `requests` and real assertions
 
+**Story:** two `curl` outputs checked by eye prove it once, today. A script with `assert` proves it every time you run it, and stops loudly the day it breaks. **If not:** a future change that accidentally writes before checking input would go unnoticed.
+
 ```python
+# practice/sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 import requests
 
@@ -41,7 +48,9 @@ def row_count() -> int:
 
 before = row_count()
 
-response = requests.post("http://localhost:8000/chat", json={})
+url = "http://localhost:8000/chat"
+response = requests.post(url, json={})
+# why: assert stops the script with this message if the check fails
 assert response.status_code == 422, f"expected 422, got {response.status_code}"
 
 after = row_count()
@@ -50,87 +59,54 @@ assert before == after, f"row count changed: {before} -> {after}"
 print("422 confirmed, no row written")
 print(response.json())
 ```
-**Expected output:**
+**Expected output (the second line is shown wrapped onto 2 lines just to fit the page — really one line of output):**
 ```
 422 confirmed, no row written
-{'detail': [{'type': 'missing', 'loc': ['body', 'message'], 'msg': 'Field required', 'input': {}}]}
+{'detail': [{'type': 'missing', 'loc': ['body', 'message'],
+  'msg': 'Field required', 'input': {}}]}
 ```
 
-### Approach 2 — a pytest test, using `TestClient` instead of a running server
+### Approach 2 — the same check with `TestClient`, no server running
+
+**Story:** Approach 1 needs uvicorn running in another terminal. `TestClient` (from `health_route`) runs the same check inside one `python` command. **If not:** the Build Task's `test_api.py` would be the first time you checked a 422 without a live server.
 
 ```python
-# test_validation.py
-import sqlite3
+# practice/sqlite_persistence_practice.py — Edge cases section
+# (add this at the bottom of the Real-world code, which already
+#  defines app and conn)
 from fastapi.testclient import TestClient
-from main import app, conn
-
-client = TestClient(app)
 
 def row_count() -> int:
     return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
 
-def test_missing_field_returns_422_and_writes_nothing():
+if __name__ == "__main__":
+    client = TestClient(app)
     before = row_count()
     response = client.post("/chat", json={})
     assert response.status_code == 422
     assert row_count() == before
+    print("422 confirmed, no row written")
 ```
-**Expected output (`pytest test_validation.py`):**
+**Expected output (`python sqlite_persistence_practice.py`):**
 ```
-1 passed
+422 confirmed, no row written
 ```
 
-**Difference from Basic:** both Intermediate approaches turn a one-time manual check into a real, repeatable assertion instead of eyeballing two `curl` outputs — the kind of check that belongs in a test suite, not just a terminal session. Approach 2 additionally uses `TestClient`, so the check runs in-process with no server or network involved, making it fast enough to run on every change.
+### Approach 3 — two writes per request, kept all-or-nothing with a transaction
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-validation_422) · [Hint 1](validation_422_hints.md#hint-1) · [Hint 2](validation_422_hints.md#hint-2) · [Solution](validation_422_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a second bad-input shape: wrong type, not missing
+**Story:** a route that writes a "started" row, runs the logic, then updates the row to "completed" has a gap in the middle. If the logic crashes there, the "started" row is left behind — and the request was perfectly valid, so no 422 ever fires. `with conn:` makes both writes one unit. **If not:** the Build Task's `runs` table would be the first place you ever used `lastrowid` and `UPDATE`, and the first time you had to think about what a crash between two writes leaves behind.
 
 ```python
-import sqlite3
-import requests
-
-conn = sqlite3.connect("runs.db")
-
-def row_count() -> int:
-    return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
-
-before = row_count()
-
-# Case 1: required field missing entirely
-r1 = requests.post("http://localhost:8000/chat", json={})
-assert r1.status_code == 422
-assert row_count() == before
-
-# Case 2: field present, but the wrong type
-r2 = requests.post("http://localhost:8000/chat", json={"message": 123})
-assert r2.status_code == 422
-assert row_count() == before
-
-print("both bad-input cases confirmed: 422, zero rows written")
-```
-**Expected output:**
-```
-both bad-input cases confirmed: 422, zero rows written
-```
-Pydantic checks both *presence* and *type* — a `message` that's an `int` instead of a `str` fails validation exactly the same way a missing one does, before your route body ever runs.
-
-### Approach 2 — proving a multi-step write can't leave a partial row, using a real transaction
-
-This targets the case FastAPI's automatic validation *can't* catch: a request that's perfectly valid, but where your own logic fails partway through more than one database write.
-
-```python
+# practice/sqlite_persistence_practice.py — Edge cases section
 import sqlite3
 from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 app = FastAPI()
-conn = sqlite3.connect("runs.db", check_same_thread=False)
-conn.row_factory = sqlite3.Row
+# why: a separate file, so this table's extra "status" column
+# never clashes with the Real-world runs.db table
+conn = sqlite3.connect("two_step.db", check_same_thread=False)
 conn.execute("""
     CREATE TABLE IF NOT EXISTS runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,54 +120,55 @@ class ChatRequest(BaseModel):
     message: str
 
 def run_chat_two_step(message: str) -> str:
+    # why: a fake crash between the two writes, on command
     if message == "fail-after-insert":
         raise RuntimeError("simulated failure between steps")
     return "You said: " + message
 
-@app.post("/chat")
-def chat(request: ChatRequest):
-    cursor = conn.cursor()
-    try:
-        cursor.execute("BEGIN")
-        cursor.execute(
-            "INSERT INTO runs (input, output, status) VALUES (?, ?, ?)",
-            (request.message, None, "started"),
-        )
-        reply = run_chat_two_step(request.message)  # can raise partway through
-        cursor.execute(
-            "UPDATE runs SET output = ?, status = 'completed' WHERE id = ?",
-            (reply, cursor.lastrowid),
-        )
-        conn.commit()
-        return {"reply": reply}
-    except Exception:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail="Something went wrong.")
-```
-```python
-# test_transaction.py
-import sqlite3
-import requests
-
-conn = sqlite3.connect("runs.db")
-
 def row_count() -> int:
     return conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
 
-before = row_count()
-response = requests.post("http://localhost:8000/chat", json={"message": "fail-after-insert"})
-assert response.status_code == 500
+@app.post("/chat")
+def chat(request: ChatRequest):
+    try:
+        # how: a transaction — commits if the block finishes,
+        # rolls back BOTH writes if anything inside raises
+        with conn:
+            cursor = conn.execute(
+                "INSERT INTO runs (input, status) VALUES (?, ?)",
+                (request.message, "started"),
+            )
+            # how: the id SQLite just gave the new row
+            run_id = cursor.lastrowid
+            reply = run_chat_two_step(request.message)
+            conn.execute(
+                "UPDATE runs SET output = ?, status = ? WHERE id = ?",
+                (reply, "completed", run_id),
+            )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Something went wrong.")
+    return {"reply": reply}
 
-after = row_count()
-assert before == after, f"a partial row was left behind: {before} -> {after}"
-print("transaction rollback confirmed: zero rows left in 'started' status")
-```
-**Expected output:**
-```
-transaction rollback confirmed: zero rows left in 'started' status
-```
-Without `BEGIN`/`rollback()`, the `INSERT` (status `"started"`) would have been committed on its own before `run_chat_two_step()` ever raised, leaving a row permanently stuck at `"started"` — a real, silent partial write that no amount of 422 handling would have caught, because the request itself was completely valid.
+if __name__ == "__main__":
+    client = TestClient(app)
+    before = row_count()
+    response = client.post("/chat", json={"message": "fail-after-insert"})
+    print(response.status_code)       # expected: 500
+    print(row_count() == before)      # expected: True
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate proves the one case FastAPI already handles automatically (a malformed request never reaches your database). Approach 1 extends that same proof to a second bad-input shape (wrong type) most people forget to check on purpose. Approach 2 tackles a genuinely different failure mode — not bad input at all, but a *valid* request whose own multi-step logic fails partway through — and shows the actual fix (`BEGIN` / `commit()` / `rollback()`), which is a database transaction, not anything FastAPI's request validation could ever provide.
+    response = client.post("/chat", json={"message": "hi"})
+    print(response.status_code)       # expected: 200
+    print(row_count() == before + 1)  # expected: True
+```
+**Expected output (`python sqlite_persistence_practice.py`):**
+```
+500
+True
+200
+True
+```
+Without `with conn:`, the `INSERT` (status `"started"`) could be committed on its own before `run_chat_two_step()` raised, leaving a row stuck at `"started"` forever — a silent partial write, from a completely valid request.
 
-**Which one should you actually write?** Intermediate Approach 1 or 2 is the right amount of testing for a single-write route like this document's exercises — confirm the required-field 422 case, in a real assertion, and move on. Add Approach 1's wrong-type case any time a field's type actually matters to your logic (a `message: str` that silently became `"123"` behaves very differently from one that's genuinely the string `"123"`). Reach for Approach 2's transaction pattern the moment a single request needs more than one database write to succeed together — which is exactly what the Build Task's `Run` table (status moving from "started" to "completed" or "failed") needs.
+**Difference from Basic:** Approach 1 turns a one-time manual check into a real, repeatable assertion. Approach 2 runs the same check in-process with `TestClient`, so no server is needed. Approach 3 tackles a different failure — not bad input at all, but a *valid* request that fails between two writes — and shows the real fix: a transaction (`with conn:`), which no amount of request checking could provide.
+
+**Which one should you actually write?** Approach 1 or 2 is the right amount of testing for a single-write route — confirm the 422 case with a real assertion and move on. Reach for Approach 3 the moment one request makes more than one database write. The Build Task's `runs` table uses the same `INSERT` → `lastrowid` → `UPDATE` pieces, but makes one deliberate change: it *commits* the "started" row first (its own `with conn:`), then updates it to `"completed"` or `"failed"` in a second one — because there, a crashed run should leave an honest `"failed"` record you can look up, not vanish.

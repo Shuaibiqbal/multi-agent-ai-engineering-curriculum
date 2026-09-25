@@ -62,7 +62,8 @@ The extra piece that answers that question:
 
 ```
 make an async function called good_task that takes nothing:
-    wait 3 seconds the correct way (asyncio.sleep), without freezing anything else
+    wait 3 seconds the correct way (asyncio.sleep),
+        without freezing anything else
     give back "good"
 
 make an async function called blocking_task that takes nothing:
@@ -75,7 +76,8 @@ time this:
 
 time this too:
     run good_task and blocking_task together with gather
-    -> expect around 6 seconds (blocking_task froze everything, nothing overlapped)
+    -> expect around 6 seconds
+       (blocking_task froze everything, nothing overlapped)
 ```
 
 Here's almost the whole thing — just try running it and reading it line by line:

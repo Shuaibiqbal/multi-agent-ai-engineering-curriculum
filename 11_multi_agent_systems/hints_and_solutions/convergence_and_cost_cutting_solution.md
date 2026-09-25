@@ -2,11 +2,15 @@
 
 > [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
 
+**Story — `convergence_and_cost_cutting_practice.py`:** two production risks in one file: a revision loop that never agrees, and a pipeline that costs too much. Both are proven here with a hard limit and a measured cut, before Project 4 depends on either. **If not:** Project 4's Writer/Reviewer pair could loop without a clear report, and a "cheaper" prompt could quietly break answers.
+
 This exercise has two independent parts — read both. Read both depths of each — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
 ### Approach 1 — the direct way, Part 1: a loop that hits its limit
+
+**Story:** give the critic a bar nothing can pass, on purpose, and confirm the loop stops and says so. **If not:** the first time you saw a non-converging loop would be in production, running up a bill.
 
 ```python
 # convergence_and_cost_cutting_practice.py
@@ -34,6 +38,7 @@ def critic(state):
         return Command(update={"converged": True}, goto=END)
 
     new_count = state["revision_count"] + 1
+    # why: the hard limit — the loop must end, agreed or not
     if new_count >= MAX_REVISIONS:
         update = {"revision_count": new_count, "converged": False}
         return Command(update=update, goto=END)
@@ -59,8 +64,14 @@ Couldn't converge after 3 attempts.
 
 ### Approach 1 — Part 2: find the expensive stage, cut it, remeasure
 
+**Story:** before cutting cost, measure it — reusing `supervisor_compare`'s own report, so the numbers match what you already trust. **If not:** you'd cut whichever stage *feels* expensive.
+
 ```python
 # convergence_and_cost_cutting_practice.py
+# how: reuse the measured pieces from the architecture comparison file
+from architecture_comparison_practice import run_supervisor
+
+
 def profile_pipeline(topic: str) -> dict:
     return run_supervisor(topic)  # from supervisor_compare, reused unchanged
 
@@ -81,6 +92,8 @@ Both work: the loop correctly stops instead of running forever, and the pipeline
 ## Intermediate Version
 
 ### Approach 1 — Part 1: a real rejection reason on every attempt
+
+**Story:** "gave up" alone tells nobody what to fix; the critic's reason does. **If not:** every failed run would need to be re-run by hand just to find out why it failed.
 
 ```python
 # convergence_and_cost_cutting_practice.py
@@ -149,8 +162,16 @@ cite 3 sources; neither was met
 
 ### Approach 1 — Part 2: per-stage profiling, then one real cut
 
+**Story:** a total can't tell you *where* to cut; per-stage numbers can, and one targeted cut can then be measured on its own. **If not:** you'd change several things at once and never know which one saved the money.
+
 ```python
 # convergence_and_cost_cutting_practice.py
+import time
+
+from architecture_comparison_practice import model, research, write
+from architecture_comparison_practice import StageResult
+
+
 def profile_stages(topic: str) -> dict:
     research_result = research(topic)
     write_result = write(research_result.text)
@@ -208,6 +229,8 @@ saved: 28%
 
 ### Approach 2 — Part 1: a full rejection history, diagnosing the failure
 
+**Story:** the same reason three times means the criteria are impossible; three different reasons means they're inconsistent — only the full history can tell those apart. **If not:** you'd rewrite the Writer when the Critic was the problem.
+
 ```python
 # convergence_and_cost_cutting_practice.py
 class LoopState(TypedDict):
@@ -239,6 +262,20 @@ def critic(state: LoopState) -> Command:
         update={"revision_count": new_count, "rejection_history": history},
         goto="writer",
     )
+
+
+def writer(state: LoopState) -> Command:
+    draft = f"[draft attempt {state['revision_count'] + 1}]"
+    return Command(update={"draft": draft}, goto="critic")
+
+
+# why: rebuild the graph — it must use THIS LoopState and critic,
+# or rejection_history would never be saved
+builder = StateGraph(LoopState)
+builder.add_node("writer", writer)
+builder.add_node("critic", critic)
+builder.add_edge(START, "writer")
+graph = builder.compile()
 
 
 def build_report(result: dict) -> str:
@@ -279,6 +316,8 @@ are likely impossible):
 This is the report a reader can actually act on: the repeated identical reason tells them the criteria themselves are the problem, not the writer — a different scenario entirely from a report that just said "gave up after 3 tries."
 
 ### Approach 2 — Part 2: proving the cut against a real test set
+
+**Story:** a saving on one input might have broken the answer on another; five inputs, compared before and after, show both the saving and any damage. **If not:** you'd ship a cheaper prompt that silently got worse.
 
 ```python
 # convergence_and_cost_cutting_practice.py

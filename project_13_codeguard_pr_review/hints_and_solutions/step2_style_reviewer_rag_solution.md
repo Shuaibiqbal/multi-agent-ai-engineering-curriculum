@@ -83,7 +83,7 @@ def run_style_review(retriever, diff: str) -> StyleReview:
 ```python
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 import re
 
 SECRET_PATTERNS = [
@@ -103,7 +103,7 @@ def scan_for_secret_patterns(added_lines: str) -> list[str]:
 
 
 def run_security_review(topic_diff: str):
-    agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[scan_for_secret_patterns])
+    agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[scan_for_secret_patterns])
     return agent.invoke({"messages": [("user", f"Security review this diff, using the scan tool first:\n{topic_diff}")]})
 ```
 
@@ -163,7 +163,7 @@ class ToolNotCalledError(Exception):
 
 
 def run_security_review(diff_text: str):
-    agent = create_react_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[scan_for_secret_patterns])
+    agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[scan_for_secret_patterns])
     result = agent.invoke(
         {"messages": [("user", f"Security review this diff, using the scan_for_secret_patterns tool first:\n{diff_text}")]},
         {"recursion_limit": 8},

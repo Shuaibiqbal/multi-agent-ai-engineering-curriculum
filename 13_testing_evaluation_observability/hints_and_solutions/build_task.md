@@ -2,7 +2,7 @@
 
 > [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper implementation), **Advanced** (how a real project keeps this suite trustworthy over time). Read Basic first even if you already know the pattern — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (the full suite, split into the suggested files). Read Basic first even if you already know the pattern — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -16,64 +16,32 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 ### Basic Version
 
-You're building three pieces that work together: a fixed list of test tasks, a judge that scores an answer against rules, and a runner that ties it all together and prints a report.
+You're building three pieces that work together: a fixed list of test tasks, a judge that scores an answer against rules, and a runner that goes through every task and reports the result. Then you prove the whole thing works by making a prompt worse on purpose.
 
-Start with the list of tasks. Each one needs: an input to give Project 4, and a way to know if the answer was good — either an exact check (for anything that doesn't touch the model) or a set of rules for the judge to check.
+Nothing here is new — every piece is one of this document's exercises:
 
-Don't write any code yet. Write down, in plain English, 10 real tasks you'd actually give Project 4, and for each one, how you'd know if the answer was right.
+- **Exact tests with no model** → `chunking_unit_test` and `tool_test_no_llm`.
+- **A judge, and a check that the judge can be trusted** → `llm_judge_scoring`.
+- **Checking a short phrase, never the whole answer** → `flaky_test_fix`.
+- **Breaking the prompt on purpose and finding which tasks caught it** → `regression_catch`.
 
-Things to use:
-
-- A plain Python list of dicts (or small dataclasses) for `tasks.py` — one entry per task.
-- The judge pattern from this document's Real-world exercise — reuse it, don't rebuild it from scratch.
-- `pytest` for the unit-layer tests that don't need a model at all.
-- A simple loop in `run_eval.py` that goes through every task, runs it, scores it, and collects the results.
-- `json` (built into Python) to save the report to a file, so you have a record after the run finishes.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
+Start with the task list. Don't write any code yet. Write down 10 real tasks you'd give Project 4, and for each one, how you'd know the answer was right — either one fact that must appear, or a few rules about meaning.
 
 ### Intermediate Version
 
-This Build Task combines everything from this document's Practice Exercises into one runnable thing: **exact tests** (Basic exercise) for anything with no model call, **LLM-as-judge scoring** (Real-world exercise) for final answer quality, and a **regression check** (Failure exercise) that proves the whole thing actually works.
+Keep the pieces in separate files, one job each:
 
-Structure it as three separate concerns, kept in separate files:
-1. **The task list** — a fixed set of at least 10 inputs, each with a clear way to check correctness, written down *before* you run anything against Project 4.
-2. **The judge** — one function that scores a single output against a task's rules, with its own prompt saved somewhere versioned.
-3. **The runner** — loops over every task, calls Project 4, scores the result (exact check or judge, depending on the task), and prints/saves an overall report.
+1. **`tasks.py`** — at least 10 tasks, written *before* you run anything. A task has either `"expected"` (one short phrase that must appear — a free code check) or `"rules"` (checked by the judge).
+2. **`pipeline.py`** — `run_project_4(task_input)`. In this solution it's a small stand-in: one model call with the writer's prompt read from `writer_prompt.txt`. Swap its body for your real Project 4 graph. Reading the prompt from a file on every call is what lets the regression check edit it mid-run, like `regression_catch`.
+3. **`judge.py`** — `llm_judge_scoring`'s Approach 1 (typed `JudgeResult`, saved `JUDGE_PROMPT_VERSION`, `temperature=0`), unchanged.
+4. **`run_eval.py`** — loops over `TASKS`: runs Project 4, uses a code check or the judge, prints a summary with the reason for each failure, and saves `report.json`.
+5. **`regression_check.py`** — `regression_catch`'s pass bar plus per-task comparison, pointed at `run_eval_suite()`.
+6. **`test_unit_layer.py`** — plain pytest tests for the chunker and the tools, like `chunking_unit_test` and `tool_test_no_llm`. No model, no API key.
+7. **`test_judge.py`** — `llm_judge_scoring`'s calibration set: the judge must FAIL an obviously bad answer.
 
-The exact pieces:
+The one design choice worth making on purpose: give the writer one rule that code *and* the judge can both see break — here, "end every brief with a line that starts with `In short:`". Every judge task lists that rule, so deleting it from `writer_prompt.txt` must drop the score.
 
-- **`tasks.py`** — a plain list of dataclasses is enough; each one needs an `id`, an `input` (what you send to Project 4), and either `expected` (for exact checks) or `rules` (for the judge).
-- **`judge.py`** — reuse the `build_judge_prompt()` / `score_output()` pattern from the Real-world exercise almost unchanged; the only new part is calling it from inside a loop over many tasks instead of one.
-- **`run_eval.py`** — for each task: run Project 4 on `task.input`, decide whether it's an exact-check task or a judge task, score it accordingly, and append the result to a report list. At the end, print (or save to `report.json`) the overall pass rate and each task's individual result.
-- **The unit layer (`test_unit_layer.py`)** — reuse the pattern from this document's Basic and Intermediate exercises (chunking, tool logic) — ordinary `pytest` tests with no LLM call, run separately/faster than the full eval suite.
-
-Sketch the 3-file layout and what each file imports from the others, before checking Hint 2.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-A suite that runs once, by hand, on your laptop, the day you wrote it, isn't really protecting anything — it's protecting you from regressions *you remember to go check for*. The real design question this Build Task is quietly setting up for later: **how does this suite keep doing its job automatically, on every change, without you having to remember to run it?**
-
-That reframes the runner from "a script I run sometimes" into "a gate a change has to pass through." Two things follow from that:
-
-- **A pass/fail exit code, not just printed output.** A CI system (like GitHub Actions) doesn't read your terminal output — it reads the process's exit code. `run_eval.py` should `sys.exit(1)` when the overall score falls below your bar, and `sys.exit(0)` when it doesn't, so a CI job can be configured to block a merge on failure.
-- **A saved history, not just one `report.json` that gets overwritten.** If every run overwrites the same file, you can see *that* today's score is 0.8, but not whether that's better or worse than last week — which is exactly the "quiet quality drop" this whole document is about catching. Appending each run's score (with a timestamp or commit hash) to a small history file turns one snapshot into a trend you can actually watch.
-
-The extra pieces needed:
-
-- `sys.exit(0)` / `sys.exit(1)` at the end of `run_eval.py`, based on `overall_score >= PASS_BAR`.
-- A `history.jsonl` file (one JSON object per line, appended to — never overwritten) recording `{"timestamp": ..., "overall_score": ..., "commit": ...}` for every run, so score-over-time is a real, inspectable record.
-- A minimal CI config (e.g. a GitHub Actions YAML step running `python run_eval.py`) — you don't need to write and test this for the exercise, but sketch what it would run and when (every pull request, say).
-
-Sketch the exit-code logic and the one line that appends to `history.jsonl`, before checking Hint 2.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both describe building a suite you run yourself, once, and read the printed result. Advanced treats the suite as something that has to keep working without you — a real exit code so it can gate a merge automatically, and a score history so a slow, quiet drift downward (which no single before/after regression check would catch) becomes visible over many runs, not just the one you happen to be looking at right now.
+**Difference between Basic and Intermediate:** Basic names the three pieces and maps each back to an exercise. Intermediate splits them into files with one job each, and plans the regression check from the start — a prompt read from a file, and a rule the tasks can see break.
 
 <hr class="page-break">
 
@@ -84,191 +52,62 @@ Sketch the exit-code logic and the one line that appends to `history.jsonl`, bef
 ### Basic Version
 
 ```
-tasks.py:
-    make a list of 10+ tasks, each with:
-        an id, an input, and either an expected exact answer or a set of rules
+one file, eval_all.py:
+    TASKS: a list of dicts — id, input, and "expected" or "rules"
+    run_project_4(task_input): writer prompt from a file + one model call
+    score_with_judge(task_input, output, rules): PASS/FAIL from a judge call
 
-judge.py:
-    function score_with_judge(task, output):
-        build a prompt with the task, output, and rules
-        call the model, parse PASS/FAIL and the reason
-        return the result
-
-run_eval.py:
-    function run_eval_suite():
-        results = []
-        for each task in tasks:
-            output = run Project 4 on task.input
-            if task has an exact "expected" answer:
-                result = check output == expected (or a simple property)
-            else:
-                result = score_with_judge(task, output)
-            add result to results
-        print a report: how many passed, which ones failed and why
-        return results
+    for each task:
+        output = run_project_4(task input)
+        if the task has "expected": passed = expected phrase is in output
+        else: passed = the judge says PASS
+        print the task id and PASS/FAIL
+    print how many passed
 ```
 
-Here's almost the whole thing — the trickiest part, deciding whether a task needs an exact check or the judge, in one function:
+Here's the trickiest part — choosing a code check or the judge for each task:
 ```python
-def run_one_task(task, project_4_pipeline, score_with_judge):
-    output = project_4_pipeline(task["input"])
-
+for task in TASKS:
+    output = run_project_4(task["input"])
     if "expected" in task:
         passed = task["expected"].lower() in output.lower()
-        reason = "exact/substring check"
     else:
-        result = score_with_judge(task["input"], output, task["rules"])
-        passed = result["verdict"] == "PASS"
-        reason = result["reason"]
-
-    return {"id": task["id"], "passed": passed, "reason": reason}
+        passed = score_with_judge(task["input"], output, task["rules"])
+    # your turn: print the result, and count how many passed
+    ...
 ```
-Now write `run_eval_suite()`, which loops over all tasks using this function and builds the final report.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ### Intermediate Version
 
 ```
-tasks.py:
-    define Task: id, input, expected (optional), rules (optional)
-    build TASKS: a list of 10+ Task entries, mixing exact-check and rule-based tasks
-
-judge.py:
-    define JudgeResult: verdict, reason
-    function build_judge_prompt(task_input, output, rules):
-        combine input, output, rules into one prompt asking for PASS/FAIL + reason
-    function score_with_judge(task_input, output, rules) -> JudgeResult:
-        call the model with build_judge_prompt(...)
-        parse the reply
-        return JudgeResult
-
-run_eval.py:
-    function run_one_task(task) -> TaskResult:
-        output = call project_4_pipeline(task.input)
-        if task.expected is set:
-            passed = (a property check against task.expected, not necessarily ==)
-            reason = "exact check"
-        else:
-            judge_result = score_with_judge(task.input, output, task.rules)
-            passed = judge_result.verdict == "PASS"
-            reason = judge_result.reason
-        return TaskResult(task.id, passed, reason)
-
-    function run_eval_suite() -> Report:
-        results = [run_one_task(task) for task in TASKS]
-        overall_score = count of passed / total
-        save results + overall_score to report.json
-        print a summary
-        return Report(results, overall_score)
-
-    if this file is run directly: call run_eval_suite()
+tasks.py      TASKS — 4 "expected" tasks, 6 "rules" tasks
+pipeline.py   run_project_4(task_input) — reads writer_prompt.txt each call
+judge.py      JudgeResult, JUDGE_PROMPT_VERSION, call_model,
+              build_judge_prompt, score_with_judge
+run_eval.py   run_one_task(task) -> {task_id, passed, reason}
+              run_eval_suite() -> {task_id: passed}, saves report.json
+regression_check.py
+              baseline = run_eval_suite()
+              pause: delete the "In short:" line, press Enter
+              after = run_eval_suite()
+              pass bar + newly failed tasks
+test_unit_layer.py   chunker + tools, no model
+test_judge.py        calibration set
 ```
 
+Here's `run_one_task()` — write `run_eval_suite()` around it yourself:
 ```python
-from dataclasses import dataclass
-from typing import Optional
-
-
-@dataclass
-class TaskResult:
-    task_id: str
-    passed: bool
-    reason: str
-
-
-def run_one_task(task: dict, project_4_pipeline, score_with_judge) -> TaskResult:
-    output = project_4_pipeline(task["input"])
-
+def run_one_task(task: dict) -> dict:
+    output = run_project_4(task["input"])
     if "expected" in task:
         passed = task["expected"].lower() in output.lower()
-        reason = "exact/substring check"
+        reason = "looked for: " + task["expected"]
     else:
-        result = score_with_judge(task["input"], output, task["rules"])
-        passed = result.verdict == "PASS"
-        reason = result.reason
-
-    return TaskResult(task_id=task["id"], passed=passed, reason=reason)
+        judged = score_with_judge(task["input"], output, task["rules"])
+        passed = judged.verdict == "PASS"
+        reason = judged.reason
+    return {"task_id": task["id"], "passed": passed, "reason": reason}
 ```
-
-What's missing: `run_eval_suite()`, which loops over `TASKS`, calls `run_one_task` for each, and builds/prints/saves the overall report — plus the regression-check script from the Failure exercise, run against this same suite. Write both yourself before moving to Advanced.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-```
-run_eval.py, extended:
-
-function run_eval_suite() -> Report:
-    (same as Intermediate: build results, overall_score)
-    append {timestamp, commit, overall_score} as one line to history.jsonl
-    write report.json as before
-    print summary
-    return Report
-
-at the bottom of the file:
-    if overall_score < PASS_BAR:
-        print a clear failure message
-        sys.exit(1)   # <- this is what lets a CI job block on it
-    else:
-        sys.exit(0)
-```
-
-Here's almost the whole thing — fill in the history-append line yourself:
-```python
-import json
-import subprocess
-import sys
-import time
-from dataclasses import asdict
-
-PASS_BAR = 0.8
-
-
-def get_git_commit() -> str:
-    try:
-        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
-    except Exception:
-        return "unknown"
-
-
-def run_eval_suite(project_4_pipeline, call_model) -> dict:
-    results = [run_one_task(task, project_4_pipeline, call_model) for task in TASKS]
-    passed_count = sum(1 for r in results if r.passed)
-    overall_score = passed_count / len(results)
-
-    report = {
-        "overall_score": overall_score,
-        "passed": passed_count,
-        "total": len(results),
-        "results": [asdict(r) for r in results],
-    }
-    with open("report.json", "w") as f:
-        json.dump(report, f, indent=2)
-
-    # your turn: append one line to history.jsonl with timestamp, commit, and overall_score
-    ...
-
-    print(f"Passed {passed_count}/{len(results)} (score: {overall_score:.2f})")
-    return report
-
-
-if __name__ == "__main__":
-    result = run_eval_suite(project_4_pipeline=my_pipeline, call_model=my_call_model)
-    if result["overall_score"] < PASS_BAR:
-        print(f"FAILED: score {result['overall_score']:.2f} is below the bar of {PASS_BAR}")
-        sys.exit(1)
-    sys.exit(0)
-```
-
-Fill in the `history.jsonl` append (one JSON object per line, opened in append mode `"a"`), then compare all 3 of your finished versions against the Solution below.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both build a suite that runs and reports once. Advanced adds the 2 pieces from Hint 1's Advanced question made real: a `sys.exit()` code so the run can gate a CI pipeline, and an append-only `history.jsonl` so score-over-time becomes a real record instead of a single overwritten snapshot — the difference between "I ran the suite once" and "this suite protects every future change automatically."
 
 <hr class="page-break">
 
@@ -276,72 +115,99 @@ Fill in the `history.jsonl` append (one JSON object per line, opened in append m
 
 ## Solution {: #solution }
 
-Read all three depths — they're not "wrong, less wrong, right," they're 3 real, valid ways to build the same suite, with real tradeoffs between them.
+`run_project_4()` below is a small stand-in for Project 4's real multi-agent graph — one model call with the writer's prompt. Everything around it (tasks, judge, runner, regression check, unit tests) is what this Build Task is about, and doesn't change once you swap the real graph in. Every file lives in `practice/build_task/` and runs from inside that folder, with `OPENAI_API_KEY` in your `.env`.
+
+All versions use this prompt file:
+```
+# practice/build_task/writer_prompt.txt
+You are the writer agent in a content team.
+Write a short, factual brief (under 120 words) on the topic you are given.
+Do not invent statistics or sources.
+End every brief with a final line that starts with "In short:".
+```
+
+Read both depths — they're not "wrong, right," they're 2 real, valid ways to build the same suite, with real tradeoffs between them.
 
 ### Basic Version
 
-#### Approach 1 — a plain list of dicts, one report file
+#### Approach 1 — one file: tasks, judge and runner together
+
+**Story:** before splitting anything, get the whole loop — task in, Project 4 answer, code check or judge, PASS/FAIL out — working in one file you can read top to bottom. **If not:** a bug could be in any of five files at once, and you'd debug the layout instead of the logic.
 
 ```python
-# tasks.py
+# practice/build_task/eval_all.py
+from openai import OpenAI
+
+client = OpenAI()
+
 TASKS = [
-    {"id": "t1", "input": "What's your return policy?", "expected": "30 days"},
-    {"id": "t2", "input": "Summarize this ticket", "rules": ["mentions the correct category", "under 100 words"]},
-    # ... 8+ more tasks
+    {"id": "boiling_point",
+     "input": "Write a brief on the boiling point of water at sea level.",
+     "expected": "100"},
+    {"id": "tea_history",
+     "input": "Write a brief on where tea drinking began.",
+     "rules": ["says tea drinking began in China",
+               'ends with a final line that starts with "In short:"']},
+    # ... 8 more tasks, mixing "expected" and "rules"
 ]
-```
 
-```python
-# judge.py
-def build_judge_prompt(task_input, output, rules):
-    rules_text = "\n".join("- " + r for r in rules)
-    return (
-        "Task: " + task_input + "\n"
-        "Answer: " + output + "\n"
-        "Rules:\n" + rules_text + "\n"
-        "Reply PASS or FAIL on the first line, then why."
+
+def call_model(system_prompt, user_text):
+    messages = []
+    if system_prompt != "":
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_text})
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", temperature=0, messages=messages
     )
+    return response.choices[0].message.content
 
-def score_with_judge(task_input, output, rules, call_model):
-    prompt = build_judge_prompt(task_input, output, rules)
-    response = call_model(prompt)
-    lines = response.strip().split("\n", 1)
-    return {"verdict": lines[0].strip().upper(), "reason": lines[1] if len(lines) > 1 else ""}
+
+def run_project_4(task_input):
+    # stand-in for your real Project 4 graph
+    with open("writer_prompt.txt") as f:
+        writer_prompt = f.read()
+    return call_model(writer_prompt, task_input)
+
+
+def score_with_judge(task_input, output, rules):
+    rules_text = ""
+    for rule in rules:
+        rules_text = rules_text + "- " + rule + "\n"
+    prompt = (
+        "Task: " + task_input + "\n"
+        "Answer to check: " + output + "\n"
+        "Rules the answer must follow:\n" + rules_text +
+        "Reply with PASS or FAIL on the first line, "
+        "then one sentence explaining why."
+    )
+    reply = call_model("", prompt)
+    return reply.strip().split("\n")[0].strip().upper() == "PASS"
+
+
+passed_count = 0
+for task in TASKS:
+    output = run_project_4(task["input"])
+    if "expected" in task:
+        passed = task["expected"].lower() in output.lower()
+    else:
+        passed = score_with_judge(task["input"], output, task["rules"])
+    if passed:
+        print(task["id"], "PASS")
+        passed_count = passed_count + 1
+    else:
+        print(task["id"], "FAIL")
+
+print("Passed", passed_count, "of", len(TASKS))
 ```
-
-```python
-# run_eval.py
-import json
-from tasks import TASKS
-from judge import score_with_judge
-
-def run_eval_suite(project_4_pipeline, call_model):
-    results = []
-    for task in TASKS:
-        output = project_4_pipeline(task["input"])
-        if "expected" in task:
-            passed = task["expected"].lower() in output.lower()
-            reason = "exact/substring check"
-        else:
-            judged = score_with_judge(task["input"], output, task["rules"], call_model)
-            passed = judged["verdict"] == "PASS"
-            reason = judged["reason"]
-        results.append({"id": task["id"], "passed": passed, "reason": reason})
-
-    passed_count = sum(1 for r in results if r["passed"])
-    report = {"passed": passed_count, "total": len(results), "results": results}
-
-    with open("report.json", "w") as f:
-        json.dump(report, f, indent=2)
-
-    print("Passed " + str(passed_count) + "/" + str(len(results)))
-    return report
-
-if __name__ == "__main__":
-    run_eval_suite(project_4_pipeline=my_pipeline, call_model=my_call_model)
+**Expected output (with all 10 tasks filled in; which judge tasks pass can vary slightly between runs):**
 ```
-
-Keep `test_unit_layer.py` as normal `pytest` tests (no model, no report file — just pass/fail in the terminal), completely separate from `run_eval.py`'s model-touching suite. Run them as two separate commands: `pytest test_unit_layer.py` for the fast, always-the-same layer, and `python run_eval.py` for the full eval report.
+boiling_point PASS
+tea_history PASS
+...
+Passed 10 of 10
+```
+This proves the loop works. It's still missing the unit layer, a saved report, the reason for each failure, a check of the judge itself, and the regression check — all below.
 
 <hr class="page-break">
 
@@ -349,36 +215,96 @@ Keep `test_unit_layer.py` as normal `pytest` tests (no model, no report file —
 
 ### Intermediate Version
 
-#### Approach 1 — dataclasses throughout, one runner script
+#### Approach 1 — the suite, split into the suggested files
 
-**`tasks.py`**
+**Story — `tasks.py`:** the fixed test set, written before anything runs. Facts get a free `"expected"` check; meaning gets `"rules"` for the judge. **If not:** you'd write rules after reading the outputs, and they'd describe whatever the model said instead of what's correct.
+
 ```python
-from dataclasses import dataclass
-from typing import Optional
+# practice/build_task/tasks.py
+# why: written BEFORE running anything against Project 4, so the
+# rules describe a correct answer, not whatever the model said
+IN_SHORT_RULE = 'ends with a final line that starts with "In short:"'
 
-
-@dataclass
-class Task:
-    id: str
-    input: str
-    expected: Optional[str] = None
-    rules: Optional[list[str]] = None
-
-
-TASKS: list[Task] = [
-    Task(id="t1", input="What's your return policy?", expected="30 days"),
-    Task(
-        id="t2",
-        input="Summarize this support ticket about a late delivery.",
-        rules=["mentions the correct category", "is under 100 words", "does not invent facts"],
-    ),
-    # ... 8+ more tasks, mixing exact-check and rule-based
+TASKS = [
+    # exact-check tasks: one fact that must appear, word for word
+    {"id": "boiling_point",
+     "input": "Write a brief on the boiling point of water at sea level.",
+     "expected": "100"},
+    {"id": "france_capital",
+     "input": "Write a brief on the capital city of France.",
+     "expected": "Paris"},
+    {"id": "ww2_end",
+     "input": "Write a brief on the year World War II ended.",
+     "expected": "1945"},
+    {"id": "water_formula",
+     "input": "Write a brief on the chemical formula of water.",
+     "expected": "H2O"},
+    # judge tasks: rules about meaning, checked by judge.py
+    {"id": "sleep_students",
+     "input": "Write a brief on why sleep matters for students.",
+     "rules": ["explains at least one real effect of sleep on learning",
+               "does not invent statistics", IN_SHORT_RULE]},
+    {"id": "remote_work",
+     "input": "Write a brief on one benefit and one risk of remote work.",
+     "rules": ["names one benefit and one risk", IN_SHORT_RULE]},
+    {"id": "password_safety",
+     "input": "Write a brief on how to choose a strong password.",
+     "rules": ["gives at least two practical tips", IN_SHORT_RULE]},
+    {"id": "solar_power",
+     "input": "Write a brief on how solar panels make electricity.",
+     "rules": ["explains that sunlight is turned into electricity",
+               "does not invent statistics", IN_SHORT_RULE]},
+    {"id": "tea_history",
+     "input": "Write a brief on where tea drinking began.",
+     "rules": ["says tea drinking began in China", IN_SHORT_RULE]},
+    {"id": "recycling",
+     "input": "Write a brief on why recycling plastic is hard.",
+     "rules": ["gives at least one real reason", IN_SHORT_RULE]},
 ]
 ```
 
-**`judge.py`**
+**Story — `pipeline.py`:** the one door into Project 4. It reads the writer prompt fresh on every call, so the regression check can edit the file mid-run. **If not:** every file would call Project 4 its own way, and swapping in the real graph would mean editing all of them.
+
 ```python
+# practice/build_task/pipeline.py
+from openai import OpenAI
+
+client = OpenAI()
+
+
+def load_writer_prompt() -> str:
+    # why: read fresh on every call, so an edit to the file shows up
+    # on the next run — this is what the regression check sabotages
+    with open("writer_prompt.txt") as f:
+        return f.read()
+
+
+def run_project_4(task_input: str) -> str:
+    # stand-in for your real Project 4 graph — swap this body for
+    # something like: graph.invoke({"task": task_input})["draft"]
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[
+            {"role": "system", "content": load_writer_prompt()},
+            {"role": "user", "content": task_input},
+        ],
+    )
+    return response.choices[0].message.content
+```
+
+**Story — `judge.py`:** `llm_judge_scoring`'s Approach 1, unchanged — a typed result, a versioned prompt, `temperature=0`. **If not:** the Build Task would bring in a second, different judge, with no calibration behind it.
+
+```python
+# practice/build_task/judge.py
 from dataclasses import dataclass
+from openai import OpenAI
+
+client = OpenAI()
+
+# why: every score is tied to one exact judge prompt — change the
+# prompt, change this name
+JUDGE_PROMPT_VERSION = "v1"
 
 
 @dataclass
@@ -387,152 +313,83 @@ class JudgeResult:
     reason: str
 
 
-JUDGE_PROMPT_VERSION = "v1"
+def call_model(prompt: str) -> str:
+    # how: temperature=0 — a judge should be steady, not creative
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.choices[0].message.content
 
 
-def build_judge_prompt(task_input: str, output: str, rules: list[str]) -> str:
-    rules_text = "\n".join(f"- {r}" for r in rules)
+def build_judge_prompt(task_input: str, output: str, rules: list) -> str:
+    rules_text = ""
+    for rule in rules:
+        rules_text = rules_text + "- " + rule + "\n"
     return (
-        f"Task: {task_input}\n"
-        f"Answer to check: {output}\n"
-        f"Rules the answer must follow:\n{rules_text}\n"
-        "Reply with PASS or FAIL on the first line, then one sentence explaining why."
+        "Task: " + task_input + "\n"
+        "Answer to check: " + output + "\n"
+        "Rules the answer must follow:\n" + rules_text +
+        "Reply with PASS or FAIL on the first line, "
+        "then one sentence explaining why."
     )
 
 
-def score_with_judge(task_input: str, output: str, rules: list[str], call_model) -> JudgeResult:
-    prompt = build_judge_prompt(task_input, output, rules)
-    response = call_model(prompt)
-    lines = response.strip().split("\n", 1)
+def score_with_judge(task_input: str, output: str, rules: list):
+    reply = call_model(build_judge_prompt(task_input, output, rules))
+    lines = reply.strip().split("\n", 1)
     verdict = lines[0].strip().upper()
-    reason = lines[1].strip() if len(lines) > 1 else ""
+    if len(lines) > 1:
+        reason = lines[1].strip()
+    else:
+        reason = ""
     return JudgeResult(verdict=verdict, reason=reason)
 ```
 
-**`run_eval.py`**
+**Story — `run_eval.py`:** runs every task, uses the cheapest check that works, and leaves a `report.json` behind. **If not:** a run's result would live only in your terminal, and a failing run wouldn't say *why*.
+
 ```python
+# practice/build_task/run_eval.py
 import json
-from dataclasses import dataclass, asdict
-from tasks import TASKS, Task
-from judge import score_with_judge
 
-
-@dataclass
-class TaskResult:
-    task_id: str
-    passed: bool
-    reason: str
-
-
-def run_one_task(task: Task, project_4_pipeline, call_model) -> TaskResult:
-    output = project_4_pipeline(task.input)
-
-    if task.expected is not None:
-        passed = task.expected.lower() in output.lower()
-        reason = "exact/substring check"
-    else:
-        judged = score_with_judge(task.input, output, task.rules, call_model)
-        passed = judged.verdict == "PASS"
-        reason = judged.reason
-
-    return TaskResult(task_id=task.id, passed=passed, reason=reason)
-
-
-def run_eval_suite(project_4_pipeline, call_model) -> dict:
-    results = [run_one_task(task, project_4_pipeline, call_model) for task in TASKS]
-    passed_count = sum(1 for r in results if r.passed)
-    overall_score = passed_count / len(results)
-
-    report = {
-        "overall_score": overall_score,
-        "passed": passed_count,
-        "total": len(results),
-        "results": [asdict(r) for r in results],
-    }
-
-    with open("report.json", "w") as f:
-        json.dump(report, f, indent=2)
-
-    print(f"Passed {passed_count}/{len(results)} (score: {overall_score:.2f})")
-    for r in results:
-        if not r.passed:
-            print(f"  FAILED {r.task_id}: {r.reason}")
-
-    return report
-
-
-if __name__ == "__main__":
-    run_eval_suite(project_4_pipeline=my_pipeline, call_model=my_call_model)
-```
-
-#### Approach 2 — a `pytest`-native suite, using `parametrize` for the eval tasks too
-
-```python
-# test_eval_suite.py
-import pytest
+from judge import JUDGE_PROMPT_VERSION, score_with_judge
+from pipeline import run_project_4
 from tasks import TASKS
-from judge import score_with_judge
 
 
-@pytest.mark.parametrize("task", TASKS, ids=lambda t: t.id)
-def test_task(task, project_4_pipeline, call_model):
-    output = project_4_pipeline(task.input)
-
-    if task.expected is not None:
-        assert task.expected.lower() in output.lower()
+def run_one_task(task: dict) -> dict:
+    output = run_project_4(task["input"])
+    # when: a task with "expected" gets a free code check;
+    # only tasks with "rules" cost a judge call
+    if "expected" in task:
+        passed = task["expected"].lower() in output.lower()
+        reason = "looked for: " + task["expected"]
     else:
-        result = score_with_judge(task.input, output, task.rules, call_model)
-        assert result.verdict == "PASS", result.reason
-```
-
-**Difference from Basic:** dataclasses everywhere give you typed, autocomplete-friendly objects at every layer. Printing failed task reasons directly (not just the count) means a failing run tells you exactly where to look, without opening `report.json` first. Approach 2 runs both layers through one `pytest -v` command with pytest's own reporting, trading away the single `report.json` with an overall score unless you add a small script that also reads pytest's own JSON report output.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Advanced Version
-
-#### Approach 1 — exit code + append-only score history, so the suite can gate CI
-
-**`run_eval.py`**, extending the Intermediate version:
-```python
-import json
-import subprocess
-import sys
-import time
-from dataclasses import asdict
-from tasks import TASKS, Task
-from judge import score_with_judge
-
-PASS_BAR = 0.8
-
-
-def get_git_commit() -> str:
-    try:
-        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()
-    except Exception:
-        return "unknown"
-
-
-def run_one_task(task: Task, project_4_pipeline, call_model):
-    output = project_4_pipeline(task.input)
-    if task.expected is not None:
-        passed = task.expected.lower() in output.lower()
-        reason = "exact/substring check"
-    else:
-        judged = score_with_judge(task.input, output, task.rules, call_model)
+        judged = score_with_judge(task["input"], output, task["rules"])
         passed = judged.verdict == "PASS"
         reason = judged.reason
-    return {"task_id": task.id, "passed": passed, "reason": reason}
+    return {"task_id": task["id"], "passed": passed, "reason": reason}
 
 
-def run_eval_suite(project_4_pipeline, call_model) -> dict:
-    results = [run_one_task(task, project_4_pipeline, call_model) for task in TASKS]
-    passed_count = sum(1 for r in results if r["passed"])
+def run_eval_suite() -> dict:
+    results = []
+    passed_by_id = {}
+    for task in TASKS:
+        result = run_one_task(task)
+        results.append(result)
+        passed_by_id[result["task_id"]] = result["passed"]
+
+    passed_count = 0
+    for result in results:
+        if result["passed"]:
+            passed_count = passed_count + 1
     overall_score = passed_count / len(results)
 
+    # why: a saved record of this run, with the judge version,
+    # so a score can be checked later without re-running anything
     report = {
+        "judge_prompt_version": JUDGE_PROMPT_VERSION,
         "overall_score": overall_score,
         "passed": passed_count,
         "total": len(results),
@@ -541,77 +398,190 @@ def run_eval_suite(project_4_pipeline, call_model) -> dict:
     with open("report.json", "w") as f:
         json.dump(report, f, indent=2)
 
-    history_entry = {
-        "timestamp": time.time(),
-        "commit": get_git_commit(),
-        "overall_score": overall_score,
-    }
-    with open("history.jsonl", "a") as f:
-        f.write(json.dumps(history_entry) + "\n")
+    print(f"Passed {passed_count}/{len(results)} "
+          f"(score: {overall_score:.2f})")
+    for result in results:
+        if not result["passed"]:
+            print("  FAILED " + result["task_id"] + ": " + result["reason"])
 
-    print(f"Passed {passed_count}/{len(results)} (score: {overall_score:.2f})")
-    for r in results:
-        if not r["passed"]:
-            print(f"  FAILED {r['task_id']}: {r['reason']}")
-
-    return report
+    return passed_by_id
 
 
 if __name__ == "__main__":
-    result = run_eval_suite(project_4_pipeline=my_pipeline, call_model=my_call_model)
-    if result["overall_score"] < PASS_BAR:
-        print(f"FAILED: score {result['overall_score']:.2f} is below the bar of {PASS_BAR}")
-        sys.exit(1)
-    sys.exit(0)
+    run_eval_suite()
 ```
-**Expected output on a passing run:** the same summary as Intermediate, plus one new line appended to `history.jsonl` each time (`{"timestamp": 1234567.0, "commit": "a1b2c3d", "overall_score": 0.9}`), and the process exits with code `0` — check with `echo $?` right after running it.
-
-**Expected behavior on a failing run:** the same report and history line are written (you still want a record of the bad run), then `FAILED: score 0.60 is below the bar of 0.8` prints and the process exits with code `1` — `echo $?` shows `1`, which is exactly what a CI step checks to decide whether to block a merge.
-
-A minimal GitHub Actions step that uses this:
-```yaml
-# .github/workflows/eval.yml (illustrative — not required for this exercise)
-- name: Run eval suite
-  run: python run_eval.py
+**Expected output (`python run_eval.py`):**
 ```
-No extra CI-specific code needed — the job simply fails when `run_eval.py` exits non-zero.
+Passed 10/10 (score: 1.00)
+```
 
-#### Approach 2 — reading `history.jsonl` back to show a trend, not just today's number
+**Story — `test_unit_layer.py`:** the fast, free layer, reused from `chunking_unit_test` and `tool_test_no_llm`. **If not:** a broken chunker or tool would only show up as a vague drop in the eval score, with nothing pointing at the function.
 
 ```python
-import json
+# practice/build_task/test_unit_layer.py
+# No model, no API key, no network — runs in well under a second.
+import pytest
+
+from chunking import chunk_by_paragraph
+from tools import add, flaky_lookup
 
 
-def load_score_history(path: str = "history.jsonl") -> list[dict]:
-    entries = []
-    with open(path) as f:
-        for line in f:
-            if line.strip():
-                entries.append(json.loads(line))
-    return entries
+def test_chunk_by_paragraph():
+    text = "Paragraph one.\n\nParagraph two.\n\nParagraph three."
+    chunks = chunk_by_paragraph(text)
+    assert len(chunks) == 3
+    assert chunks[0] == "Paragraph one."
+    assert chunks[-1] == "Paragraph three."
 
 
-def print_trend(path: str = "history.jsonl", last_n: int = 10) -> None:
-    entries = load_score_history(path)[-last_n:]
-    for entry in entries:
-        commit = entry["commit"]
-        score = entry["overall_score"]
-        bar = "#" * int(score * 20)
-        print(f"{commit:>10}  {score:.2f}  {bar}")
+@pytest.mark.parametrize(
+    "text,expected_count",
+    [
+        ("Just one paragraph, no blank lines.", 1),
+        ("A.\n\n\n\nB.", 2),
+        ("", 0),
+    ],
+)
+def test_chunk_by_paragraph_count(text, expected_count):
+    assert len(chunk_by_paragraph(text)) == expected_count
+
+
+def test_add_returns_the_sum():
+    assert add.invoke({"a": 2, "b": 3}) == 5
+    assert add.invoke({"a": -1, "b": 1}) == 0
+
+
+def test_flaky_lookup_success():
+    result = flaky_lookup.invoke({"query": "refund policy"})
+    assert result == "Result for refund policy"
+
+
+def test_flaky_lookup_failure():
+    result = flaky_lookup.invoke(
+        {"query": "refund policy", "should_fail": True}
+    )
+    assert result == "Error: simulated failure"
+```
+Copy Doc08's `chunking.py` and Doc06's `tools.py` (with `http_client.py`, `exceptions.py` and `logging_setup.py`) into `practice/build_task/` first, unchanged.
+
+**Expected output (`pytest test_unit_layer.py -q`):**
+```
+.......                                                      [100%]
+7 passed in 0.15s
+```
+**Break one tool on purpose** — change `add` in `tools.py` to `return a - b` — and exactly one test fails, pointing at that function:
+```
+FAILED test_unit_layer.py::test_add_returns_the_sum - AssertionError: ...
+1 failed, 6 passed in 0.24s
+```
+
+#### Approach 2 — prove the judge and the suite, on purpose
+
+**Story — `test_judge.py`:** `llm_judge_scoring`'s calibration set, pointed at this suite's judge. It must PASS a good brief and FAIL an off-topic one and a confidently wrong one. **If not:** a judge that approves everything would make every run look perfect.
+
+```python
+# practice/build_task/test_judge.py
+# Calls the real judge — run it whenever judge.py's prompt changes.
+from judge import score_with_judge
+
+TASK_INPUT = "Write a brief on where tea drinking began."
+RULES = [
+    "says tea drinking began in China",
+    'ends with a final line that starts with "In short:"',
+]
+
+# why: answers where YOU already know the right verdict
+CALIBRATION_SET = [
+    {"output": "Tea drinking began in ancient China, where it was "
+               "first used as a medicine.\nIn short: tea started "
+               "in China.",
+     "expected_verdict": "PASS"},
+    {"output": "I like pizza.",
+     "expected_verdict": "FAIL"},
+    {"output": "Tea drinking began in Brazil in the 1900s.\n"
+               "In short: tea is Brazilian.",
+     "expected_verdict": "FAIL"},
+]
+
+
+def test_judge_calibration():
+    for case in CALIBRATION_SET:
+        result = score_with_judge(TASK_INPUT, case["output"], RULES)
+        assert result.verdict == case["expected_verdict"], result.reason
+```
+**Expected output (`pytest test_judge.py -v`):**
+```
+test_judge.py::test_judge_calibration PASSED
+```
+
+**Story — `regression_check.py`:** `regression_catch`'s pass bar and per-task list, run against the real suite. **If not:** "the suite would catch a regression" would stay a belief, never a result.
+
+```python
+# practice/build_task/regression_check.py
+from run_eval import run_eval_suite
+
+# why: decided BEFORE sabotaging, so the result can't be
+# explained away afterwards
+PASS_BAR = 0.8
+
+
+def score(passed_by_id: dict) -> float:
+    passed = 0
+    for task_id in passed_by_id:
+        if passed_by_id[task_id]:
+            passed = passed + 1
+    return passed / len(passed_by_id)
+
+
+def find_newly_failed(baseline: dict, after: dict) -> list:
+    newly_failed = []
+    for task_id in baseline:
+        if baseline[task_id] and not after[task_id]:
+            newly_failed.append(task_id)
+    return newly_failed
+
+
+def run_regression_check() -> None:
+    print("--- baseline run ---")
+    baseline = run_eval_suite()
+    input('Delete the "In short:" line from writer_prompt.txt, save, '
+          "then press Enter...")
+    print("--- after sabotage ---")
+    after = run_eval_suite()
+
+    newly_failed = find_newly_failed(baseline, after)
+    print(f"score: {score(baseline):.2f} -> {score(after):.2f}")
+    if score(baseline) >= PASS_BAR and score(after) < PASS_BAR:
+        print("PASS: the suite caught it. Newly failing:")
+        for task_id in newly_failed:
+            print("  " + task_id)
+    else:
+        print("FAIL: the suite did NOT catch it. Tighten the rules.")
 
 
 if __name__ == "__main__":
-    print_trend()
+    run_regression_check()
 ```
-**Expected output:**
+**Expected output (`python regression_check.py`; the second run's `FAILED` lines are shortened here):**
 ```
-   a1b2c3d  0.90  ##################
-   d4e5f6a  0.90  ##################
-   g7h8i9j  0.60  ############
-   k1l2m3n  0.85  #################
+--- baseline run ---
+Passed 10/10 (score: 1.00)
+Delete the "In short:" line from writer_prompt.txt, save, then press Enter...
+--- after sabotage ---
+Passed 4/10 (score: 0.40)
+  FAILED sleep_students: The brief does not end with an "In short:" line.
+  ...
+score: 1.00 -> 0.40
+PASS: the suite caught it. Newly failing:
+  sleep_students
+  remote_work
+  password_safety
+  solar_power
+  tea_history
+  recycling
 ```
-That one lower row (`g7h8i9j`, 0.60) is exactly the kind of quiet quality drop this document's Core Concepts warns about — visible here as a dip in a trend, where a single "did today's run pass" check would only tell you about the most recent commit, not that things got briefly worse and then partly recovered.
+The 4 fact tasks still pass — the sabotage didn't touch facts — and all 6 judge tasks fail on the one rule that was removed. Put the line back in `writer_prompt.txt` when you're done.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's `run_eval_suite()` is a script you run and read — correct, but nothing stops a real regression from shipping if nobody happens to run it that day. Approach 1 turns the same function into something a CI system can act on automatically, via a real exit code, and starts keeping a permanent, append-only record instead of one overwritten `report.json`. Approach 2 is the other half of that record's value: reading `history.jsonl` back as a trend, which is the only way to notice a *gradual* drift (score slowly creeping down over several small prompt tweaks) that no single before/after regression check, including this document's own Failure exercise, is designed to catch on its own.
+**Difference from Basic:** Approach 1 splits the single file into one job per file, adds the reason for each failure and a saved `report.json`, and adds the unit layer that points at the exact broken function. Approach 2 proves the two things a green run can't: that the judge fails obviously bad answers, and that the whole suite drops when the prompt gets worse.
 
-**Which one should you actually use?** Intermediate Approach 1 is what to build and use day-to-day while working on Project 4 yourself — it's everything the Build Task's stated requirements ask for. Add Advanced Approach 1's exit code and history file the moment this suite needs to run somewhere other than your own terminal — a CI pipeline, a teammate's machine, a scheduled job — since a script that only "works" when a human reads its printed output isn't actually gating anything. Add Approach 2's trend view once you have more than a handful of history entries worth looking at; before that, `report.json` from a single run is enough.
+**Which one should you actually write?** Basic Approach 1 first, to see the loop work end to end. Then Intermediate Approach 1 and 2 together — that's what the Requirements ask for. Run `pytest test_unit_layer.py` on every change (it's free), `python run_eval.py` before every prompt or model change, `test_judge.py` whenever `judge.py`'s prompt changes, and `regression_check.py` once per new rule you add — to prove the suite can see it break.

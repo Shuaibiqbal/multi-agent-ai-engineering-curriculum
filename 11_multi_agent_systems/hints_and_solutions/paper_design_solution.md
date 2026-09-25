@@ -2,11 +2,15 @@
 
 > [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
 
+**Story — `architecture_comparison_practice.py` (Basic section):** a prediction written *before* any code is the only way to find out later whether your design instinct was right. This section is plain text, kept as a comment block at the top of the file, so the measured numbers below it can be checked against it. **If not:** after building, you'd remember "I expected that" — whether you did or not.
+
 Task chosen for both depths below: "research the top 3 causes of X, then write a 3-sentence summary." Read both depths — they're not "wrong, right," they're 2 real, valid levels of the same design write-up, with real differences in how much you can defend at each one.
 
 ## Basic Version
 
 ### Approach 1 — one paragraph and a gut guess per design
+
+**Story:** a quick first guess for each design, before thinking too hard — the honest starting point you'll compare against. **If not:** you'd skip straight to building, and never learn how good your instincts are.
 
 ```
 design 1 -- single agent
@@ -37,6 +41,8 @@ This is a genuinely useful first pass — it names the right shape for all three
 ## Intermediate Version
 
 ### Approach 1 — the same designs, written the way you'd defend them out loud
+
+**Story:** a guess becomes useful once it has numbers and mechanisms a colleague could argue with. **If not:** "the supervisor is slower" can't be proven wrong — so it can't teach you anything either.
 
 ```
 design 1 -- single agent
@@ -73,6 +79,8 @@ design 3 -- supervisor
 **Difference from Basic:** the flow, cost, speed, and risk lines are now written the way you'd actually say them to a colleague — specific numbers, specific mechanisms ("a prompt tuned for good writing style can quietly get worse at judging source quality"), not just a label. This version would survive a first follow-up question. It still doesn't spell out what each design's failure actually *looks like* to someone watching it happen — that's what Approach 2 adds.
 
 ### Approach 2 — with a failure-mode line and the routing cost counted honestly
+
+**Story:** a design is judged as much by how it fails as by how it works, and a supervisor's routing call is real cost, not free glue. **If not:** you'd pick the design that looks best when everything goes right.
 
 ```
 design 1 -- single agent

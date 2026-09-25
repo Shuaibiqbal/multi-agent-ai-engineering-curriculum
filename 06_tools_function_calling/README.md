@@ -641,10 +641,10 @@ practice/
 ├── real_api_tool_practice.py        Real-world
 ├── missing_argument_practice.py     Edge cases
 └── build_task/                      Build Task — its own folder
-    ├── tools.py                     2-3 @tool functions, Pydantic argument models
+    ├── tools.py                     2-3 @tool functions + argument models
     ├── tool_harness.py              run_with_tools(...) -> ToolCallResult
     ├── test_prompts.py              the results logger — prompt -> outcome
-    └── logging_setup.py             copied from 01_python_foundations, unchanged
+    └── logging_setup.py             copied from Doc01, unchanged
 ```
 
 **Why each script exists:**
@@ -658,6 +658,7 @@ practice/
 - `build_task/logging_setup.py` — copied unchanged from Doc01, so the harness logs the same consistent way as every other document.
 
 **For this document, save your practice code as:**
+
 - **Basic** (your first working tool) is its own topic — save as `practice/first_tool_call_practice.py`.
 - **Intermediate** (watch the model choose between two tools) and **Failure** (a crashing tool, and a bad description) are both about how descriptions drive the model's choices — save them together as `practice/tool_selection_practice.py`, one section per level.
 - **Real-world** (a tool backed by a real API call) is its own topic — save as `practice/real_api_tool_practice.py`.

@@ -2,17 +2,25 @@
 
 > [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
 
+**Story — `project_walkthrough.md`:** explaining your own project to someone who has never seen it is asked in nearly every AI engineering interview. The four beats — problem, shape, one decision, one limitation — give that explanation a structure you can reuse for any project. **If not:** you'd list features, and the interviewer would never hear *why* you built it that way.
+
+Write your own answer first, in `practice/project_walkthrough.md`, then compare.
+
 **Model answer for:** "Interview me about Project 4."
 
 ## Basic Version
 
-"Project 4 is called ContentForge. It's for teams that need articles written — someone gives it a topic, and it researches it, writes a draft, and checks the facts before it's considered done.
+### Approach 1 — the plain answer
 
-It has five agents. One of them is a supervisor that decides what happens next — it looks at what's been done so far and sends the work to the right specialist: a researcher, a writer, a fact-checker, and a couple of others depending on the topic.
+**Story:** all four beats, said plainly, in under two minutes — including a limitation, offered before anyone asks. **If not:** you'd spend the time on features and never reach the part interviewers remember.
 
-The decision I'd point to: I used a supervisor that can decide the order for itself, instead of a fixed research-then-write-then-check order. I did that because sometimes the fact-checker finds a problem and the work needs to go back to the writer — a fixed order can't do that, but a supervisor can.
+"Project 4 is called ContentForge. It's for teams that need short researched briefs written — someone gives it a task, and it researches it, works out what the findings mean, writes a draft, and has the draft reviewed before it's done.
 
-The thing I'd improve: right now, if the fact-checker keeps rejecting the same draft, it could loop back and forth without ever stopping. I'd add a limit — after 3 tries, stop and hand it to a person instead of looping forever."
+It has five agents. One is a supervisor that decides what happens next — it looks at what's already in the shared state and sends the work to the right specialist: a researcher, an analyst, a writer, or a reviewer.
+
+The decision I'd point to: I used a supervisor instead of a fixed research-then-write order, because the reviewer can reject a draft and send it back to the writer with its feedback — and a plain straight line can't loop back like that. To stop it looping forever, there's a limit: after 3 rejected drafts it stops and reports that the agents couldn't agree.
+
+The thing I'd improve: the supervisor's rules always send every task through research first, even when the task already contains the facts. That wastes a paid research step. I'd let the supervisor skip stages that aren't needed."
 
 This covers all four beats plainly, in under two minutes, and volunteers a real limitation without being asked — what a nervous first-timer says when they genuinely know their own project but haven't polished the vocabulary yet.
 
@@ -22,27 +30,29 @@ This covers all four beats plainly, in under two minutes, and volunteers a real 
 
 ## Intermediate Version
 
-"ContentForge solves content production for teams that need researched, fact-checked articles without one person owning the whole pipeline manually.
+### Approach 1 — a structured answer
 
-It's built on Doc11's supervisor pattern with five agents: a supervisor that owns routing, a researcher that gathers sources, a writer that drafts from those sources, a fact-checker that verifies claims against the research, and an editor that does a final pass. The supervisor inspects shared state after each agent runs and decides the next hop dynamically, rather than following a hard-coded sequence.
+**Story:** the same four beats with the real mechanism and trade-off behind each one — the decision *and* what it cost. **If not:** the design would sound picked, not weighed.
 
-The decision worth calling out: I chose a supervisor over a fixed sequential pipeline specifically because fact-checking isn't a one-way gate — a failed check needs to route *backward* to the writer with the specific issue attached, and a fixed pipeline has no mechanism for that kind of conditional loop. The trade-off I accepted: a supervisor is harder to reason about statically than a fixed pipeline — you can't just read the code top-to-bottom and know the execution order, you have to trace the supervisor's routing logic, which is a real cost for debuggability that I weighed against the correctness gap a fixed pipeline would have left.
+"ContentForge solves content production for teams that need researched, reviewed briefs without one person running every step by hand.
 
-The honest limitation: the writer-fact-checker loop currently has no retry cap, so a genuinely un-fixable factual disagreement could cycle indefinitely, burning cost with no forward progress. Given more time, I'd add a max-retry count that escalates to human review instead of looping, which is exactly the kind of guardrail Doc14's debugging lab flags as a standing risk in any agent loop with a conditional back-edge."
+It's Doc11's supervisor pattern with five agents: a supervisor that owns routing, a research agent that gathers findings, an analysis agent that works out what they mean, a writer that drafts from the analysis, and a reviewer that accepts or rejects the draft. Each agent writes its output into one shared state, and the supervisor reads that state after every step to pick the next agent — using `Command` for each hand-off.
 
-**Why this answer works:** it's this document's Normal-depth rung, done properly — it opens with the user-facing problem, not the tech stack, which is what shapes an interviewer's first impression. It names the pattern *and* the specific requirement that pattern satisfies (backward routing on fact-check failure), which is what "requirements → architecture is matching, not inspiration" (Doc16) actually looks like in speech. It states a real trade-off it accepted, not just a benefit, showing the choice was weighed, not just picked. And it volunteers the limitation with a concrete fix, unprompted.
+The decision worth calling out: a supervisor instead of a fixed sequence, because review isn't a one-way gate — a rejected draft has to go *back* to the writer with the reviewer's feedback, and a fixed pipeline has no clean way to do that. The loop is bounded: after 3 rejections the run ends with a clear "couldn't agree" report and the full feedback history, instead of cycling forever. The trade-off I accepted: you can't read the code top to bottom and know the order anymore — you trace the supervisor's rules and the routing log, which records *why* each hop happened.
 
-**What the Basic Version misses:** the Basic Version's four beats are all correct, but each one stays at the surface level ("a supervisor that can decide," "it could loop back and forth") — the Intermediate Version names the *specific mechanism* underneath each beat (dynamic routing over shared state, a hard trade-off in static reasoning, a named guardrail pattern from Doc14) instead of describing the shape of the idea alone.
+The honest limitation: the supervisor is rule-based, so every task goes through research first, even one that already includes the facts — a wasted, paid step. Given more time, I'd switch that one decision to Doc11's LLM-judged routing, and measure whether the saved research calls are worth the extra routing call."
 
-<hr class="page-break">
+**Why this answer works:** it's this document's Normal-depth rung, done properly — it opens with the user-facing problem, not the tech stack, which is what shapes an interviewer's first impression. It names the pattern *and* the specific requirement that pattern satisfies (backward routing when the reviewer rejects a draft), which is what "requirements → architecture is matching, not inspiration" (Doc16) actually looks like in speech. It states a real trade-off it accepted, not just a benefit, showing the choice was weighed, not just picked. And it volunteers the limitation with a concrete fix, unprompted.
 
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
+**What the Basic Version misses:** the Basic Version's four beats are all correct, but each one stays at the surface level ("a supervisor that decides what happens next," "after 3 rejected drafts it stops") — Approach 1 names the *specific mechanism* underneath each beat (routing over shared state with `Command`, the revision cap and its report, a hard trade-off in static reasoning) instead of describing the shape of the idea alone.
 
-## Advanced Version
+### Approach 2 — when the interviewer pushes back
 
-**Curveball 1 — the challenge, right after the Intermediate answer's "one decision":** *"Isn't a full supervisor added complexity for one edge case? A fixed pipeline with a single retry loop around the fact-check step would handle 'send it back to the writer' too, and it's simpler to reason about."*
+**Story:** strong interviewers challenge your decision and then switch projects to see if the structure is real. This practices conceding what's true, defending what's still true, and using the same four beats on a project you didn't rehearse. **If not:** the structure would work only for the one project you prepared.
 
-**Model response:** "That's fair, and for exactly one back-edge, a fixed pipeline with a single conditional retry loop probably would be enough — I'll concede that directly. The reason I went with a supervisor anyway is that fact-checking wasn't the only place I expected a back-edge to show up. If a future specialist — say, an SEO-compliance check, or a tone-consistency pass — also needs the ability to send work backward to a different stage, a fixed pipeline needs a new hard-coded loop for every one of those, and they start interacting with each other in ways that get hard to follow. A supervisor already generalizes to that without new wiring each time. So the honest framing is: it's a bet on the pipeline growing more conditional paths over time, not a requirement the very first version strictly needed. If I were being graded purely on the requirements as they stood on day one, a fixed retry loop was probably the simpler, equally correct choice — the supervisor is me trading some debuggability now for not having to re-architect later if that bet pays off."
+**Curveball 1 — the challenge, right after the Intermediate answer's "one decision":** *"Isn't a full supervisor added complexity for one edge case? A fixed pipeline with a single retry loop around the review step would handle 'send it back to the writer' too, and it's simpler to reason about."*
+
+**Model response:** "That's fair, and for exactly one back-edge, a fixed pipeline with a single conditional retry loop probably would be enough — I'll concede that directly. The reason I went with a supervisor anyway is that review wasn't the only place I expected a back-edge to show up. If a future specialist — say, an SEO-compliance check, or a tone-consistency pass — also needs the ability to send work backward to a different stage, a fixed pipeline needs a new hard-coded loop for every one of those, and they start interacting with each other in ways that get hard to follow. A supervisor already generalizes to that without new wiring each time. So the honest framing is: it's a bet on the pipeline growing more conditional paths over time, not a requirement the very first version strictly needed. If I were being graded purely on the requirements as they stood on day one, a fixed retry loop was probably the simpler, equally correct choice — the supervisor is me trading some debuggability now for not having to re-architect later if that bet pays off."
 
 **Curveball 2 — the cold project switch:** *"Interesting — tell me about a different project instead, one where something went wrong."*
 
@@ -52,4 +62,4 @@ The honest limitation: the writer-fact-checker loop currently has no retry cap, 
 
 **What a weaker answer misses:** on Curveball 1, a weaker answer either fully concedes ("yeah, you're right, I over-engineered it") — abandoning a decision that had a real, specific justification the interviewer just hadn't heard yet — or argues without conceding anything, which reads as unable to take feedback. On Curveball 2, a weaker answer either can't produce the four beats for an unprepared project at all, or gives a plain list of features with no problem statement, decision, or limitation — revealing the structure was memorized per-project rather than genuinely internalized.
 
-**Which one should you actually give in a real interview?** Open with the Basic Version's plain problem statement — that earns the interviewer's attention and trust in the first 15 seconds, regardless of their technical depth. Let your explanation rise naturally into the Intermediate Version's vocabulary and trade-off language as you go. Don't pre-load the Advanced Version's pushback response or a second project before anyone asks — but when a challenge does land, concede what's true first, then defend the specific thing that's still true; and keep the four-beat shape general enough in your head that it works for any project you're asked about, not just the one you rehearsed tonight.
+**Which one should you actually give in a real interview?** Open with the Basic Version's plain problem statement — that earns the interviewer's attention and trust in the first 15 seconds, regardless of their technical depth. Let your explanation rise naturally into Approach 1's vocabulary and trade-off language as you go. Don't pre-load Approach 2's pushback response or a second project before anyone asks — but when a challenge does land, concede what's true first, then defend the specific thing that's still true; and keep the four-beat shape general enough in your head that it works for any project you're asked about, not just the one you rehearsed tonight.

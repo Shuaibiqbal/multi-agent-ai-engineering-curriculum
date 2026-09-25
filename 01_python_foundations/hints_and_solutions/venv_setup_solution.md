@@ -4,9 +4,13 @@
 
 **Where this exercise is saved:** `practice/venv_setup_practice.md` — notes, not a script. Every block below is a terminal command, so there is nothing to `python`-run: keep a Markdown file with each command you ran and the output you got back, and you will have your own record of the sequence the next time you start a project.
 
+**Story — `venv_setup_practice.md`:** every later document installs packages into a project, so the venv has to be second nature before any real code exists. Writing the steps down once, with what each one prints, makes it something you can repeat without thinking. **If not:** the first import error in a later document would send you guessing about which Python and which packages you're actually using.
+
 ## Basic Version
 
 ### Approach 1 — the direct way (macOS / Linux)
+
+**Story:** create, activate, install, freeze — the four steps in order, on one platform. **If not:** packages would land in your system Python and leak between projects.
 
 ```bash
 # → practice/venv_setup_practice.md
@@ -36,6 +40,8 @@ This version is correct and complete for the exercise as stated.
 
 ### Approach 1 — with the Windows variant
 
+**Story:** the same four steps, with Windows' different activate command — so the notes work on any teammate's machine. **If not:** a Windows teammate would get stuck on the very first step.
+
 macOS / Linux:
 ```bash
 # → practice/venv_setup_practice.md
@@ -56,6 +62,8 @@ pip freeze > requirements.txt
 **Expected output**, either platform, after `pip freeze > requirements.txt`: no console output (it's redirected into the file). Open `requirements.txt` to see the same 5 lines as the Basic Version above.
 
 ### Approach 2 — verifying each step as you go
+
+**Story:** check each step worked before moving on — the venv exists, it's active, the package is inside it. **If not:** a step that silently failed would only show up later as a confusing import error.
 
 ```bash
 # → practice/venv_setup_practice.md

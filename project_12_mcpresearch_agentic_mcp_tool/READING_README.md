@@ -2,7 +2,7 @@
 
 **Title:** MCPResearch Multi Agent Pipeline Exposed As One MCP Tool
 
-**Type:** MCP Server (1 Tool, wrapping a 2-agent pipeline) · **Stack:** Python, official `mcp` SDK (FastMCP), LangChain (`langchain-openai`), `asyncio` · **Level:** Advanced (bonus / portfolio project)
+**Type:** MCP Server (1 Tool, wrapping a 2-agent pipeline) · **Stack:** Python, official `mcp` SDK (MCPServer), LangChain (`langchain-openai`), `asyncio` · **Level:** Advanced (bonus / portfolio project)
 **Tagline:** A Researcher agent and a Fact-Checker agent loop until a summary is approved — the whole loop hides behind one MCP tool, `deep_research(topic)`, so any MCP client calls it like a single plain function.
 
 > Not part of the numbered Doc01-19 project arc — a bonus/portfolio project that combines two things you've already built: MCP server-building from [project_7_mcpforge](../project_7_mcpforge_mcp_server/) and Doc06's MCP Core Concepts, and the generator→critic multi-agent loop from [project_4_contentforge](../project_4_contentforge_multi_agent/) and [11_multi_agent_systems](../11_multi_agent_systems/). Read both first if you haven't — this file has the full build spec, not a pointer elsewhere.
@@ -107,7 +107,7 @@ memorized during training.
 - **What problem it solves:** shows a real client — any MCP client, not a custom integration — getting a fact-checked answer from a multi-agent system through one plain function call, with no idea of the machinery underneath.
 - **Why it matters:** "agent-as-a-service," callable through a standard protocol, is a real and increasingly common production pattern. It's a different, harder skill than either building a simple MCP server (Project 7) or building an agent that calls one (Project 9) — you're the one deciding what a slow, multi-step process should look like from the outside.
 - **When you'd build something like this at a real job:** any time you want to offer a whole internal workflow — a research pipeline, a multi-step approval chain, a generate-then-verify process — as one callable capability other teams' tools or agents can use, without exposing (or letting them depend on) its internal steps.
-- **How it's built:** a `FastMCP` server exposing exactly one Tool, `deep_research`, whose body calls a Researcher/Fact-Checker loop capped at a fixed number of rounds, reports its progress as a trace inside the result, and falls back to a clearly-marked partial answer if it times out or a step fails.
+- **How it's built:** a `MCPServer` server exposing exactly one Tool, `deep_research`, whose body calls a Researcher/Fact-Checker loop capped at a fixed number of rounds, reports its progress as a trace inside the result, and falls back to a clearly-marked partial answer if it times out or a step fails.
 
 **Problems you'll likely run into, and how to fix them:**
 
@@ -162,7 +162,7 @@ project_12_mcpresearch_agentic_mcp_tool/
 
 *Project: **MCPResearch-Multi-Agent-Pipeline-Exposed-As-One-MCP-Tool** — Step 2 of 4: Wrap It as a Single MCP Tool*
 
-**What this step does:** builds `mcp_server.py`, exposing `deep_research(topic: str) -> str` as one `FastMCP` tool. The tool's whole body is a call to Step 1's `run_pipeline()` — nothing about the pipeline changes.
+**What this step does:** builds `mcp_server.py`, exposing `deep_research(topic: str) -> str` as one `MCPServer` tool. The tool's whole body is a call to Step 1's `run_pipeline()` — nothing about the pipeline changes.
 **Why this step matters:** this is the actual lesson of the project — the MCP layer is thin. It does not know, and does not need to know, that multiple agents ran underneath. Writing this step is what proves that claim in real code instead of just an idea.
 **When you'll hit this for real:** any time you take something that already works (a script, a pipeline, a whole system) and expose it as one callable unit for other tools to use, without those tools needing to understand its internals.
 **Read first:** [06_tools_function_calling Core Concepts](../06_tools_function_calling/README.md#core-concepts-read-this-first-everything-you-need-is-here) — "What MCP actually is, and the problem it solves," "MCP servers and clients, and how they actually connect," and "Why MCP matters for the multi-agent systems this curriculum builds" — that last one describes exactly what you're doing in this step.
@@ -170,7 +170,7 @@ project_12_mcpresearch_agentic_mcp_tool/
 **Stuck on this step?** [Hint 1](hints_and_solutions/step2_mcp_wrapper_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_mcp_wrapper_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_mcp_wrapper_solution.md)
 
 What to do:
-1. Write `mcp_server.py`: a `FastMCP("deep-research-service")` instance, and one tool, `deep_research(topic: str) -> str`, whose body is exactly two lines — call `run_pipeline(topic, max_rounds=config.max_revision_rounds)`, then return `result.final_summary`. Resist the urge to add anything cleverer yet — that's Step 3's job.
+1. Write `mcp_server.py`: a `MCPServer("deep-research-service")` instance, and one tool, `deep_research(topic: str) -> str`, whose body is exactly two lines — call `run_pipeline(topic, max_rounds=config.max_revision_rounds)`, then return `result.final_summary`. Resist the urge to add anything cleverer yet — that's Step 3's job.
 2. Write a clear tool description (a real docstring) — Doc06's "a tool's description is really a prompt" idea applies here just as much as it did to a small tool in Project 7, maybe more, since this tool's name doesn't make its cost (multiple LLM calls, possibly slow) obvious to whoever's calling it.
 3. Test it with the MCP Inspector: `mcp dev mcp_server.py`, then call `deep_research` with your Real Example topic. Confirm you get back the plain final summary — no trace yet, that's Step 3.
 4. Confirm `mcp.run(transport="stdio")` is the last line that actually executes, and that nothing in `researcher.py`, `fact_checker.py`, or `pipeline.py` ever calls `print()` — same stdout rule as Project 7, now with more files that could accidentally break it.
@@ -185,7 +185,7 @@ project_12_mcpresearch_agentic_mcp_tool/
 ├── fact_checker.py                  (unchanged from Step 1)
 ├── pipeline.py                        (unchanged from Step 1)
 ├── main.py                              (unchanged from Step 1)
-└── mcp_server.py                          → FastMCP("deep-research-service"); one tool: deep_research(topic: str) -> str, body just calls run_pipeline()
+└── mcp_server.py                          → MCPServer("deep-research-service"); one tool: deep_research(topic: str) -> str, body just calls run_pipeline()
 ```
 
 ### Step 3 — Report Internal Progress Without Breaking the One-Tool Illusion

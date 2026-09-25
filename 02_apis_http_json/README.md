@@ -204,7 +204,7 @@ practice/
 ├── response_validation_practice.py Edge cases
 └── build_task/                     Build Task — its own folder
     ├── http_client.py              request_with_retry(...) -> dict
-    ├── exceptions.py               TransientHTTPError, PermanentHTTPError
+    ├── exceptions.py               MissingConfigError + 2 HTTP errors
     └── test_http_client.py         proves Test Cases, no real calls
 ```
 
@@ -305,7 +305,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 ```
 02_apis_http_json/practice/build_task/
 ├── http_client.py       request_with_retry(method, url, **kwargs) -> dict
-├── exceptions.py        TransientHTTPError, PermanentHTTPError
+├── exceptions.py        MissingConfigError (Doc01) + 2 HTTP errors
 ├── test_http_client.py  tests the pure decision functions directly
 ├── config.py            copied from 01_python_foundations, unchanged
 └── logging_setup.py     copied from 01_python_foundations, unchanged
@@ -321,7 +321,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 **Functions/Components to build:**
 
-- `exceptions.py` → `TransientHTTPError`, `PermanentHTTPError`
+- `exceptions.py` → `TransientHTTPError`, `PermanentHTTPError` (next to Doc01's `MissingConfigError`, kept unchanged — `config.py` imports it)
 - `http_client.py` → `request_with_retry(method, url, **kwargs) -> dict`
 - a backoff helper, like `compute_backoff_delay(attempt: int) -> float`
 

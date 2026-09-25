@@ -80,7 +80,8 @@ make a function called set_age that takes one number (age):
 
 test it:
     call set_age(25) -> nothing happens, it's valid
-    call set_age(-5) inside a try/except -> catch InvalidAgeError, print the message
+    call set_age(-5) inside a try/except
+        -> catch InvalidAgeError, print the message
 ```
 
 Here's almost the whole thing — just try running it and reading it line by line:

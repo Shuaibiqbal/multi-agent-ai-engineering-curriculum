@@ -51,8 +51,6 @@ There's a production-grade reason to care about getting this right beyond "will 
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
 
 ## Hint 2 — The plan, and a worked example {: #hint-2 }

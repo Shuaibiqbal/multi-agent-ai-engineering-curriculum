@@ -31,16 +31,28 @@ for i, chunk in enumerate(chunks):
     print(i, ":", repr(chunk))
 
 def get_embedding(text):
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
-chunk_embeddings = [get_embedding(chunk) for chunk in chunks]
+chunk_embeddings = []
+for chunk in chunks:
+    chunk_embeddings.append(get_embedding(chunk))
 
 question = (
     "What time and room is the quarterly meeting, and who is expected "
@@ -104,31 +116,51 @@ QUESTION: str = (
 
 
 def chunk_text(text: str, chunk_size: int) -> list[str]:
-    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+    results = []
+    for i in range(0, len(text), chunk_size):
+        results.append(text[i:i + chunk_size])
+    return results
 
 
 def get_embedding(text: str) -> list[float]:
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
 
 def search(
-    question: str, chunks: list[str], chunk_embeddings: list[list[float]], k: int
+    question: str,
+    chunks: list[str],
+    chunk_embeddings: list[list[float]],
+    k: int,
 ) -> list[str]:
     question_embedding = get_embedding(question)
-    scored = [
-        (cosine_similarity(question_embedding, embedding), chunk)
-        for chunk, embedding in zip(chunks, chunk_embeddings)
-    ]
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [chunk for _, chunk in scored[:k]]
+    scored = []
+    for chunk, embedding in zip(chunks, chunk_embeddings):
+        score = cosine_similarity(question_embedding, embedding)
+        scored.append((score, chunk))
+    # how: tuples sort by their first item — the score — highest first
+    scored.sort(reverse=True)
+    top_chunks = []
+    for score, chunk in scored[:k]:
+        top_chunks.append(chunk)
+    return top_chunks
 
 
 def main() -> None:
@@ -137,7 +169,9 @@ def main() -> None:
     for i, chunk in enumerate(chunks):
         print(f"  {i}: {chunk!r}")
 
-    chunk_embeddings = [get_embedding(chunk) for chunk in chunks]
+    chunk_embeddings = []
+    for chunk in chunks:
+        chunk_embeddings.append(get_embedding(chunk))
 
     top_1 = search(QUESTION, chunks, chunk_embeddings, k=1)
     top_all = search(QUESTION, chunks, chunk_embeddings, k=len(chunks))
@@ -164,7 +198,8 @@ if __name__ == "__main__":
 # chunking_practice.py — Edge cases section
 def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
     chunks: list[str] = []
-    step = chunk_size - overlap  # why: smaller than chunk_size -- chunks overlap
+    # why: smaller than chunk_size -- chunks overlap
+    step = chunk_size - overlap
     i = 0
     while i < len(text):
         chunks.append(text[i:i + chunk_size])
@@ -178,7 +213,9 @@ def main() -> None:
     for i, chunk in enumerate(overlap_chunks):
         print(f"  {i}: {chunk!r}")
 
-    overlap_embeddings = [get_embedding(chunk) for chunk in overlap_chunks]
+    overlap_embeddings = []
+    for chunk in overlap_chunks:
+        overlap_embeddings.append(get_embedding(chunk))
     top_1_overlap = search(QUESTION, overlap_chunks, overlap_embeddings, k=1)
 
     print("\nk=1 result, WITH overlap:")
@@ -205,7 +242,9 @@ long_document = padding + DOCUMENT + padding
 chunks = chunk_text(long_document, chunk_size=80)
 print(f"long document produced {len(chunks)} non-overlapping chunks")
 
-chunk_embeddings = [get_embedding(chunk) for chunk in chunks]
+chunk_embeddings = []
+for chunk in chunks:
+    chunk_embeddings.append(get_embedding(chunk))
 top_3 = search(QUESTION, chunks, chunk_embeddings, k=3)
 
 print("k=3 result on the long document:")

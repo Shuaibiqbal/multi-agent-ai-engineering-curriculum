@@ -39,8 +39,6 @@ Once the basic loop prints a match per input, think about reuse: right now the c
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-lcel_vs_raw_sdk) · [Hint 1](lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](lcel_vs_raw_sdk_hints.md#hint-2) · [Solution](lcel_vs_raw_sdk_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
@@ -68,7 +66,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from project_1 import extract_raw, ExtractedData   # your real Project 1 names
 
-prompt = ChatPromptTemplate.from_template("Extract structured data from: {text}")
+prompt = ChatPromptTemplate.from_template(
+    "Extract structured data from: {text}"
+)
 lcel_chain = prompt | ChatOpenAI().with_structured_output(ExtractedData)
 ```
 **Expected output if you run just this:** nothing yet — add the loop over your 3 test inputs, calling both `extract_raw` and `lcel_chain.invoke`.
@@ -118,7 +118,10 @@ def run_comparison(test_inputs: list[str]) -> list[ComparisonRow]:
 def main() -> None:
     test_inputs = ["input one text", "input two text", "input three text"]
     rows = run_comparison(test_inputs)
-    matched = sum(1 for row in rows if row.matched)
+    matched = 0
+    for row in rows:
+        if row.matched:
+            matched = matched + 1
     print(f"{matched}/{len(rows)} matched")
     for row in rows:
         if not row.matched:

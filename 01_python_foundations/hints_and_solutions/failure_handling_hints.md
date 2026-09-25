@@ -97,7 +97,8 @@ Try finishing the function and the 3 `except` parts yourself first.
 ### Intermediate Version
 
 ```
-define OutOfStockError, PaymentDeclinedError, InvalidAddressError, each as a kind of Exception
+define OutOfStockError, PaymentDeclinedError, InvalidAddressError,
+    each as a kind of Exception
 
 function process_order(problem_type):
     if problem_type is "stock":
@@ -110,7 +111,8 @@ function process_order(problem_type):
 for each of the 3 problem types:
     try to process_order with that type
     except OutOfStockError: print "try again later, notify the warehouse"
-    except PaymentDeclinedError: print "ask the customer for a different payment method"
+    except PaymentDeclinedError:
+        print "ask the customer for a different payment method"
     except InvalidAddressError: print "ask the customer to fix their address"
 ```
 

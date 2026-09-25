@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain answer a nervous first-timer would give), **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format), **Advanced** (a tough pushback on your own fix, or a harder variant of the scenario). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain answer a nervous first-timer would give) and **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format, then a tough pushback on your own fix, or a harder variant of the scenario). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — The scenario, and why the first answer isn't the point](#hint-1)
 - [Hint 2 — The follow-up plan, worked through](#hint-2)
@@ -29,11 +29,7 @@ The point of this exercise isn't the first answer — it's proving you can antic
 
 Give your first answer to the RAG-retriever scenario now, structured as a Normal-depth answer in this document's [Four-Depth Format](../README.md#the-four-depth-format-used-for-every-question) — one level past the 30-second claim, with enough method to show you'd actually know where to start. Then, before reading Hint 2, pick just **one** of the standing follow-ups and answer it against your own first answer. This is the actual senior-level habit: treating your own answer as something to interrogate, not something finished the moment you stop talking.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
-
-### Advanced Version
+**When the follow-up lands early:**
 
 Now push one step further than the standing follow-up list: assume your answer to "what happens if it fails again" was some version of "I'd add a confidence threshold and have the system say it's not sure." A tough interviewer doesn't accept a fix at face value — they attack the fix itself: *"That threshold is going to make the system refuse to answer a lot of borderline-but-actually-fine queries. How do you know where to set it, and what does the product team say when 'I'm not sure' shows up for 15% of traffic?"*
 
@@ -43,7 +39,7 @@ The real design question isn't "what's my fix" — it's "what would I actually s
 
 Try answering the pushback yourself before Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic gives the scenario and lets you answer once, cold. Intermediate adds the standing follow-up list on top of that first answer — proving you can anticipate what comes next. Advanced goes one layer deeper still: a follow-up *on your follow-up*, which is what actually happens once an interviewer decides to dig into one specific part of your answer instead of moving down the checklist — the difference between reciting the standing follow-ups and actually defending a decision under real scrutiny.
+**Difference between Basic and Intermediate:** Basic gives the scenario and lets you answer once, cold. Intermediate adds the standing follow-up list on top of that first answer, and then goes one layer deeper — a follow-up *on your follow-up*, which is what happens once an interviewer digs into one specific part of your answer instead of moving down the checklist.
 
 <hr class="page-break">
 
@@ -84,7 +80,8 @@ self-asked follow-ups, in a sensible order for THIS scenario:
     "what happens underneath?"
         -> name the specific layer: embeddings, chunking, or index staleness
     "how would you debug it?" (more specific than the first answer)
-        -> name the first concrete check, and what result would confirm/rule out each cause
+        -> name the first concrete check, and what result would
+           confirm or rule out each cause
     "what happens if it fails again?"
         -> is there a fallback path, or a silent bad answer?
     "how would you scale it / cut its cost?" (lighter touch, still answer it)
@@ -95,11 +92,7 @@ Notice the order isn't random — it follows the natural shape of a debugging co
 
 Answer at least three of these against your own first answer before checking the Solution.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
-
-### Advanced Version
+**Under pushback:**
 
 Here's the plan for defending a fix under direct pushback:
 
@@ -126,6 +119,8 @@ your move:
 ```
 
 Try filling this in yourself for the confidence-threshold pushback, then compare against the [Solution](followup_template_solution.md).
+
+**Difference between Basic and Intermediate:** Basic walks the follow-up list in plain words. Intermediate names the specific mechanism behind each follow-up answer, and then defends your own fix when it's pushed on — naming its real cost instead of dodging or caving.
 
 <hr class="page-break">
 

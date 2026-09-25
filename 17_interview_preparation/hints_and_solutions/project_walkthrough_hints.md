@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain answer a nervous first-timer would give), **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format), **Advanced** (defending the design under direct challenge, or walking through a project cold with zero warm-up). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain answer a nervous first-timer would give) and **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format, then defending the design under direct challenge, or walking through a project cold with zero warm-up). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and the four beats](#hint-1)
 - [Hint 2 — The plan, and almost the whole walkthrough](#hint-2)
@@ -31,11 +31,7 @@ Use Project 4 (ContentForge) as this hint's working example. Structure it the wa
 
 Draft your own four-part outline (for any project of your choice) before Hint 2.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
-
-### Advanced Version
+**When the interviewer pushes back:**
 
 Two curveballs happen often in real project-walkthrough interviews, and both are worth rehearsing separately from the plain four-beat walkthrough:
 
@@ -47,7 +43,7 @@ The real design question isn't "do I know my project well" — it's "can I defen
 
 Try both before Hint 2: defend the supervisor-vs-fixed-pipeline decision under pushback, and outline a different project's four beats from memory, cold.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic and Intermediate both assume a cooperative interviewer who lets you finish your prepared walkthrough. Advanced assumes the two things that actually happen in a strong interview: someone pokes at your one defended decision with a real alternative, and someone asks about a project you didn't rehearse tonight — both test whether the four-beat structure is a genuine habit or a script for exactly one project.
+**Difference between Basic and Intermediate:** Basic assumes a cooperative interviewer who lets you finish a prepared walkthrough. Intermediate structures it properly, and then covers what happens in a strong interview: someone pokes at your one defended decision with a real alternative, or asks about a project you didn't rehearse — which tests whether the four-beat structure is a habit or a script.
 
 <hr class="page-break">
 
@@ -60,20 +56,21 @@ Try both before Hint 2: defend the supervisor-vs-fixed-pipeline decision under p
 Four things to cover, roughly in this order, using Project 4 as the example:
 
 ```
-problem: "content teams need articles researched, drafted, and fact-checked
-          without one person doing all three badly"
+problem: "teams need short briefs researched, analysed, written and
+          reviewed, without one person doing every step by hand"
 
 shape: "one supervisor agent decides what happens next; specialist agents
-        do research, writing, and fact-checking; supervisor routes between
-        them based on what's done so far"
+        do research, analysis, writing and review; the supervisor routes
+        between them based on what's already in shared state"
 
 one decision: "I used a supervisor instead of a fixed pipeline, because the
-               fact-checker sometimes needs to send work BACK to the writer
-               — a fixed pipeline can't loop, a supervisor can decide that"
+               reviewer sometimes needs to send work BACK to the writer
+               — a fixed pipeline can't loop, a supervisor can decide that
+               (with a limit of 3 rejections)"
 
-one limitation: "right now if the fact-checker rejects something three
-                 times in a row, it can loop forever — I'd add a max-retry
-                 count with more time"
+one limitation: "the supervisor's rules always run research first, even
+                 when the task already has the facts — I'd let it skip
+                 stages that aren't needed"
 ```
 
 <hr class="page-break">
@@ -97,30 +94,26 @@ one decision: pick something with a real trade-off — e.g. "why a
               ready to say what you gave up (a supervisor is harder to
               reason about statically than a fixed pipeline)
 
-one limitation: name a genuine gap (unbounded retry loop, no cost cap on
-                re-drafts) and the specific fix you'd add, not just "it's
-                not perfect"
+one limitation: name a genuine gap (a stage that always runs even when
+                it isn't needed, no cost cap per run) and the specific
+                fix you'd add, not just "it's not perfect"
 ```
 
 Notice the "one decision" section explicitly includes what you *gave up* — a decision defended without acknowledging its cost sounds like marketing, not engineering judgment.
 
-Fill this in for your own project, say it out loud once, then move to the Advanced Version below.
+Fill this in for your own project, say it out loud once, then practice the curveballs below.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
-
-### Advanced Version
+**The curveballs:**
 
 The plan for defending the decision under direct challenge:
 
 ```
 your decision, as stated: "supervisor instead of a fixed pipeline, because
-                            fact-check failures need to route backward"
+                            rejected drafts need to route backward"
 
 interviewer challenge: "isn't that added complexity for one edge case? a
                          fixed pipeline with a single retry loop around the
-                         fact-check step would handle that too, and it's
+                         review step would handle that too, and it's
                          simpler to reason about."
 
 your move:
@@ -153,6 +146,8 @@ for ANY project, on demand:
 practice this shape against a SECOND project you didn't plan to discuss
 tonight, cold, before checking the Solution
 ```
+
+**Difference between Basic and Intermediate:** Basic gets all four beats said plainly. Intermediate gives each beat its real mechanism and trade-off, and then practices the two curveballs — a direct challenge to your decision, and a cold switch to another project — using the same four beats.
 
 <hr class="page-break">
 

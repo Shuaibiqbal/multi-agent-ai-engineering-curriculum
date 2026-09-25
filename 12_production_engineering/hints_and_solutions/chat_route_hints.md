@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-chat_route) · [Hint 1](chat_route_hints.md#hint-1) · [Hint 2](chat_route_hints.md#hint-2) · [Solution](chat_route_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper FastAPI/Pydantic), **Advanced** (how a real API tells 4xx from 5xx and never leaks internals). Read Basic first even if you already know FastAPI — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper FastAPI/Pydantic, including how a real API tells 4xx from 5xx, logs the real error, and never leaks internals). Read Basic first even if you already know FastAPI — it's the fastest way to spot exactly what Intermediate adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -26,31 +26,22 @@ Things to use:
 
 ### Intermediate Version
 
-Declaring `def chat(request: ChatRequest):` is the whole trick — FastAPI reads that type hint, and before your function body runs even once, it parses the incoming request body as JSON, validates it against `ChatRequest`, and automatically replies with a 422 if it doesn't match. You never write that checking code yourself; it's the same idea as Doc04/06's tool-argument Pydantic models, just applied to an HTTP body instead of an LLM tool call.
+Declaring `def chat(request: ChatRequest):` is the whole trick — FastAPI reads that type hint, and before your function body runs even once, it parses the incoming request body as JSON, checks it against `ChatRequest`, and automatically replies with a 422 if it doesn't match. You never write that checking code yourself; it's the same idea as Doc04/06's tool-argument Pydantic models, just applied to an HTTP body.
 
-Doc02's retry/error material comes back here in a new form: a bad-input problem is the *client's* fault (4xx — don't blindly retry the exact same request), an unexpected internal failure is the *server's* fault (5xx). `HTTPException` is FastAPI's way of raising an HTTP-shaped error from inside a route — it stops the function immediately and sends that exact status code and detail message back as the JSON reply.
+Doc02's error material comes back here in a new form: a bad-input problem is the *client's* fault (4xx — don't blindly retry the same request), an unexpected internal failure is the *server's* fault (5xx). `HTTPException` stops the route immediately and sends that exact status code and detail message back.
+
+Two things a naive `except Exception: raise HTTPException(500, detail=str(exc))` gets wrong: it treats *every* failure as a 500 (even ones that are really the client's fault, like an empty message), and it puts raw exception text — which can include file paths or even a stray API key — straight into the client's reply. So the real design question is: **what deserves a 500 versus a 4xx, and what should the client ever see about *why*?**
 
 The exact pieces:
 
-- `class ChatRequest(BaseModel): message: str` — the input shape.
 - `class ChatResponse(BaseModel): reply: str` — the output shape, same pattern as `HealthResponse` in the previous exercise.
-- `@app.post("/chat", response_model=ChatResponse) def chat(request: ChatRequest) -> ChatResponse:`
-- `try: reply = run_chat(request.message) except Exception as exc: raise HTTPException(status_code=500, detail="...")`.
-- `request.message` — accessing a field on a validated Pydantic model, guaranteed to be a `str` by the time you read it.
+- A custom exception, `class ChatInputError(Exception): pass`, raised on purpose for bad-but-well-formed input (an empty message) — caught separately and mapped to 400, not 500.
+- Moving `ChatRequest` / `ChatResponse` into their own file (`practice/chat_schemas.py`) — the same split as the Build Task's `schemas.py`.
+- `logger.exception("chat route failed")` inside the `except Exception` branch — logs the full traceback on the server, while the client still gets only a generic message. Get the logger from Doc01's `get_logger(__name__)` (copy `logging_setup.py` into `practice/`, unchanged).
+- Never put `str(exc)` into an `HTTPException(detail=...)` for the 500 case — that's exactly the leak this exercise tests for.
+- A **request ID**: a short random string made once per request (`str(uuid.uuid4())[:8]`) in a middleware (`@app.middleware("http")`), saved on `request.state.request_id`, sent back in an `X-Request-ID` header, and put at the start of every log line for that request — so you can find every line from one failed call, even under busy traffic.
 
-### Advanced Version
-
-Two things a naive `except Exception: raise HTTPException(500, detail=str(exc))` gets wrong: it treats *every* failure as a 500 (even ones that are really the client's fault, like an empty message your chat logic refuses to handle), and it puts the raw exception text — which can include internal details, file paths, sometimes even a stray API key from an error message — directly into the client-facing reply.
-
-The real design question: **what actually deserves a 500, versus a 4xx, and what should the client ever see about *why* it failed?** A missing/malformed field is already handled for you (422, by Pydantic, before your code runs at all). What's left for your own `try/except` is telling apart "your logic rejected this input on purpose" (400) from "something broke unexpectedly" (500) — and for the 500 case specifically, logging the real detail server-side while sending the client only a safe, generic message.
-
-Pieces:
-
-- A custom exception in your own chat logic (e.g. `class ChatInputError(Exception): pass`) raised on purpose for bad-but-well-formed input (like an empty message) — caught separately from a bare `Exception` and mapped to 400, not 500.
-- `import logging; logger = logging.getLogger(__name__)` then `logger.exception("chat route failed")` inside the `except Exception` branch — logs the full traceback server-side, while the client still only gets a generic message.
-- Never put `str(exc)` directly into an `HTTPException(detail=...)` for the 500 case — that's exactly the leak this exercise is testing for.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic names the pieces for wrapping logic behind a typed route with *a* status code on failure. Intermediate explains exactly how FastAPI's automatic 422 works and why `HTTPException` is the right tool for turning a caught error into a specific reply. Advanced questions whether "everything that goes wrong is a 500" is even correct, splits deliberate input-rejection (400) from genuine internal failure (500), and closes the leak of putting raw exception text into a client-facing reply — the exact thing `db_failure_and_docker` checks for later in this document.
+**Difference between Basic and Intermediate:** Basic names the pieces for wrapping logic behind a typed route with *a* status code on failure. Intermediate explains how FastAPI's automatic 422 works, splits deliberate input-rejection (400) from genuine internal failure (500), logs the real error on the server only, and tags each request's log lines with one shared ID — the exact pieces the Build Task's route and its "tagged per-request" logging are built from.
 
 <hr class="page-break">
 
@@ -74,6 +65,7 @@ route POST /chat, takes a ChatRequest:
 
 Here's almost the whole thing — the `run_chat` stand-in is deliberately fake, swap in your Doc04 chat function later:
 ```python
+# practice/chat_route_practice.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -105,66 +97,17 @@ def chat(request: ChatRequest) -> ChatResponse:
 ### Intermediate Version
 
 ```
-define ChatRequest(BaseModel): message: str
-define ChatResponse(BaseModel): reply: str
+define ChatRequest, ChatResponse, ChatInputError
+
+logger = get_logger(__name__)          # Doc01
 
 function run_chat(message) -> str:
     if message is empty: raise ChatInputError
-    ... real logic ...
+    if message is "boom": raise RuntimeError   # a fake crash, on command
     return reply text
 
-route POST /chat, response_model=ChatResponse, takes a ChatRequest:
-    try:
-        return ChatResponse(reply=run_chat(request.message))
-    except ChatInputError as exc:
-        raise HTTPException(400, detail=str(exc))
-    except Exception:
-        raise HTTPException(500, detail="Something went wrong.")
-```
-
-```python
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-
-app = FastAPI()
-
-class ChatRequest(BaseModel):
-    message: str
-
-class ChatResponse(BaseModel):
-    reply: str
-
-class ChatInputError(Exception):
-    pass
-
-def run_chat(message: str) -> str:
-    if not message.strip():
-        raise ChatInputError("message cannot be empty")
-    return "You said: " + message
-
-@app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
-    try:
-        reply_text = run_chat(request.message)
-        return ChatResponse(reply=reply_text)
-    except ChatInputError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except Exception:
-        raise HTTPException(status_code=500, detail="Something went wrong.")
-```
-**Expected output for `{"message": ""}`:** `400 {"detail":"message cannot be empty"}`. **Expected output for a missing `message` field entirely:** `422`, from Pydantic, before `chat()` even runs.
-
-### Advanced Version
-
-```
-define ChatRequest, ChatResponse, ChatInputError as above
-
-logger = logging.getLogger(__name__)
-
-function run_chat(message) -> str:
-    if message is empty: raise ChatInputError
-    if message contains a magic "boom" test string: raise a plain RuntimeError (simulating a real crash)
-    return reply text
+middleware: make a short request_id, save it on request.state,
+            add it to the X-Request-ID response header
 
 route POST /chat:
     try:
@@ -172,17 +115,19 @@ route POST /chat:
     except ChatInputError as exc:
         raise HTTPException(400, detail=str(exc))
     except Exception:
-        logger.exception("chat route failed")   # full traceback, server-side only
-        raise HTTPException(500, detail="Something went wrong.")   # no exc detail leaked
+        logger.exception("[request_id] chat route failed")  # server only
+        raise HTTPException(500, detail="Something went wrong.")
 ```
 
 Here's most of it — wire up the logger call yourself:
 ```python
-import logging
+# practice/chat_route_practice.py
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+from logging_setup import get_logger   # Doc01 Build Task
+
+logger = get_logger(__name__)
 app = FastAPI()
 
 class ChatRequest(BaseModel):
@@ -209,13 +154,11 @@ def chat(request: ChatRequest) -> ChatResponse:
     except ChatInputError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception:
-        # your turn: log the real exception here with logger.exception(...)
-        # then raise HTTPException(500, detail="...") with a generic message only
+        # your turn: log the real error with logger.exception(...),
+        # then raise a 500 with a generic message only
         ...
 ```
-Send `{"message": "boom"}` and confirm: the client gets a plain 500 message, and the *real* `RuntimeError: simulated internal failure` traceback only shows up in your terminal, never in the HTTP response.
-
-**Difference between Basic, Intermediate, and Advanced:** Basic catches everything as one generic 500. Intermediate splits a deliberate input problem (`ChatInputError` → 400) from everything else (→ 500). Advanced adds the piece that actually matters for production: a genuine internal crash gets logged in full detail server-side, while the client only ever sees a safe, generic message — proven here with a fake `RuntimeError` you can trigger on command.
+Send `{"message": ""}` and confirm a 400. Send `{"message": "boom"}` and confirm: the client gets a plain 500 message, and the *real* `RuntimeError: simulated internal failure` traceback only shows up in your terminal. Then add the request-ID middleware — the Solution's Approach 4 shows it.
 
 <hr class="page-break">
 

@@ -50,9 +50,14 @@ test_questions = [
 
 for question in test_questions:
     mine = run_agent(question)
-    lib = agent.invoke({"messages": [("user", question)]}, {"recursion_limit": 11})
+    lib = agent.invoke(
+        {"messages": [("user", question)]}, {"recursion_limit": 11}
+    )
 
-    tool_call_count = sum(1 for m in lib["messages"] if getattr(m, "name", None))
+    tool_call_count = 0
+    for m in lib["messages"]:
+        if getattr(m, "name", None):
+            tool_call_count = tool_call_count + 1
 
     print("QUESTION:", question)
     print("  mine:", mine.final_answer, "|", len(mine.steps), "tool call(s)")
@@ -85,7 +90,10 @@ result = agent.invoke(
 )
 print(result["messages"][-1].content)
 
-tool_messages = [m for m in result["messages"] if getattr(m, "name", None)]
+tool_messages = []
+for m in result["messages"]:
+    if getattr(m, "name", None):
+        tool_messages.append(m)
 print("lib step count:", len(tool_messages))
 ```
 `result["messages"]` holds the whole conversation, including every tool call and its result — filtering for messages that have a `name` set (a tool's own return message) gives you the library's own equivalent of your `steps` list, so you can compare step *counts* precisely instead of eyeballing a printed stream.

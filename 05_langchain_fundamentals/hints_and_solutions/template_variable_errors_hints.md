@@ -35,8 +35,6 @@ This means a missing variable fails fast, locally, with a `KeyError`-style messa
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-template_variable_errors) · [Hint 1](template_variable_errors_hints.md#hint-1) · [Hint 2](template_variable_errors_hints.md#hint-2) · [Solution](template_variable_errors_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

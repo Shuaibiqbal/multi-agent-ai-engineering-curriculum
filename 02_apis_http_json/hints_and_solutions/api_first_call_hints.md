@@ -52,8 +52,6 @@ Write both blocks — the working call and the broken one — before checking Hi
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-api_first_call) · [Hint 1](api_first_call_hints.md#hint-1) · [Hint 2](api_first_call_hints.md#hint-2) · [Solution](api_first_call_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

@@ -82,7 +82,8 @@ state has: task, sources, draft, approved, answer
 nodes:
     router_node        -- just passes the task through
     search_node         -- calls retrieve(), saves results into sources
-    reason_node          -- builds a draft from sources (or a "no grounding" message)
+    reason_node          -- builds a draft from sources
+                            (or a "no grounding" message)
     approval_node        -- interrupts, waits for a human decision
     finish_node          -- builds the final answer
 
@@ -220,7 +221,10 @@ def search_node(state: ProjectState) -> dict:
 
 def has_grounding(state: ProjectState) -> str:
     scored_sources = state.get("sources", [])
-    best_score = max((score for _, score in scored_sources), default=0.0)
+    best_score = 0.0
+    for _, score in scored_sources:
+        if score > best_score:
+            best_score = score
     if best_score < RELEVANCE_THRESHOLD:
         return "no_grounding"
     return "reason"
@@ -282,7 +286,10 @@ def search_node(state):
 def reason_node(state):
     if not state["sources"]:
         return {"draft": "I don't have grounding for this in my documents."}
-    context = "\n\n".join(s.page_content for s in state["sources"])
+    pieces = []
+    for s in state["sources"]:
+        pieces.append(s.page_content)
+    context = "\n\n".join(pieces)
     draft = model.invoke("Context: " + context + "\n\nTask: " + state["task"])
     return {"draft": draft.content}
 
@@ -301,7 +308,8 @@ def finish_node(state):
 from langgraph.graph import StateGraph
 from langgraph.checkpoint.memory import MemorySaver
 from state import ProjectState
-from nodes import route_search, search_node, reason_node, approval_node, finish_node
+from nodes import route_search, search_node, reason_node
+from nodes import approval_node, finish_node
 
 builder = StateGraph(ProjectState)
 builder.add_node("search_node", search_node)
@@ -353,7 +361,11 @@ from retriever import retrieve
 def route_search(state: ProjectState) -> str:
     task = state["task"].lower()
     keywords = ["document", "policy", "according to"]
-    if any(keyword in task for keyword in keywords):
+    has_match = False
+    for keyword in keywords:
+        if keyword in task:
+            has_match = True
+    if has_match:
         return "search"
     return "skip"
 
@@ -367,7 +379,10 @@ def reason_node(state: ProjectState) -> dict:
     if not state["sources"]:
         return {"draft": "I don't have grounding for this in my documents."}
 
-    context = "\n\n".join(source.page_content for source in state["sources"])
+    pieces = []
+    for source in state["sources"]:
+        pieces.append(source.page_content)
+    context = "\n\n".join(pieces)
     prompt = (
         f"Using this context, answer the task.\n\nContext:\n{context}\n\n"
         f"Task: {state['task']}"
@@ -392,7 +407,8 @@ def finish_node(state: ProjectState) -> dict:
 from langgraph.graph import StateGraph
 from langgraph.checkpoint.memory import MemorySaver
 from state import ProjectState
-from nodes import route_search, search_node, reason_node, approval_node, finish_node
+from nodes import route_search, search_node, reason_node
+from nodes import approval_node, finish_node
 
 
 def build_graph():
@@ -431,7 +447,10 @@ def main() -> None:
     print(f"Sources used: {len(paused.values.get('sources', []))}")
 
     decision = input("Approve this answer? (yes/no): ")
-    resume_value = "approved" if decision.strip().lower() == "yes" else "rejected"
+    if decision.strip().lower() == "yes":
+        resume_value = "approved"
+    else:
+        resume_value = "rejected"
     final = graph.invoke(Command(resume=resume_value), config)
 
     print(f"Final answer: {final['answer']}")
@@ -477,7 +496,11 @@ RELEVANCE_THRESHOLD = 0.75
 def route_search(state: ProjectState) -> str:
     task = state["task"].lower()
     keywords = ["document", "policy", "according to"]
-    if any(keyword in task for keyword in keywords):
+    has_match = False
+    for keyword in keywords:
+        if keyword in task:
+            has_match = True
+    if has_match:
         return "search"
     return "skip"
 
@@ -499,7 +522,10 @@ def search_node(state: ProjectState) -> dict:
 
 def has_grounding(state: ProjectState) -> str:
     scored_sources = state.get("sources", [])
-    best_score = max((score for _, score in scored_sources), default=0.0)
+    best_score = 0.0
+    for _, score in scored_sources:
+        if score > best_score:
+            best_score = score
     if best_score < RELEVANCE_THRESHOLD:
         return "no_grounding"
     return "reason"
@@ -508,7 +534,10 @@ def has_grounding(state: ProjectState) -> str:
 def reason_node(state: ProjectState) -> dict:
     path = state.get("path", []) + []
     scored_sources = state.get("sources", [])
-    best_score = max((score for _, score in scored_sources), default=0.0)
+    best_score = 0.0
+    for _, score in scored_sources:
+        if score > best_score:
+            best_score = score
 
     if not scored_sources or best_score < RELEVANCE_THRESHOLD:
         path.append("no_grounding")
@@ -518,7 +547,10 @@ def reason_node(state: ProjectState) -> dict:
             "path": path,
         }
 
-    context = "\n\n".join(chunk.page_content for chunk, _ in scored_sources)
+    pieces = []
+    for chunk, _ in scored_sources:
+        pieces.append(chunk.page_content)
+    context = "\n\n".join(pieces)
     prompt = (
         f"Using this context, answer the task.\n\nContext:\n{context}\n\n"
         f"Task: {state['task']}"
@@ -533,7 +565,9 @@ def approval_node(state: ProjectState) -> dict:
     # why: truncate each source so approval_node isn't the same
     # unbounded-context risk search_as_tool's Intermediate section fixes
     sources = state.get("sources", [])
-    source_previews = [chunk.page_content[:200] for chunk, _ in sources]
+    source_previews = []
+    for chunk, _ in sources:
+        source_previews.append(chunk.page_content[:200])
     decision = interrupt({
         "draft": state["draft"],
         "grounded": state["grounded"],
@@ -542,7 +576,10 @@ def approval_node(state: ProjectState) -> dict:
         "prompt": "Approve this answer before it's sent? (approved/rejected)",
     })
     approved = decision["decision"] == "approved"
-    path.append("approved" if approved else "rejected")
+    if approved:
+        path.append("approved")
+    else:
+        path.append("rejected")
     return {
         "approved": approved,
         "approved_by": decision.get("by"),
@@ -615,8 +652,12 @@ def main() -> None:
 
     reviewer = input("Your email: ")
     decision = input("Approve this answer? (yes/no): ")
+    if decision.strip().lower() == "yes":
+        decision_value = "approved"
+    else:
+        decision_value = "rejected"
     resume_value = {
-        "decision": "approved" if decision.strip().lower() == "yes" else "rejected",
+        "decision": decision_value,
         "by": reviewer,
         "at": datetime.now(timezone.utc).isoformat(),
     }

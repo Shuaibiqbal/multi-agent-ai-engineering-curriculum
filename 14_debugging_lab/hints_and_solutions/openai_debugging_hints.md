@@ -21,7 +21,8 @@ One scenario, followed across all 4 rounds: Project 1's structured-extraction fe
 response = client.chat.completions.create(
     model="gpt-4o-mini",
     messages=[
-        {"role": "system", "content": "Reply with JSON like {\"summary\": \"...\"}"},
+        {"role": "system",
+            "content": "Reply with JSON like {\"summary\": \"...\"}"},
         {"role": "user", "content": user_text},
     ],
 )
@@ -45,6 +46,7 @@ Sure! Here's the summary you asked for:
 ```
 
 **Expected vs. actual:**
+
 - Expected: `response.choices[0].message.content` is exactly parseable JSON.
 - Actual: the model wrapped the JSON in a friendly sentence, so `json.loads()` fails on the leading text before it ever reaches the `{`.
 
@@ -74,12 +76,14 @@ response = client.responses.parse(
 
 **Error output:**
 ```
-openai.BadRequestError: Error code: 400 - {'error': {'message': "Invalid schema for
+openai.BadRequestError: Error code: 400 - {'error': {'message':
+"Invalid schema for
 response_format 'Summary': In context=('properties', 'tags'), 'default' is not
 permitted.", 'type': 'invalid_request_error'}}
 ```
 
 **Expected vs. actual:**
+
 - Expected: `Summary` comes back as a checked object, with `tags` defaulting to an empty list when the model finds none.
 - Actual: the call fails before the model ever runs, with an error about the *schema*, not about anything the model said.
 
@@ -97,12 +101,15 @@ permitted.", 'type': 'invalid_request_error'}}
 
 **Error output (turn 24 of a long session):**
 ```
-openai.BadRequestError: Error code: 400 - {'error': {'message': "This model's maximum
-context length is 128000 tokens. However, your messages resulted in 128412 tokens.
+openai.BadRequestError: Error code: 400 - {'error': {'message':
+"This model's maximum
+context length is 128000 tokens. However, your messages resulted in
+128412 tokens.
 Please reduce the length of the messages.", 'type': 'invalid_request_error'}}
 ```
 
 **Expected vs. actual:**
+
 - Expected: a long-running chatbot session keeps working indefinitely, trimming its own history as needed so it never crosses the model's limit.
 - Actual: it works fine for a long time, then fails abruptly on whatever turn happens to push the running total over the limit — never reproducible with a short test conversation.
 
@@ -126,6 +133,7 @@ Please reduce the length of the messages.", 'type': 'invalid_request_error'}}
 The "compliance concern" the Reviewer flagged was actually resolved in the Analysis agent's own tool-call scratchpad three steps earlier — never in Analysis agent's *finished* output, but still present in the combined prompt, buried among Research's raw search dumps and Analysis's own internal back-and-forth.
 
 **Expected vs. actual:**
+
 - Expected: each agent's prompt is built from the pipeline's clean, finished outputs — the actual conclusions each earlier agent reached.
 - Actual: by the time a request reaches the Reviewer (4th in line), its prompt has ballooned with three other agents' raw internal reasoning, degrading quality and occasionally tipping the whole request over the context limit — invisible in any test that hand-builds a small, clean fake state for the Reviewer alone.
 

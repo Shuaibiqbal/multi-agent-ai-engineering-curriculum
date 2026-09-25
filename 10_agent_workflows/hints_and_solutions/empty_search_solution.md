@@ -98,7 +98,11 @@ def has_results(state: dict) -> str:
         logger.info("no_grounding reason=empty task=%r", state["task"])
         return "no_grounding"
 
-    best_score = max(score for _, score in scored_sources)
+    # how: the list isn't empty (checked above), so start from its first score
+    best_score = scored_sources[0][1]
+    for _, score in scored_sources:
+        if score > best_score:
+            best_score = score
     if best_score < RELEVANCE_THRESHOLD:
         logger.info(
             "no_grounding reason=below_threshold best_score=%.2f task=%r",
@@ -141,7 +145,11 @@ def has_results(state: dict) -> str:
     if not scored_sources:
         return "no_grounding"
 
-    best_score = max(score for _, score in scored_sources)
+    # how: the list isn't empty (checked above), so start from its first score
+    best_score = scored_sources[0][1]
+    for _, score in scored_sources:
+        if score > best_score:
+            best_score = score
     if best_score < PARTIAL_THRESHOLD:
         return "no_grounding"
     if best_score < RELEVANCE_THRESHOLD:
@@ -151,7 +159,10 @@ def has_results(state: dict) -> str:
 
 def partial_grounding_node(state: dict) -> dict:
     chunks = state["scored_sources"]
-    context = "\n\n".join(chunk.page_content for chunk, _ in chunks)
+    pieces = []
+    for chunk, _ in chunks:
+        pieces.append(chunk.page_content)
+    context = "\n\n".join(pieces)
     prompt = (
         "The following context may only partially answer the question. "
         "Answer only what the context actually supports, and explicitly "

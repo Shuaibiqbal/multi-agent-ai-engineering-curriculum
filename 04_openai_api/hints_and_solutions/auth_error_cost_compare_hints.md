@@ -35,8 +35,6 @@ Part 2 uses `response.usage` — every response object carries back the exact to
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-auth_error_cost_compare) · [Hint 1](auth_error_cost_compare_hints.md#hint-1) · [Hint 2](auth_error_cost_compare_hints.md#hint-2) · [Solution](auth_error_cost_compare_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

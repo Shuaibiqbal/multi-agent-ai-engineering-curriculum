@@ -2,9 +2,17 @@
 
 > [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
 
-**Decision used for this model answer:** "I gave every agent access to most of the shared state, instead of giving each agent only its own private slice."
+**Story — `defend_tradeoff.md`:** a decision you've only defended against a weak objection isn't defended. This exercise picks one real, debatable decision and holds it against the strongest objection you can build. **If not:** the first strong objection would come from a reviewer, in the moment, with no prepared reasoning.
+
+Write your own version first, in `practice/defend_tradeoff.md`, then compare. Read both depths — they're 2 real levels of the same answer.
+
+**Decision used for this model answer:** "I gave every agent access to most of the shared state, instead of giving each agent only its own private slice." (In this example, the capstone design added a fact-checker agent to Project 4's team, to check each draft's claims against the RAG sources.)
 
 ## Basic Version
+
+### Approach 1 — the plain version
+
+**Story:** state the decision, the strongest objection, and an honest middle ground — in plain words. **If not:** you'd either ignore the objection or give up the decision at the first push.
 
 "I chose shared state because the agents genuinely need to see each other's work — the fact-checker can't check facts without seeing what the writer actually wrote, and the writer can't fix things without seeing what the fact-checker flagged.
 
@@ -20,6 +28,10 @@ This is a complete, honest answer. It states the decision, acknowledges the real
 
 ## Intermediate Version
 
+### Approach 1 — specific and tied to requirements
+
+**Story:** name what the alternative would really have cost, show the mitigation you actually built, and say what would change your mind. **If not:** "it's simpler" would be your only defence, and it doesn't answer "it's riskier".
+
 "I designed the shared LangGraph state object as mostly-shared, with each agent also holding a small private scratch field. The alternative — fully private state per agent, passed explicitly between them — is the more conservative, more encapsulated choice, and it's the one a strict software-engineering instinct favors: less surface area for one agent's bug to corrupt another agent's data.
 
 The strongest objection: shared mutable state is a well-known source of hard-to-trace bugs, and it gets worse as agent count grows — this system already has five agents, and any of them could, in principle, write into a field another agent depends on, with no compiler or type system catching the mistake.
@@ -34,11 +46,9 @@ Verdict: I would not switch to fully private state, because the core requirement
 
 **What a weaker answer misses:** a weaker answer says "I used shared state because it's simpler" — true, but "simpler for me to write" isn't a defense against "riskier to maintain," it just restates the choice without engaging the objection at all. A weaker answer also sometimes claims the objection doesn't apply ("that would never actually happen") instead of acknowledging the real risk and showing the mitigation — which reads as either not understanding the objection or being unwilling to admit any cost to your own decision, both of which read poorly under real pushback.
 
-<hr class="page-break">
+### Approach 2 — when the pushback comes back harder
 
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
-
-## Advanced Version
+**Story:** a real reviewer pushes a second time — on the mitigation itself, or on another decision that conflicts with this one. This practices conceding a genuine gap plainly, with a prioritised fix. **If not:** your first answer would be rehearsed, and the second would be improvised justification.
 
 **Round 2 — the reviewer doesn't accept the write-boundary mitigation, and attacks it directly:** *"Okay, but a write-boundary schema check only catches writes to the wrong field. It does nothing about an agent silently reading a field it has no business depending on — say, the writer reading the fact-checker's private scratch notes and being subtly influenced by them in a way nobody intended. Your mitigation doesn't cover that at all. What then?"*
 
@@ -56,5 +66,5 @@ If I were prioritizing what to build first given limited time, I'd build the wri
 
 **What a weaker answer misses:** on Round 2, a weaker answer either claims the write-boundary check "basically" covers reads too (it doesn't, and claiming so is easy to catch), or pivots to a new, invented justification for why read access was never a real risk — both read as unwilling to admit a gap. On the curveball, a weaker answer tries to distinguish the retriever's writes from an agent's writes with a reason invented on the spot ("well, the retriever is different because...") instead of admitting the scoping was inconsistent — which is the same rationalization instinct Doc16's design-self-review technique warns about, just happening live instead of on paper.
 
-### Which one should you give, and why?
-Open with the Basic version to establish the decision and the honest trade-off in plain terms. If pushed once, move into the Intermediate version's specific mitigation. If pushed a second time — on the mitigation itself, or on a conflicting decision elsewhere — the Advanced version's move is the one that actually matters in a senior review: separate what your fix covers from what it doesn't, concede a genuine gap plainly, and give a real prioritization reason rather than inventing a justification to avoid conceding anything. A design that survives two rounds of honest pushback is worth more than one that sounds airtight after exactly one rehearsed answer.
+**Which one should you give, and why?**
+Open with the Basic answer to establish the decision and the honest trade-off in plain terms. If pushed once, move into Approach 1's specific mitigation. If pushed a second time — on the mitigation itself, or on a conflicting decision elsewhere — Approach 2's move is the one that actually matters in a senior review: separate what your fix covers from what it doesn't, concede a genuine gap plainly, and give a real prioritization reason rather than inventing a justification to avoid conceding anything. A design that survives two rounds of honest pushback is worth more than one that sounds airtight after exactly one rehearsed answer.

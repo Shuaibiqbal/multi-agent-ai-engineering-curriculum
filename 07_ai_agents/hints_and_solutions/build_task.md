@@ -19,11 +19,13 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 You're building 1 agent, made of everything the 5 exercises above already gave you: the loop from `build_react_loop`, the "let it answer directly" check from `no_tool_needed`, the step limit from `infinite_loop_cost`, and 3+ tools reused from `06_tools_function_calling`.
 
 The 3 files that matter most:
+
 - `tools.py` — the same `@tool`-decorated functions from Doc06, unchanged.
 - `agent.py` — `run_agent(task, max_iterations) -> AgentResult`, the loop itself.
 - `test_agent.py` — the 4 Test Cases from the table above, each as a real test.
 
 Things to use:
+
 - A `while`/`for` loop with a step counter (from `build_react_loop`).
 - `try`/`except` around every tool call, so one failing tool doesn't crash the whole agent.
 - A `MaxIterationsExceeded` error, raised — not silently swallowed — when the limit is hit.
@@ -130,7 +132,9 @@ agent.py:
             else:
                 return AgentResult(final_answer=message.content, steps=steps)
 
-        raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
+        raise MaxIterationsExceeded(
+            f"No answer after {max_iterations} steps", steps
+        )
 ```
 Turn this into real code, then write the controllable-failure tool yourself before checking the Solution.
 
@@ -224,9 +228,14 @@ def run_agent(task, max_iterations, tools_by_name, tool_schemas, client):
             messages.append(message)
             for call in message.tool_calls:
                 result, error = run_tool(call, tools_by_name)
-                observation = result if error is None else "Error: " + error
+                if error is None:
+                    observation = result
+                else:
+                    observation = "Error: " + error
                 messages.append({
-                    "role": "tool", "tool_call_id": call.id, "content": observation,
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": observation,
                 })
                 steps.append({
                     "step": step,
@@ -339,9 +348,14 @@ def run_agent(
             messages.append(message)
             for call in message.tool_calls:
                 result, error = run_tool(call, tools_by_name)
-                observation = result if error is None else f"Error: {error}"
+                if error is None:
+                    observation = result
+                else:
+                    observation = f"Error: {error}"
                 messages.append({
-                    "role": "tool", "tool_call_id": call.id, "content": observation,
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": observation,
                 })
                 steps.append({
                     "step": step,
@@ -429,9 +443,14 @@ def run_agent(task, max_iterations, tools_by_name, tool_schemas):
             messages.append(message)
             for call in message.tool_calls:
                 result, error = run_tool(call, tools_by_name)
-                observation = result if error is None else f"Error: {error}"
+                if error is None:
+                    observation = result
+                else:
+                    observation = f"Error: {error}"
                 messages.append({
-                    "role": "tool", "tool_call_id": call.id, "content": observation,
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": observation,
                 })
                 step_record = {
                     "step": step, "tool": call.function.name,
@@ -523,8 +542,14 @@ def test_flaky_tool_recovers_on_retry():
         "Search the docs for 'refund policy'", 5, tools_by_name, SEARCH_SCHEMAS,
     )
 
-    failed_steps = [s for s in result.steps if s["error"] is not None]
-    succeeded_steps = [s for s in result.steps if s["error"] is None]
+    failed_steps = []
+    for s in result.steps:
+        if s["error"] is not None:
+            failed_steps.append(s)
+    succeeded_steps = []
+    for s in result.steps:
+        if s["error"] is None:
+            succeeded_steps.append(s)
     assert len(failed_steps) >= 1
     assert len(succeeded_steps) >= 1
     assert result.final_answer  # it recovered and actually answered
@@ -568,7 +593,8 @@ def run_tool(call, tools_by_name, arg_models):
     try:
         raw_args = json.loads(call.function.arguments)
         if arg_model is not None:
-            # why: validate BEFORE calling function — this is what "before the tool
+            # why: validate BEFORE calling function — this is what "before
+            # the tool
             # actually runs" in the Build Task's constraint means, literally
             validated = arg_model(**raw_args)
             result = function(**validated.model_dump())

@@ -176,7 +176,9 @@ async def main() -> None:
     results = await asyncio.gather(
         good_task(), fetch_status_fixed("https://example.com"),
     )
-    print(f"good + fixed fetch: {time.perf_counter() - start:.2f}s -> {results}")
+    print(
+        f"good + fixed fetch: {time.perf_counter() - start:.2f}s -> {results}"
+    )
 
 
 if __name__ == "__main__":

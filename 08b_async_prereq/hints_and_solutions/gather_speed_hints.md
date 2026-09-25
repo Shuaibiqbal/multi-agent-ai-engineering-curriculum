@@ -163,7 +163,9 @@ async def f2_broken() -> str:
 
 
 async def run_parallel_safe() -> None:
-    results = await asyncio.gather(f1(), f2_broken(), f3(), return_exceptions=True)
+    results = await asyncio.gather(
+        f1(), f2_broken(), f3(), return_exceptions=True
+    )
     for result in results:
         if isinstance(result, Exception):
             print("a task failed:", result)

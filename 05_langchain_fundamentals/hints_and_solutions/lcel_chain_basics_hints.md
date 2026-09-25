@@ -39,8 +39,6 @@ Worth knowing beyond `.invoke()`: the exact same chain also supports `.batch(...
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-lcel_chain_basics) · [Hint 1](lcel_chain_basics_hints.md#hint-1) · [Hint 2](lcel_chain_basics_hints.md#hint-2) · [Solution](lcel_chain_basics_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

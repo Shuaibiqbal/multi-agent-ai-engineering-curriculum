@@ -2,11 +2,15 @@
 
 > [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
 
-Both depths below reuse `research()`, `write()`, and `StageResult` from `sequential_measure`'s solution unchanged. Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `architecture_comparison_practice.py` (Real-world section):** the supervisor version of the same task, measured the same way, so the "why a supervisor?" question gets a real answer instead of a feeling. **If not:** Project 4's "Plan Before You Code" step would defend its design with guesses.
+
+Both depths below reuse `model`, `research()`, `write()`, and `StageResult` from `sequential_measure`'s solution unchanged — they sit higher up in this same file. Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
 ### Approach 1 — the direct way, `if`-based routing
+
+**Story:** the smallest working supervisor — plain `if` checks deciding the next node — built on the exact same `research()` and `write()` as the sequential version, so only the routing differs. **If not:** a difference in the numbers could come from different stage code, not from the design.
 
 ```python
 # architecture_comparison_practice.py — Real-world section
@@ -25,6 +29,7 @@ class SupervisorState(TypedDict):
 
 
 def supervisor(state):
+    # how: plain checks on state — "which stage has no output yet?"
     if not state.get("research_text"):
         log = state["routing_log"] + ["research"]
         return Command(update={"routing_log": log}, goto="research_node")
@@ -65,16 +70,20 @@ builder.add_node("write_node", write_node)
 builder.add_edge(START, "supervisor")
 graph = builder.compile()
 
-result = graph.invoke({
-    "task": "climate change",
-    "research_text": "",
-    "summary": "",
-    "routing_log": [],
-    "total_tokens": 0,
-    "total_seconds": 0.0,
-})
-print(result["routing_log"])
-print(result["total_tokens"], "tokens,", result["total_seconds"], "seconds")
+# when: only when this file is run directly — so another practice file
+# can import these functions without triggering a paid run
+if __name__ == "__main__":
+    result = graph.invoke({
+        "task": "climate change",
+        "research_text": "",
+        "summary": "",
+        "routing_log": [],
+        "total_tokens": 0,
+        "total_seconds": 0.0,
+    })
+    print(result["routing_log"])
+    print(result["total_tokens"], "tokens,", result["total_seconds"],
+          "seconds")
 ```
 **Expected output** (exact numbers vary by run):
 ```
@@ -91,6 +100,8 @@ This works and correctly reuses `sequential_measure`'s functions unchanged. It's
 ## Intermediate Version
 
 ### Approach 1 — a `run_supervisor()` report matching `run_sequential()`'s shape
+
+**Story:** a comparison is only fair when both sides report the same fields; `run_supervisor()` mirrors `run_sequential()` exactly. **If not:** you'd be comparing numbers that were collected in different ways.
 
 ```python
 # architecture_comparison_practice.py — Real-world section
@@ -150,6 +161,8 @@ sleep quality
 
 ### Approach 2 — an LLM-based supervisor, so the routing decision's real cost shows up
 
+**Story:** an `if`-based router is free, so it hides the real cost of a supervisor — in production the supervisor *asks the model* where to go. This version pays for its decisions, so the numbers are honest. **If not:** the comparison would say "supervisors cost nothing extra", which is exactly wrong.
+
 ```python
 # architecture_comparison_practice.py — Real-world section
 import time
@@ -166,6 +179,7 @@ def supervisor_llm(state):
     response = model.invoke(prompt)
     elapsed = time.perf_counter() - start
     decision = response.content.strip().upper()
+    # why: the routing call's own tokens and time count as real cost
     call_tokens = response.usage_metadata["total_tokens"]
 
     updates = {
@@ -234,6 +248,8 @@ The LLM-based supervisor calls the model 3 times total (route, route, route-to-d
 
 ### Approach 3 — a written comparison table across all 3 designs
 
+**Story:** three designs, three topics, one table — the form a skeptical reviewer can check at a glance. **If not:** the result would be scattered across printouts, and the percentage you defend in Project 4 would be hand-counted.
+
 ```python
 # architecture_comparison_practice.py — Real-world section
 def compare_all(topics: list[str]) -> None:
@@ -252,7 +268,8 @@ def compare_all(topics: list[str]) -> None:
         print(row)
 
 
-compare_all(["climate change", "inflation", "sleep quality"])
+if __name__ == "__main__":
+    compare_all(["climate change", "inflation", "sleep quality"])
 ```
 **Expected output** (exact numbers vary by run):
 ```

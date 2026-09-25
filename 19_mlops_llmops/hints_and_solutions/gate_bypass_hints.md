@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 3 depth levels: **Basic** (the plain idea), **Intermediate** (proper Python), **Advanced** (how a real gate makes itself the only path to "live"). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, including how a real gate makes itself the only path to "live"). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -38,7 +38,7 @@ The exact pieces:
 - `hmac.compare_digest(a, b)` — compares two signatures safely; use this instead of `a == b` (it avoids a subtle timing side-channel a plain `==` has, worth knowing even though it doesn't matter much for a local file).
 - A JSON pointer file, `live_version.json`, holding `{"version_name": ..., "signature": ...}` instead of one bare text line.
 
-### Advanced Version
+**Going further — the harder question:**
 
 Here's the deeper question Hint 1's Basic and Intermediate levels don't fully answer: **if the secret lives in the same repository as everything else, what actually stops someone who can edit `live_version.json` from also reading the secret and computing a valid signature themselves?** A signature check makes a *careless* hand-edit detectable — someone who forgets to recompute it, or doesn't know the check exists — but it doesn't stop a *deliberate* bypass by someone who reads the code first. That distinction matters: most real "gate bypass" incidents are the careless kind (someone under time pressure, editing the obvious file, not realizing there's a check) — but it's worth being honest about what a signature check does and doesn't defend against.
 
@@ -52,7 +52,7 @@ The extra pieces needed:
 
 Sketch `get_live_version()` built this way yourself before checking Hint 2.
 
-**Difference between Basic, Intermediate, and Advanced:** Basic proves the bypass is trivial today, and gestures at "store something extra." Intermediate makes that real with `hmac`, a genuine cryptographic signature that a careless hand-edit can't reproduce by accident. Advanced questions whether a signed *separate* pointer file is even the right design at all, and proposes removing the separate file entirely — making the version log's own `passed_gate` field the single source of truth, so there's no side door left to bypass in the first place, only the same record everything else already relies on.
+**Difference between Basic and Intermediate:** Basic proves the bypass is real and catches a careless edit with a plain hash. Intermediate signs the pointer with a secret from `.env` — and then asks whether a separate pointer file needs to exist at all, working out "what's live" from the version log instead.
 
 <hr class="page-break">
 
@@ -69,13 +69,15 @@ step 1 — prove the bypass:
     read it back — nothing complained, "v1" is now "live"
 
 step 2 — fix it:
-    when deploy() succeeds, save {"version_name": ..., "check": a hash of the name} as JSON
+    when deploy() succeeds, save as JSON:
+        {"version_name": ..., "check": a hash of the name}
     when reading "what's live", recompute the hash and compare
     if they don't match: treat it as untrusted, don't use it
 ```
 
 Here's almost the whole thing — just try running it and reading it line by line:
 ```python
+# release_gate_practice.py — Edge cases section
 import hashlib
 import json
 
@@ -114,7 +116,8 @@ SECRET = some string only this script knows
 
 function save_pointer(version_name):
     signature = hmac(SECRET, version_name)
-    write {"version_name": version_name, "signature": signature} to live_version.json
+    write to live_version.json:
+        {"version_name": version_name, "signature": signature}
 
 function get_live_version() -> str | None:
     read live_version.json
@@ -125,6 +128,7 @@ function get_live_version() -> str | None:
 ```
 
 ```python
+# release_gate_practice.py — Edge cases section
 import hmac
 import hashlib
 import json
@@ -132,7 +136,10 @@ import json
 SECRET = "replace-with-a-real-secret-not-committed-to-git"
 
 def sign(version_name: str) -> str:
-    return hmac.new(SECRET.encode(), version_name.encode(), hashlib.sha256).hexdigest()
+    # how: the signature depends on the name AND the secret
+    key = SECRET.encode()
+    message = version_name.encode()
+    return hmac.new(key, message, hashlib.sha256).hexdigest()
 
 def save_pointer(version_name: str) -> None:
     pointer = {"version_name": version_name, "signature": sign(version_name)}
@@ -151,11 +158,7 @@ def get_live_version() -> str | None:
 
 Try it: `save_pointer("v2")`, confirm `get_live_version()` returns `"v2"`, then hand-edit the JSON file's `version_name` to `"v1"` and confirm `get_live_version()` now warns and returns `None`. Compare against the [Solution](gate_bypass_solution.md).
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
-
-### Advanced Version
+**Going further, as a plan:**
 
 ```
 every version record in versions.json gains: "passed_gate": False (by default)
@@ -174,6 +177,7 @@ function get_live_version() -> str | None:
 
 Here's almost the whole thing — fill in `mark_passed` yourself:
 ```python
+# release_gate_practice.py — Edge cases section
 import json
 from pathlib import Path
 
@@ -210,7 +214,7 @@ def get_live_version(path: str = "versions.json") -> str | None:
 
 Fill in `mark_passed` yourself, then compare all 3 of your finished versions against the [Solution](gate_bypass_solution.md).
 
-**Difference between Basic, Intermediate, and Advanced:** Basic uses a plain hash — enough to catch a careless hand-edit, not enough to stop someone who reads the code and recomputes it themselves. Intermediate fixes that specific gap with `hmac` and a secret. Advanced removes the separate pointer file altogether, making "what's live" a *derived* question answered by scanning the version log's own `passed_gate` field — the same record `deploy()` already writes and everything else already trusts — instead of a second file that exists only to be a target for exactly this kind of bypass.
+**Difference between Basic and Intermediate:** Basic uses a plain hash that anyone who reads the code can recompute. Intermediate uses an `hmac` signature that needs a secret, and then removes the separate pointer entirely so there's only one record to trust.
 
 <hr class="page-break">
 

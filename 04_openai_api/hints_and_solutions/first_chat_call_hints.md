@@ -39,8 +39,6 @@ For the system-prompt comparison, keep the user message identical across both ru
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-first_chat_call) · [Hint 1](first_chat_call_hints.md#hint-1) · [Hint 2](first_chat_call_hints.md#hint-2) · [Solution](first_chat_call_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

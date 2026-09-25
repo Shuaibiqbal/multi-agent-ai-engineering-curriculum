@@ -137,7 +137,8 @@ from typing import TypedDict, Annotated
 import operator
 from langgraph.graph import StateGraph, START, END
 
-define AgentState with: task, scratchpad (accumulating), next_action, final_answer
+define AgentState with: task, scratchpad (accumulating),
+    next_action, final_answer
 
 define think(state) -> dict:
     call your Doc07 model function with state["task"] and state["scratchpad"]
@@ -203,11 +204,19 @@ test_prompts = [
 for prompt in test_prompts:
     loop_answer = run_original_loop(prompt)  # your Doc07 loop, unchanged
     graph_result = graph.invoke(
-        {"task": prompt, "scratchpad": [], "next_action": "", "final_answer": ""},
+        {
+            "task": prompt,
+            "scratchpad": [],
+            "next_action": "",
+            "final_answer": "",
+        },
         config={"recursion_limit": 20},
     )
     graph_answer = graph_result["final_answer"]
-    status = "MATCH" if loop_answer.strip() == graph_answer.strip() else "MISMATCH"
+    if loop_answer.strip() == graph_answer.strip():
+        status = "MATCH"
+    else:
+        status = "MISMATCH"
     print(f"[{status}] {prompt!r}")
     if status == "MISMATCH":
         print(f"  loop:  {loop_answer}")

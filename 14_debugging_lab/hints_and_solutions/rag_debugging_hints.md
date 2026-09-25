@@ -33,12 +33,13 @@ def chunk_by_chars(text, chunk_size):
 **Error output:** no exception — it runs cleanly. A print of the chunks from `chunk_by_chars("The quick brown fox jumps", chunk_size=10)`:
 ```
 chunk 0: 'The quick'
-chunk 1: ' brown fo'
-chunk 2: 'x jumps'
+chunk 1: 'brown fox'
+chunk 2: 'jumps'
 ```
-Each chunk is only 9 characters long, and the boundary between chunk 0 and chunk 1 is missing a character (`'The quick'` + `' brown fo'` skips the `x` right before " brown").
+Each chunk is only 9 characters long, and joining them gives `'The quickbrown foxjumps'` — the space at every chunk boundary is gone.
 
 **Expected vs. actual:**
+
 - Expected: chunks are exactly `chunk_size` characters each (except possibly the last one), and concatenating all of them reproduces the original text exactly.
 - Actual: each chunk is one character short, and one character of the original text is silently dropped at every chunk boundary.
 
@@ -71,6 +72,7 @@ QUERY_EMBED_MODEL = "text-embedding-3-large"
 Scores that used to reliably sit around 0.7-0.9 for genuinely relevant chunks are now uniformly low, for every question, against every document.
 
 **Expected vs. actual:**
+
 - Expected: a question about the refund policy retrieves the chunk that actually discusses refunds, with a high similarity score.
 - Actual: retrieval quality degraded across the board, for every question, right after a routine-looking config change to which embedding model queries use.
 
@@ -89,12 +91,16 @@ Scores that used to reliably sit around 0.7-0.9 for genuinely relevant chunks ar
 **Log output:**
 ```
 [retrieve] question: "How many days do customers have to request a refund?"
-[retrieve] top-1 chunk: "...our return process is designed to be simple. Customers"
-[retrieve] top-2 chunk: "have 30 days from the date of purchase to request a full refund..."
-[generation] answer: "I don't see a specific number of days mentioned in the provided context."
+[retrieve] top-1 chunk:
+  "...our return process is designed to be simple. Customers"
+[retrieve] top-2 chunk:
+  "have 30 days from the date of purchase to request a full refund..."
+[generation] answer: "I don't see a specific number of days mentioned
+  in the provided context."
 ```
 
 **Expected vs. actual:**
+
 - Expected: the retriever surfaces the chunk (or chunks) containing the actual fact, and the model answers "30 days" confidently.
 - Actual: the one sentence containing the fact ("Customers have 30 days...") got cut in half by a chunk boundary — the retriever does return both halves in its top results, but the generation step, looking at each retrieved chunk somewhat independently, never connects "Customers" (end of chunk 1) to "have 30 days..." (start of chunk 2) as one continuous sentence.
 
@@ -113,16 +119,19 @@ Scores that used to reliably sit around 0.7-0.9 for genuinely relevant chunks ar
 **Log output:**
 ```
 [research_agent] retrieve() returned: [
-  {"text": "Customers have 30 days to request a refund.", "score": 0.91, "source": "policy.md"}
+  {"text": "Customers have 30 days to request a refund.",
+     "score": 0.91, "source": "policy.md"}
 ]
 [research_agent] research_findings written to shared state:
   "Customers can request a refund within 30 days."
 [analysis_agent] checking research_findings for traceable sources...
 [analysis_agent] no source metadata found — flagging as UNVERIFIED
-[writer_agent] softened claim per analysis flag: "refunds may be available within a certain window"
+[writer_agent] softened claim per analysis flag:
+  "refunds may be available within a certain window"
 ```
 
 **Expected vs. actual:**
+
 - Expected: a fact the retriever found with high confidence and a named source flows through the pipeline as verified, and the final answer states it plainly.
 - Actual: the retriever did its job correctly, but the source and score never made it past the Research agent's own node — Analysis, working only from the plain-text summary in shared state, has no way to tell a well-sourced fact from an unsourced guess, and downgrades it — invisible testing the retriever or the Research agent's tool call alone.
 

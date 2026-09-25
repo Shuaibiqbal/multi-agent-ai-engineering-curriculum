@@ -2,15 +2,23 @@
 
 > [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
 
+**Story — `architecture_comparison_practice.py` (Intermediate section):** this is the first real number behind the Basic exercise's on-paper guess — the sequential design, built and measured stage by stage. **If not:** `supervisor_compare` would have nothing fair to compare against, and "sequential is cheaper" would stay a guess.
+
 Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
 ## Basic Version
 
 ### Approach 1 — the direct way
 
+**Story:** the simplest possible measurement — time and tokens around each call, printed — to get a first real number fast. **If not:** you'd start comparing designs before you had even one honest number.
+
 ```python
 # architecture_comparison_practice.py — Intermediate section
 import time
+from langchain_openai import ChatOpenAI
+
+# the chat model every stage calls (Doc05's ChatOpenAI)
+model = ChatOpenAI(model="gpt-4o-mini")
 
 def research(topic):
     start = time.time()
@@ -56,9 +64,15 @@ This works and gives you real numbers. It's missing a clean result type and does
 
 ### Approach 1 — type hints and a dict report
 
+**Story:** a loose 3-item tuple makes `result[1]` mean "tokens" only if you remember the order; named dict keys can't be misread. **If not:** comparing two runs side by side would invite reading seconds as tokens.
+
 ```python
 # architecture_comparison_practice.py — Intermediate section
 import time
+from langchain_openai import ChatOpenAI
+
+# the chat model every stage calls (Doc05's ChatOpenAI)
+model = ChatOpenAI(model="gpt-4o-mini")
 
 def research(topic: str) -> dict:
     start = time.perf_counter()
@@ -112,12 +126,20 @@ total: 306 tokens, 2.75s
 
 ### Approach 2 — a typed `StageResult`, and a dedicated `run_sequential()`
 
+**Story:** `supervisor_compare` must produce the *same* report shape, so the shape deserves its own type and its own function. **If not:** the two designs' numbers would come back in different shapes, and every comparison would need translating first.
+
 ```python
 # architecture_comparison_practice.py — Intermediate section
 import time
+from langchain_openai import ChatOpenAI
+
+# the chat model every stage calls (Doc05's ChatOpenAI)
+model = ChatOpenAI(model="gpt-4o-mini")
 from dataclasses import dataclass
 
 
+# why: one small typed result per stage — result.tokens can't be
+# confused with result.seconds the way a bare tuple's [1] can
 @dataclass
 class StageResult:
     text: str
@@ -144,6 +166,7 @@ def write(research_text: str) -> StageResult:
 
 
 def run_sequential(topic: str) -> dict:
+    # how: time the whole pipeline too, not just each stage
     total_start = time.perf_counter()
     research_result = research(topic)
     write_result = write(research_result.text)
@@ -175,6 +198,8 @@ total: 306 tokens, 2.75s
 A small `StageResult` type instead of returning three loose values per function — the caller can't accidentally read `result.seconds` where it meant `result.tokens`, the way a bare tuple invites. A separate `run_sequential()` function keeps "run the whole pipeline and report on it" separate from each stage's own logic, so either can be tested or reused on its own — `supervisor_compare` reuses `research()` and `write()` unchanged, and builds a matching `run_supervisor()` report with the exact same 4 keys, so the two runs compare directly.
 
 ### Approach 3 — running multiple topics and reporting the ratio
+
+**Story:** one topic's numbers can be a fluke; three topics with the same ratio are a pattern you can act on. **If not:** "research costs more" would stay an impression from one run.
 
 Once you have one topic's numbers, the next real question — the one `sequential_measure`'s Hint 2 asks you to answer — is whether research or write is the more expensive stage, and by how much, across more than one run.
 

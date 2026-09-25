@@ -59,8 +59,6 @@ Sketch the rest of `main.py`'s loop — the streaming call, the structured-outpu
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
@@ -156,7 +154,9 @@ class ExtractedInfo(BaseModel):
     intent: str
 
 
-def get_structured_reply(client: OpenAI, user_input: str) -> ExtractedInfo | None:
+def get_structured_reply(
+    client: OpenAI, user_input: str
+) -> ExtractedInfo | None:
     try:
         completion = client.beta.chat.completions.parse(
             model="gpt-4o-mini",
@@ -227,7 +227,9 @@ while True:
         print("Login failed — check your API key.")
         break
     except openai.BadRequestError:
-        print("That conversation got too long — forgetting the oldest messages.")
+        print(
+            "That conversation got too long — forgetting the oldest messages."
+        )
         history = [history[0]] + history[-4:]
 ```
 **Expected output on a normal run:** each reply streams to the screen, and the conversation remembers earlier turns.
@@ -288,7 +290,9 @@ def stream_message(client: OpenAI, history: list[dict], user_input: str) -> str:
     return full_reply
 
 
-def get_structured_reply(client: OpenAI, user_input: str) -> ExtractedInfo | None:
+def get_structured_reply(
+    client: OpenAI, user_input: str
+) -> ExtractedInfo | None:
     # why: pulled out on its own so main.py's /extract command, and the
     # test file, can call it directly without going through the input() loop.
     try:
@@ -331,7 +335,9 @@ def main() -> None:
     config = load_config()
     logger = get_logger(__name__)
     client = create_client()
-    system_message = {"role": "system", "content": "You are a helpful assistant."}
+    system_message = {
+        "role": "system", "content": "You are a helpful assistant."
+    }
     history: list[dict] = [system_message]
 
     while True:

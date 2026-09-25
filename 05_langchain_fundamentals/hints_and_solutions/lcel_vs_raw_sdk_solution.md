@@ -72,7 +72,9 @@ def compare(text: str, lcel_chain) -> bool:
 def main() -> None:
     lcel_chain = build_lcel_chain()
     test_inputs = ["input one text", "input two text", "input three text"]
-    results = [compare(text, lcel_chain) for text in test_inputs]
+    results = []
+    for text in test_inputs:
+        results.append(compare(text, lcel_chain))
     print(f"\n{sum(results)}/{len(results)} matched")
 
 
@@ -136,7 +138,10 @@ def main() -> None:
     test_inputs = ["input one text", "input two text", "input three text"]
     rows = run_comparison(test_inputs)
 
-    matched = sum(1 for row in rows if row.matched)
+    matched = 0
+    for row in rows:
+        if row.matched:
+            matched = matched + 1
     print(f"{matched}/{len(rows)} matched")
     for row in rows:
         if not row.matched:

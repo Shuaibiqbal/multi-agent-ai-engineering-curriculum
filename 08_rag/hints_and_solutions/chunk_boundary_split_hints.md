@@ -52,7 +52,8 @@ The real fix is **chunking with overlap**: instead of cutting the document into 
 # chunking_practice.py — Edge cases section
 def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
     chunks = []
-    step = chunk_size - overlap   # smaller than chunk_size -- chunks now overlap
+    # smaller than chunk_size -- chunks now overlap
+    step = chunk_size - overlap
     i = 0
     while i < len(text):
         chunks.append(text[i:i + chunk_size])
@@ -120,13 +121,23 @@ for i, chunk in enumerate(chunks):
     print("chunk", i, ":", chunk)
 
 def get_embedding(text):
-    response = client.embeddings.create(model="text-embedding-3-small", input=text)
+    response = client.embeddings.create(
+        model="text-embedding-3-small", input=text
+    )
     return response.data[0].embedding
 
 def cosine_similarity(a, b):
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    dot = 0.0
+    for x, y in zip(a, b):
+        dot = dot + x * y
+    squares = 0.0
+    for x in a:
+        squares = squares + x * x
+    norm_a = math.sqrt(squares)
+    squares = 0.0
+    for x in b:
+        squares = squares + x * x
+    norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 ```
 **Expected output if you run just this:** the 2 printed chunks — add embedding, scoring, and the `k=1` vs `k=2` comparison yourself, then check the [Solution](chunk_boundary_split_solution.md).

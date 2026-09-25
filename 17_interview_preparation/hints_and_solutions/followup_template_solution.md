@@ -2,9 +2,17 @@
 
 > [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
 
+**Story — `followup_template.md`:** interviews are won in the follow-ups, not the first answer. This exercise answers a scenario and then asks the standing follow-ups yourself, before the interviewer does. **If not:** every "why not X?" would arrive as a surprise.
+
+Write your own answer first, in `practice/followup_template.md`, then compare.
+
 **Scenario question:** "Your RAG agent's retriever is returning irrelevant chunks in production, but it looked fine in testing. Walk me through how you'd debug it."
 
 ## Basic Version
+
+### Approach 1 — the plain answer
+
+**Story:** a complete, plain answer to the first question and each follow-up, in the right problem-solving order — isolate, diagnose, then think about failure. **If not:** you'd jump straight to a fix without checking which layer is broken.
 
 **First answer:** "I'd first check whether it's really the retriever, or something downstream that just looks like a retrieval problem. I'd take a few of the bad answers, look at exactly which chunks got pulled back, and see if those chunks make sense for the question or not."
 
@@ -22,6 +30,10 @@ This is a complete, honest, plain-English answer — what a nervous first-timer 
 
 ## Intermediate Version
 
+### Approach 1 — a structured answer
+
+**Story:** the same order, but every follow-up names a specific, checkable mechanism, and "what if it fails again" becomes a design fix. **If not:** your answers would stay at the category level, and a strong interviewer would keep asking "how, specifically?"
+
 **First answer:** "I'd isolate the layer first — pull the actual retrieved chunks for a handful of the bad live queries and check relevance directly, before assuming it's the retriever at all, since a prompt or generation regression can look identical to a retrieval regression from the outside."
 
 **Follow-up — what's underneath:** "Assuming the chunks themselves are genuinely off-topic, the three usual suspects are: index staleness — the underlying documents changed and weren't re-embedded; a chunking regression — a recent change to chunk size or boundaries is now splitting semantic units mid-sentence, hurting embedding quality; or distribution shift — the live query distribution has drifted from what the retriever was tuned and tested against."
@@ -32,13 +44,11 @@ This is a complete, honest, plain-English answer — what a nervous first-timer 
 
 **Why this answer works:** it's this document's Normal and Deep rungs, done properly, stacked on top of the standing follow-up list — it starts by isolating the failing layer instead of assuming the premise ("the retriever") is even correct, which is a senior instinct, not a junior one. Each follow-up answer names a *specific, checkable mechanism* (index staleness, chunking regression, distribution shift) instead of a vague category. It treats "what happens if it fails again" as a design gap to fix (a confidence threshold), not just a fact to report.
 
-**What the Basic Version misses:** the Basic Version's answers are correct but stop at the category level ("the docs changed," "the chunking's off") — the Intermediate Version names the *specific mechanism* behind each category (re-embedding lag, mid-sentence chunk boundaries hurting embedding quality, distribution shift specifically vs. testing distribution) and connects the debug step to a concrete before/after signal, not just "I'd look into it."
+**What the Basic Version misses:** the Basic Version's answers are correct but stop at the category level ("the docs changed," "the chunking's off") — Approach 1 names the *specific mechanism* behind each category (re-embedding lag, mid-sentence chunk boundaries hurting embedding quality, distribution shift specifically vs. testing distribution) and connects the debug step to a concrete before/after signal, not just "I'd look into it."
 
-<hr class="page-break">
+### Approach 2 — when the interviewer pushes back
 
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
-
-## Advanced Version
+**Story:** a good fix always has a cost, and a good interviewer will name it. This practices defending the fix honestly — how you'd tune it, what it costs, when it's the wrong call. **If not:** you'd either drop a sound fix at the first challenge, or defend it without listening.
 
 **The pushback, right after the Intermediate answer's confidence-threshold fix:** *"That threshold is going to make the system refuse to answer a lot of borderline-but-actually-fine queries. How do you know where to set it, and what does the product team say when 'I'm not sure' shows up for 15% of traffic?"*
 
@@ -50,4 +60,4 @@ On the 15% number specifically: I'd push back gently on whether that's actually 
 
 **What a weaker answer misses:** a weaker answer either caves immediately ("okay, maybe the threshold isn't a good idea then") — abandoning a genuinely sound fix the moment it's challenged, which reads as not having thought it through in the first place — or gets defensive and repeats "well, it's still better than nothing" without engaging the specific number the interviewer raised, which reads as not actually listening to the pushback.
 
-**Which one should you actually give in a real interview?** Lead with the Basic Version's plain framing so a non-specialist interviewer can follow it, then be ready to drop into the Intermediate Version's specific mechanisms (index staleness, chunking regression, distribution shift, similarity threshold) the moment you're asked "how do you know" or "what specifically." Save the Advanced Version's defend-under-pushback move for when it's actually needed — don't pre-empt a challenge nobody raised, since that reads as arguing with yourself. But when the pushback does land, answer it the way the Advanced Version does: name the real cost, don't dodge it, and say specifically what would change your mind.
+**Which one should you actually give in a real interview?** Lead with the Basic Version's plain framing so a non-specialist interviewer can follow it, then be ready to drop into Approach 1's specific mechanisms (index staleness, chunking regression, distribution shift, similarity threshold) the moment you're asked "how do you know" or "what specifically." Save Approach 2's defend-under-pushback move for when it's actually needed — don't pre-empt a challenge nobody raised, since that reads as arguing with yourself. But when the pushback does land, answer it the way Approach 2 does: name the real cost, don't dodge it, and say specifically what would change your mind.

@@ -6,6 +6,7 @@
 [10_agent_workflows](../10_agent_workflows/) (Project 3 done)
 
 ## How to Read & Practice This Document
+
 - **What:** splitting one task across several specialized agents.
 - **Why:** this is the real goal of the whole curriculum — and also the easiest place in the whole stack to overdo it for no good reason.
 - **When:** when one agent's tools or context become too much to handle well, or a task truly needs specialist thinking — never just by default, because multi-agent sounds impressive.
@@ -589,6 +590,7 @@ practice/
 **How to run each exercise:** if two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python practice/env_config_practice.py`.
 
 For this document:
+
 - Basic (`paper_design`), Intermediate (`sequential_measure`), and Real-world (`supervisor_compare`) are all the same running comparison — design the single/sequential/supervisor options on paper, then build and measure the sequential version, then build and measure the supervisor version against it — save all three together as `practice/architecture_comparison_practice.py`, with each level as its own section.
 - Edge cases (`ambiguous_routing`) asks a different question (can the supervisor route correctly when two specialists overlap) — save it as its own topic, `practice/supervisor_routing_practice.py`.
 - Failure (`convergence_and_cost_cutting`) is its own topic — save it as `practice/convergence_and_cost_cutting_practice.py`.
@@ -680,6 +682,7 @@ project_4_contentforge_multi_agent/
 ├── main.py              entry point, runs the graph
 ├── graph.py              wires all 5 nodes into a StateGraph
 ├── state.py               the shared state shape
+├── llm.py                 the one chat model every agent imports
 ├── agents/
 │   ├── supervisor.py       routing logic, using Command
 │   ├── research_agent.py   looks things up
@@ -693,6 +696,7 @@ project_4_contentforge_multi_agent/
 
 - `main.py` — the one place a task actually gets run, so the graph-building and the running-it concerns stay separate.
 - `graph.py` — builds on the same `StateGraph`/`Command` mechanics `supervisor_compare` already practiced, now with 5 nodes instead of 2.
+- `llm.py` — one `model = ChatOpenAI(...)` line every agent imports, so switching the model for all five agents is a one-line change.
 - `state.py` — one shared shape every agent reads and writes, so `research_findings`, `analysis`, `draft`, and `review_status` all mean the same thing everywhere.
 - `agents/*.py` — one file per specialist, so each agent's own logic is testable and readable on its own, separate from the routing.
 - `test_project4.py` — proves the revision loop actually recovers on rejection, and actually stops at the limit when it never agrees — the same discipline `convergence_and_cost_cutting` already trained.
@@ -705,6 +709,7 @@ project_4_contentforge_multi_agent/
 - a revision-round counter with a hard limit
 
 ## Expected Behavior
+
 - A normal task flows: supervisor routes to research → analysis → writer → reviewer; if the reviewer rejects it, back to writer (with a limit); the final accepted result comes back with a full log.
 - No two agents redundantly call the same tool for the same sub-task.
 - The system reports a clear failure (not an endless loop, not a silent bad answer) if revision never settles within the limit.
@@ -720,6 +725,7 @@ project_4_contentforge_multi_agent/
 | One specialist's tool call fails mid-run | The system does one of the three honest options — retries, routes around, or fails clearly — never silently continues with a bad result |
 
 ## Break-It / Debug Preview
+
 - The supervisor routes to the wrong agent.
 - Two agents redundantly call the same tool.
 - Reviewer and writer never agree.
@@ -728,6 +734,7 @@ project_4_contentforge_multi_agent/
 - Full debugging drill in [14_debugging_lab](../14_debugging_lab/).
 
 ## Interview Topics Preview
+
 - Full trade-off table for every pattern above · defending "why 4 agents and not 1" · shared vs. private state · `Command` vs. the older text-code routing pattern · the three real options for error propagation between agents · redundant-work and state-leaking failures.
 
 ## 🎯 You Can Now Build Project 4

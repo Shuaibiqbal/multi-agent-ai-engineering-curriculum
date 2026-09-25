@@ -185,7 +185,7 @@ def run_pipeline(
 # mcp_server.py
 import asyncio
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from pipeline import run_pipeline, PipelineResult, RevisionRound
 from exceptions import PipelineStepFailedError
@@ -195,7 +195,7 @@ from logging_setup import get_logger
 config = load_config()
 logger = get_logger(__name__)
 
-mcp = FastMCP("deep-research-service")
+mcp = MCPServer("deep-research-service")
 
 
 def format_result(result: PipelineResult) -> str:

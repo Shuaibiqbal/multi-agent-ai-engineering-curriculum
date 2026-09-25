@@ -30,6 +30,7 @@ The goal here is to identify the *exact* exception class `.with_structured_outpu
 Design a Pydantic model with a required numeric field (`int` or `float`), and ask about something purely descriptive that has no clean number in it. This forces a genuine mismatch, rather than relying on the model happening to misbehave.
 
 Here are the exact pieces you need:
+
 - A Pydantic model with a number field: `class Rating(BaseModel): score: int`
 - A structured chain: `ChatOpenAI().with_structured_output(Rating)`
 - A question with no number in it: `"Describe your favorite color."`
@@ -40,8 +41,6 @@ Run this and write down the exact class name before moving to Hint 2.
 A required `int` field combined with a prompt that has no number-shaped answer at all is a reliable way to force a mismatch — an *optional* field or a vaguely-numeric prompt might let the model guess something that technically parses, and you'd get a flaky test instead of a reliable one. Keep a broader `except Exception` fallback alongside the specific catch, logging `type(e).__name__` — library upgrades can change exactly which class gets raised, so a logged fallback catches that drift instead of silently missing it.
 
 **Difference between Basic and Intermediate:** Basic tells you to force a mismatch and inspect the error's type. Intermediate gives you the exact mechanism (`type(e).__mro__`) and the exact pieces to force it reliably — this is the depth the exercise's Solution is written at.
-
-<hr class="page-break">
 
 <hr class="page-break">
 

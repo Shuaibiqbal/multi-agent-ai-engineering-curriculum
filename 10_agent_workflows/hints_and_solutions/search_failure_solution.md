@@ -15,7 +15,8 @@ Read both depths — they're not "wrong, right," they're 2 real, valid ways to s
 from langgraph.checkpoint.memory import MemorySaver
 
 def search_node(state):
-    raise RuntimeError("simulated vector store outage")   # temporary, for this test
+    # temporary, for this test
+    raise RuntimeError("simulated vector store outage")
 
 checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
@@ -48,7 +49,8 @@ from langgraph.checkpoint.memory import MemorySaver
 
 
 def search_node(state: dict) -> dict:
-    raise RuntimeError("simulated vector store outage")   # temporary, for this test
+    # temporary, for this test
+    raise RuntimeError("simulated vector store outage")
 
 
 def test_state_survives_search_failure() -> None:
@@ -57,14 +59,16 @@ def test_state_survives_search_failure() -> None:
     config = {"configurable": {"thread_id": "failure-test-1"}}
 
     try:
-        graph.invoke({"task": "What does the policy say about refunds?"}, config)
+        graph.invoke(
+            {"task": "What does the policy say about refunds?"}, config
+        )
         raise AssertionError("expected the graph to raise, but it didn't")
     except RuntimeError as e:
         print(f"Caught expected failure: {e}")
 
     snapshot = graph.get_state(config)
-    assert "task" in snapshot.values, "the original task should still be in state"
-    assert snapshot.next == ("search_node",), "should stop right before search_node"
+    assert "task" in snapshot.values, "the task should still be in state"
+    assert snapshot.next == ("search_node",), "should stop before search_node"
     print("Confirmed: state is intact, graph knows where it stopped.")
 
 
@@ -131,7 +135,8 @@ def make_search_node(fail_times: int, permanent: bool = False):
             calls["count"] += 1
             if calls["count"] <= fail_times:
                 if permanent:
-                    raise ValueError("malformed query")  # not transient -- no retry
+                    # not transient -- no retry
+                    raise ValueError("malformed query")
                 raise TimeoutError("simulated timeout")
             return {"sources": ["a real result"]}
         raise RuntimeError("exhausted retries")

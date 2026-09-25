@@ -70,8 +70,10 @@ if __name__ == "__main__":
 ```
 status: 200
 body: {'current_user_url': 'https://api.github.com/user', ...}
-Caught a client-side request error: MissingSchema - Invalid URL 'htp://broken': No scheme supplied. Perhaps you meant https://htp://broken?
+Caught a client-side request error: MissingSchema - Invalid URL
+'htp://broken': No scheme supplied. Perhaps you meant https://htp://broken?
 ```
+(The last line is shown wrapped onto 2 lines just to fit the page — really one line of output.)
 
 **Difference from Basic:** catching `requests.exceptions.RequestException` specifically (instead of bare `Exception`) means this block only swallows problems that are actually about making the request — a bug anywhere else in a bigger `try` block would still surface normally, instead of being silently caught here too. Wrapping the script in `main()` also matches the pattern from Doc01 — small habit, but it's the one you'll want once this script grows past a few lines.
 

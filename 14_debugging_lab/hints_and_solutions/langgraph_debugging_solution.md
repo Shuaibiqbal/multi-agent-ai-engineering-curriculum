@@ -2,6 +2,10 @@
 
 > [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Hints](langgraph_debugging_hints.md)
 
+**Story — `langgraph_debugging_practice.py`:** graph bugs live in the wiring — route names, how state is merged, when a loop stops — not in any one node's code. Each fix here comes with a test that runs a tiny real graph, or checks the routing function directly, with stand-in nodes and no model. **If not:** you'd only see these bugs in a full, slow, paid run, and blame the model for a wiring mistake.
+
+Every fix and test below goes in `practice/langgraph_debugging_practice.py`, and runs with `pytest langgraph_debugging_practice.py -v` from inside `practice/`. None of the tests need an API key.
+
 - [Round 1: Basic](#round-basic)
 - [Round 2: Intermediate](#round-intermediate)
 - [Round 3: Real-world](#round-real-world)
@@ -14,30 +18,60 @@
 
 ## Round: Basic {: #round-basic }
 
-**Real cause:** `route()` returns the string `"finish"`, but the mapping passed to `add_conditional_edges()` only knows about `"done"`, not `"finish"` — a plain naming mismatch between the routing function's return values and the mapping dictionary's keys. LangGraph has no way to guess what you meant, so it fails loudly, which is exactly the behavior Doc09's own Edge-cases exercise (`conditional_edge_mismatch`) is built to demonstrate.
+**Real cause:** `route()` returns `"finish"`, but the mapping given to `add_conditional_edges()` only has the keys `"call_tool"` and `"done"`. LangGraph looks the returned word up in the mapping, doesn't find it, and raises `KeyError: 'finish'` — a plain naming mismatch between the routing function and its mapping. This is Doc09's own Edge cases exercise (`unhandled_routing_value`).
+
+**Story:** a bare `KeyError: 'finish'` gives almost nothing to go on, so this round trains searching your code for that exact word to find who produces it and who's supposed to accept it. **If not:** you'd go looking inside LangGraph for a bug that's a one-word mismatch in your own file.
 
 **The fix:**
 ```python
+from typing import TypedDict
+from langgraph.graph import StateGraph, START, END
+
+
+class AgentState(TypedDict):
+    needs_tool: bool
+
+
+def agent_node(state):
+    return {}                        # stand-in for the real agent
+
+
+def tool_node(state):
+    return {"needs_tool": False}     # stand-in: the tool ran, done now
+
+
 def route(state):
     if state["needs_tool"]:
         return "call_tool"
+    # why: must be a key in the mapping below — "done", not "finish"
     return "done"
 
-graph.add_conditional_edges("agent", route, {
-    "call_tool": "tool_node",
-    "done": END,
-})
+
+def build_graph():
+    graph = StateGraph(AgentState)
+    graph.add_node("agent", agent_node)
+    graph.add_node("tool_node", tool_node)
+    graph.add_edge(START, "agent")
+    graph.add_conditional_edges("agent", route, {
+        "call_tool": "tool_node",
+        "done": END,
+    })
+    graph.add_edge("tool_node", "agent")
+    return graph.compile()
 ```
-Make the routing function's return values match the mapping's keys exactly (and use LangGraph's actual `END` constant, not the string `"END"`, to close a branch out).
 
 **Test that would have caught it:**
 ```python
-def test_route_return_values_match_the_conditional_edge_mapping():
-    mapping_keys = {"call_tool", "done"}
-    possible_return_values = {"call_tool", "done"}
-    assert possible_return_values.issubset(mapping_keys)
+def test_graph_can_take_the_done_branch():
+    result = build_graph().invoke({"needs_tool": False})
+    assert result["needs_tool"] is False
+
+
+def test_graph_can_take_the_tool_branch_and_finish():
+    result = build_graph().invoke({"needs_tool": True})
+    assert result["needs_tool"] is False
 ```
-More directly: actually invoking the compiled graph with an input that takes the "finish" branch, in a test, catches this immediately — this bug can hide for a while if only the "keep going" branch ever gets tested.
+One test per branch: a suite that only ever tested the "keep going" branch would never reach the one with the typo.
 
 <hr class="page-break">
 
@@ -45,35 +79,58 @@ More directly: actually invoking the compiled graph with an input that takes the
 
 ## Round: Intermediate {: #round-intermediate }
 
-**Real cause:** by default, LangGraph merges a node's returned state update into the overall state field by field, and for a plain field (no reducer attached) the new value simply **replaces** the old one. `calculate_node`'s `{"findings": {"calc": 42}}` doesn't merge with `search_node`'s earlier `{"findings": {"search": ...}}` — it overwrites the whole `findings` value outright, because nothing told LangGraph how to combine two updates to the same field.
+**Real cause:** for a plain state field (no reducer), each node's update simply **replaces** the old value. `calculate_node`'s `{"findings": {"calc": 42}}` doesn't merge with `search_node`'s earlier `{"findings": {"search": ...}}` — it overwrites the whole dict, because nothing told LangGraph how to combine two updates to the same field.
+
+**Story:** the log says "the model forgot" — but the state itself lost the data before the model ever saw it. This round trains checking state at each step before blaming reasoning. **If not:** you'd add "remember earlier findings" to the prompt, and nothing would change.
 
 **The fix:**
 ```python
-import operator
-from typing import Annotated
+from typing import Annotated, TypedDict
+from langgraph.graph import StateGraph, START, END
+
 
 def merge_findings(current, update):
+    # why: a reducer tells LangGraph HOW to combine old and new —
+    # here, keep every key from both dicts
     merged = dict(current)
-    for key, value in update.items():
-        merged[key] = value
+    for key in update:
+        merged[key] = update[key]
     return merged
 
-class AgentState(TypedDict):
+
+class FindingsState(TypedDict):
     task: str
     findings: Annotated[dict, merge_findings]
+
+
+def search_node(state):
+    # stand-in for run_search(state["task"])
+    return {"findings": {"search": {"refund_policy": "30 days"}}}
+
+
+def calculate_node(state):
+    # stand-in for run_calculation(state["task"])
+    return {"findings": {"calc": 42}}
+
+
+def build_findings_graph():
+    graph = StateGraph(FindingsState)
+    graph.add_node("search", search_node)
+    graph.add_node("calculate", calculate_node)
+    graph.add_edge(START, "search")
+    graph.add_edge("search", "calculate")
+    graph.add_edge("calculate", END)
+    return graph.compile()
 ```
-Giving `findings` a reducer function tells LangGraph how to combine an existing value with a new update, instead of just overwriting — this is exactly Doc09's Core Concepts point about parallel branches needing a reducer to avoid the last update silently winning.
 
 **Test that would have caught it:**
 ```python
-def test_findings_from_multiple_nodes_are_both_kept():
-    state = {"task": "...", "findings": {}}
-    state.update(search_node(state))
-    state.update(calculate_node(state))
-    assert "search" in state["findings"]
-    assert "calc" in state["findings"]
+def test_findings_from_both_nodes_are_kept():
+    result = build_findings_graph().invoke({"task": "x", "findings": {}})
+    assert "search" in result["findings"]
+    assert "calc" in result["findings"]
 ```
-A test that only ever runs one of the two nodes can't catch this — it has to run both, in sequence, against the same state, and check that both contributions survived.
+The test has to run both nodes through a real graph — only the graph applies the reducer. Calling the two node functions by hand and merging with `dict.update()` would skip the reducer and prove nothing.
 
 <hr class="page-break">
 
@@ -81,40 +138,43 @@ A test that only ever runs one of the two nodes can't catch this — it has to r
 
 ## Round: Real-world {: #round-real-world }
 
-**Real cause:** `route()` only ever checks confidence against a fixed threshold — there's no counter tracking how many search rounds have already happened. For most questions, confidence climbs past 0.5 within a couple of rounds. For a specific kind of ambiguous question, results stay stuck in a "somewhat relevant but never quite enough" zone indefinitely, and with nothing else bounding the loop, it runs all the way to LangGraph's hard recursion limit before failing — the *symptom* (a recursion error) only fires 25 rounds after the *real cause* (a routing function with no round counter) first let the loop begin.
+**Real cause:** `route()` only checks confidence against a fixed threshold — there's no counter of how many search rounds have happened. Most questions pass 0.5 within a couple of rounds. A certain kind of ambiguous question stays "somewhat relevant, never enough" forever, and with nothing else to stop it, the loop runs to LangGraph's hard recursion limit — the *symptom* (a recursion error) fires 25 steps after the *real cause* (a loop with only one way out) let it start.
+
+**Story:** `GraphRecursionError` has no frame from your own node, which is the clue: nothing crashed, the *routing* never let go. This round trains giving every loop two exits — "good enough" and "tried enough". **If not:** you'd raise the recursion limit, and the same questions would just loop longer and cost more.
 
 **The fix:**
 ```python
-class AgentState(TypedDict):
+from typing import TypedDict
+
+
+class SearchState(TypedDict):
     task: str
     confidence: float
     search_rounds: int
 
-def search_node(state):
-    results = run_search(state["task"])
-    new_confidence = score_confidence(results)
-    return {
-        "confidence": new_confidence,
-        "search_rounds": state["search_rounds"] + 1,
-    }
 
-def route(state):
+def route_search(state):
     if state["confidence"] >= 0.5:
         return "done"
+    # why: the second way out — stop after 4 tries, confident or not
     if state["search_rounds"] >= 4:
         return "give_up"
     return "search_again"
 ```
-A real stopping rule needs two ways out, not one: "confident enough" and "tried enough times and still isn't" — `give_up` routes somewhere that returns a clear, honest "couldn't find a confident answer" result instead of quietly looping.
+Each search node adds 1 to `search_rounds` in its update, and `"give_up"` routes to a node that returns a clear "couldn't find a confident answer" result.
 
 **Test that would have caught it:**
 ```python
-def test_search_loop_gives_up_after_a_fixed_number_of_rounds(fake_search_that_never_helps):
-    result = compiled_graph.invoke({"task": "a deliberately unanswerable question", "search_rounds": 0})
-    assert result["search_rounds"] <= 4
-    assert result.get("gave_up") is True
+def test_search_loop_gives_up_after_four_rounds():
+    state = {"task": "x", "confidence": 0.3, "search_rounds": 4}
+    assert route_search(state) == "give_up"
+
+
+def test_search_loop_keeps_going_before_the_limit():
+    state = {"task": "x", "confidence": 0.3, "search_rounds": 1}
+    assert route_search(state) == "search_again"
 ```
-This is Doc09's own Real-world exercise pattern: build a loop with no exit rule, on purpose, and run it with a low hard limit so it fails fast in testing instead of quietly running 25 rounds — the test above simulates exactly the "never quite confident enough" case that real ambiguous questions produce.
+The routing function is plain Python, so the "never confident" case can be tested with a hand-made state in milliseconds — no need to run 25 real search rounds.
 
 <hr class="page-break">
 
@@ -122,47 +182,52 @@ This is Doc09's own Real-world exercise pattern: build a loop with no exit rule,
 
 ## Round: Multi-agent {: #round-multi-agent }
 
-**Real cause:** two separate bugs stacking on top of each other, each invisible on its own. First, `review_route` has the exact same missing-counter problem as Round 3 — no cap on revision rounds. Second, the specific reason the Reviewer keeps rejecting is that the "compliance detail" it wants was never actually written into `research_findings` in the first place (a Research-agent gap), so the Writer is being asked, every round, to include something it has no way to produce. Neither bug shows up testing the Writer/Reviewer pair alone with hand-written examples, because those examples always include a findings field the Writer *can* satisfy — the missing-data condition only occurs with real Research-agent output on certain real tasks.
+**Real cause:** two bugs stacked on top of each other. First, `review_route` has the same problem as Round 3 — no cap on revision rounds. Second, the Reviewer keeps rejecting because the "compliance detail" it wants was never written into `research_findings` at all (a Research-agent gap), so the Writer is asked, every round, for something it can't produce. Neither shows up testing the Writer/Reviewer pair with hand-written examples, because those always include findings the Writer *can* satisfy.
+
+**Story:** the loop has two causes, and each fix covers a different one — the cap stops the endless loop no matter why, and looking one layer back finds why it looped. This round trains fixing both, not just the one you saw first. **If not:** the cap alone would turn "loops forever" into "gives up every time", and the missing compliance detail would stay missing.
 
 **The fix:**
 ```python
-class SharedState(TypedDict):
+from typing import TypedDict
+
+
+class ReviewState(TypedDict):
     task: str
     research_findings: str
     draft: str
     review_passed: bool
     revision_count: int
 
-def writer_node(state):
-    draft = write_draft(state["task"], state["research_findings"])
-    return Command(goto="reviewer", update={
-        "draft": draft,
-        "revision_count": state.get("revision_count", 0) + 1,
-    })
+
+def count_revision(state):
+    # how: the Writer node adds this to its update on every draft
+    return {"revision_count": state["revision_count"] + 1}
+
 
 def review_route(state):
     if state["review_passed"]:
         return "done"
+    # why: Doc11's Build Task rule — a hard limit on revision rounds
     if state["revision_count"] >= 3:
         return "give_up"
     return "revise"
-
-graph.add_conditional_edges("reviewer", review_route, {
-    "done": END,
-    "revise": "writer_agent",
-    "give_up": "give_up_report",
-})
 ```
-The revision cap (matching Doc11's Build Task constraint directly) stops the infinite loop regardless of cause. Fixing *why* it kept looping still means going one layer further back — checking whether the Research agent's output can actually satisfy what the Reviewer is asking for, and if not, having the Reviewer's rejection reason point at what's missing from `research_findings`, not just "try again."
+The graph maps `"give_up"` to a `give_up_report` node that says clearly the agents couldn't agree. Then go one layer back: make the Reviewer's rejection name what's missing from `research_findings`, so the gap in the Research agent's output is visible instead of hidden inside an endless loop.
 
 **Test that would have caught it:**
 ```python
-def test_revision_loop_gives_up_after_a_fixed_number_of_rounds(reviewer_that_never_approves):
-    result = run_full_pipeline(sample_task_missing_a_compliance_detail)
-    assert result["revision_count"] <= 3
-    assert result.get("gave_up") is True
+def test_review_loop_gives_up_after_three_revisions():
+    state = {"task": "x", "research_findings": "", "draft": "d",
+             "review_passed": False, "revision_count": 3}
+    assert review_route(state) == "give_up"
+
+
+def test_each_draft_counts_as_one_revision():
+    state = {"task": "x", "research_findings": "", "draft": "d",
+             "review_passed": False, "revision_count": 1}
+    assert count_revision(state) == {"revision_count": 2}
 ```
-Running the *full* pipeline against a task deliberately missing something the Reviewer will want — not a hand-picked, always-satisfiable example — is what surfaces this; a 2-node Writer/Reviewer test with friendly fixtures structurally cannot reproduce a gap that only exists in real Research-agent output.
+The first test proves the loop can end; the second proves the counter really moves, so the limit is actually reached.
 
 <hr class="page-break">
 
@@ -170,4 +235,4 @@ Running the *full* pipeline against a task deliberately missing something the Re
 
 ## Real cause vs. symptom fix {: #real-cause-vs-symptom-fix }
 
-A symptom fix would be raising the recursion limit whenever it's hit (Round 3) — the loop still never converges, it just gets to waste more tool calls before giving up — or having the Reviewer just approve everything after enough rejections (Round 4), which "fixes" the infinite loop by quietly shipping drafts that are missing the compliance detail nobody caught. Both leave the structural problem — no real stopping rule, and a Reviewer asking for something that was never available — fully in place. The fixes above instead add a real, honest exit condition at the exact layer the loop actually lives in (the conditional edge's own routing logic), which is Core Concepts' "checking layer by layer" point turned concrete: a graph that loops forever is a graph-structure bug, not something a bigger number or a more lenient reviewer can paper over.
+A symptom fix here would be wrapping `invoke()` in a `try/except KeyError` (Round 1), telling the model in the prompt to "remember all earlier findings" (Round 2), or raising `recursion_limit` to 100 (Rounds 3 and 4). Each makes one visible failure go away while the wiring stays wrong: the mapping still doesn't match, state still overwrites itself, and loops still have only one exit — so the next unusual input hits the same wall, later and more expensively. The real fixes all change the graph's structure — matching route names, a reducer that says how to merge, and a second exit on every loop — which is why they hold for inputs you haven't tried yet.

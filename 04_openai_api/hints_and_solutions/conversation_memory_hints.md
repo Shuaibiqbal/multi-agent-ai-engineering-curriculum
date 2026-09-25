@@ -37,8 +37,6 @@ Also decide how the loop ends — a sentinel input like typing `"quit"` is the s
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-conversation_memory) · [Hint 1](conversation_memory_hints.md#hint-1) · [Hint 2](conversation_memory_hints.md#hint-2) · [Solution](conversation_memory_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

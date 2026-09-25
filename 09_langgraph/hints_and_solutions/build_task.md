@@ -78,7 +78,8 @@ This lets `test_graph.py` (and later, Document 10's app) pass in its own checkpo
 
 ```
 state.py:
-    AgentState: task, scratchpad (accumulates), next_action, final_answer, approved
+    AgentState: task, scratchpad (accumulates), next_action,
+        final_answer, approved
 
 nodes.py:
     think(state): call the model; decide "call_tool" or "finish";
@@ -117,7 +118,9 @@ def risky_action(state):
     question = f"Approve this risky action for task: {state['task']}?"
     approval = interrupt({"question": question})
     if not approval:
-        return {"final_answer": "Risky action was not approved.", "approved": False}
+        return {
+            "final_answer": "Risky action was not approved.", "approved": False
+        }
     # placeholder for the real risky action (e.g. send an email, spend money)
     return {"final_answer": "Risky action completed.", "approved": True}
 ```
@@ -145,9 +148,11 @@ state.py:
 
 nodes.py:
     function think(state: AgentState) -> dict:
-        call your Doc07 model function with state["task"] and state["scratchpad"]
+        call your Doc07 model function
+            with state["task"] and state["scratchpad"]
         if it wants a tool: return scratchpad update, next_action="call_tool"
-        if it wants the risky action: return scratchpad update, next_action="risky"
+        if it wants the risky action:
+            return scratchpad update, next_action="risky"
         otherwise: return scratchpad update, next_action="finish", final_answer
 
     function act(state: AgentState) -> dict:
@@ -237,7 +242,10 @@ nodes.py -- risky_action, now with a real rejection path:
             outcome = "Risky action completed."
         except Exception as e:
             # never swallow this -- record it visibly
-            return {"final_answer": f"Risky action failed: {e}", "approved": False}
+            return {
+                "final_answer": f"Risky action failed: {e}",
+                "approved": False,
+            }
         return {"final_answer": outcome, "approved": True}
 
 test_graph.py:
@@ -264,7 +272,9 @@ def build_graph(checkpointer=None):
     builder.add_node("risky_action", risky_action)
     builder.add_edge(START, "think")
     builder.add_conditional_edges(
-        "think", route, {"call_tool": "act", "risky": "risky_action", "finish": END}
+        "think", route, {
+            "call_tool": "act", "risky": "risky_action", "finish": END
+        }
     )
     builder.add_edge("act", "think")
     builder.add_edge("risky_action", END)
@@ -295,7 +305,9 @@ def call_model_with_tools(task: str, scratchpad: list[str]) -> dict:
     return {"action": "finish", "answer": "84"}
 
 def run_tool(tool_name: str, task: str) -> str:
-    return "84" if tool_name == "calculator" else "unknown tool"
+    if tool_name == "calculator":
+        return "84"
+    return "unknown tool"
 ```
 
 ### Basic Version
@@ -349,7 +361,9 @@ def risky_action(state: AgentState) -> dict:
     question = f"Approve this risky action for task: {state['task']}?"
     approval = interrupt({"question": question})
     if not approval:
-        return {"final_answer": "Risky action was not approved.", "approved": False}
+        return {
+            "final_answer": "Risky action was not approved.", "approved": False
+        }
     return {"final_answer": "Risky action completed.", "approved": True}
 
 
@@ -372,7 +386,9 @@ def build_graph():
     builder.add_node("risky_action", risky_action)
     builder.add_edge(START, "think")
     builder.add_conditional_edges(
-        "think", route, {"call_tool": "act", "risky": "risky_action", "finish": END}
+        "think", route, {
+            "call_tool": "act", "risky": "risky_action", "finish": END
+        }
     )
     builder.add_edge("act", "think")
     builder.add_edge("risky_action", END)
@@ -465,7 +481,9 @@ def risky_action(state: AgentState) -> dict:
     question = f"Approve this risky action for task: {state['task']}?"
     approval = interrupt({"question": question})
     if not approval:
-        return {"final_answer": "Risky action was not approved.", "approved": False}
+        return {
+            "final_answer": "Risky action was not approved.", "approved": False
+        }
     return {"final_answer": "Risky action completed.", "approved": True}
 
 
@@ -540,7 +558,8 @@ def build_graph(checkpointer=None):
     if none is given.
     """
     if checkpointer is None:
-        checkpointer = MemorySaver()  # why: never force every caller to share one
+        # why: never force every caller to share one
+        checkpointer = MemorySaver()
 
     builder = StateGraph(AgentState)
     builder.add_node("think", think)
@@ -548,7 +567,9 @@ def build_graph(checkpointer=None):
     builder.add_node("risky_action", risky_action)
     builder.add_edge(START, "think")
     builder.add_conditional_edges(
-        "think", route, {"call_tool": "act", "risky": "risky_action", "finish": END},
+        "think", route, {
+            "call_tool": "act", "risky": "risky_action", "finish": END
+        },
     )
     builder.add_edge("act", "think")
     builder.add_edge("risky_action", END)
@@ -606,7 +627,8 @@ All assertions passed, using an explicitly supplied checkpointer.
 from langgraph.checkpoint.sqlite import SqliteSaver
 from graph import build_graph
 
-with SqliteSaver.from_conn_string("project3_checkpoints.sqlite") as checkpointer:
+db_path = "project3_checkpoints.sqlite"
+with SqliteSaver.from_conn_string(db_path) as checkpointer:
     graph = build_graph(checkpointer=checkpointer)
     config = {"configurable": {"thread_id": "real-run-1"}}
     task_start = {
@@ -614,7 +636,9 @@ with SqliteSaver.from_conn_string("project3_checkpoints.sqlite") as checkpointer
         "final_answer": "", "approved": False,
     }
     graph.invoke(task_start, config=config)
-    print("Paused and saved to disk -- this state now survives past this process.")
+    print(
+        "Paused and saved to disk -- this state now survives past this process."
+    )
 ```
 **Expected output:**
 ```

@@ -65,7 +65,8 @@ def decide_wait_seconds(response: FakeResponse, attempt: int) -> int:
         try:
             return int(retry_after)
         except ValueError:
-            pass  # malformed header — fall through to backoff instead of crashing
+            # malformed header — fall through to backoff instead of crashing
+            pass
     return 2 ** attempt
 
 
@@ -116,7 +117,8 @@ def parse_retry_after(value: str) -> float | None:
     try:
         # how: the HTTP-date form, e.g. "Wed, 21 Oct 2026 07:28:00 GMT"
         target_time = parsedate_to_datetime(value)
-        seconds_left = (target_time - datetime.now(timezone.utc)).total_seconds()
+        now = datetime.now(timezone.utc)
+        seconds_left = (target_time - now).total_seconds()
         return max(seconds_left, 0.0)
     except (TypeError, ValueError):
         # when: neither form matched — caller falls back to backoff

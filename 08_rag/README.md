@@ -351,8 +351,12 @@ class ScopedRetriever:
     ) -> list[dict]:
         clauses = [{"tenant_id": {"$eq": self._tenant_id}}]
         if filters:
-            clauses.extend({key: {"$eq": value}} for key, value in filters.items())
-        where = clauses[0] if len(clauses) == 1 else {"$and": clauses}
+            for key in filters:
+                clauses.append({key: {"$eq": filters[key]}})
+        if len(clauses) == 1:
+            where = clauses[0]
+        else:
+            where = {"$and": clauses}
         results = self._collection.query(
             query_embeddings=[embed_query(query)], n_results=k, where=where,
         )
@@ -443,12 +447,14 @@ class ScopedRetriever:
 
 ```python
 def build_context(chunks: list[dict]) -> str:
-    """Labelled data, with per-chunk ids and delimiters the model is told about."""
-    parts = [
-        f'<chunk id="{c["id"]}">\n{strip_invisible(c["text"])}\n</chunk>'
-        for c in chunks
-    ]
-    return "<retrieved_context>\n" + "\n".join(parts) + "\n</retrieved_context>"
+    """Labelled data, with per-chunk ids and delimiters the model is
+    told about."""
+    parts = []
+    for c in chunks:
+        text = strip_invisible(c["text"])
+        parts.append(f'<chunk id="{c["id"]}">\n{text}\n</chunk>')
+    joined = "\n".join(parts)
+    return "<retrieved_context>\n" + joined + "\n</retrieved_context>"
 ```
 Paired with a system prompt stating everything inside `<retrieved_context>` is untrusted data to quote from, never an instruction — and asking the model to *report* any override attempt it saw, which turns a silent compromise into a detection signal for free.
 
@@ -569,6 +575,7 @@ practice/
 - `knowledge_base_search_practice.py` — a real, self-written knowledge base you can check by eye, so a wrong search result is immediately recognizable instead of a guess.
 
 **For this document, save your practice code as:**
+
 - **Basic** (see embeddings as geometry, not theory) is its own topic — save as `practice/embedding_similarity_practice.py`.
 - **Intermediate** (chunking method changes the answer), **Edge cases** (when the answer spans two chunks), and **Failure** (a bad split, and a `k` comparison) are all about splitting documents and what that does to search — save them together as `practice/chunking_practice.py`, one section per level.
 - **Real-world** (build and search a real knowledge base) is its own topic — save as `practice/knowledge_base_search_practice.py`.

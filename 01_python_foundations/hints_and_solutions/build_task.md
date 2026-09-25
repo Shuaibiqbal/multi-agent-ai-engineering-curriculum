@@ -317,7 +317,8 @@ And with `OPENAI_API_KEY` missing from `.env` entirely:
 ```
 Traceback (most recent call last):
   ...
-exceptions.MissingConfigError: Required environment variable is missing: OPENAI_API_KEY
+exceptions.MissingConfigError: Required environment variable is missing:
+OPENAI_API_KEY
 ```
 
 This version works correctly and meets every Build Task requirement. It's missing type hints, and it builds error messages with `+` instead of an f-string â€” both fine for a first working version.
@@ -459,7 +460,8 @@ This version deliberately stays at the same level as the rest of this document â
 
 ```python
 # practice/build_task/test_config.py
-# Runs the four Test Cases from the README against config.py and logging_setup.py.
+# Runs the four Test Cases from the README
+# against config.py and logging_setup.py.
 # Run it from inside this folder: python test_config.py
 # It rewrites .env as it goes, so it backs your real one up first, and
 # puts it back at the very end.

@@ -78,7 +78,8 @@ function decide_wait(response, attempt):
 
 test it:
     call decide_wait on the fake response -> should return 2
-    call decide_wait on a response with no Retry-After -> should return the backoff number
+    call decide_wait on a response with no Retry-After
+        -> should return the backoff number
 ```
 
 Here is almost the whole thing:

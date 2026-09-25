@@ -77,7 +77,8 @@ build the graph:
 run it:
     compile the graph
     invoke it with a starting message
-    print what comes back -- trace by hand what "message" should be after each node
+    print what comes back --
+        trace by hand what "message" should be after each node
 ```
 
 Here's almost the whole thing — just try running it and reading it line by line:
@@ -147,7 +148,8 @@ class GraphState(TypedDict):
     message: str
     log: Annotated[list[str], operator.add]
 
-each node now also returns {"log": ["node_one ran"]} or {"log": ["node_two ran"]}
+each node now also returns {"log": ["node_one ran"]}
+    or {"log": ["node_two ran"]}
 
 run it and check: does state["log"] end up with BOTH entries, in order,
 or does node_two's write erase node_one's?

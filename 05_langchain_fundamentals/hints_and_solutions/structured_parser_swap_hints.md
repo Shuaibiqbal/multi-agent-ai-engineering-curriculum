@@ -42,8 +42,6 @@ You can still put this inside a full LCEL chain — `prompt | ChatOpenAI().with_
 
 <hr class="page-break">
 
-<hr class="page-break">
-
 > [Back to the exercise](../README.md#ex-structured_parser_swap) · [Hint 1](structured_parser_swap_hints.md#hint-1) · [Hint 2](structured_parser_swap_hints.md#hint-2) · [Solution](structured_parser_swap_solution.md)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }

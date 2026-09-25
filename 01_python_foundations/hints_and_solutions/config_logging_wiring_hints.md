@@ -112,7 +112,8 @@ in practice/config_logging_wiring/main.py:
     import sys and MissingConfigError
 
     try:
-        config = load_config()          # do this first — fail fast if something's missing
+        # do this first — fail fast if something's missing
+        config = load_config()
     except MissingConfigError as e:
         print an error message and sys.exit(1)
 

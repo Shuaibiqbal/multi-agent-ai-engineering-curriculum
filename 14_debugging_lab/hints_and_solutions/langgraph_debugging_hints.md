@@ -24,7 +24,7 @@ def route(state):
 
 graph.add_conditional_edges("agent", route, {
     "call_tool": "tool_node",
-    "done": "END",
+    "done": END,
 })
 ```
 
@@ -36,12 +36,13 @@ Traceback (most recent call last):
   File "project_3_documind_rag_agent/graph.py", line 44, in <module>
     result = compiled_graph.invoke({"needs_tool": False, ...})
   ...
-ValueError: At 'agent' node, 'route' returned unknown target: 'finish'
+KeyError: 'finish'
 ```
 
 **Expected vs. actual:**
+
 - Expected: when `route()` decides the agent is done, the graph moves to the end.
-- Actual: LangGraph raises immediately, saying `'finish'` isn't a target it knows about.
+- Actual: LangGraph raises immediately with a bare `KeyError: 'finish'` — no node name, no hint, just the one word it couldn't find.
 
 **What do you think is wrong?**
 
@@ -78,6 +79,7 @@ Both nodes can run in the same graph run, one after the other, when a task needs
 ```
 
 **Expected vs. actual:**
+
 - Expected: after both nodes run, `state["findings"]` contains both the search results and the calculation result.
 - Actual: whichever node ran second completely replaced `findings`, silently discarding whatever the first node had written.
 
@@ -102,11 +104,13 @@ def route(state):
 
 **Error output (only for certain inputs):**
 ```
-langgraph.errors.GraphRecursionError: Recursion limit of 25 reached without hitting a stop
-condition. You can increase the limit by setting the `recursion_limit` config key.
+langgraph.errors.GraphRecursionError: Recursion limit of 25 reached without
+hitting a stop condition. You can increase the limit by setting the
+`recursion_limit` config key.
 ```
 
 **Expected vs. actual:**
+
 - Expected: the loop either finds a confident enough answer and finishes, or genuinely can't and says so clearly, within a small, predictable number of rounds.
 - Actual: for most questions it finishes quickly. For a specific kind of question — one where the search results are consistently a little relevant but never quite enough to push confidence above 0.5 — it loops all the way to the hard recursion limit before failing, wasting 25 rounds of tool calls first.
 
@@ -127,7 +131,7 @@ def review_route(state):
     return "revise"
 
 graph.add_conditional_edges("reviewer", review_route, {
-    "done": "END",
+    "done": END,
     "revise": "writer_agent",
 })
 ```
@@ -146,6 +150,7 @@ graph.add_conditional_edges("reviewer", review_route, {
 ```
 
 **Expected vs. actual:**
+
 - Expected: the Writer/Reviewer loop either converges quickly or gives up after a small, fixed number of rounds with a clear "couldn't agree" result — Doc11's Build Task requires exactly this.
 - Actual: the loop has no revision cap at all — `review_route` only ever checks `review_passed`, with no counter anywhere in state — so if the Reviewer is asking for something the Writer structurally can't produce (because, as it happens, that "compliance detail" was never actually written into `research_findings` by the Research agent to begin with), the two agents can disagree forever, and nothing stops them.
 

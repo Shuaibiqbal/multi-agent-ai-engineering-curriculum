@@ -1,6 +1,6 @@
 # Step 4 — Production Wrap — Hints
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 Nudges, not answers — and this step is honestly closer to "go redo Project 5" than to anything new. Each hint has 3 depth levels: **Basic**, **Intermediate**, **Advanced**.
 
@@ -9,7 +9,7 @@ Nudges, not answers — and this step is honestly closer to "go redo Project 5" 
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 ## Hint 1 — This is Project 5, not a new design {: #hint-1 }
 
@@ -19,7 +19,7 @@ The README says it plainly: "literally repeat Project 5's Steps 1-4, on this cod
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 ### Intermediate Version
 
@@ -27,7 +27,7 @@ Work through Project 5's 4 steps in order, one FastAPI route at a time, against 
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 ### Advanced Version
 
@@ -37,7 +37,7 @@ One genuine difference worth thinking about before you copy Project 5's Step 3 r
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 ## Hint 2 — What's actually different here {: #hint-2 }
 
@@ -47,7 +47,7 @@ Your eval suite (Project 5 Step 4's equivalent here) needs its own fixed set of 
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 ### Intermediate Version
 
@@ -55,7 +55,7 @@ Think about what "known-correct findings" means for a diff review, specifically 
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 ### Advanced Version
 
@@ -65,6 +65,6 @@ Project 5 Step 3's Dockerfile needed no special secrets beyond `OPENAI_API_KEY`.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-project-5s-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
 
 Full solution: [Show me the solution](step4_production_wrap_solution.md)

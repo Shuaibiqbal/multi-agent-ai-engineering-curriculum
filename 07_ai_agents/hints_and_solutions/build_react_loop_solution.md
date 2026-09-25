@@ -26,7 +26,11 @@ def run_agent(task, max_iterations=5):
             for call in message.tool_calls:
                 result = run_tool(call)
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result,
+                    },
                 )
         else:
             return message.content
@@ -73,7 +77,11 @@ def run_agent(task: str, max_iterations: int = 5) -> str:
             for call in message.tool_calls:
                 result = run_tool(call)
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result,
+                    },
                 )
         else:
             return message.content
@@ -117,7 +125,11 @@ def run_agent(task: str, max_iterations: int = 5) -> AgentResult:
             for call in message.tool_calls:
                 result = run_tool(call)
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result},
+                    {
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": result,
+                    },
                 )
                 steps.append({
                     "step": step,
@@ -128,7 +140,9 @@ def run_agent(task: str, max_iterations: int = 5) -> AgentResult:
         else:
             return AgentResult(final_answer=message.content, steps=steps)
 
-    raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
+    raise MaxIterationsExceeded(
+        f"No answer after {max_iterations} steps", steps
+    )
 ```
 
 **Difference from Basic:** both add full type hints (`task: str`, `-> str` / `-> AgentResult`). Approach 2 additionally records each step's tool, arguments, and result as it happens, and returns them alongside the answer — once the final answer is wrong, you have a real trail to look at instead of re-running with print statements sprinkled in by hand.
@@ -206,7 +220,9 @@ def run_agent(task: str, max_iterations: int = 5) -> AgentResult:
         else:
             return AgentResult(final_answer=message.content, steps=steps)
 
-    raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
+    raise MaxIterationsExceeded(
+        f"No answer after {max_iterations} steps", steps
+    )
 ```
 **Expected behavior if `get_weather` raises on a bad city name:** `run_tool()` catches it, and the loop's next round sees `{"role": "tool", "content": "Error: city not found"}` as the Observation — the model gets a real chance to react (retry, ask for clarification, or say it can't answer), instead of the whole program crashing and every already-completed step being lost.
 

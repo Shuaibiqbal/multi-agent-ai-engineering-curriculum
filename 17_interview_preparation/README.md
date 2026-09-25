@@ -6,6 +6,7 @@
 All earlier documents — this one pulls them together, it doesn't teach anything new.
 
 ## How to Read & Practice This Document
+
 - **What:** repeated interview practice on everything you've learned, at growing depth.
 - **Why:** knowing something and being able to give a clear, well-sized answer about it, on the spot, under a bit of pressure, are two different skills — this document trains the second one specifically.
 - **When:** keep doing this format as you finish each document, not just once at the very end.
@@ -31,7 +32,8 @@ The three practice exercises below build on each other. First, cold recall — c
 No new material — this document pulls its questions straight from every "Interview Topics Preview" section across Docs 01-16. Look back at those before a session here.
 
 ## Question Coverage (per document you've already finished)
-- 5 basic + 5 intermediate + 5 advanced + 3 scenario-based + 3 debugging + 2 system-design questions, taken from that document's topics.
+
+- 5 basic + 5 intermediate + 5 senior-level + 3 scenario-based + 3 debugging + 2 system-design questions, taken from that document's topics.
 - A standing follow-up you should expect for any answer: *Why? Why not X? How? What happens underneath? What happens if it fails? How would you scale it? How would you cut its cost? How would you debug it?*
 
 Below is a worked example of that formula for 3 documents spanning the curriculum — one early, one middle, one late — pulled from each document's real Core Concepts and Interview Topics Preview. Use these as-is for live practice, or as a model for building the same kind of list from any other finished document. No hints or solutions here on purpose — answer these live with the mentor, the same way this whole document runs.
@@ -54,7 +56,7 @@ Below is a worked example of that formula for 3 documents spanning the curriculu
 - How do logging handlers let the same log line go quietly to a file in production and loudly to the console locally, without changing the log call itself?
 - Does a wrong type hint crash your program? What does it actually do instead?
 
-**Advanced**
+**Senior-level**
 
 - What's the real danger of a mutable default argument like `def f(items=[])`, and why does it only surface as a bug sometimes?
 - If a required `.env` key is silently missing, what's the worst place for that to fail — and how do you make it fail at startup instead?
@@ -91,7 +93,7 @@ Below is a worked example of that formula for 3 documents spanning the curriculu
 - How does hybrid search combine keyword and vector search, and why doesn't either one alone work well for something like a product SKU?
 - What does a reranker do that the first-pass vector search can't, and why not just run the reranker over everything?
 
-**Advanced**
+**Senior-level**
 
 - Your RAG system scores well on retrieval metrics but users still report wrong answers. What does that tell you about where to look next?
 - How would you decide whether to raise `k`, add metadata filtering, or add a reranker, if answers are coming back inconsistent?
@@ -128,7 +130,7 @@ Below is a worked example of that formula for 3 documents spanning the curriculu
 - Why is the older "text code" routing pattern (returning something like `"ROUTE_TO_WRITER"`) more fragile than using `Command`?
 - What's the trade-off of a hierarchical (supervisors-of-supervisors) pattern versus a single supervisor?
 
-**Advanced**
+**Senior-level**
 
 - How would you defend using 4 agents instead of 1 well-prompted agent, if an interviewer pushes back that it sounds like over-engineering?
 - What's a "state-leaking" failure in a multi-agent system, and how would you catch it before it reaches a user?
@@ -150,6 +152,21 @@ Below is a worked example of that formula for 3 documents spanning the curriculu
 ## Practice Exercises
 **Why only 3 here, not 5:** this document's real practice is live, back-and-forth interview simulation — these 3 give you a fixed starting point; the actual depth comes from the live evaluation and correction after each one.
 
+**Where your answers live:** `17_interview_preparation/practice/` (`mkdir -p practice`). Write each answer down before comparing — these are spoken answers, so each one is a short Markdown file:
+
+```
+practice/
+├── cold_recall.md           Basic
+├── followup_template.md     Intermediate
+└── project_walkthrough.md   Real-world
+```
+
+**Why each file exists:**
+
+- `cold_recall.md` — your cold, no-notes answers, so you can see what you actually retained, not just recognised.
+- `followup_template.md` — your first answer *and* your answers to the standing follow-ups, written before the interviewer asks them.
+- `project_walkthrough.md` — your four beats (problem, shape, one decision, one limitation) for one project, reusable for any other.
+
 **Jump to an exercise:** [Basic](#ex-cold_recall) · [Intermediate](#ex-followup_template) · [Real-world](#ex-project_walkthrough)
 
 ### Basic — cold recall {: #ex-cold_recall }
@@ -158,6 +175,7 @@ Below is a worked example of that formula for 3 documents spanning the curriculu
 - **Why:** this checks whether you actually retained the material, or only recognized it while reading — a real interview gives you no notes either.
 - **When you'll hit this for real:** the first 10 minutes of almost any technical interview — basic recall questions, meant to confirm you know the fundamentals before going deeper.
 - **How to do it:** pick a finished document, close it, and answer 5 of its "Interview Topics Preview" items out loud or in writing, timing yourself.
+- **Save as:** `practice/cold_recall.md`.
 - **Stuck?** [Hint 1](hints_and_solutions/cold_recall_hints.md#hint-1) · [Hint 2](hints_and_solutions/cold_recall_hints.md#hint-2) · [Show me the solution](hints_and_solutions/cold_recall_solution.md)
 
 ### Intermediate — apply the follow-up template yourself {: #ex-followup_template }
@@ -166,6 +184,7 @@ Below is a worked example of that formula for 3 documents spanning the curriculu
 - **Why:** the actual senior skill isn't answering the first question well — it's anticipating the follow-up before it's asked, which is what this exercise trains directly.
 - **When you'll hit this for real:** any interview past the junior level — a good interviewer always pushes past your first answer.
 - **How to do it:** answer a scenario question, then immediately ask yourself "why not X, how would I scale it, how would I debug it" and answer those too, before checking against the ideal answer.
+- **Save as:** `practice/followup_template.md`.
 - **Stuck?** [Hint 1](hints_and_solutions/followup_template_hints.md#hint-1) · [Hint 2](hints_and_solutions/followup_template_hints.md#hint-2) · [Show me the solution](hints_and_solutions/followup_template_solution.md)
 
 ### Real-world — a cold interview on your own project {: #ex-project_walkthrough }
@@ -174,6 +193,7 @@ Below is a worked example of that formula for 3 documents spanning the curriculu
 - **Why:** explaining your *own* design under real questioning is a different skill than reciting facts — this is the closest simulation to an actual interview this curriculum can give you.
 - **When you'll hit this for real:** any interview where you're asked to walk through a project from your portfolio — this happens in nearly every real AI engineering interview.
 - **How to do it:** say "interview me about Project 4" (or any project) and answer as if the interviewer has never seen your code — don't assume shared context.
+- **Save as:** `practice/project_walkthrough.md` (your four beats, written before the live session).
 - **Stuck?** [Hint 1](hints_and_solutions/project_walkthrough_hints.md#hint-1) · [Hint 2](hints_and_solutions/project_walkthrough_hints.md#hint-2) · [Show me the solution](hints_and_solutions/project_walkthrough_solution.md)
 
 ## Move On When
