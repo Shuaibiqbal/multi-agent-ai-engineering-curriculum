@@ -47,8 +47,8 @@ The second thing worth separating out: fixing the "half the fact went missing" b
 
 The extra pieces:
 
-- Measure `retrieve()`'s timing again, but against a much larger synthetic chunk list (repeat/pad your test document hundreds of times) — watch the per-query time actually start to grow with corpus size, unlike the near-flat numbers from a few dozen chunks.
-- Re-run the whole exercise using `chunk_by_chars_with_overlap` (from `chunking_methods`, Intermediate section) instead of the plain `chunk_by_chars`, and confirm `k=1` alone now returns the complete fact.
+- Measure `retrieve()`'s timing again, but against a much larger synthetic chunk list (repeat/pad your test document hundreds of times) — watch the per-query time actually start to grow with corpus size, unlike the near-flat numbers from a few dozen chunks. Embed those hundreds of chunks in **batches** (`input=` a list of up to 2,048 texts per call), not one call per chunk — the `get_embeddings_batch` idea from the Basic exercise.
+- Re-run the whole exercise using `chunk_by_chars_with_overlap` (from `chunking_methods`, Intermediate section) instead of the plain `chunk_by_chars`, and confirm `k=1` alone now returns the complete fact. The rule: any text up to `overlap` characters long always fits whole inside some chunk — the fact sentence is 71 characters, so use `chunk_size=120, overlap=80`.
 
 **Difference between Basic and Intermediate:** Basic observes that timing barely changes across `k` values, at a scale too small to show why that's misleading. Intermediate also explains *why* it barely changes (brute force over a handful of chunks), shows what happens once the corpus is actually large, and separates "the split-fact bug" (a chunking problem, fixed by overlap) from "how wide to search" (a `k`/cost trade-off) — two genuinely different decisions that are easy to mix up after watching `k` alone seem to fix things in a tiny example.
 
@@ -199,12 +199,14 @@ Once that's working, add the missing variable — corpus size — and the real c
 ```
 build a much bigger chunk list: your TEST_DOCUMENT repeated/padded until
     there are hundreds (or low thousands) of chunks
+embed them in slices of 1,000 per embeddings call, not one call each
 
 time retrieve() against this bigger list at the same k values (1, 3, 10)
     -> compare against the timings from the small chunk list
 
 separately: build chunks_with_overlap using chunk_by_chars_with_overlap
-    instead of chunk_by_chars, on the ORIGINAL small TEST_DOCUMENT
+    instead of chunk_by_chars, on the ORIGINAL small TEST_DOCUMENT,
+    with chunk_size=120, overlap=80 (overlap >= the 71-char fact)
 
 run retrieve() at k=1 against the overlapping chunks
     -> does the single top chunk now contain the whole fact?

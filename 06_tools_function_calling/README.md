@@ -640,11 +640,16 @@ practice/
 ├── tool_selection_practice.py       Intermediate + Failure (two sections)
 ├── real_api_tool_practice.py        Real-world
 ├── missing_argument_practice.py     Edge cases
+├── http_client.py                   copied from Doc02, unchanged
+├── exceptions.py                    copied from Doc02, unchanged
+├── logging_setup.py                 copied from Doc02, unchanged
 └── build_task/                      Build Task — its own folder
-    ├── tools.py                     2-3 @tool functions + argument models
+    ├── tools.py                     3 @tool functions + argument models
     ├── tool_harness.py              run_with_tools(...) -> ToolCallResult
-    ├── test_prompts.py              the results logger — prompt -> outcome
-    └── logging_setup.py             copied from Doc01, unchanged
+    ├── test_prompts.py              the Test Cases — prompt -> outcome
+    ├── http_client.py               copied from Doc02, unchanged
+    ├── exceptions.py                copied from Doc02, unchanged
+    └── logging_setup.py             copied from Doc02, unchanged
 ```
 
 **Why each script exists:**
@@ -652,10 +657,10 @@ practice/
 - `first_tool_call_practice.py` — the exact primitive every agent in this curriculum is built from.
 - `tool_selection_practice.py` — where "tool descriptions are prompts too" stops being abstract and becomes something you watched happen.
 - `real_api_tool_practice.py` — a hardcoded tool teaches nothing about the failure modes real tools actually have.
-- `missing_argument_practice.py` — tells you whether a tool needs to ask a clarifying question or handle a missing value gracefully.
+- `missing_argument_practice.py` — tells you whether a tool needs to ask a clarifying question, then fixes it with a Pydantic `args_schema`.
 - `build_task/tools.py` / `build_task/tool_harness.py` — the one tool library every later document (Doc07 onward) imports instead of writing tools from scratch.
 - `build_task/test_prompts.py` — proves which tool gets picked for a real set of prompts, not just an assumption.
-- `build_task/logging_setup.py` — copied unchanged from Doc01, so the harness logs the same consistent way as every other document.
+- `http_client.py` / `exceptions.py` / `logging_setup.py` — Doc02's client and its errors, copied unchanged (in `practice/` and `build_task/`), so the real-API tool gets Doc02's retries and named errors.
 
 **For this document, save your practice code as:**
 
@@ -689,7 +694,7 @@ practice/
 
 - **What:** a tool that makes a real `requests` call (reuse Doc02's client), not a fake one.
 - **Why:** a tool that only returns hardcoded data teaches you nothing about the failure modes real tools actually have — timeouts, bad responses, rate limits.
-- **How to code it:** wrap Doc02's `request_with_retry()` inside a `@tool`-decorated function that calls a real public API (weather, currency conversion, anything free), and register it.
+- **How to code it:** copy Doc02's `http_client.py`, `exceptions.py` and `logging_setup.py` into `practice/`, unchanged. Call `request_with_retry("GET", url, params=...)` inside a `@tool`-decorated function that calls a real public API (the weather, free), and register it. In Intermediate, catch Doc02's `TransientHTTPError` and `PermanentHTTPError` and return an `"Error: ..."` string.
 - **Save as:** `practice/real_api_tool_practice.py`.
 - **Builds on:** [Doc02's Build Task](../02_apis_http_json/README.md#build-task-http-client-wrapper) — import `http_client.py` rather than calling `requests` directly, exactly as Doc04 was told to.
 - **Used later by:** the [Build Task](#build-task-tool-library)'s required "one tool that calls a real service."
@@ -699,20 +704,20 @@ practice/
 
 - **What:** a tool that needs an argument the user's message didn't provide — see what the model actually does.
 - **Why:** this tells you whether you need to design your tool to ask a clarifying question, or handle a missing/default value gracefully.
-- **How to code it:** give a tool a required `city: str` argument, then ask a question that needs the tool but never mentions a city — read what the model does (asks you, guesses, or fails).
+- **How to code it:** give a tool a required `city: str` argument, then ask a question that needs the tool but never mentions a city — read what the model does (asks you, guesses, or fails). Then fix it: a Pydantic `WeatherArgs` with `city: str = Field(min_length=1)`, attached with `@tool(args_schema=WeatherArgs)`, and catch the `ValidationError`.
 - **Save as:** `practice/missing_argument_practice.py`.
 - **Builds on:** the Pydantic argument-model habit from [Checking arguments: Pydantic as the contract](#checking-arguments-pydantic-as-the-contract) — the "optional field, let the tool ask" rule this topic states directly.
-- **Used later by:** the [Build Task](#build-task-tool-library)'s Pydantic argument models, and the Test Cases row "missing a required argument."
+- **Used later by:** the [Build Task](#build-task-tool-library)'s Pydantic argument models (one `args_schema` per tool), and the Test Cases row "missing a required argument."
 - **Stuck?** [Hint 1](hints_and_solutions/missing_argument_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/missing_argument_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/missing_argument_handling_solution.md)
 
 ### Failure — a crashing tool, and a bad description {: #ex-tool_error_and_description_fix }
 
 - **What:** a tool that raises an error when called, made into a clean message the model can react to instead of a crash. Then a deliberately vague tool description, sharpened, with before/after proof.
 - **Why:** both of these are real production bugs you will cause yourself at least once — better to see them here, on purpose, where nothing's at stake.
-- **How to code it:** wrap your tool's body in `try/except`, and on error `return f"Error: {e}"` as the tool's result instead of letting it raise — the same custom-exception discipline as [Doc01](../01_python_foundations/README.md#errors-a-clean-way-to-say-something-specific-went-wrong). Then take a genuinely vague description, run the same ambiguous prompt 5 times, sharpen it, and run it 5 more times — count how the split changed.
+- **How to code it:** wrap your tool's body in `try/except`, and on error `return f"Error: {e}"` as the tool's result instead of letting it raise — the same custom-exception discipline as [Doc01](../01_python_foundations/README.md#errors-a-clean-way-to-say-something-specific-went-wrong). Send that string back to the model as a `{"role": "tool", "content": ..., "tool_call_id": ...}` message and read its real reaction. Then take a genuinely vague description, run the same ambiguous prompt 5 times, sharpen it, and run it 5 more times — count how the split changed.
 - **Save as:** `practice/tool_selection_practice.py`, under a `# Failure` section (this file also holds the [Intermediate exercise](#ex-tool_selection_ambiguity), in its own `# Intermediate` section).
 - **Builds on:** the [Intermediate](#ex-tool_selection_ambiguity) section of this same file — same descriptions, now deliberately fixed.
-- **Used later by:** the [Build Task](#build-task-tool-library)'s "one tool designed to sometimes fail."
+- **Used later by:** the [Build Task](#build-task-tool-library)'s "one tool designed to sometimes fail," and its harness, which sends every tool result back the same way.
 - **Stuck?** [Hint 1](hints_and_solutions/tool_error_and_description_fix_hints.md#hint-1) · [Hint 2](hints_and_solutions/tool_error_and_description_fix_hints.md#hint-2) · [Show me the solution](hints_and_solutions/tool_error_and_description_fix_solution.md)
 
 ## Build Task — Tool Library
@@ -724,25 +729,27 @@ practice/
 
 - At least one tool that's pure logic (no outside calls), one that calls a real service (using Doc02's HTTP client), and one designed to sometimes fail (for the failure-handling practice above).
 - Each tool has a precise description — you'll need to be able to defend why the model picks correctly, given it.
-- A test harness that registers all the tools on one model call, and logs which tool (if any) got picked for a set of test prompts.
+- A test harness that registers all the tools on one model call, logs which tool (if any) got picked for a set of test prompts, and sends each tool's result back so the model's final answer can be checked.
 
 **Inputs:** a list of test prompts — some clearly matching one tool, some unclear, some matching none. **Outputs:** for each prompt — which tool was called, with what arguments, and what it returned. **Constraints:** tool arguments must be Pydantic models, not loose dictionaries. No tool should crash the whole test on bad input — it must return a clear error the model can see instead.
 
 ```
 06_tools_function_calling/practice/build_task/
-├── tools.py            2-3 @tool functions, Pydantic argument models
+├── tools.py            3 @tool functions, Pydantic argument models
 ├── tool_harness.py     run_with_tools(prompt, tools) -> ToolCallResult
-├── test_prompts.py     prompt -> tool picked -> arguments -> outcome
-└── logging_setup.py    get_logger(name), copied from Doc01's build task
+├── test_prompts.py     prompt -> tool picked -> output -> final answer
+├── http_client.py      request_with_retry(), copied from Doc02
+├── exceptions.py       Doc02's named HTTP errors, copied unchanged
+└── logging_setup.py    get_logger(name), copied from Doc02's build task
 ```
 
 - `tools.py` / `tool_harness.py` — **What/Why:** the one tool library every later document (Doc07 onward) imports instead of writing tools from scratch.
 - `test_prompts.py` — **What/Why:** proves which tool actually gets picked for a real set of prompts — also doubles as this Build Task's test file.
-- `logging_setup.py` — **What/Why:** copied unchanged from Doc01, so the harness logs the same consistent way as every other document.
+- `http_client.py` / `exceptions.py` / `logging_setup.py` — **What/Why:** copied unchanged from Doc02, so the weather tool gets Doc02's retries and named errors, and the harness logs the same consistent way as every other document.
 
 **Run it:** `cd practice/build_task && python test_prompts.py` — from inside the folder, so imports resolve.
 
-**Builds on:** the [Basic](#ex-first_tool_call) round-trip, the [Real-world](#ex-real_api_tool) API-backed tool, the [Failure](#ex-tool_error_and_description_fix) error-handling pattern, and the [Edge cases](#ex-missing_argument_handling) optional-argument rule — **copy** all four into `tools.py` and `tool_harness.py` rather than starting from scratch. Use [Doc01](../01_python_foundations/)'s `get_logger(name)` for the harness's logging, exactly as named there.
+**Builds on:** the [Basic](#ex-first_tool_call) round trip, the [Real-world](#ex-real_api_tool) API-backed tool, the [Edge cases](#ex-missing_argument_handling) `args_schema` models, and the [Failure](#ex-tool_error_and_description_fix) error string sent back as a tool message — **copy** all four into `tools.py` and `tool_harness.py` rather than starting from scratch. Use [Doc01](../01_python_foundations/)'s `get_logger(name)` for the harness's logging, exactly as named there.
 
 **Used later by:** [Doc07](../07_ai_agents/)'s agent loop imports this same tool library and wraps `tool_harness.py`'s round-trip in a `while` loop — that is genuinely the whole difference between a tool call and an agent.
 

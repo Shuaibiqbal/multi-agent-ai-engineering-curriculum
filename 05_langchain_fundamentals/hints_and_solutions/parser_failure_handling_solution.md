@@ -2,28 +2,43 @@
 
 > [Back to the exercise](../README.md#ex-parser_failure_handling) · [Hint 1](parser_failure_handling_hints.md#hint-1) · [Hint 2](parser_failure_handling_hints.md#hint-2) · [Solution](parser_failure_handling_solution.md)
 
-**Story — `structured_output_practice.py` (Failure section):** you need to know, before it happens in production, exactly what exception type a mismatched structured-output reply raises. Forcing it here, on purpose, once, means the Build Task's "handle a bad structured-output reply gracefully" requirement is catching an error you've actually seen fire, not a guess. **If not:** the first real failure would happen in front of a real user, with your code catching the wrong exception type or not catching it at all.
+**Story — `structured_output_practice.py` (Failure section):** you need to know, before it happens in production, exactly which exception a bad reply raises. "Shape during" almost never fails, so this exercise uses "check after" — a `PydanticOutputParser` — where a reply in the wrong shape really does fail. **If not:** the Build Task's "a reply that doesn't fit the shape raises a clear, named error" test would check an error you had never seen fire.
 
 ## Basic Version
+
+### Approach 1 — the direct way
 
 ```python
 # structured_output_practice.py — Failure section
 from pydantic import BaseModel
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+
 
 class Rating(BaseModel):
     score: int
 
-structured_model = ChatOpenAI().with_structured_output(Rating)
+
+# how: "check after" — the prompt never tells the model the shape,
+# so the parser only finds out after the reply is written
+parser = PydanticOutputParser(pydantic_object=Rating)
+prompt = ChatPromptTemplate.from_template("Rate {thing} from 1 to 10.")
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+chain = prompt | model | parser
 
 try:
-    structured_model.invoke("Describe your favorite color, no numbers at all.")
+    chain.invoke({"thing": "pizza"})
 except Exception as e:
-    print("Error type:", type(e))
-    print("Error message:", e)
+    print("Error type:", type(e).__name__)
+```
+**Expected output:**
+
+```
+Error type: OutputParserException
 ```
 
-This version works and shows you the failure. Catching the broad `Exception` finds it, but doesn't tell your future code exactly which class to catch on purpose — you still have to go read the printed type by hand.
+The prompt never mentioned a shape, so the model answered in a sentence ("I'd rate pizza a 9 out of 10!"), and the parser couldn't read it as JSON. Catching the broad `Exception` finds the class — Intermediate catches it by name.
 
 <hr class="page-break">
 
@@ -31,9 +46,15 @@ This version works and shows you the failure. Catching the broad `Exception` fin
 
 ## Intermediate Version
 
+### Approach 1 — catch it by name, then fix the prompt
+
 ```python
 # structured_output_practice.py — Failure section
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
+from langchain_core.exceptions import OutputParserException
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 
 
@@ -41,32 +62,59 @@ class Rating(BaseModel):
     score: int
 
 
-def get_rating_chain() -> ChatOpenAI:
+parser = PydanticOutputParser(pydantic_object=Rating)
+
+# why: no word about the shape — the model answers in a sentence
+BROKEN_TEMPLATE = "Rate {thing} from 1 to 10."
+# how: {format_instructions} is filled once with .partial(), so the
+# caller only passes {thing}
+FIXED_TEMPLATE = "Rate {thing} from 1 to 10.\n{format_instructions}"
+
+
+def build_rating_chain(template: str) -> Runnable:
+    prompt = ChatPromptTemplate.from_template(template)
+    if "{format_instructions}" in template:
+        instructions = parser.get_format_instructions()
+        prompt = prompt.partial(format_instructions=instructions)
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    return model.with_structured_output(Rating)
+    return prompt | model | parser
+
+
+def get_rating(chain: Runnable, thing: str) -> Rating | None:
+    try:
+        return chain.invoke({"thing": thing})
+    except OutputParserException:
+        # why: catch the parser's own error by name — a network error
+        # or a bad key must still fail loudly
+        return None
 
 
 def main() -> None:
-    structured_model = get_rating_chain()
+    broken_chain = build_rating_chain(BROKEN_TEMPLATE)
+    print(f"case 1 (no instructions)   -> {get_rating(broken_chain, 'pizza')}")
 
+    fixed_chain = build_rating_chain(FIXED_TEMPLATE)
+    print(f"case 2 (with instructions) -> {get_rating(fixed_chain, 'pizza')}")
+
+    # how: .parse() alone checks any text — no API call needed
     try:
-        prompt = "Describe your favorite color, no numbers at all."
-        structured_model.invoke(prompt)
-    except ValidationError as e:
-        # why: catching the specific class means real code can react
-        # differently to "didn't match my shape" than to anything else.
-        print(f"Caught a ValidationError (expected): {e}")
-    except Exception as e:
-        print(
-            f"Caught a different error than expected: {type(e).__name__}: {e}"
-        )
-        print(f"Full class chain: {type(e).__mro__}")
+        parser.parse("I'd say eight")
+        print("case 3 (parse by hand)     -> accepted (wrong!)")
+    except OutputParserException:
+        print("case 3 (parse by hand)     -> OutputParserException")
 
 
 if __name__ == "__main__":
     main()
 ```
+**Expected output** (the score varies):
 
-**Difference from Basic:** Basic catches everything with one broad `except Exception`. Intermediate catches the *specific* class (`ValidationError`) it expects, with a broader fallback that also prints the full class chain — this is exactly the "check the real type before assuming" habit Doc01's Core Concepts describes, applied here for real.
+```
+case 1 (no instructions)   -> None
+case 2 (with instructions) -> score=9
+case 3 (parse by hand)     -> OutputParserException
+```
 
-**Which one should you actually write?** Intermediate's specific-catch-plus-fallback is what this document's Build Task needs — it handles a bad structured-output reply gracefully, which is all the requirement asks for. A caller-friendly wrapper (returning `Rating | None`, logging and re-raising only genuinely unexpected error types) is worth writing once this call is made from inside a real feature rather than a debugging script; a retry with a clarified prompt is worth adding on top of that once you've confirmed a second attempt genuinely has a shot at succeeding. Neither is required here.
+**Difference from Basic:** `OutputParserException` is caught by name inside `get_rating()`, which returns `None` — anything else still fails loudly. The fixed template adds `parser.get_format_instructions()` with `.partial()`, so the model knows the shape. And `parser.parse()` tests the failure with no API call.
+
+**Which one should you write?** Intermediate's. The Build Task's test file uses the same `parser.parse(...)` check for its "wrong shape" case.

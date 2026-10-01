@@ -65,7 +65,7 @@ try:
 except Exception as e:
     print("Missing:", type(e).__name__, e)
 ```
-**Expected output:** something naming `KeyError` and `'question'`. Add the extra-variable test call yourself before checking Hint 3.
+**Expected output:** something naming `KeyError` and `'question'`. Add the extra-variable test call yourself before checking the Solution.
 
 <hr class="page-break">
 

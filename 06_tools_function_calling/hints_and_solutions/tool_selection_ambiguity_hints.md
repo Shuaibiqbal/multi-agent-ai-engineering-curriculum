@@ -42,7 +42,7 @@ Write the two docstrings deliberately similar — e.g. `"Get the current weather
 
 A 5-run split like `{"get_weather": 3, "get_forecast": 2}` raises a harder question than "which one is right": is that split itself a problem, or is it just what a genuinely unclear prompt should produce? The prompt genuinely doesn't say whether "today" or "this week" was meant — a perfect model might legitimately split its answers too. The fix isn't always "make the split go away" — sometimes it's "recognize the prompt actually needs a follow-up question."
 
-**Difference between Basic and Intermediate:** Basic gets you a real, measured split from one trial with a plain dictionary. Intermediate wraps the trial in a reusable, per-run-logging function using `Counter` — this is the depth the exercise's Solution is written at.
+**Difference between Basic and Intermediate:** Basic gets you a real, measured split from one trial with a plain dictionary. Intermediate wraps the trial in a reusable, per-run-logging function that returns the counts dictionary (or a `collections.Counter`, which starts any missing key at 0 — the Solution's Approach 2) — this is the depth the exercise's Solution is written at.
 
 <hr class="page-break">
 
@@ -114,9 +114,9 @@ def get_forecast(city: str) -> str: "Get the weather forecast for a city."
 function get_model_with_tools():
     return ChatOpenAI(...).bind_tools([get_weather, get_forecast])
 
-function run_selection_trial(prompt, runs=5) -> Counter:
+function run_selection_trial(prompt, runs=5) -> dict:
     model_with_tools = get_model_with_tools()
-    tally = Counter()
+    counts = {"get_weather": 0, "get_forecast": 0, "none": 0}
     for run_number in range(1, runs + 1):
         response = model_with_tools.invoke(prompt)
         if response.tool_calls:
@@ -124,13 +124,13 @@ function run_selection_trial(prompt, runs=5) -> Counter:
         else:
             picked = "none"
         print(f"Run {run_number}: picked {picked}")
-        tally[picked] += 1
-    return tally
+        counts[picked] = counts[picked] + 1
+    return counts
 ```
 
 Wire this into a full script with `if __name__ == "__main__":`, then compare against the [Solution](tool_selection_ambiguity_solution.md).
 
-**Difference between Basic and Intermediate:** same underlying trial (register, ask 5 times, tally) at 2 completeness levels — Basic's version prints one dictionary and stops, Intermediate wraps it in a reusable, per-run-logging function.
+**Difference between Basic and Intermediate:** same underlying trial (register, ask 5 times, count) at 2 completeness levels — Basic's version prints one dictionary and stops, Intermediate wraps it in a reusable, per-run-logging function.
 
 <hr class="page-break">
 

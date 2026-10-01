@@ -18,16 +18,16 @@ prompt = ChatPromptTemplate.from_template("Answer: {question}")
 try:
     prompt.invoke({})
 except Exception as e:
-    print("Missing variable error:", type(e).__name__, "-", e)
+    print("Missing variable error:", type(e).__name__)
 
 # extra variable
 result = prompt.invoke({"question": "What is LCEL?", "extra": "unused"})
-print("Extra variable result:", result)
+print("Extra variable result:", result.messages[0].content)
 ```
 **Expected output:**
 ```
-Missing variable error: KeyError - 'question'
-Extra variable result: messages=[HumanMessage(content='Answer: What is LCEL?')]
+Missing variable error: KeyError
+Extra variable result: Answer: What is LCEL?
 ```
 
 This version works and shows both cases clearly. It catches the broad `Exception` for the missing-variable case rather than the specific `KeyError`, which is fine for exploring but not what you'd write once you know exactly what error type to expect.
@@ -50,15 +50,18 @@ def demonstrate_missing_variable(prompt: ChatPromptTemplate) -> None:
     # is expected here — a broad except would hide a genuinely different bug.
     try:
         prompt.invoke({})
-    except KeyError as e:
-        print(f"Missing variable -> KeyError: {e}")
+    except KeyError:
+        # how: the error message names the missing slot ('question') —
+        # print it with {e} when you need to see which one
+        print("Missing variable -> KeyError, before any API call")
 
 
 def demonstrate_extra_variable(prompt: ChatPromptTemplate) -> None:
     # when: an unused key in the input dict is silently ignored, not an
     # error — worth confirming, since it's easy to assume the opposite.
     result = prompt.invoke({"question": "What is LCEL?", "extra": "unused"})
-    print(f"Extra variable -> no error, result: {result}")
+    # how: the filled prompt is a list of messages; [0] is the only one
+    print(f"Extra variable -> no error: {result.messages[0].content}")
 
 
 def main() -> None:
@@ -72,9 +75,8 @@ if __name__ == "__main__":
 ```
 **Expected output:**
 ```
-Missing variable -> KeyError: 'question'
-Extra variable -> no error, result:
-messages=[HumanMessage(content='Answer: What is LCEL?')]
+Missing variable -> KeyError, before any API call
+Extra variable -> no error: Answer: What is LCEL?
 ```
 
 **Difference from Basic:** catching `KeyError` specifically (not a broad `Exception`) documents, right in the code, exactly what failure you expect and are prepared to handle — if the library ever changed to raise a different error type here, this code would stop silently swallowing it and let you notice. Splitting the two demonstrations into named functions also makes each case something you could reuse as an actual test later, not just a script you run once and read.

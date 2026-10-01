@@ -51,6 +51,7 @@ The extra pieces:
 
 - A `chunk_by_chars` that steps forward by `chunk_size - overlap` instead of `chunk_size`, so each new chunk starts a little *before* where the last one ended.
 - A fallback inside `chunk_by_paragraph`: if splitting on `"\n\n"` produces only 1 piece (or the piece is still enormous), fall back to `chunk_by_chars` instead of silently returning one giant "chunk."
+- The chunker as a parameter: a function is a value, so `best_chunk_for(chunk_fn, text, question_vector)` can call whichever chunker it's given. Its type hint is `Callable[[str], list[str]]` (from `typing`) — "takes a `str`, returns a `list[str]`". Keep the chunkers in a `dict` of name → function and loop over it.
 
 Sketch the overlapping version of `chunk_by_chars` yourself before checking Hint 2.
 
@@ -223,7 +224,22 @@ def chunk_by_paragraph_safe(text: str) -> list[str]:
     ...
 ```
 
-Fill in the overlap step and the fallback check yourself, then compare all of your finished versions against the [Solution](chunking_methods_solution.md).
+Then pass the chunker in as a value:
+
+```python
+from typing import Callable
+
+
+def best_chunk_for(
+    chunk_fn: Callable[[str], list[str]],
+    text: str,
+    question_vector: list[float],
+) -> tuple[str, float]:
+    # your turn: call chunk_fn on text, then reuse find_best_chunk
+    ...
+```
+
+Fill in the overlap step, the fallback check and `best_chunk_for` yourself, then compare all of your finished versions against the [Solution](chunking_methods_solution.md).
 
 **Difference between Basic and Intermediate:** same two chunking ideas (fixed-size, paragraph-based) at 2 completeness levels. Basic produces non-overlapping chunks and trusts that the document actually has paragraph breaks to split on. Intermediate adds a `step` smaller than `chunk_size` so neighboring chunks share text at their edges, and a fallback that stops `chunk_by_paragraph` from silently returning "1 giant chunk" on a document with no blank lines at all — both of which only matter once you stop testing against the one tidy document you wrote for this exercise.
 

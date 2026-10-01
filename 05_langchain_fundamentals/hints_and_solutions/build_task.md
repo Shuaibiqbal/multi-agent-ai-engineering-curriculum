@@ -16,19 +16,17 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 ### Basic Version
 
-You're building three small files that work together: one that describes the prompt, one that builds the chain, and one that compares the chain to Project 1's raw version.
+You're building three small files that work together: one that holds the prompt, one that builds the chain, and one that compares the chain to Doc04's raw version and runs the Test Cases.
 
-The chain's job: take the same input Project 1's raw feature takes, and produce the same kind of structured output — just built with `|` instead of raw API calls.
+Every piece is something one exercise above already practiced:
 
-The comparison script's job: run both versions on the same inputs and prove, not just claim, that they agree.
-
-Things to look up and use:
-
-- `ChatPromptTemplate.from_template(...)` — build your prompt in `prompts.py`.
-- `.with_structured_output(YourModel)` — attach the same Pydantic shape Project 1 already uses.
-- `|` — chain the prompt and the structured model together.
-- Your Doc01 `load_config()` — read the model name and any settings from there, not hardcoded.
-- Project 1's raw extraction function — import it directly into `compare_with_raw_sdk.py`, don't rewrite it.
+- `ChatPromptTemplate.from_messages(...)` with `EXTRACT_PROMPT` — the Real-world exercise.
+- `.with_structured_output(ExtractedInfo)` — the Intermediate and Real-world exercises.
+- A function with default parameters that returns the chain — the Basic exercise's `build_chain()`.
+- `run_comparison()` and `ComparisonRow` — the Real-world exercise's Approach 2.
+- A missing slot raises `KeyError` — the Edge cases exercise.
+- `parser.parse(...)` raises `OutputParserException` — the Failure exercise.
+- `load_config()` and `get_logger()` — Doc01, copied unchanged.
 
 <hr class="page-break">
 
@@ -36,20 +34,13 @@ Things to look up and use:
 
 ### Intermediate Version
 
-You're building two separate, reusable things that get used together: a `prompts.py` module holding the prompt template(s), and a `chain.py` module that builds and returns the finished `Runnable`. Keep them separate — later documents will import `chain.py`'s function without caring how the prompt itself is written.
+Copy these in unchanged first: `config.py`, `exceptions.py`, `logging_setup.py` from Doc01's Build Task, and `chat_client.py`, `schemas.py` from Doc04's Build Task.
 
-The key requirement to hold onto: the model name and temperature must come from your Doc01 config, never hardcoded. This means `build_extraction_chain()` should call `load_config()` (or accept a config object as a parameter) rather than writing `ChatOpenAI(model="gpt-4o-mini")` directly inside it.
+- **`prompts.py`** — `get_extraction_prompt() -> ChatPromptTemplate`, a function, so `chain.py` and the tests get the same prompt.
+- **`chain.py`** — `MODEL_NAME = "gpt-4o-mini"` at the top, and `build_extraction_chain(model_name=MODEL_NAME, temperature=0.0) -> Runnable`. Doc01's `Config` holds only the key and the log level, so the model choice lives here, in one named place.
+- **`compare_with_raw_sdk.py`** — the test file: `load_config()` first, then one function per Test Case, each printing one `case N` line.
 
-Here's what to actually go look at:
-
-- **`prompts.py`** should hold a function like `get_extraction_prompt() -> ChatPromptTemplate`, not a bare module-level variable — this makes it easier to test and to swap later without touching `chain.py`.
-- **`chain.py`**'s `build_extraction_chain() -> Runnable` should call `load_config()` from Doc01 (or accept a `Config` object as a parameter — decide which and be consistent).
-- **Reusing Project 1's Pydantic model**, not redefining it, is what actually makes the comparison meaningful.
-- **`compare_with_raw_sdk.py`** should print a clear pass/fail per test input, and print a clear summary line if anything mismatched.
-
-Sketch, in plain English, the exact function signature of `build_extraction_chain()`, then compare against Hint 2.
-
-**Difference between Basic and Intermediate:** Basic names the 3 files and the tools each needs. Intermediate adds the real function signatures and the "config from `load_config()`, never hardcoded" constraint — this is the depth the Solution is written at.
+**Difference between Basic and Intermediate:** Basic lists where each piece was practiced. Intermediate names the files to copy and the exact function signatures.
 
 <hr class="page-break">
 
@@ -61,41 +52,20 @@ Sketch, in plain English, the exact function signature of `build_extraction_chai
 
 ```
 prompts.py:
-    function get_extraction_prompt():
-        return a ChatPromptTemplate matching Project 1's raw prompt wording
+    get_extraction_prompt(): system EXTRACT_PROMPT + human {text}
 
 chain.py:
-    function build_extraction_chain():
-        load config (for model name, temperature)
-        get the prompt from prompts.py
-        build a ChatOpenAI with the config's settings
-        attach with_structured_output using Project 1's Pydantic model
-        return prompt | structured_model
+    MODEL_NAME = "gpt-4o-mini"
+    build_extraction_chain(model_name, temperature):
+        log which model, build the prompt and model
+        return prompt | model.with_structured_output(ExtractedInfo)
 
 compare_with_raw_sdk.py:
-    import Project 1's raw function
-    import build_extraction_chain
-
-    make a list of test inputs
-    chain = build_extraction_chain()
-
-    for each input:
-        raw_result = call the raw function
-        lcel_result = call chain.invoke
-        print both, print whether they match
+    load config (stop with a clear message if the key is missing)
+    case 1: prompt.invoke({}) -> KeyError
+    case 2: parser.parse("plain text") -> OutputParserException
+    case 3: run_comparison(3 inputs) -> count names that match
 ```
-
-The trickiest part — wiring config into the chain instead of hardcoding it:
-```python
-from config import load_config
-from langchain_openai import ChatOpenAI
-
-def build_extraction_chain():
-    config = load_config()
-    model = ChatOpenAI(model=config.model_name, temperature=config.temperature)
-    # ... attach prompt and structured output here
-```
-Add a `model_name` and `temperature` field to your Doc01 `Config` if it doesn't already have them.
 
 <hr class="page-break">
 
@@ -104,34 +74,23 @@ Add a `model_name` and `temperature` field to your Doc01 `Config` if it doesn't 
 ### Intermediate Version
 
 ```python
-from config import load_config, Config
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.runnables import Runnable
+# chain.py
+MODEL_NAME = "gpt-4o-mini"
 
-def build_extraction_chain(config: Config | None = None) -> Runnable:
-    if config is None:
-        config = load_config()
-    model = ChatOpenAI(model=config.model_name, temperature=config.temperature)
-    # ... attach the prompt template and .with_structured_output(...) here
+
+def build_extraction_chain(
+    model_name: str = MODEL_NAME, temperature: float = 0.0
+) -> Runnable:
+    logger = get_logger(__name__)
+    logger.info(f"Building the extraction chain with {model_name}")
+    prompt = get_extraction_prompt()
+    model = ChatOpenAI(model=model_name, temperature=temperature)
+    return prompt | model.with_structured_output(ExtractedInfo)
 ```
 
-Notice the `config: Config | None = None` parameter — this lets tests pass in a fake config without touching real environment variables, while normal callers can just call `build_extraction_chain()` with no arguments.
+Add the imports, write `prompts.py`, then copy `run_comparison()` from the Real-world exercise into `compare_with_raw_sdk.py` — change only where the chain comes from. Add the two other test functions, then compare against the [Solution](#solution).
 
-Try finishing the rest yourself, including `compare_with_raw_sdk.py`'s result-collection shape:
-
-```python
-from dataclasses import dataclass
-
-@dataclass
-class ComparisonResult:
-    input_text: str
-    raw_result: "ExtractedData"
-    lcel_result: "ExtractedData"
-    matched: bool
-```
-
-Write `run_comparison(test_inputs) -> list[ComparisonResult]` as a separate function from `main()` — this is what lets the exact same logic be reused elsewhere without duplicating the comparison loop. `main()` should just call `run_comparison()`, then report the results. Try writing both before checking the Solution.
+**Difference between Basic and Intermediate:** Basic is the plan. Intermediate is `chain.py` almost complete.
 
 <hr class="page-break">
 
@@ -139,56 +98,57 @@ Write `run_comparison(test_inputs) -> list[ComparisonResult]` as a separate func
 
 ## Solution {: #solution }
 
-Two working versions below, Basic and Intermediate. Both are correct — read both, and think about which one you'd actually pick and why.
+Copied in unchanged: `config.py`, `exceptions.py`, `logging_setup.py` (Doc01) and `chat_client.py`, `schemas.py` (Doc04). Run everything from inside `practice/build_task/`.
 
 ### Basic Version
 
-**Approach 1 — one flat `chain.py`**
+#### Approach 1 — a fixed chain and a plain loop
 
-**Story — `prompts.py`:** the prompt's exact wording is a separate concern from how the chain is built — this is the file every later document imports when it needs this same extraction prompt, without caring how `chain.py` wires it together. **If not:** the wording would be buried inline inside `chain.py`, and changing it would mean editing the same file that also builds the model and the parser.
-
-```python
-# prompts.py
-from langchain_core.prompts import ChatPromptTemplate
-
-def get_extraction_prompt():
-    return ChatPromptTemplate.from_template(
-        "Extract structured data from the following text: {text}"
-    )
-```
-
-**Story — `chain.py`:** this is the one module every later document (Doc06, Doc08, Project 6) imports instead of writing raw SDK calls again — the whole point of this Build Task. Written so the model name/temperature come from config, never hardcoded, because a model swap should be a one-line config change, not a search-and-replace across every file that built its own `ChatOpenAI()`. **If not:** every later document would each build their own slightly-different extraction chain, instead of sharing one tested module.
+`prompts.py` is the same as in the Intermediate version below.
 
 ```python
 # chain.py
-from config import load_config
 from langchain_openai import ChatOpenAI
+
 from prompts import get_extraction_prompt
-from project_1 import ExtractedData   # reuse Project 1's Pydantic model
+from schemas import ExtractedInfo
+
 
 def build_extraction_chain():
-    config = load_config()
     prompt = get_extraction_prompt()
-    model = ChatOpenAI(model=config.model_name, temperature=config.temperature)
-    structured_model = model.with_structured_output(ExtractedData)
-    return prompt | structured_model
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return prompt | model.with_structured_output(ExtractedInfo)
 ```
-
-**Story — `compare_with_raw_sdk.py`:** doubles as this Build Task's test file — it's how you (and every later document that imports `chain.py`) know the LCEL version genuinely agrees with Project 1's raw version, not just looks similar. **If not:** a silent drift between the two versions (say, a prompt wording change) would go unnoticed until Project 1's grading or a later document's behavior quietly broke.
 
 ```python
 # compare_with_raw_sdk.py
 from chain import build_extraction_chain
-from project_1 import extract_raw
+from chat_client import create_client, get_structured_reply
+from config import load_config
 
-test_inputs = ["input one", "input two", "input three"]
+load_config()
+client = create_client()
 chain = build_extraction_chain()
 
+test_inputs = [
+    "Maria wants to reset her password",
+    "Hi, I'm Tom and my invoice looks wrong",
+    "Ahmed here, please cancel my order",
+]
 for text in test_inputs:
-    raw_result = extract_raw(text)
+    raw_result = get_structured_reply(client, text)
     lcel_result = chain.invoke({"text": text})
-    print(text, "-> match:", raw_result == lcel_result)
+    print(text, "-> same name:", raw_result.name == lcel_result.name)
 ```
+**Expected output:**
+
+```
+Maria wants to reset her password -> same name: True
+Hi, I'm Tom and my invoice looks wrong -> same name: True
+Ahmed here, please cancel my order -> same name: True
+```
+
+This proves the two versions agree. But the model name is buried inside the function, nothing is logged, a missing key crashes with a traceback, and Test Cases 2 and 3 (missing slot, wrong shape) aren't checked at all.
 
 <hr class="page-break">
 
@@ -196,85 +156,225 @@ for text in test_inputs:
 
 ### Intermediate Version
 
-**Approach 1 — config passed as an optional parameter**
+#### Approach 1 — one prompt, one chain builder, one test file
 
-**`chain.py`**
+**Story — `prompts.py`:** the wording is a separate concern from how the chain is built. It reuses Doc04's `EXTRACT_PROMPT`, so the LCEL and raw versions get the same words. **If not:** the two versions would get different prompts, and a mismatch would prove nothing.
+
 ```python
+# prompts.py
+from langchain_core.prompts import ChatPromptTemplate
+
+from chat_client import EXTRACT_PROMPT
+
+
+def get_extraction_prompt() -> ChatPromptTemplate:
+    # why: the same system rules Doc04's raw call sends, word for word —
+    # the comparison is only fair if both versions get the same prompt
+    return ChatPromptTemplate.from_messages(
+        [("system", EXTRACT_PROMPT), ("human", "{text}")]
+    )
+```
+
+**Story — `chain.py`:** the one module later documents import instead of writing raw SDK calls again. The model name is a named constant with a default parameter, the same shape as the Basic exercise's `build_chain()`. **If not:** every later file would build its own `ChatOpenAI(...)`, and a model swap would mean a search through all of them.
+
+```python
+# chain.py
 from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 
-from config import Config, load_config
+from logging_setup import get_logger
 from prompts import get_extraction_prompt
-from project_1 import ExtractedData
+from schemas import ExtractedInfo
+
+# why: the model choice lives in one named place — a model swap is a
+# one-line change here, not a search through every file
+MODEL_NAME = "gpt-4o-mini"
 
 
-def build_extraction_chain(config: Config | None = None) -> Runnable:
-    # why: config defaults to None so normal callers just call this with no
-    # arguments, but a test can pass in a fake Config without touching real
-    # environment variables.
-    if config is None:
-        config = load_config()
+def build_extraction_chain(
+    model_name: str = MODEL_NAME, temperature: float = 0.0
+) -> Runnable:
+    # how: the same default-parameter shape as the Basic exercise's
+    # build_chain() — callers can pass nothing, or pick another model
+    logger = get_logger(__name__)
+    logger.info(f"Building the extraction chain with {model_name}")
 
     prompt = get_extraction_prompt()
-    model = ChatOpenAI(model=config.model_name, temperature=config.temperature)
-    structured_model = model.with_structured_output(ExtractedData)
-
-    return prompt | structured_model
+    model = ChatOpenAI(model=model_name, temperature=temperature)
+    return prompt | model.with_structured_output(ExtractedInfo)
 ```
 
-**`compare_with_raw_sdk.py`**
+**Story — `compare_with_raw_sdk.py`:** the Build Task's test file — one function per Test Case, in the plain `case N` print style of Doc04's `test_chat_client.py`. `run_comparison()` is the Real-world exercise's, unchanged except for where the chain comes from. **If not:** a prompt change could quietly make the two versions disagree, and nothing would tell you.
+
 ```python
+# compare_with_raw_sdk.py
+# Runs the 3 Test Cases from the README. Run it from inside this folder:
+# python compare_with_raw_sdk.py
+# Case 3 makes real API calls — needs a valid OPENAI_API_KEY in .env.
+import sys
 from dataclasses import dataclass
 
+from langchain_core.exceptions import OutputParserException
+from langchain_core.output_parsers import PydanticOutputParser
+
 from chain import build_extraction_chain
-from project_1 import extract_raw, ExtractedData
+from chat_client import create_client, get_structured_reply
+from config import load_config
+from exceptions import MissingConfigError
+from prompts import get_extraction_prompt
+from schemas import ExtractedInfo
+
+# how: every input has a name, so neither version returns None here
+TEST_INPUTS = [
+    "Maria wants to reset her password",
+    "Hi, I'm Tom and my invoice looks wrong",
+    "Ahmed here, please cancel my order",
+]
 
 
 @dataclass
-class ComparisonResult:
-    # why: one typed record per input instead of printing inline — this is
-    # what makes run_comparison()'s result reusable by a caller or a real test.
+class ComparisonRow:
     input_text: str
-    raw_result: ExtractedData
-    lcel_result: ExtractedData
+    raw_result: ExtractedInfo
+    lcel_result: ExtractedInfo
     matched: bool
 
 
-def run_comparison(test_inputs: list[str]) -> list[ComparisonResult]:
-    # why: the logic (run both, record whether they matched) lives here,
-    # separate from main()'s reporting — call this directly from a real test.
-    chain = build_extraction_chain()
-    results = []
+def run_comparison(test_inputs: list[str]) -> list[ComparisonRow]:
+    # why: copied from the Real-world exercise's Approach 2 — only the
+    # chain now comes from chain.py
+    client = create_client()
+    lcel_chain = build_extraction_chain()
+    rows = []
     for text in test_inputs:
-        raw_result = extract_raw(text)
-        lcel_result = chain.invoke({"text": text})
-        matched = raw_result == lcel_result
-        results.append(ComparisonResult(text, raw_result, lcel_result, matched))
-    return results
+        raw_result = get_structured_reply(client, text)
+        lcel_result = lcel_chain.invoke({"text": text})
+        # why: a name has one right answer; intent wording can differ
+        matched = raw_result.name == lcel_result.name
+        rows.append(ComparisonRow(text, raw_result, lcel_result, matched))
+    return rows
+
+
+def test_missing_variable() -> None:
+    # case 1: a missing {text} fails while building the prompt (Edge cases)
+    prompt = get_extraction_prompt()
+    try:
+        prompt.invoke({})
+        print("case 1 (missing text)  -> no error (wrong!)")
+    except KeyError:
+        print("case 1 (missing text)  -> KeyError")
+
+
+def test_bad_shape() -> None:
+    # case 2: a reply that isn't the shape raises a named error (Failure)
+    parser = PydanticOutputParser(pydantic_object=ExtractedInfo)
+    try:
+        parser.parse("Maria wants a new password")
+        print("case 2 (wrong shape)   -> accepted (wrong!)")
+    except OutputParserException:
+        print("case 2 (wrong shape)   -> OutputParserException")
+
+
+def test_chain_matches_raw() -> None:
+    # case 3: the LCEL chain and Doc04's raw call agree on every name
+    rows = run_comparison(TEST_INPUTS)
+    matched = 0
+    for row in rows:
+        if row.matched:
+            matched = matched + 1
+    print(f"case 3 (chain vs raw)  -> {matched}/{len(rows)} names match")
+    for row in rows:
+        if not row.matched:
+            print(f"  MISMATCH on: {row.input_text}")
+            print(f"    raw:  {row.raw_result}")
+            print(f"    lcel: {row.lcel_result}")
 
 
 def main() -> None:
-    test_inputs = ["input one", "input two", "input three"]
-    results = run_comparison(test_inputs)
+    # why: config first — a missing OPENAI_API_KEY stops here, clearly
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
 
-    matched = 0
-    for r in results:
-        if r.matched:
-            matched = matched + 1
-    print(f"{matched}/{len(results)} matched")
-
-    for r in results:
-        if not r.matched:
-            print(f"MISMATCH on {r.input_text!r}:")
-            print(f"  raw:  {r.raw_result}")
-            print(f"  lcel: {r.lcel_result}")
+    test_missing_variable()
+    test_bad_shape()
+    test_chain_matches_raw()
 
 
 if __name__ == "__main__":
     main()
 ```
+**Expected output** (case 3 makes real calls):
 
-**Difference from Basic:** Basic gets the comparison working with plain per-line prints. Intermediate separates `run_comparison()` (the logic) from `main()` (the reporting), and collects results into a typed `ComparisonResult` list instead of printing inline — this is what makes the script reusable as an actual test later, not just a one-off script.
+```
+case 1 (missing text)  -> KeyError
+case 2 (wrong shape)   -> OutputParserException
+case 3 (chain vs raw)  -> 3/3 names match
+```
+
+Cases 1 and 2 need no API call — they run for free, every time. If a name ever differs in case 3, the `MISMATCH` lines show both results.
+
+**Difference from Basic:** the model name is a named constant with a default parameter, the chain logs which model it uses, a missing key stops with one clear line, and all 3 Test Cases are checked — the two free ones on every run.
+
+<hr class="page-break">
+
+> [Back to the Build Task](../README.md#build-task-reusable-chain-module) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
+
+#### Approach 2 — the key from an optional `Config`, so a test needs no `.env`
+
+**Story — `build_extraction_chain(config: Config | None = None)`:** the Basic exercise's Approach 2, applied here. `None` means "load the real settings with `load_config()`"; a test passes its own `Config`, and the key goes to `ChatOpenAI` from the one place that checked it. **If not:** building the chain in a test would always need a real key in `.env`.
+
+```python
+# chain.py
+from langchain_core.runnables import Runnable
+from langchain_openai import ChatOpenAI
+
+from config import Config, load_config
+from logging_setup import get_logger
+from prompts import get_extraction_prompt
+from schemas import ExtractedInfo
+
+MODEL_NAME = "gpt-4o-mini"
+
+
+def build_extraction_chain(
+    config: Config | None = None, model_name: str = MODEL_NAME
+) -> Runnable:
+    # why: the Basic exercise's build_chain() shape (Approach 2) — None
+    # means "load the real settings"; a test can pass its own Config
+    if config is None:
+        config = load_config()
+    logger = get_logger(__name__)
+    logger.info(f"Building the extraction chain with {model_name}")
+
+    prompt = get_extraction_prompt()
+    # how: the key comes from Doc01's checked Config
+    model = ChatOpenAI(
+        model=model_name, temperature=0, api_key=config.openai_api_key
+    )
+    return prompt | model.with_structured_output(ExtractedInfo)
+```
+
+`compare_with_raw_sdk.py` doesn't change — it calls `build_extraction_chain()` with nothing, so the real settings are loaded. A test can build the chain with a made-up `Config`:
+
+```python
+# check_config.py
+from chain import build_extraction_chain
+from config import Config
+
+test_config = Config(openai_api_key="sk-test-not-real", log_level="INFO")
+chain = build_extraction_chain(test_config)
+print(f"built with a test Config: {type(chain).__name__}")
+```
+**Expected output** (no `.env` needed):
+
+```
+built with a test Config: RunnableSequence
+```
+
+**Difference from Approach 1:** the chain takes its key from a `Config` — loaded by default, or passed in — instead of `ChatOpenAI` reading `OPENAI_API_KEY` on its own.
 
 ### Which one should you actually use?
-Basic's flat version is fine for getting the exercise working. Intermediate's optional-config-parameter pattern is the standard real-world default — convenient to call, still testable — and it's what this Build Task actually requires: an LCEL chain wired to config, and a script that proves it matches the raw-SDK version. Turning `compare_with_raw_sdk.py` into a real `pytest` test (parametrized over the same test inputs, `assert`ing equality) is worth doing once this module is something CI actually needs to catch drift on automatically — not required for the Build Task itself.
+The Intermediate version is the whole Build Task: a chain module wired to one named model setting, and a test file that proves all 3 Test Cases. Approach 2 is worth it once you test the chain without a real key. Turning `compare_with_raw_sdk.py` into `pytest` tests is Doc13's topic — not needed here.

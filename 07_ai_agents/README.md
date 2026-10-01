@@ -87,45 +87,43 @@ result = agent.invoke(
 | Several specialists needed | Several agents ([Doc11](../11_multi_agent_systems/)) | One agent with 15 tools chooses badly; three agents with 4 tools choose well |
 
 ```python
-# the ReAct loop — Doc06's round trip, repeated. Config/logger are Doc01's.
-from config import load_config
+# the ReAct loop — Doc06's round trip, repeated. Logger is Doc01's.
+from langchain_openai import ChatOpenAI
+
+from exceptions import MaxIterationsExceeded
 from logging_setup import get_logger
+from tools import ALL_TOOLS
 
-config = load_config()
-logger = get_logger(__name__)
 
-class MaxStepsExceeded(Exception):
-    """Raised when the loop used its whole step budget with no final answer."""
-
-def run_agent(client, task, tools, registry, max_steps=6):
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": task},
-    ]
-    for step in range(1, max_steps + 1):
-        resp = client.chat.completions.create(
-            model=config.model_name,
-            messages=messages,
-            tools=tools,
-            temperature=0,
-        )
-        msg = resp.choices[0].message
-        messages.append(msg)                     # append the request FIRST
-        if not msg.tool_calls:
-            return msg.content                    # THINK said: done
-        for call in msg.tool_calls:               # ACT — loop over ALL calls
-            args = json.loads(call.function.arguments)
-            try:
-                content = str(registry[call.function.name](**args))
-            # Doc06's + Doc01's named errors
-            except Exception as e:
-                error_type = type(e).__name__
-                content = f"Error: {call.function.name} failed ({error_type})."
-            messages.append(
-                {"role": "tool", "tool_call_id": call.id, "content": content},
-            )                                      # OBSERVE
-        logger.debug("step %d: %d tool call(s)", step, len(msg.tool_calls))
-    raise MaxStepsExceeded(f"no final answer after {max_steps} steps")
+def run_agent(task: str, max_iterations: int = 6) -> str:
+    logger = get_logger(__name__)
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    model_with_tools = model.bind_tools(ALL_TOOLS)
+    messages = [{"role": "user", "content": task}]
+    steps = []
+    for step in range(max_iterations):
+        response = model_with_tools.invoke(messages)     # THINK
+        messages.append(response)            # the request goes in FIRST
+        if not response.tool_calls:
+            return response.content          # THINK said: done
+        for call in response.tool_calls:     # ACT — every call, not one
+            # run_tool(): find the tool, .invoke() it, return (result,
+            # error) — you write it in the Intermediate exercise, which
+            # also shows this same loop on the raw OpenAI SDK
+            result, error = run_tool(call, ALL_TOOLS)
+            if error is None:
+                observation = result
+            else:
+                observation = f"Error: {error}"
+            messages.append({                # OBSERVE
+                "role": "tool",
+                "content": observation,
+                "tool_call_id": call["id"],
+            })
+            steps.append({"step": step, "tool": call["name"], "error": error})
+        logger.info(f"step {step}: {len(response.tool_calls)} tool call(s)")
+    message = f"no final answer after {max_iterations} steps"
+    raise MaxIterationsExceeded(message, steps)
 ```
 
 **Common mistakes:**
@@ -162,9 +160,9 @@ As the loop runs, every request and result gets added to the growing `messages` 
 
 ```python
 # Approach 1 — full raw history: simplest, correct, enough for most short runs
-messages.append(model_reply)
+messages.append(response)
 messages.append(
-    {"role": "tool", "tool_call_id": call.id, "content": tool_result}
+    {"role": "tool", "content": observation, "tool_call_id": call["id"]}
 )
 # nothing removed, ever — fine as long as the run stays short
 # and results stay small
@@ -235,77 +233,70 @@ The loop needs a way to know it's done: the model gives a final answer with no m
 
 **Three real ways to measure "has this run had enough," and why you layer all three instead of picking one:**
 
-- **A simple step counter.** **What:** `for step in range(1, max_steps + 1):` — count model calls, stop cold at the number. **Why:** free, instant, exactly predictable — you always know the worst case, and it needs no extra measurement, just the loop's own counter. **When:** the always-on default layer, for every agent loop, including this document's Build Task — a fast loop making cheap calls hits this one first.
-- **A wall-clock (time) budget.** **What:** a `time.monotonic()` deadline checked at the top of each loop iteration, stopping once real elapsed time crosses a limit — regardless of how many steps that took. **Why:** a step counter alone never catches one slow tool call — 6 steps can still take 10 minutes if a single call hangs, and the same "never one call without a timeout" discipline Doc02's [timeouts topic](../02_apis_http_json/README.md#timeouts-the-failure-that-never-tells-you-its-happening) teaches for one HTTP call applies to a whole run. **When:** any agent behind a live user request (nobody waits happily past a few seconds) or any background/scheduled job (it must finish, or fail, inside its window).
-- **A token/cost budget.** **What:** accumulate `response.usage.total_tokens` (or a $ estimate from it) across the run, and stop once a set budget is spent. **Why:** a scratchpad that grows every step (the previous topic) means every later step costs more than the one before it, at a *fixed* step count — Doc03's [cost topic](../03_llm_fundamentals/README.md#cost-input-and-output-tokens-are-priced-differently) is exactly why cost can blow past a sane number long before the step counter does, especially once tool results get large. **When:** any paid API in front of real traffic, or any agent whose tool results vary a lot in size (search results, whole documents).
+- **A simple step counter.** **What:** `for step in range(max_iterations):` — count model calls, stop cold at the number. **Why:** free, instant, exactly predictable — you always know the worst case, and it needs no extra measurement, just the loop's own counter. **When:** the always-on default layer, for every agent loop, including this document's Build Task — a fast loop making cheap calls hits this one first.
+- **A wall-clock (time) budget.** **What:** a `time.time()` deadline checked at the top of each loop iteration, stopping once real elapsed time crosses a limit — regardless of how many steps that took. **Why:** a step counter alone never catches one slow tool call — 6 steps can still take 10 minutes if a single call hangs, and the same "never one call without a timeout" discipline Doc02's [timeouts topic](../02_apis_http_json/README.md#timeouts-the-failure-that-never-tells-you-its-happening) teaches for one HTTP call applies to a whole run. **When:** any agent behind a live user request (nobody waits happily past a few seconds) or any background/scheduled job (it must finish, or fail, inside its window).
+- **A token/cost budget.** **What:** add up `response.usage_metadata["total_tokens"]` (or a $ estimate from it) across the run, and stop once a set budget is spent. **Why:** a scratchpad that grows every step (the previous topic) means every later step costs more than the one before it, at a *fixed* step count — Doc03's [cost topic](../03_llm_fundamentals/README.md#cost-input-and-output-tokens-are-priced-differently) is exactly why cost can blow past a sane number long before the step counter does, especially once tool results get large. **When:** any paid API in front of real traffic, or any agent whose tool results vary a lot in size (search results, whole documents).
 
 ```python
 # Approach 1 — a simple step counter: free, instant, the always-on base layer
-def run_agent(client, task, tools, registry, max_steps=6):
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": task},
-    ]
-    for step in range(1, max_steps + 1):
-        resp = client.chat.completions.create(
-            model=config.model_name, messages=messages, tools=tools,
-        )
+def run_agent(task: str, max_iterations: int = 6) -> str:
+    messages = [{"role": "user", "content": task}]
+    steps = []
+    for step in range(max_iterations):
+        response = model_with_tools.invoke(messages)
         # ...same THINK/ACT/OBSERVE body as the ReAct loop's code above...
-    raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
+    message = f"no final answer after {max_iterations} steps"
+    raise MaxIterationsExceeded(message, steps)
 ```
 
 ```python
 # Approach 2 — layer a wall-clock deadline under the step counter
 import time
 
-def run_agent(client, task, tools, registry, max_steps=6, max_seconds=30):
-    deadline = time.monotonic() + max_seconds
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": task},
-    ]
-    for step in range(1, max_steps + 1):
-        if time.monotonic() > deadline:
-            message = (
-                f"wall-clock budget ({max_seconds}s) exceeded at step {step}"
-            )
-            raise MaxIterationsExceeded(message)
-        resp = client.chat.completions.create(
-            model=config.model_name, messages=messages, tools=tools,
-        )
+
+def run_agent(task: str, max_iterations: int = 6, max_seconds: int = 30) -> str:
+    deadline = time.time() + max_seconds
+    messages = [{"role": "user", "content": task}]
+    steps = []
+    for step in range(max_iterations):
+        if time.time() > deadline:
+            message = f"time budget ({max_seconds}s) used up at step {step}"
+            raise MaxIterationsExceeded(message, steps)
+        response = model_with_tools.invoke(messages)
         # ...same THINK/ACT/OBSERVE body...
-    raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
+    message = f"no final answer after {max_iterations} steps"
+    raise MaxIterationsExceeded(message, steps)
 ```
 
 ```python
-# Approach 3 — add a token/cost budget, the layer a growing scratchpad needs
+# Approach 3 — add a token budget, the layer a growing scratchpad needs
 def run_agent(
-    client, task, tools, registry,
-    max_steps=6, max_seconds=30, max_tokens=20_000,
-):
-    deadline = time.monotonic() + max_seconds
+    task: str,
+    max_iterations: int = 6,
+    max_seconds: int = 30,
+    max_tokens: int = 20_000,
+) -> str:
+    deadline = time.time() + max_seconds
     total_tokens = 0
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": task},
-    ]
-    for step in range(1, max_steps + 1):
-        if time.monotonic() > deadline:
-            raise MaxIterationsExceeded(
-                f"wall-clock budget exceeded at step {step}"
-            )
+    messages = [{"role": "user", "content": task}]
+    steps = []
+    for step in range(max_iterations):
+        if time.time() > deadline:
+            message = f"time budget used up at step {step}"
+            raise MaxIterationsExceeded(message, steps)
         if total_tokens > max_tokens:
-            message = f"token budget ({max_tokens}) exceeded at step {step}"
-            raise MaxIterationsExceeded(message)
-        resp = client.chat.completions.create(
-            model=config.model_name, messages=messages, tools=tools,
-        )
-        total_tokens += resp.usage.total_tokens
+            message = f"token budget ({max_tokens}) used up at step {step}"
+            raise MaxIterationsExceeded(message, steps)
+        response = model_with_tools.invoke(messages)
+        # how: usage_metadata is LangChain's name for Doc04's usage
+        tokens = response.usage_metadata["total_tokens"]
+        total_tokens = total_tokens + tokens
         # ...same THINK/ACT/OBSERVE body...
-    raise MaxIterationsExceeded(f"no final answer after {max_steps} steps")
+    message = f"no final answer after {max_iterations} steps"
+    raise MaxIterationsExceeded(message, steps)
 ```
 
-All three raise the same `MaxIterationsExceeded`, carrying the partial log — the *shape* of hitting a budget never changes, only which measurement tripped it. A step counter costs nothing and catches a stuck loop; a wall-clock deadline costs one `time.monotonic()` check and catches a hung call the counter misses entirely; a token budget costs reading `.usage` off every response and catches an expensive scratchpad the other two never notice. None of the three replaces the other two — that's why production code layers all three, not the "pick the best one" instinct a first pass usually reaches for.
+All three raise the same `MaxIterationsExceeded`, carrying the partial log — the *shape* of hitting a budget never changes, only which measurement tripped it. A step counter costs nothing and catches a stuck loop; a wall-clock deadline costs one `time.time()` check and catches a hung call the counter misses entirely; a token budget costs reading `.usage_metadata` off every response and catches an expensive scratchpad the other two never notice. None of the three replaces the other two — that's why production code layers all three, not the "pick the best one" instinct a first pass usually reaches for.
 
 - The loop ends only two ways: **natural** — the model replies with text and no `tool_calls` — or **forced** — one of the budgets above runs out. Relying only on the natural end bets production on a system that also hallucinates.
 - The counter wraps the **model call**, not the tool call. One reply can carry zero tool calls or several, so counting tool calls does not match the number of paid round trips you are actually making.
@@ -318,7 +309,7 @@ All three raise the same `MaxIterationsExceeded`, carrying the partial log — t
 
 | Option | What it does | Mandatory? |
 |---|---|---|
-| `max_steps` (your counter) | Caps model calls per run | Yes — no safe default exists |
+| `max_iterations` (your counter) | Caps model calls per run | Yes — no safe default exists |
 | Wall-clock deadline | Caps total seconds | Yes for any background or scheduled job |
 | Token / cost budget | Caps tokens spent per run | Yes for paid APIs, any user-facing loop |
 | Duplicate-call detection | Stops a stuck repeat before the cap does | Strongly recommended |
@@ -491,7 +482,7 @@ def handle_request(task: str) -> str:
     )
     decision = router_model.invoke(prompt)
     if decision.needs_agent:
-        return run_agent(task, tools, registry, max_steps=6)   # this loop
+        return run_agent(task, max_iterations=6)       # this loop
     return run_fixed_pipeline(task)                             # Doc05's chain
 ```
 
@@ -617,7 +608,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ## Practice Exercises
 
-**Setup:** same venv as before — if it's not active, `cd 07_ai_agents && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langchain langchain-openai langgraph`.
+**Setup:** same venv as before — if it's not active, `cd 07_ai_agents && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langchain langchain-openai langgraph pytest`. Copy Doc06's Build Task files into `practice/`, unchanged: `tools.py`, `http_client.py`, `exceptions.py`, `logging_setup.py` — every exercise here drives those same tools.
 
 **Where your code lives:** all of it under `07_ai_agents/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/Doc02/Doc06 — so one topic's growth from basic to intermediate stays visible in one file.
 
@@ -625,10 +616,23 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 practice/
-├── react_loop_practice.py             Basic + Intermediate (two sections)
+├── react_loop_practice.py        Basic + Intermediate: run_agent()
+├── react_loop_raw_sdk.py         Intermediate, Approach 5: raw SDK
 ├── agent_executor_comparison_practice.py   Real-world
-├── no_tool_needed_practice.py         Edge cases
-└── loop_safety_cost_practice.py       Failure
+├── no_tool_needed_practice.py    Edge cases
+├── test_no_tool_needed.py        Edge cases, Approach 2: pytest
+├── loop_safety_cost_practice.py  Failure
+├── tools.py                      copied from Doc06, unchanged
+├── http_client.py                copied from Doc06, unchanged
+├── exceptions.py                 copied from Doc06, unchanged
+├── logging_setup.py              copied from Doc06, unchanged
+└── build_task/                   Build Task — its own folder
+    ├── agent.py                  run_agent(), AgentResult, AGENT_TOOLS
+    ├── docs_search.py            search_docs — fails once, on purpose
+    ├── main.py                   reads a task, prints answer + steps
+    ├── test_agent.py             the 4 Test Cases (plain, or pytest)
+    ├── exceptions.py             Doc06's + MaxIterationsExceeded
+    └── tools.py, http_client.py, logging_setup.py   copied from Doc06
 ```
 
 **Why each script exists:**
@@ -637,6 +641,9 @@ practice/
 - `agent_executor_comparison_practice.py` — proves `create_agent` is your same loop, not a different idea, by running both on the identical prompts.
 - `no_tool_needed_practice.py` — confirms the loop doesn't waste a tool call when it doesn't need one.
 - `loop_safety_cost_practice.py` — the only place you watch a loop actually run away, and measure what that costs, before the step limit goes back on.
+- `react_loop_raw_sdk.py` — the same loop without LangChain, so you see what `bind_tools()` writes for you.
+- `test_no_tool_needed.py` — the no-tool check as a pytest test — your first pytest file.
+- `tools.py`, `http_client.py`, `exceptions.py`, `logging_setup.py` — Doc06's tool library, copied unchanged, so every exercise drives the same tools.
 
 **For this document, save your practice code as:**
 
@@ -660,7 +667,7 @@ practice/
 
 - **What:** build the ReAct loop yourself (no `create_agent`) for one tool.
 - **Why:** this document's whole point is that the loop isn't magic — building it once, yourself, is what makes that true.
-- **How to code it:** a `while` loop that calls the model with tools registered, checks if it requested a tool call, runs it and appends the result if so, or returns the final answer if not.
+- **How to code it:** `model.bind_tools([...])`, then a `for step in range(max_iterations):` loop — ask the model; if it asked for tools, run each with `.invoke()` and append a `{"role": "tool", ...}` message (Doc06's round trip); if not, return its answer. Raise `MaxIterationsExceeded` with the step log if the loop runs out. Then: a factory that builds a fresh fail-once tool, your own Pydantic check before a tool runs (`model_dump()`), and the same loop on the raw OpenAI SDK.
 - **Save as:** `practice/react_loop_practice.py`, under an `# Intermediate` section (this file also holds the [Basic exercise](#ex-trace_loop_by_hand), in its own section).
 - **Builds on:** the [Basic](#ex-trace_loop_by_hand) trace in this same file, and Doc06's [Build Task tool library](../06_tools_function_calling/README.md#build-task-tool-library) — register those same tools here.
 - **Used later by:** the [Build Task](#build-task-project-2-tool-using-agent)'s `agent.py`, which is this exact loop made production-shaped with a step limit and tool-failure recovery.
@@ -670,7 +677,7 @@ practice/
 
 - **What:** switch to `create_agent` (the current standard library function for this) with your Doc06 tools registered, and compare its behavior to your own hand-built loop.
 - **Why:** now that you've built the primitive, seeing the library's version side by side tells you exactly what it's doing for you, and what it's hiding.
-- **How to code it:** wire the same tools into both your loop and `create_agent`, run the same 3 test prompts through each, and diff the final answers and step counts. Set `recursion_limit` and catch `GraphRecursionError` — remember it counts roughly two graph steps per ReAct turn.
+- **How to code it:** wire the same tools into both your loop and `create_agent`, run the same 3 test prompts through each, and diff the final answers and step counts. Set `recursion_limit` and catch `GraphRecursionError` — remember it counts roughly two graph steps per ReAct turn. Then watch the library's steps live with `agent.stream(inputs, stream_mode="updates")`.
 - **Save as:** `practice/agent_executor_comparison_practice.py`.
 - **Builds on:** the [Intermediate](#ex-build_react_loop) hand-built loop in this same folder — same tools, same prompts, a different engine underneath.
 - **Used later by:** the [Build Task](#build-task-project-2-tool-using-agent), which expects you to understand both the hand-built loop and what `create_agent` does underneath it.
@@ -680,7 +687,7 @@ practice/
 
 - **What:** a prompt with no correct tool to call — check whether the agent answers directly instead of forcing a tool call anyway.
 - **Why:** an agent that always reaches for a tool, even when it doesn't need one, wastes cost and time on every single call.
-- **How to code it:** ask something the model can answer from general knowledge alone, run it through your loop, and confirm zero tool calls happened.
+- **How to code it:** ask something the model can answer from general knowledge alone, run it through your loop, and confirm zero tool calls happened. Then write the same check as a pytest test (`test_...` functions with `assert`).
 - **Save as:** `practice/no_tool_needed_practice.py`.
 - **Builds on:** the [Intermediate](#ex-build_react_loop) loop — same loop, a prompt chosen so nothing matches.
 - **Used later by:** the [Build Task](#build-task-project-2-tool-using-agent)'s Test Cases row "task needs no tool."
@@ -690,7 +697,7 @@ practice/
 
 - **What:** temporarily raise the step limit (with a real wall-clock safety net in place, never fully unlimited) and watch a prompt loop, then restore the real limit. Then measure the token/cost difference between a 5-step agent run and one direct call.
 - **Why:** you need to have watched an agent loop run away once for the step-limit requirement to feel like something you're protecting yourself from, not an abstract rule.
-- **How to code it:** set `max_iterations=1000` with a hard wall-clock timeout as the safety net — the same "never one call without a cap" discipline as [Doc02's timeouts](../02_apis_http_json/README.md#timeouts-the-failure-that-never-tells-you-its-happening). Run an adversarial prompt, watch it loop, kill it, restore the real limit. Then compare logged token usage for the looping run against a single direct call on an easy task.
+- **How to code it:** set `max_iterations=1000` with a hard wall-clock timeout as the safety net — the same "never one call without a cap" discipline as [Doc02's timeouts](../02_apis_http_json/README.md#timeouts-the-failure-that-never-tells-you-its-happening). Run an adversarial prompt, watch it loop, kill it, restore the real limit. Then compare logged token usage for the looping run against a single direct call on an easy task. Also try a timeout from the outside (a thread with `concurrent.futures`), and print how the `messages` list grows each step.
 - **Save as:** `practice/loop_safety_cost_practice.py`.
 - **Builds on:** the layered-limits idea from [Setting a limit on the number of steps](#setting-a-limit-on-the-number-of-steps) — steps and a deadline together, never steps alone.
 - **Used later by:** the [Build Task](#build-task-project-2-tool-using-agent)'s `MaxIterationsExceeded` requirement and its "task designed to loop forever" test case.
@@ -710,27 +717,35 @@ practice/
 
 **Inputs:** any text task typed into the terminal. **Outputs:** a final answer, plus a full step-by-step log of how it got there. **Constraints:** no unlimited loops, for any input. Every tool call's arguments must pass Pydantic checking before the tool actually runs.
 
-**Builds on:** the [Intermediate](#ex-build_react_loop) hand-built loop and the [Real-world](#ex-agent_executor_comparison) `create_agent` comparison — pick the shape you understood best and make it production-shaped. `exceptions.py` reuses Doc01's named-error pattern as `MaxIterationsExceeded`, carrying the partial step log exactly as the [step-limit topic](#setting-a-limit-on-the-number-of-steps) requires.
+**Builds on:** the [Intermediate](#ex-build_react_loop) loop (Approach 2 — `find_tool()`, `run_tool()`, the logger), the [Edge cases](#ex-no_tool_needed) no-tool check, and the [Failure](#ex-infinite_loop_cost) step limit with its log. `exceptions.py` reuses Doc01's named-error pattern as `MaxIterationsExceeded`, carrying the partial step log exactly as the [step-limit topic](#setting-a-limit-on-the-number-of-steps) requires.
 
 **Suggested files:**
 ```
-project_2_researchhand_tool_agent/
-├── main.py              entry point — reads a task, prints the agent's result
-├── agent.py             run_agent(), MaxIterationsExceeded, AgentResult
-├── tools.py             reused from 06_tools_function_calling, unchanged
-└── test_agent.py        the 4 Test Cases above, each as a real pytest function
+07_ai_agents/practice/build_task/
+├── main.py              reads a task, prints the answer and every step
+├── agent.py             run_agent(), AgentResult, AGENT_TOOLS
+├── docs_search.py       search_docs — fails on its first call, on purpose
+├── test_agent.py        the 4 Test Cases below
+├── exceptions.py        Doc06's file + MaxIterationsExceeded
+├── tools.py             copied from Doc06, unchanged
+├── http_client.py       copied from Doc06, unchanged
+└── logging_setup.py     copied from Doc06, unchanged
 ```
 
-- `main.py` — **What/Why:** the thin entry point that turns typed input into one `run_agent()` call and prints its result — no loop logic of its own.
-- `agent.py` — **What/Why:** the loop itself, built once by hand in the Intermediate exercise, now given the step limit and failure recovery a real Worker needs.
-- `tools.py` — **What/Why:** the exact tool library from Doc06, imported unchanged — Project 2 reuses it rather than writing tools from scratch.
-- `test_agent.py` — **What/Why:** proves the 4 Test Cases actually pass, automatically, every time `agent.py` changes — not something checked once by hand.
+- `main.py` — **What/Why:** the thin entry point that turns typed input into one `run_agent()` call and prints its result — or the partial log, if the limit was hit.
+- `agent.py` — **What/Why:** the Intermediate exercise's loop (Approach 2), with two Doc06 tools and the fail-once search.
+- `docs_search.py` — **What/Why:** a tool that fails once on command, so "recovers from a failure" is a repeatable test, not luck.
+- `test_agent.py` — **What/Why:** proves the 4 Test Cases, in the plain `case` print style of Doc04–06 — run it every time `agent.py` changes.
+- `exceptions.py` — **What/Why:** Doc06's named errors plus `MaxIterationsExceeded`, which carries the partial step log.
+- `tools.py` / `http_client.py` / `logging_setup.py` — **What/Why:** Doc06's tool library, copied unchanged — the Pydantic `args_schema` on each tool is the argument check.
+
+**Run it:** `cd practice/build_task && python test_agent.py` — from inside the folder, so the imports resolve. (With the pytest version: `pytest test_agent.py -v`.)
 
 **Functions/Components to build:**
 
-- `agent.py` → `run_agent(task: str, max_iterations: int) -> AgentResult`
-- a step-log recorder
-- a `MaxIterationsExceeded` error, raised (not silently ignored) when the limit is hit, carrying the partial log
+- `agent.py` → `run_agent(task: str, max_iterations: int) -> AgentResult`, with `find_tool()` and `run_tool()`
+- `docs_search.py` → `search_docs(query)` and its `search_state` counter
+- `exceptions.py` → `MaxIterationsExceeded(message, steps)`, raised (not silently ignored) when the limit is hit
 
 **Used later by:** [Doc09](../09_langgraph/) rebuilds this same agent as an explicit graph; [Doc10](../10_agent_workflows/) wraps it in routing patterns; [Doc11](../11_multi_agent_systems/) runs several of these side by side.
 

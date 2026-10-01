@@ -38,7 +38,7 @@ Doc02's `request_with_retry()` already handles the messy parts (timeouts, transi
 
 Keep the argument shape small and typed (a single typed parameter like `city: str` is fine to start) — the model needs to know exactly what to send, and Doc02's client needs a real URL built from that argument.
 
-The tool function should stay thin: build the request URL/params, call `request_with_retry(url, params)`, and return the one or two fields the model actually needs — not the whole raw JSON blob. Don't swallow errors here yet — that's next exercise's job. For now, let a real failure actually raise, so you see what an unhandled tool error looks like once.
+The tool function should stay thin: build the request URL/params, call `request_with_retry("GET", url, params=params)` — Doc02's signature takes the HTTP method first — and return the one or two fields the model actually needs, not the whole raw JSON blob. In Basic, let a real failure raise, so you see what an unhandled tool error looks like once. In Intermediate, catch Doc02's `TransientHTTPError` and `PermanentHTTPError` by name and return `f"Error: ..."` instead.
 
 Write out, in plain words, the full call chain: model decides to call the tool → your tool function runs → it calls `request_with_retry()` → that makes the actual HTTP call → the result flows back up through all three layers.
 
@@ -110,8 +110,9 @@ def get_weather(city: str) -> str:
         "longitude": coords["longitude"],
         "current_weather": True,
     }
-    # TODO: call request_with_retry(WEATHER_URL, params=params), pull out
-    # data["current_weather"]["temperature"], and return a text summary.
+    # TODO: call request_with_retry("GET", WEATHER_URL, params=params),
+    # pull out
+    # ["current_weather"]["temperature"], and return a text summary.
 ```
 Finish the `TODO` yourself, wire it up to a model with `@tool` and `bind_tools`, then compare against the [Solution](real_api_tool_solution.md).
 

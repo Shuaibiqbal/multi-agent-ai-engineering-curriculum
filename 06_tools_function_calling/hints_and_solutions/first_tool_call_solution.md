@@ -47,6 +47,7 @@ This version works correctly. It doesn't handle the case where the model calls s
 
 ```python
 # first_tool_call_practice.py
+from langchain_core.runnables import Runnable
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -57,7 +58,8 @@ def add(a: int, b: int) -> int:
     return a + b
 
 
-def get_model_with_tools() -> ChatOpenAI:
+def get_model_with_tools() -> Runnable:
+    # how: .bind_tools() returns a new Runnable, not a ChatOpenAI
     return ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([add])
 
 

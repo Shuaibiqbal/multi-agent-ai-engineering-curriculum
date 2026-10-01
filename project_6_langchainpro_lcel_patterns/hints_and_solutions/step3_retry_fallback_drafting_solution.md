@@ -1,173 +1,371 @@
-# Step 3 — Retry and Fallback for the Drafting Call — Solution
+# Step 3 — Retries, Then a Safe Fallback, When a Model Call Fails — Solution
 
-> [Back to this step](../README.md#step-3-retry-and-fallback-for-the-drafting-call) · [Hint 1](step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](step3_retry_fallback_drafting_hints.md#hint-2) · [Solution](step3_retry_fallback_drafting_solution.md)
+> [Back to this step](../READING_README.md#step-3-retries-then-a-safe-fallback-when-a-model-call-fails) · [Hint 1](step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](step3_retry_fallback_drafting_hints.md#hint-2) · [Solution](step3_retry_fallback_drafting_solution.md)
 
-All examples below are run from inside `project_13_langchain_patterns/`, continuing from Step 2's `handlers.py`.
+**Story — Step 3:** real API calls time out, hit rate limits, and sometimes just fail. The retry part is already there: the OpenAI client under `ChatOpenAI` retries timeouts, connection errors, 429s and 5xx errors **2 times with backoff** (Doc04's error topic). Adding `.with_retry()` on top would stack a second retry layer — the mistake Doc02, Doc04 and Doc05 all warn about. What's missing is the part **after** the retries run out: today, the ticket crashes. This step gives every model call a safe backup. **If not:** one bad minute at OpenAI empties your whole queue into tracebacks.
 
-## Basic Version
+After this step the project runs as before, and when the model can't be reached, the ticket gets a safe canned reply instead of a crash. Files not shown here don't change.
 
-### Approach 1 — retry only, no fallback yet
+## Changed first
+
+**Changed from Step 2:** `main.py` no longer catches `RateLimitError` — the fallback now handles it inside the pipeline — and it prints whether the fallback was used. A bad key is still caught: it's not a temporary problem, and no fallback should hide it.
+
+**Changed from Step 2:** `TicketRecord` gets its first new field, `used_fallback`, with a default.
+
+**Story — `schemas.py`:** the record says whether the safe canned reply was sent. The default `False` means the Step 1 test that builds a record still works unchanged. **If not:** a fallback reply would look exactly like a real one in your data.
 
 ```python
-# drafting.py
-from langchain_openai import ChatOpenAI
-from openai import RateLimitError, APITimeoutError, APIConnectionError
+# src/langchainpro/schemas.py
+from typing import Literal
 
+from pydantic import BaseModel
 
-def build_resilient_model():
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.3)
-    return model.with_retry(
-        retry_if_exception_type=(RateLimitError, APITimeoutError, APIConnectionError),
-        stop_after_attempt=3,
-    )
+class TicketCategory(BaseModel):
+    # why: the classifier's answer as a checked object, not free text —
+    # only these 3 values can ever come back (Doc04's Literal)
+    category: Literal["billing", "technical", "general"]
+    # why: one short sentence, logged, so a wrong route can be explained
+    reason: str
+    # why: False when the ticket could fit more than one category — a
+    # guess the rest of the pipeline should know about
+    sure: bool
 
-
-resilient_model = build_resilient_model()
-print(resilient_model.invoke("Say hello in one short sentence."))
+class TicketRecord(BaseModel):
+    # why: one checked record per ticket — what a ticketing system would
+    # store, count and route on (a machine reads this, not a person)
+    customer_id: str
+    ticket: str
+    category: str
+    reply: str
+    # how: every field added in a later step has a default, so code
+    # (and tests) written in an earlier step keep working unchanged
+    # new in Step 3
+    used_fallback: bool = False
 ```
-**Expected output:**
+
+**Story — `main.py`:** only the errors a person must fix reach this loop now, and `print_record()` shows one more line. **If not:** a rate limit would still skip the ticket instead of answering it.
+
+```python
+# src/langchainpro/main.py
+import json
+import sys
+
+import openai
+
+from langchainpro.config import load_config
+from langchainpro.exceptions import MissingConfigError
+from langchainpro.schemas import TicketRecord
+from langchainpro.services.pipeline import handle_ticket
+from langchainpro.utils.logger import get_logger
+
+# how: a path from the repo root — run every command from there
+SAMPLES_PATH = "data/sample/tickets.json"
+
+def load_samples() -> list[dict]:
+    # why: the same 4 tickets every run, shared with the tests (Doc02
+    # taught reading JSON)
+    with open(SAMPLES_PATH) as samples_file:
+        # how: read the file as text, then json.loads() it (Doc02)
+        return json.loads(samples_file.read())
+
+def print_record(record: TicketRecord) -> None:
+    print(f"  category:      {record.category}")
+    # new in Step 3
+    print(f"  used fallback: {record.used_fallback}")
+
+def main() -> None:
+    # why: config first — a missing OPENAI_API_KEY stops the app here
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+
+    logger = get_logger(__name__)
+    samples = load_samples()
+    print(f"LangChainPro — {len(samples)} tickets in the queue.")
+
+    for sample in samples:
+        print()
+        print(f"Ticket from {sample['customer_id']}: {sample['ticket']}")
+        try:
+            record = handle_ticket(sample["ticket"], sample["customer_id"])
+        except openai.AuthenticationError:
+            # changed in Step 3: no RateLimitError here any more
+            # why: a bad key is permanent — no retry fixes it, so exit
+            logger.error("Authentication failed — check OPENAI_API_KEY.")
+            print("Login failed — check OPENAI_API_KEY in your .env file.")
+            sys.exit(1)
+        print_record(record)
+
+if __name__ == "__main__":
+    main()
 ```
-content='Hello! How can I help you today?' ...
-```
-On a normal call this behaves exactly like a plain `ChatOpenAI` call — you only notice the difference when a transient error actually happens, which is the whole point of testing it on purpose next.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-3-retry-and-fallback-for-the-drafting-call) · [Hint 1](step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](step3_retry_fallback_drafting_hints.md#hint-2) · [Solution](step3_retry_fallback_drafting_solution.md)
+> [Back to this step](../READING_README.md#step-3-retries-then-a-safe-fallback-when-a-model-call-fails) · [Hint 1](step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](step3_retry_fallback_drafting_hints.md#hint-2) · [Solution](step3_retry_fallback_drafting_solution.md)
 
-## Intermediate Version
+## Solution — `.with_fallbacks()` on each chain, only for transient errors
 
-### Approach 1 — a real fallback chain, and `.with_fallbacks()`
-
-```python
-# fallback.py
-# Design decision, written down on purpose: a canned reply is an acceptable
-# stand-in for general and technical tickets while the primary drafting
-# call is down. For billing tickets, the canned reply still goes out (a
-# customer shouldn't be left with total silence), but it's paired with
-# needs_human_review=True in Step 4, so a person confirms the real charge
-# issue before it's ever treated as resolved.
-
-from langchain_core.runnables import RunnableLambda
-
-
-def canned_response(inputs):
-    return (
-        "Thanks for reaching out. We've received your message and a "
-        "member of our support team will follow up with you shortly."
-    )
-
-
-def build_fallback_chain():
-    return RunnableLambda(canned_response)
-```
+**Story — `chains/fallback.py`:** the backups, in one file. `TRANSIENT_ERRORS` lists only failures that pass on their own. `with_canned_reply()` and `with_unsure_category()` wrap any chain with `.with_fallbacks([...], exceptions_to_handle=TRANSIENT_ERRORS)` (Doc05's LCEL topic); `RunnableLambda` turns a plain function into a step `.with_fallbacks()` accepts. The design decision is written at the top: a canned reply is fine even for a double charge, because it promises nothing and every fallback gets flagged. **If not:** a bug in your own code (a `KeyError`) would be silently hidden behind a polite canned reply.
 
 ```python
-# handlers.py (updated)
-from langchain_core.output_parsers import StrOutputParser
-from drafting import build_resilient_model
-from fallback import build_fallback_chain
-from research import build_research_chain
+# src/langchainpro/chains/fallback.py
+import openai
+from langchain_core.runnables import Runnable, RunnableLambda
 
-resilient_model = build_resilient_model()
-fallback_chain = build_fallback_chain()
-research_chain = build_research_chain()
+from langchainpro.schemas import TicketCategory
+from langchainpro.utils.logger import get_logger
 
-billing_chain = (
-    research_chain | billing_prompt | resilient_model | StrOutputParser()
-).with_fallbacks([fallback_chain])
-
-technical_chain = (
-    research_chain | technical_prompt | resilient_model | StrOutputParser()
-).with_fallbacks([fallback_chain])
-
-general_chain = (
-    general_prompt | resilient_model | StrOutputParser()
-).with_fallbacks([fallback_chain])
-```
-
-**Expected behavior on a normal, working call:** identical output to Step 2 — the fallback never runs, because the primary chain never raised.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-3-retry-and-fallback-for-the-drafting-call) · [Hint 1](step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](step3_retry_fallback_drafting_hints.md#hint-2) · [Solution](step3_retry_fallback_drafting_solution.md)
-
-### Approach 2 — proving the fallback actually fires, on purpose
-
-```python
-# test_pipeline.py (excerpt)
-from langchain_core.runnables import RunnableLambda
-from fallback import build_fallback_chain
-
-
-def always_fails(inputs):
-    raise TimeoutError("simulated transient failure for testing")
-
-
-broken_primary = RunnableLambda(always_fails)
-fallback_chain = build_fallback_chain()
-safe_chain = broken_primary.with_fallbacks([fallback_chain])
-
-result = safe_chain.invoke({"ticket": "test"})
-print(result)
-```
-**Expected output:**
-```
-Thanks for reaching out. We've received your message and a member of our support team will follow up with you shortly.
-```
-The primary chain always raises, so `.with_fallbacks()` always runs the fallback instead — proof the wiring genuinely works, not just that it compiles.
-
-**Difference from Basic:** Basic wraps the model with retry alone — useful, but if all 3 retry attempts still fail, the chain still crashes with no fallback. Intermediate adds a genuine second path via `.with_fallbacks()`, and Approach 2 proves, with a deliberately broken chain, that the fallback path really does run when it's supposed to.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-3-retry-and-fallback-for-the-drafting-call) · [Hint 1](step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](step3_retry_fallback_drafting_hints.md#hint-2) · [Solution](step3_retry_fallback_drafting_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a cheaper-model fallback instead of a canned template
-
-```python
-# fallback.py (alternative: a real, cheaper model instead of a fixed string)
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_openai import ChatOpenAI
-
-FALLBACK_PROMPT = ChatPromptTemplate.from_template(
-    "Write a brief, polite acknowledgment for this support ticket. "
-    "Do not promise specific outcomes. Ticket: {ticket}"
+# why: fall back only on failures that are nobody's fault and pass on
+# their own — the same "transient" errors Doc04's table retries. A bad
+# key or a bug in our own code must still fail loudly.
+# how: the OpenAI client under ChatOpenAI already retried these 2 times
+# with backoff (Doc04) — the fallback only runs when retries ran out
+TRANSIENT_ERRORS = (
+    # how: APITimeoutError is a kind of APIConnectionError
+    openai.APIConnectionError,
+    openai.RateLimitError,
+    openai.InternalServerError,
 )
 
+# why: the design decision, on purpose — even for a double charge, this
+# reply is safe to send: it promises nothing and admits nothing. Every
+# fallback is also flagged for a human (Step 4), so nothing is hidden.
+FALLBACK_REPLY = (
+    "Thanks for contacting SupportCo. We've received your message, "
+    "and a member of our team will reply within one business day."
+)
 
-def build_fallback_chain():
-    fallback_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    return FALLBACK_PROMPT | fallback_model | StrOutputParser()
-```
-**Expected behavior:** if the primary (presumably pricier or slower) model call fails, this fallback still makes a real model call, just to a smaller, cheaper, hopefully more available model — a genuinely different degraded path than a fixed canned string, at the cost of still depending on *some* model call succeeding.
+def canned_reply(inputs: dict) -> str:
+    logger = get_logger(__name__)
+    # why: logged as a warning — a fallback should be visible in your
+    # logs, not only in the customer's inbox
+    logger.warning("Reply chain failed - sending the fallback reply")
+    return FALLBACK_REPLY
 
-### Approach 2 — refusing to send a degraded answer for a high-stakes category
-
-```python
-# handlers.py -- treating billing differently on purpose
-class NeedsHumanEscalation(Exception):
-    """Raised instead of silently sending a degraded billing reply."""
-
-
-def billing_fallback(inputs):
-    raise NeedsHumanEscalation(
-        "Primary drafting failed for a billing ticket -- escalating to a "
-        "human instead of sending a canned reply about a real charge."
+def unsure_category(inputs: dict) -> TicketCategory:
+    logger = get_logger(__name__)
+    logger.warning("Classifier failed - using general, marked unsure")
+    return TicketCategory(
+        category="general",
+        reason="The classifier was unavailable.",
+        sure=False,
     )
 
+def with_canned_reply(chain: Runnable) -> Runnable:
+    # how: .with_fallbacks() runs the backup only when the chain raises
+    # one of these errors (Doc05); RunnableLambda turns our plain
+    # function into a step that .with_fallbacks() accepts
+    backup = RunnableLambda(canned_reply)
+    return chain.with_fallbacks(
+        [backup], exceptions_to_handle=TRANSIENT_ERRORS
+    )
 
-from langchain_core.runnables import RunnableLambda
-
-billing_chain = (
-    research_chain | billing_prompt | resilient_model | StrOutputParser()
-).with_fallbacks([RunnableLambda(billing_fallback)])
+def with_unsure_category(chain: Runnable) -> Runnable:
+    backup = RunnableLambda(unsure_category)
+    return chain.with_fallbacks(
+        [backup], exceptions_to_handle=TRANSIENT_ERRORS
+    )
 ```
-**Expected behavior:** on the billing path, once retries are exhausted, this raises a clear, named exception instead of quietly sending a reply about a real financial issue — the caller (`main.py`, or whatever's calling this pipeline in production) is expected to catch `NeedsHumanEscalation` and route the ticket to a person directly, rather than treat it as "handled."
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's single canned-reply fallback treats every category the same way. Approach 1 shows a genuinely different *quality* of degraded answer (a real, cheaper model call) instead of a fixed string. Approach 2 shows the other real option: for a category where a wrong degraded answer is worse than no answer, "fail loudly and escalate" can be the more honest fallback than any generated text at all — a fallback doesn't have to produce a response; it can produce a clear failure that a human is supposed to see.
+**Changed from Step 2:** the classifier chain is wrapped with its backup.
 
-**Which one should you actually write?** Whichever one you can defend out loud, per category, and it's fine for different categories to get different answers. A reasonable real-world split: general and technical tickets get Intermediate's canned-reply fallback (low stakes, and a slightly generic reply costs little); billing tickets get Approach 2's loud escalation, because a customer's real money is involved and a wrong guess there is worse than a short delay. What's not reasonable is picking one fallback strategy for the whole pipeline without ever asking whether every category actually deserves the same answer to "what's acceptable when things go wrong."
+**Story — `chains/classifier.py`:** if the classifier can't be reached, the ticket becomes "general, not sure" — and still gets a reply. **If not:** a classifier outage would stop every ticket before any reply chain even ran.
+
+```python
+# src/langchainpro/chains/classifier.py
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import Runnable
+from pydantic import ValidationError
+
+# new in Step 3
+from langchainpro.chains.fallback import with_unsure_category
+from langchainpro.models.llm import get_model
+from langchainpro.schemas import TicketCategory
+from langchainpro.utils.logger import get_logger
+from langchainpro.utils.prompts import load_prompt
+
+def build_classifier_chain() -> Runnable:
+    # why: prompt | structured model — Doc05's "shape during" method, so
+    # the answer arrives as a checked TicketCategory, not text to parse
+    prompt = ChatPromptTemplate.from_template(load_prompt("classifier"))
+    model = get_model().with_structured_output(TicketCategory)
+    chain = prompt | model
+    # why: if the model is down even after the client's retries, the
+    # ticket still gets a category (general, marked unsure)
+    # changed in Step 3: wrapped
+    return with_unsure_category(chain)
+
+def classify_ticket(ticket: str) -> TicketCategory:
+    logger = get_logger(__name__)
+    chain = build_classifier_chain()
+    try:
+        result = chain.invoke({"ticket": ticket})
+    except ValidationError:
+        # why: an answer that doesn't fit the shape must not crash the
+        # pipeline — the safe default is "general, and not sure"
+        logger.warning("Classifier answer did not fit TicketCategory")
+        result = TicketCategory(
+            category="general",
+            reason="The classifier's answer could not be read.",
+            sure=False,
+        )
+    # why: every routing decision is logged with its reason (Project 1)
+    logger.info(
+        f"category={result.category} sure={result.sure} "
+        f"reason={result.reason}"
+    )
+    return result
+```
+
+**Changed from Step 2:** every reply chain is wrapped with the canned reply.
+
+**Story — `chains/replies.py`:** the wrapper goes around the **whole** chain, lookups included, so any transient failure in it falls back. **If not:** you'd wrap three chains three times.
+
+```python
+# src/langchainpro/chains/replies.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import Runnable
+
+# new in Step 3
+from langchainpro.chains.fallback import with_canned_reply
+from langchainpro.chains.lookups import build_lookup_step
+from langchainpro.models.llm import get_model
+from langchainpro.utils.prompts import load_prompt
+
+def build_reply_chain(category: str) -> Runnable:
+    # why: this is the branch — one reply chain per category, each with
+    # its own prompt file (billing.txt, technical.txt, general.txt)
+    # how: the category name IS the prompt file's name
+    prompt = ChatPromptTemplate.from_template(load_prompt(category))
+    chain = prompt | get_model() | StrOutputParser()
+
+    if category == "general":
+        # why: a general question needs no account data — looking it up
+        # anyway would only add a second of waiting
+        full_chain = chain
+    else:
+        # how: the lookup step's dict (ticket, account, orders) fills
+        # the prompt's {ticket}, {account} and {orders}
+        full_chain = build_lookup_step() | chain
+
+    # why: if the model is down even after retries, send a safe reply
+    # changed in Step 3: wrapped
+    return with_canned_reply(full_chain)
+```
+
+**Changed from Step 2:** the record says whether the fallback ran.
+
+**Story — `services/pipeline.py`:** the canned reply is always the exact same text, so comparing to `FALLBACK_REPLY` tells you it was used. **If not:** a fallback would be invisible in your data — Step 4 needs this flag.
+
+```python
+# src/langchainpro/services/pipeline.py
+from langchainpro.chains.classifier import classify_ticket
+# new in Step 3
+from langchainpro.chains.fallback import FALLBACK_REPLY
+from langchainpro.chains.replies import build_reply_chain
+from langchainpro.schemas import TicketRecord
+
+def handle_ticket(ticket: str, customer_id: str) -> TicketRecord:
+    # how: classify -> pick the reply chain -> get the reply -> build
+    # the record
+    category = classify_ticket(ticket)
+    chain = build_reply_chain(category.category)
+    # how: every reply chain gets the same input dict; a prompt simply
+    # ignores keys it doesn't use (Doc05's template edge cases)
+    inputs = {"ticket": ticket, "customer_id": customer_id}
+    reply = chain.invoke(inputs)
+    print(f"Reply: {reply}")
+
+    # why: the fallback always returns exactly FALLBACK_REPLY, so an
+    # equal reply means the fallback ran
+    # new in Step 3
+    used_fallback = reply == FALLBACK_REPLY
+
+    return TicketRecord(
+        customer_id=customer_id,
+        ticket=ticket,
+        category=category.category,
+        reply=reply,
+        # new in Step 3
+        used_fallback=used_fallback,
+    )
+```
+
+**Story — `tests/unit/test_fallback.py`:** a fallback you can't prove fires — and can't prove stays quiet — isn't tested. Case 1 points a real `ChatOpenAI` at a port where nothing listens: a real, forced outage with no key and no cost. Case 2 proves a working chain never touches the fallback. Case 3 proves a bug is **not** hidden. **If not:** you'd find out the fallback doesn't work during a real outage.
+
+```python
+# tests/unit/test_fallback.py
+# Proves the fallback runs when the model can't be reached, and only
+# then. No API key needed. Run from the repo root:
+#   python tests/unit/test_fallback.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda
+from langchain_openai import ChatOpenAI
+
+from langchainpro.chains.fallback import FALLBACK_REPLY, with_canned_reply
+
+def build_broken_chain():
+    # how: nothing listens on port 9 of your own machine, so every call
+    # fails at once with a connection error — a real, forced outage,
+    # with no API key and no cost
+    # why: max_retries=0 skips the client's 2 retries, so it's instant
+    model = ChatOpenAI(
+        model="gpt-4o-mini",
+        api_key="sk-test",
+        base_url="http://127.0.0.1:9",
+        max_retries=0,
+    )
+    prompt = ChatPromptTemplate.from_template("Reply to: {ticket}")
+    return prompt | model | StrOutputParser()
+
+def working_step(inputs: dict) -> str:
+    return "A real reply."
+
+def buggy_step(inputs: dict) -> str:
+    # why: a bug in our own code, not an outage
+    return inputs["no_such_key"]
+
+def test_outage_uses_fallback() -> None:
+    chain = with_canned_reply(build_broken_chain())
+    reply = chain.invoke({"ticket": "Where is my invoice?"})
+    print(f"case 1 (outage)           -> fallback={reply == FALLBACK_REPLY}")
+
+def test_working_chain_skips_fallback() -> None:
+    chain = with_canned_reply(RunnableLambda(working_step))
+    reply = chain.invoke({"ticket": "Hi"})
+    print(f"case 2 (working)          -> {reply}")
+
+def test_bug_is_not_hidden() -> None:
+    # why: a KeyError is not a transient error — it must still raise
+    chain = with_canned_reply(RunnableLambda(buggy_step))
+    try:
+        chain.invoke({"ticket": "Hi"})
+        print("case 3 (bug)              -> hidden (wrong!)")
+    except KeyError:
+        print("case 3 (bug)              -> KeyError still raised")
+
+if __name__ == "__main__":
+    test_outage_uses_fallback()
+    test_working_chain_skips_fallback()
+    test_bug_is_not_hidden()
+```
+
+**Run it:**
+
+```bash
+python tests/unit/test_fallback.py
+python -m langchainpro.main
+```
+
+`test_fallback.py` prints (after one warning log line):
+
+```
+case 1 (outage)           -> fallback=True
+case 2 (working)          -> A real reply.
+case 3 (bug)              -> KeyError still raised
+```

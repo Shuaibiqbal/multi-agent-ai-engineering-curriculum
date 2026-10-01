@@ -1,213 +1,362 @@
 # Step 2 — One Tool, One Loop: the Smallest Possible Working Agent — Solution
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
+> [Back to this step](../READING_README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
-## Basic Version
+**Story — Step 2:** an agent is a model in a loop that can ask for tools. This step builds the **real** Worker loop — the one the finished project uses — but gives it only one pure-logic tool, so every line can be understood before more tools arrive. Think → act → observe, a step log, and a hard step limit are all here from the start. **If not:** Step 3 would have to rewrite the loop to add a limit and a log, instead of just adding tools.
 
-### Approach 1 — the loop, proven once
+After this step the project runs as a small agent: ask for a temperature in Fahrenheit and the model calls the converter, you see each step, and it can never loop forever. Files from Step 1 that aren't shown here don't change.
+
+## The tool
+
+**Story — `tools/converter.py`:** the simplest possible tool — pure maths, no network, so it can't fail for outside reasons. (Also create an empty `tools/__init__.py`.) **If not:** a network problem could look like a loop bug.
 
 ```python
-# tools.py
+# src/tools/converter.py
+# The converter tool: celsius_to_fahrenheit(), pure logic with no outside
+# calls. Its docstring tells the model when to use it.
 from langchain_core.tools import tool
 
 @tool
-def calculator(expression: str) -> str:
-    """Evaluate a basic arithmetic expression, like '47 * 6'."""
-    return str(eval(expression))
+def celsius_to_fahrenheit(celsius: float) -> float:
+    """Convert a temperature from Celsius to Fahrenheit. Use it only when
+    you already have a Celsius number and the user wants Fahrenheit."""
+    return round(celsius * 9 / 5 + 32, 1)
 ```
+
+## Solution — the finished loop shape, with one tool
+
+**Changed from Step 1:** `exceptions.py` adds Doc07's `MaxIterationsExceeded`.
+
+**Story — `exceptions.py`:** `MaxIterationsExceeded` carries the partial step log, so hitting the limit still shows where the Worker got stuck. **If not:** the limit would throw away every step that happened before it.
 
 ```python
-# agent.py
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
-from langchain_openai import ChatOpenAI
-from tools import calculator
+# src/exceptions.py
+# The project's named errors: MissingConfigError (Doc01), and
+# MaxIterationsExceeded (Doc07), which carries the partial step log.
 
-def run_agent(task):
-    model = ChatOpenAI(model="gpt-4o-mini").bind_tools([calculator])
-    messages = [SystemMessage("Use the calculator tool for any math."), HumanMessage(task)]
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
 
-    while True:
-        response = model.invoke(messages)
-        messages.append(response)
-        if not response.tool_calls:
-            return response.content
-        for call in response.tool_calls:
-            result = calculator.invoke(call["args"])
-            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+class MaxIterationsExceeded(Exception):
+    def __init__(self, message: str, steps: list[dict]) -> None:
+        self.steps = steps
+        super().__init__(message)
 ```
+
+**Story — `prompts/worker.txt`:** tells the model *when* to use its tool. Without it, the model often converts temperatures itself — and gets it slightly wrong. **If not:** the tool would exist, but be used only sometimes.
+
+`src/prompts/worker.txt`
+
+```text
+You are a research assistant. Use your tool for every temperature
+conversion — never convert in your head. Answer everything else directly.
+```
+
+(Step 3 rewrites this prompt once there are 3 tools.)
+
+**Story — `agents/worker.py`:** Doc07's Build Task Worker, driving Doc06's `@tool` tools. `ALL_TOOLS` is the toolbox — one tool for now. `find_tool()` and `run_tool()` turn **any** failure (unknown tool, bad arguments, a crash inside the tool) into an `Error: ...` observation the model can read. Every call becomes a step record; the log comes back in `AgentResult`, or inside `MaxIterationsExceeded` when the limit is hit. **If not:** a bad tool call would crash the run, and a wrong answer would have no record of how it was reached. This file does **not** change in Step 3 except for the tool list.
+
+```python
+# src/agents/worker.py
+# The Worker agent: run_worker() is the ReAct loop — ask the model, run the
+# tool it asks for, send the result back — with a step log and a hard
+# step limit. ALL_TOOLS lists the tools it may use.
+from dataclasses import dataclass, field
+
+from langchain_core.tools import BaseTool
+from langchain_openai import ChatOpenAI
+
+from src.exceptions import MaxIterationsExceeded
+from src.tools.converter import celsius_to_fahrenheit
+from src.utils.logger import get_logger
+from src.utils.prompts import load_prompt
+
+ALL_TOOLS = [celsius_to_fahrenheit]
+
+@dataclass
+class AgentResult:
+    final_answer: str
+    steps: list[dict] = field(default_factory=list)
+
+def find_tool(tools: list[BaseTool], name: str) -> BaseTool | None:
+    for candidate in tools:
+        if candidate.name == name:
+            return candidate
+    return None
+
+def run_tool(
+    call: dict, tools: list[BaseTool]
+) -> tuple[str | None, str | None]:
+    tool = find_tool(tools, call["name"])
+    if tool is None:
+        return None, f"unknown tool: {call['name']}"
+    try:
+        result = tool.invoke(call["args"])
+        return str(result), None
+    except Exception as e:
+        return None, str(e)
+
+def run_worker(
+    model: ChatOpenAI, task: str, max_iterations: int
+) -> AgentResult:
+    logger = get_logger(__name__)
+    model_with_tools = model.bind_tools(ALL_TOOLS)
+    messages = [
+        {"role": "system", "content": load_prompt("worker")},
+        {"role": "user", "content": task},
+    ]
+    steps: list[dict] = []
+
+    for step in range(max_iterations):
+        response = model_with_tools.invoke(messages)
+        messages.append(response)
+
+        if not response.tool_calls:
+            return AgentResult(final_answer=response.content, steps=steps)
+
+        for call in response.tool_calls:
+            result, error = run_tool(call, ALL_TOOLS)
+            if error is None:
+                observation = result
+                logger.info("step %s: %s -> %s", step, call["name"], result)
+            else:
+                observation = f"Error: {error}"
+                logger.warning(
+                    "step %s: %s failed -> %s", step, call["name"], error
+                )
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call["id"],
+                "content": observation,
+            })
+            steps.append({
+                "step": step,
+                "tool": call["name"],
+                "arguments": call["args"],
+                "result": result,
+                "error": error,
+            })
+
+    message = f"No answer after {max_iterations} steps"
+    raise MaxIterationsExceeded(message, steps)
+```
+
+**Changed from Step 1:** `main.py` calls `run_worker()` instead of the chain, prints the step log with `print_steps()`, and catches `MaxIterationsExceeded` and `openai.RateLimitError`.
+
+**Story — `main.py`:** hitting the limit ends one task with its partial log, not the whole app. **If not:** you'd see "gave up" with no clue why.
 
 ```python
 # main.py
-from agent import run_agent
+# The file you run: python main.py
+# Runs the Worker on each task, prints its step log and the answer, and
+# turns each known error into one clear message.
+import sys
 
-print(run_agent("What is 47 * 6?"))
-print(run_agent("What's the capital of Japan?"))
-```
-**Expected output:**
-```
-47 * 6 is 282.
-The capital of Japan is Tokyo.
-```
-The first prompt makes exactly one tool-call round before answering; the second never calls the tool at all — same model, same loop, the decision to use the tool or not is the model's, based on the task. This works, but `calculator` has no argument schema (the model is trusted to send a valid `expression` string with nothing checking it), and `run_agent()` returns a bare string with no record of what actually happened during the run.
+import openai
 
-<hr class="page-break">
+from src.agents.worker import run_worker
+from src.config import load_config
+from src.exceptions import MaxIterationsExceeded, MissingConfigError
+from src.models.llm import get_model
+from src.utils.logger import get_logger
 
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
+MAX_ITERATIONS = 5
 
-## Intermediate Version
+def print_steps(steps: list[dict]) -> None:
+    for step in steps:
+        if step["error"] is None:
+            outcome = step["result"]
+        else:
+            outcome = "Error: " + step["error"]
+        print(f"  step {step['step']}: {step['tool']}({step['arguments']})")
+        print(f"          -> {outcome}")
 
-### Approach 1 — a Pydantic argument schema and a structured `AgentResult`
+def main() -> None:
+    try:
+        config = load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
 
-```python
-# tools.py
-from langchain_core.tools import tool
-from pydantic import BaseModel
-
-
-class CalculatorArgs(BaseModel):
-    expression: str
-
-
-@tool(args_schema=CalculatorArgs)
-def calculator(expression: str) -> str:
-    """Evaluate a basic arithmetic expression, like '47 * 6'."""
-    return str(eval(expression))
-```
-
-```python
-# agent.py
-from pydantic import BaseModel
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
-from langchain_openai import ChatOpenAI
-from tools import calculator
-
-
-class AgentResult(BaseModel):
-    answer: str
-    steps: list[str]
-
-
-def run_agent(task: str) -> AgentResult:
-    model = ChatOpenAI(model="gpt-4o-mini").bind_tools([calculator])
-    messages = [SystemMessage("Use the calculator tool for any math."), HumanMessage(task)]
-    steps: list[str] = []
+    logger = get_logger(__name__)
+    model = get_model(config)
+    print("ResearchHand — ask a question, or /quit to exit.")
 
     while True:
-        response = model.invoke(messages)
-        messages.append(response)
+        task = input("You: ").strip()
+        if task == "/quit":
+            break
+        if task == "":
+            continue
 
-        if not response.tool_calls:
-            return AgentResult(answer=response.content, steps=steps)
+        try:
+            result = run_worker(model, task, MAX_ITERATIONS)
+        except MaxIterationsExceeded as e:
+            print(f"Gave up: {e}")
+            print_steps(e.steps)
+            continue
+        except openai.AuthenticationError:
+            logger.error("Authentication failed — check OPENAI_API_KEY.")
+            print("Login failed — check OPENAI_API_KEY in your .env file.")
+            sys.exit(1)
+        except openai.RateLimitError:
+            logger.warning("Rate limited after the client's retries.")
+            print("We're busy right now — wait a moment and try again.")
+            continue
 
-        for call in response.tool_calls:
-            result = calculator.invoke(call["args"])
-            steps.append(f"called {call['name']} with {call['args']} -> {result}")
-            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+        print_steps(result.steps)
+        print(f"Answer: {result.final_answer}")
+
+if __name__ == "__main__":
+    main()
 ```
 
-```python
-# main.py
-from agent import run_agent
+**Story — `tests/unit/test_tools.py`:** checks the tool with no model and no network. Case 2 proves `@tool` checks the argument's type *before* the function runs — the Pydantic contract from Doc06. **If not:** a wrong argument type would only show up during a real run.
 
-for task in ["What is 47 * 6?", "What's the capital of Japan?"]:
-    result = run_agent(task)
-    print(f"Task: {task}")
+```python
+# tests/unit/test_tools.py
+# Checks the tools. No API calls, no API key, no network needed.
+# Run from the repo root: python -m tests.unit.test_tools
+from pydantic import ValidationError
+
+from src.tools.converter import celsius_to_fahrenheit
+
+def test_converter() -> None:
+    result = celsius_to_fahrenheit.invoke({"celsius": 18})
+    print(f"case 1 (18°C in °F)          -> {result}")
+
+def test_converter_rejects_bad_arguments() -> None:
+    try:
+        celsius_to_fahrenheit.invoke({"celsius": "hot"})
+    except ValidationError:
+        print("case 2 (celsius='hot')       -> ValidationError")
+
+if __name__ == "__main__":
+    test_converter()
+    test_converter_rejects_bad_arguments()
+```
+
+**Story — `tests/unit/test_agents.py`:** checks `find_tool()` and `run_tool()` with hand-made tool calls — no model needed. **If not:** a bug in how failures are turned into observations would only appear during a real, paid run.
+
+```python
+# tests/unit/test_agents.py
+# Checks the Worker's helper functions with hand-made
+# tool calls and steps. No API calls, no API key needed.
+# Run from the repo root: python -m tests.unit.test_agents
+from src.agents.worker import ALL_TOOLS, find_tool, run_tool
+
+def test_find_tool() -> None:
+    found = find_tool(ALL_TOOLS, "celsius_to_fahrenheit")
+    missing = find_tool(ALL_TOOLS, "send_email")
+    print(f"case 1 (known tool)          -> {found.name}")
+    print(f"case 1 (unknown tool)        -> {missing}")
+
+def test_run_tool() -> None:
+    good = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
+    unknown = {"name": "send_email", "args": {}}
+    bad_args = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
+    print(f"case 2 (good call)           -> {run_tool(good, ALL_TOOLS)}")
+    print(f"case 2 (unknown tool)        -> {run_tool(unknown, ALL_TOOLS)}")
+    result, error = run_tool(bad_args, ALL_TOOLS)
+    print(f"case 2 (bad arguments)       -> result={result}, error set: "
+          f"{error is not None}")
+
+if __name__ == "__main__":
+    test_find_tool()
+    test_run_tool()
+```
+
+**Changed from Step 1:** `tests/integration/test_live_agents.py` gets cases 2-4 — `tools_used()`, three test functions, their imports, and three calls at the bottom.
+
+**Story — `tests/integration/test_live_agents.py`:** three Worker cases with the real model: a conversion uses the tool, a general question uses none, and `max_iterations=1` raises `MaxIterationsExceeded`. **If not:** "it only calls the tool when needed" and "it always stops" would be claims, not checks.
+
+```python
+# tests/integration/test_live_agents.py
+# The project's checks against the real OpenAI API (and Open-Meteo) —
+# each step adds cases. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_agents
+#   case 1 — the no-tools chain answers a question from memory
+#   case 2 — a conversion uses the converter tool
+#   case 3 — general knowledge needs no tool at all
+#   case 4 — 1 round can't finish a tool task: MaxIterationsExceeded
+from langchain_openai import ChatOpenAI
+
+# new in Step 2
+from src.agents.worker import AgentResult, run_worker
+from src.chains.direct_answer import build_direct_chain
+from src.config import load_config
+# new in Step 2
+from src.exceptions import MaxIterationsExceeded
+from src.models.llm import get_model
+
+
+def test_direct_answer(model: ChatOpenAI) -> None:
+    chain = build_direct_chain(model)
+    answer = chain.invoke({"question": "What is the capital of France?"})
+    print(f"case 1 (direct answer)  -> {answer}")
+
+
+# new in Step 2
+def tools_used(result: AgentResult) -> list[str]:
+    names = []
     for step in result.steps:
-        print(f"  {step}")
-    print(f"Answer: {result.answer}\n")
+        names.append(step["tool"])
+    return names
+
+
+# new in Step 2
+def test_conversion_uses_tool(model: ChatOpenAI) -> None:
+    task = "What is 25 degrees Celsius in Fahrenheit?"
+    result = run_worker(model, task, 5)
+    print(f"case 2 (conversion)     -> tools: {tools_used(result)}")
+
+
+# new in Step 2
+def test_no_tool_needed(model: ChatOpenAI) -> None:
+    result = run_worker(model, "What is the capital of France?", 5)
+    print(f"case 3 (no tool needed) -> {len(result.steps)} steps: "
+          f"{result.final_answer}")
+
+
+# new in Step 2
+def test_step_limit(model: ChatOpenAI) -> None:
+    task = "What is 25 degrees Celsius in Fahrenheit?"
+    try:
+        run_worker(model, task, 1)
+        print("case 4 (step limit)     -> WRONG, no error was raised")
+    except MaxIterationsExceeded as e:
+        print(f"case 4 (step limit)     -> raised, {len(e.steps)} step(s) "
+              f"in the partial log")
+
+
+if __name__ == "__main__":
+    config = load_config()
+    model = get_model(config)
+    test_direct_answer(model)
+    # new in Step 2
+    test_conversion_uses_tool(model)
+    test_no_tool_needed(model)
+    test_step_limit(model)
 ```
-**Expected output:**
+
+**Run everything:**
+
+```bash
+python -m tests.unit.test_config
+python -m tests.unit.test_tools
+python -m tests.unit.test_agents
+python -m tests.integration.test_live_agents
+python main.py
 ```
-Task: What is 47 * 6?
-  called calculator with {'expression': '47 * 6'} -> 282
-Answer: 47 * 6 is 282.
 
-Task: What's the capital of Japan?
-Answer: The capital of Japan is Tokyo.
+**Expected app session** (log lines left out; wording varies):
+
 ```
-Notice the second task's `steps` list is empty — proof the loop only calls the tool when it actually needs to, not because it was told to.
-
-**Difference from Basic:** `CalculatorArgs` gives LangChain (and the model) a real schema for the tool's one argument, and `AgentResult` turns "what happened during this run" into something you can iterate over and test, instead of a string you'd have to re-parse. The loop's logic hasn't changed at all — same ask → check → run-or-stop shape as Basic.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a failing tool call that doesn't crash the loop
-
-```python
-# agent.py
-from pydantic import BaseModel
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
-from langchain_openai import ChatOpenAI
-from tools import calculator
-
-
-class AgentStep(BaseModel):
-    tool: str
-    args: dict
-    result: str
-    ok: bool
-
-
-class AgentResult(BaseModel):
-    answer: str
-    steps: list[AgentStep]
-
-
-def run_agent(task: str) -> AgentResult:
-    model = ChatOpenAI(model="gpt-4o-mini").bind_tools([calculator])
-    messages = [SystemMessage("Use the calculator tool for any math."), HumanMessage(task)]
-    steps: list[AgentStep] = []
-
-    while True:
-        response = model.invoke(messages)
-        messages.append(response)
-
-        if not response.tool_calls:
-            return AgentResult(answer=response.content, steps=steps)
-
-        for call in response.tool_calls:
-            try:
-                result = calculator.invoke(call["args"])
-                ok = True
-            except Exception as e:
-                result = f"Error: {e}"
-                ok = False
-
-            steps.append(AgentStep(tool=call["name"], args=call["args"], result=result, ok=ok))
-            messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+You: What is 25 degrees Celsius in Fahrenheit?
+  step 0: celsius_to_fahrenheit({'celsius': 25})
+          -> 77.0
+Answer: 25°C is 77.0°F.
+You: What is the capital of France?
+Answer: The capital of France is Paris.
 ```
-**Expected output**, run against a task engineered to send a bad expression (like `"What is 47 ** ** 6?"`, which `eval` can't parse):
-```
-Task: What is 47 ** ** 6?
-  calculator({'expression': '47 ** ** 6'}) -> Error: invalid syntax (<string>, line 1) [ok=False]
-  calculator({'expression': '47 ** 6'}) -> 10779215329 [ok=True]
-Answer: 47 ** 6 is 10,779,215,329.
-```
-The exact retry behavior depends on the model, but the pattern holds: the first `AgentStep` has `ok=False` and a labeled error instead of a crash, the model sees that error as a normal `ToolMessage`, and — because the error is clear and machine-readable, not a stack trace — it often corrects its own syntax and tries again, arriving at a real answer instead of the whole run dying on the first bad call.
-
-### Approach 2 — same loop, printed as a readable think/act/observe log
-
-```python
-# main.py
-from agent import run_agent
-
-result = run_agent("What is 47 * 6?")
-for i, step in enumerate(result.steps, start=1):
-    status = "ok" if step.ok else "FAILED"
-    print(f"Step {i} [{status}]: {step.tool}({step.args}) -> {step.result}")
-print(f"Final answer: {result.answer}")
-```
-**Expected output:**
-```
-Step 1 [ok]: calculator({'expression': '47 * 6'}) -> 282
-Final answer: 47 * 6 is 282.
-```
-This is the exact log format the README asks `main.py` to print, and it's the same shape Step 3 extends with a step count against `max_iterations` — nothing new gets invented there, just a limit check added around this same per-step loop.
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's loop assumes every tool call succeeds — true almost always for `calculator`, but not something you can assume in general. Approach 1 adds the `try/except` and the `ok` flag so a failure is visible data instead of a crash, which is the exact seam Step 3's genuinely-failing tool plugs into. Approach 2 doesn't change the agent at all — it's just `main.py` turning the same `AgentStep` list into the human-readable log the README's Step 2 deliverable asks for.
-
-**Which one should you actually write?** The full Advanced version — the `try/except`, the `AgentStep` model, and the readable log — because Step 3 reuses this loop's shape wholesale, just with more tools and a `max_iterations` wrapped around the same `while True:`. Writing the failure path now, against a tool simple enough that failures are easy to engineer on purpose, means Step 3's actually-flaky tool has somewhere correct to plug into instead of needing this same fix invented under more pressure.

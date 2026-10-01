@@ -32,14 +32,14 @@ for run_number in range(1, 6):
     if not city_sent:
         print(f"Run {run_number}: called with an empty city value")
     else:
-        print(f"Run {run_number}: called with city = {city_sent!r}")
+        print(f"Run {run_number}: called with city = {city_sent}")
 ```
 **Expected output (an example split — real model behavior varies run to run):**
 ```
 Run 1: asked or answered directly -> Sure — which city do you mean?
-Run 2: called with city = 'London'
+Run 2: called with city = London
 Run 3: asked or answered directly -> Could you tell me which city you mean?
-Run 4: called with city = 'New York'
+Run 4: called with city = New York
 Run 5: called with an empty city value
 ```
 
@@ -55,6 +55,7 @@ This shows you the real split across 5 runs. It doesn't save the results anywher
 
 ```python
 # missing_argument_practice.py
+from langchain_core.runnables import Runnable
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -65,7 +66,7 @@ def get_weather(city: str) -> str:
     return f"Sunny in {city}"
 
 
-def get_model_with_tools() -> ChatOpenAI:
+def get_model_with_tools() -> Runnable:
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     return model.bind_tools([get_weather])
 
@@ -114,4 +115,66 @@ if __name__ == "__main__":
 
 **Difference from Basic:** returning a list of typed records instead of only printing lets you actually count the split afterward (how many asked vs. guessed vs. something else) rather than having to re-read scrolled-past terminal output. Separating `classify_response()` out also makes it independently testable against a fake `response` object, no real API call needed.
 
-**Which one should you actually write?** Intermediate's classified-records version is enough for this exercise — the point is watching and labeling what the model actually does with a missing argument, not fixing it. It's worth knowing this version never stops an empty-string guess from being accepted as a "real" value; a `Field(min_length=1)` constraint via `args_schema=` on the tool itself is the real fix, and costs almost nothing once you're ready to add it — but this exercise's job is observation, not the fix.
+### Approach 2 — `args_schema` rejects an empty city before the tool runs
+
+**Story — `WeatherArgs`:** Approach 1 only *watches* the model send an empty city. A Pydantic model attached with `args_schema=` makes the tool itself refuse it — the "Checking arguments: Pydantic as the contract" topic, used for real. **If not:** `get_weather("")` would happily answer "Sunny in " — a wrong result that looks like a real one.
+
+```python
+# missing_argument_practice.py
+from pydantic import BaseModel, Field, ValidationError
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+
+
+class WeatherArgs(BaseModel):
+    # why: min_length=1 — an empty city fails this check before the
+    # tool's own code ever runs
+    city: str = Field(min_length=1)
+
+
+# how: args_schema= makes the tool check its arguments with WeatherArgs
+@tool(args_schema=WeatherArgs)
+def get_weather(city: str) -> str:
+    """Get the current weather for a named city. Requires a city name."""
+    return f"Sunny in {city}"
+
+
+def run_tool_safely(args: dict) -> str:
+    try:
+        return get_weather.invoke(args)
+    except ValidationError:
+        # why: a clear message the model can read — and then ask the user
+        # which city — instead of a crash
+        return "Error: a city name is required - ask the user."
+
+
+def main() -> None:
+    good_args = {"city": "Lahore"}
+    empty_args = {"city": ""}
+    print(f"case 1 (city given)   -> {run_tool_safely(good_args)}")
+    print(f"case 2 (empty city)   -> {run_tool_safely(empty_args)}")
+
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    model_with_tools = model.bind_tools([get_weather])
+    response = model_with_tools.invoke("what's the weather like")
+    if not response.tool_calls:
+        print(f"case 3 (real model)   -> asked: {response.content}")
+    else:
+        result = run_tool_safely(response.tool_calls[0]["args"])
+        print(f"case 3 (real model)   -> {result}")
+
+
+if __name__ == "__main__":
+    main()
+```
+**Expected output** (case 3 depends on the model):
+
+```
+case 1 (city given)   -> Sunny in Lahore
+case 2 (empty city)   -> Error: a city name is required - ask the user.
+case 3 (real model)   -> asked: Which city do you mean?
+```
+
+**Difference from Approach 1:** Approach 1 observes and labels what the model does. Approach 2 fixes it at the tool: `Field(min_length=1)` rejects an empty city with a `ValidationError`, and `run_tool_safely()` turns that into a message the model can read and act on (ask the user) instead of a crash.
+
+**Which one should you actually write?** Both — Approach 1 to see the problem, Approach 2 to fix it. The Build Task gives every tool an `args_schema` model and catches `ValidationError` exactly like `run_tool_safely()`.

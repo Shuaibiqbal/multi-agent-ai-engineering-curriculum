@@ -111,6 +111,8 @@ print(ask("You are a sarcastic pirate.", "Tell me about your day."))
 
 Wrapping the call in a small `ask()` function is optional for this exercise but makes comparing two system prompts much less repetitive. Write it this way, run it, confirm the two replies clearly differ in tone, then compare against the [Solution](first_chat_call_solution.md).
 
+Then move each system prompt into a file (`prompts/formal.txt`) and write `load_prompt(name)`: `with open(path) as prompt_file:` then `return prompt_file.read().strip()`. Use `name.lower()` in the path, so `"Formal"` still finds `formal.txt`.
+
 **Difference between Basic and Intermediate:** Basic's near-complete code makes one call and prints the reply, with nothing shared between calls. Intermediate wraps the same call in a reusable `ask()` function, so comparing prompts is a one-liner instead of a copy-pasted block.
 
 <hr class="page-break">

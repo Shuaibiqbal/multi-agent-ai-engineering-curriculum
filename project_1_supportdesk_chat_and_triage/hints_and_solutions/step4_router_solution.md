@@ -6,131 +6,35 @@
 
 After this step the project is complete. Files from Steps 1-3 that aren't shown here (`config.py`, `exceptions.py`, `models/llm.py`, `agents/triage.py`, `prompts/concierge.txt`, `prompts/triage.txt`, everything in `utils/`, `tests/unit/test_history.py`, `scripts/triage_samples.py`) don't change.
 
-## Basic Version
-
-### Approach 1 — a keyword router
-
-**Story — `agents/router.py` (Basic):** a list of complaint words; if any appears, it's Triage. Free and instant, no API call. **If not:** there'd be nothing to replace `/extract`.
-
-```python
-# src/supportdesk/agents/router.py
-TRIGGER_WORDS = ["charged", "broken", "refund", "crash", "can't log"]
-
-
-def decide(message: str) -> str:
-    lowered = message.lower()
-    for word in TRIGGER_WORDS:
-        if word in lowered:
-            return "triage"
-    return "concierge"
-```
-
-**Story — `agents/concierge.py` (Basic):** Step 3's chat branch, moved into its own file so it's an agent like Triage. **If not:** one of the "two agents" would still just be a branch inside `main.py`.
-
-```python
-# src/supportdesk/agents/concierge.py
-from openai import OpenAI
-
-from supportdesk.models.llm import stream_message
-from supportdesk.utils.history import trim_history
-from supportdesk.utils.prompts import load_prompt
-
-MAX_HISTORY_TOKENS = 3000
-
-
-def start_history() -> list[dict]:
-    return [{"role": "system", "content": load_prompt("concierge")}]
-
-
-def concierge_agent(client: OpenAI, history: list[dict], message: str) -> str:
-    trim_history(history, MAX_HISTORY_TOKENS)
-    return stream_message(client, history, message)
-```
-
-**Story — `main.py` (Basic):** the loop asks the router, then calls the agent it picked. **If not:** the router would exist but nothing would use it.
-
-```python
-# src/supportdesk/main.py
-import sys
-
-from supportdesk.agents.concierge import concierge_agent, start_history
-from supportdesk.agents.router import decide
-from supportdesk.agents.triage import triage_agent
-from supportdesk.config import load_config
-from supportdesk.exceptions import MissingConfigError
-from supportdesk.models.llm import check_api_key_at_startup, create_client
-
-
-def main() -> None:
-    try:
-        config = load_config()
-    except MissingConfigError as e:
-        print(f"Setup problem: {e}")
-        sys.exit(1)
-
-    client = create_client(config)
-    if not check_api_key_at_startup(client):
-        print("Login failed — check OPENAI_API_KEY in your .env file.")
-        sys.exit(1)
-
-    history = start_history()
-    while True:
-        message = input("You: ").strip()
-        if message == "/quit":
-            break
-        if decide(message) == "triage":
-            print(triage_agent(client, message))
-        else:
-            print("Concierge: ", end="", flush=True)
-            concierge_agent(client, history, message)
-
-
-if __name__ == "__main__":
-    main()
-```
-
-This works for clearly worded messages. But nothing is logged, so a wrong route can't be explained. A complaint without a trigger word ("the app freezes on login") goes to the Concierge, and "what's your refund policy?" becomes a ticket just because it says "refund". This version also dropped Step 3's error handling.
-
-<hr class="page-break">
-
-> [Back to this step](../READING_README.md#step-4-a-router-that-sends-each-message-to-the-right-agent-automatically-final-2-agents) · [Hint 1](step4_router_hints.md#hint-1) · [Hint 2](step4_router_hints.md#hint-2) · [Solution](step4_router_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a model-call router with a logged reason, and a service layer
+## Solution — a model-call router with a logged reason, and a service layer
 
 **Changed from Step 3:** `SupportTicket` is unchanged; `RouteDecision` is added below it.
 
 **Story — `schemas.py`:** adds `RouteDecision` next to `SupportTicket`. The router's answer is structured output too, the way Doc04's table suggests for "a supervisor picks the next agent". **If not:** you'd be parsing a free-text reply like "I think triage." by hand, and a typo'd agent name could slip through.
 
 ```python
-# src/supportdesk/schemas.py
+# src/schemas.py
+# The shapes the model must answer in. SupportTicket: one support ticket.
+# RouteDecision: which agent gets a message, and why.
 from typing import Literal
 
 from pydantic import BaseModel
 
-
 class SupportTicket(BaseModel):
-    # why: str | None, not str — a required name would force the model
-    # to invent one when the customer never gave it.
     customer_name: str | None
-    # how: Literal means the model can only pick one of these exact values
     issue_category: Literal["billing", "technical", "account_access", "other"]
     urgency: Literal["low", "medium", "high"]
     summary: str
 
-
 # new in Step 4
 class RouteDecision(BaseModel):
-    # why: agent names as a Literal — a typo'd agent name can't come back
     agent: Literal["concierge", "triage"]
-    # why: the reason goes into the log, so a wrong route can be explained
     reason: str
 ```
 
 **Story — `prompts/router.txt`:** says exactly what counts as "triage" and what counts as "concierge", and asks for a short reason. **If not:** the model would guess its own dividing line, and it would move from message to message.
 
-`src/supportdesk/prompts/router.txt`
+`src/prompts/router.txt`
 
 ```text
 You route messages for a customer support desk. Choose 'triage' if the
@@ -142,25 +46,23 @@ greetings, small talk and general questions. Give a one-sentence reason.
 **Story — `agents/router.py`:** one small structured call per message, which understands wording no keyword list covers. It starts from a safe default (Concierge) and only replaces it with a usable answer. Every decision is logged with its reason. **If not:** unclear messages would be misrouted with no trace, and a failed routing call could crash the loop or file a false ticket.
 
 ```python
-# src/supportdesk/agents/router.py
+# src/agents/router.py
+# The router: decide() asks the model which agent should answer a message,
+# and falls back to the Concierge when the answer can't be used.
 from openai import OpenAI
 from pydantic import ValidationError
 
-from supportdesk.models.llm import MODEL
-from supportdesk.schemas import RouteDecision
-from supportdesk.utils.logger import get_logger
-from supportdesk.utils.prompts import load_prompt
-
+from src.models.llm import MODEL
+from src.schemas import RouteDecision
+from src.utils.logger import get_logger
+from src.utils.prompts import load_prompt
 
 def decide(client: OpenAI, message: str) -> RouteDecision:
-    # when: logger fetched here, after load_config() has loaded .env
     logger = get_logger(__name__)
     messages = [
         {"role": "system", "content": load_prompt("router")},
         {"role": "user", "content": message},
     ]
-    # why: the safe default — Concierge only chats, so if the router's
-    # answer can't be used, no wrong ticket is ever created
     decision = RouteDecision(
         agent="concierge", reason="router could not decide"
     )
@@ -168,15 +70,12 @@ def decide(client: OpenAI, message: str) -> RouteDecision:
         completion = client.beta.chat.completions.parse(
             model=MODEL, messages=messages, response_format=RouteDecision
         )
-        # how: parsed is None when the model refused — keep the default
         reply = completion.choices[0].message
         if reply.parsed is not None:
             decision = reply.parsed
     except ValidationError as e:
         logger.warning("Router output did not match RouteDecision: %s", e)
 
-    # why: every decision is logged with its reason, so a misrouted
-    # message can be found and explained later
     logger.info(
         "routed to %s (%s): %r", decision.agent, decision.reason, message
     )
@@ -188,51 +87,46 @@ def decide(client: OpenAI, message: str) -> RouteDecision:
 **Story — `agents/concierge.py`:** Step 3's chat branch becomes an agent: its own prompt (`start_history()`), its own token budget, one function to call. **If not:** the "Concierge" would only be a name for some lines inside `main.py`.
 
 ```python
-# src/supportdesk/agents/concierge.py
+# src/agents/concierge.py
+# The Concierge agent: start_history() begins a chat with its system
+# prompt, and concierge_agent() trims the chat and streams the reply.
 from openai import OpenAI
 
-from supportdesk.models.llm import stream_message
-from supportdesk.utils.history import trim_history
-from supportdesk.utils.prompts import load_prompt
+from src.models.llm import stream_message
+from src.utils.history import trim_history
+from src.utils.prompts import load_prompt
 
-# why: far below gpt-4o-mini's real limit (128,000 tokens), so the rough
-# 4-characters-per-token guess can be off and still be safe
 MAX_HISTORY_TOKENS = 3000
 
-
 def start_history() -> list[dict]:
-    # why: the Concierge's own system prompt is what makes it a separate
-    # agent from Triage, not one function with an if-statement.
-    # when: called once, when the app starts — one conversation per run.
     system_prompt = load_prompt("concierge")
     return [{"role": "system", "content": system_prompt}]
 
-
 def concierge_agent(client: OpenAI, history: list[dict], message: str) -> str:
-    # why: trim BEFORE sending, so a long chat never hits the limit
     trim_history(history, MAX_HISTORY_TOKENS)
     return stream_message(client, history, message)
 ```
 
-**Moved + new:** `print_ticket()` moves here unchanged from Step 3's `main.py`. `handle_message()` is new — it holds the old `/extract`-or-chat `if`, but the router makes the choice now.
+**Changed from Step 3:** `print_ticket()` stays exactly as it was; three imports and `handle_message()` are added below it. `handle_message()` holds the old `/extract`-or-chat `if`, but the router makes the choice now.
 
-**Story — `services/desk_service.py`:** the whole flow in one function: ask the router, run the agent it picked, show the result. `print_ticket()` moves here from `main.py`. (Also create an empty `src/supportdesk/services/__init__.py`.) **If not:** `main.py` would mix keyboard input with business logic, and Project 5's web API would have to copy this flow instead of calling it.
+**Story — `services/desk_service.py`:** the whole flow in one function: ask the router, run the agent it picked, show the result. **If not:** `main.py` would mix keyboard input with business logic, and Project 5's web API would have to copy this flow instead of calling it.
 
 ```python
-# src/supportdesk/services/desk_service.py
+# src/services/desk_service.py
+# The app's flow, apart from the keyboard: handle_message() asks the router,
+# then calls the chosen agent. print_ticket() shows a ticket.
+# new in Step 4: every import except SupportTicket
 from openai import OpenAI
 
-from supportdesk.agents.concierge import concierge_agent
-from supportdesk.agents.router import decide
-from supportdesk.agents.triage import triage_agent
-from supportdesk.schemas import SupportTicket
-from supportdesk.utils.logger import get_logger
-
+from src.agents.concierge import concierge_agent
+from src.agents.router import decide
+from src.agents.triage import triage_agent
+from src.schemas import SupportTicket
+from src.utils.logger import get_logger
 
 def print_ticket(ticket: SupportTicket) -> None:
     name = ticket.customer_name
     if name is None:
-        # why: show clearly that no name was given — never a made-up one
         name = "(not given)"
     print("Ticket created:")
     print(f"  customer: {name}")
@@ -240,12 +134,8 @@ def print_ticket(ticket: SupportTicket) -> None:
     print(f"  urgency:  {ticket.urgency}")
     print(f"  summary:  {ticket.summary}")
 
-
 # new in Step 4
 def handle_message(client: OpenAI, history: list[dict], message: str) -> None:
-    # why: the whole "router picks an agent" flow lives here, not in
-    # main.py — main.py only reads input, so a web API could later call
-    # this same function without any terminal code.
     logger = get_logger(__name__)
     decision = decide(client, message)
 
@@ -264,27 +154,27 @@ def handle_message(client: OpenAI, history: list[dict], message: str) -> None:
         concierge_agent(client, history, message)
 ```
 
-**Changed from Step 3:** the startup and every `except` block are the same. What's gone: `print_ticket()`, `MAX_HISTORY_TOKENS` and the `if/else` body (all moved). What's new: `history = start_history()` and one call, `handle_message(...)`, inside the `try`.
+**Changed from Step 3:** the startup and every `except` block are the same. What's gone: the `print_ticket` import, `MAX_HISTORY_TOKENS` and the `if/else` body (they now live in `desk_service.py` and `concierge.py`). What's new: `history = start_history()` and one call, `handle_message(...)`, inside the `try`.
 
 **Story — `main.py`:** now only startup, the input loop, and Step 3's error handling (unchanged). `/extract` is gone. **If not:** `main.py` would keep growing with every new agent, instead of staying a thin entry point.
 
 ```python
-# src/supportdesk/main.py
+# main.py
+# The file you run: python main.py
+# Startup, the input loop and the error messages — every message goes to
+# handle_message(), which picks the agent.
 import sys
 
 import openai
 
-from supportdesk.agents.concierge import start_history
-from supportdesk.config import load_config
-from supportdesk.exceptions import MissingConfigError
-from supportdesk.models.llm import check_api_key_at_startup, create_client
-from supportdesk.services.desk_service import handle_message
-from supportdesk.utils.logger import get_logger
-
+from src.agents.concierge import start_history
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.models.llm import check_api_key_at_startup, create_client
+from src.services.desk_service import handle_message
+from src.utils.logger import get_logger
 
 def main() -> None:
-    # why: config first — a missing OPENAI_API_KEY stops the app here,
-    # with one clear line, before anything else runs
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -312,22 +202,17 @@ def main() -> None:
         try:
             handle_message(client, history, message)
         except openai.AuthenticationError:
-            # how: a bad key is permanent — no retry fixes it, so exit
             logger.error("API key stopped working mid-session.")
             print("Login failed — check OPENAI_API_KEY in your .env file.")
             sys.exit(1)
         except openai.RateLimitError:
-            # how: the client already retried twice before this reached us
             logger.warning("Rate limited after the client's retries.")
             print("We're busy right now — wait a moment and try again.")
         except openai.BadRequestError as e:
             logger.warning("Request rejected (likely too long): %s", e)
-            # why: the message that broke the limit is still at the end of
-            # history — remove it, or every next turn resends it and fails
             if history[-1]["role"] == "user":
                 history.pop()
             print("That message was too long to handle — please shorten it.")
-
 
 if __name__ == "__main__":
     main()
@@ -342,8 +227,7 @@ if __name__ == "__main__":
 ```json
 {
   "triage": [
-    "Hi, I'm Sarah Khan. I was charged twice for my subscription this
-     month and I need it fixed today.",
+    "Hi, I'm Sarah Khan. I was charged twice this month. Please fix it today.",
     "can't log into my account, tried resetting password twice, still nothing",
     "just wondering what your refund policy is, no rush"
   ],
@@ -372,14 +256,12 @@ if __name__ == "__main__":
 # tests/unit/test_schemas.py
 # Checks the Pydantic schemas accept good data and reject bad data.
 # No API calls, no API key needed.
-# Run from the repo root: python tests/unit/test_schemas.py
+# Run from the repo root: python -m tests.unit.test_schemas
 from pydantic import ValidationError
 
-from supportdesk.schemas import RouteDecision, SupportTicket
-
+from src.schemas import RouteDecision, SupportTicket
 
 def test_ticket_without_a_name() -> None:
-    # a missing name must be allowed — the model should never invent one
     ticket = SupportTicket(
         customer_name=None,
         issue_category="account_access",
@@ -387,7 +269,6 @@ def test_ticket_without_a_name() -> None:
         summary="Customer can't log in after two password resets.",
     )
     print(f"case 1 (no name allowed)     -> {ticket.customer_name}")
-
 
 def test_ticket_rejects_unknown_urgency() -> None:
     try:
@@ -400,7 +281,6 @@ def test_ticket_rejects_unknown_urgency() -> None:
     except ValidationError:
         print("case 2 (bad urgency)         -> ValidationError")
 
-
 # new in Step 4
 def test_route_rejects_unknown_agent() -> None:
     try:
@@ -408,30 +288,36 @@ def test_route_rejects_unknown_agent() -> None:
     except ValidationError:
         print("case 3 (bad agent name)      -> ValidationError")
 
-
 if __name__ == "__main__":
     test_ticket_without_a_name()
     test_ticket_rejects_unknown_urgency()
     test_route_rejects_unknown_agent()
 ```
 
-**Changed from Step 3:** one new import (`decide`), one new function (`test_routing()`), and one new call at the bottom. Cases 1-4 are the same.
+**Changed from Step 3:** one new import (`decide`), one new function (`test_routing()`), and one new call at the bottom. Cases 1-5 are the same.
 
-**Story — `tests/integration/test_live_agents.py`:** Step 3's checks plus case 5 — every routing case must reach its expected agent. **If not:** a small change to `router.txt` could quietly send complaints to the Concierge.
+**Story — `tests/integration/test_live_agents.py`:** Step 3's checks plus case 6 — every routing case must reach its expected agent. **If not:** a small change to `router.txt` could quietly send complaints to the Concierge.
 
 ```python
 # tests/integration/test_live_agents.py
-# Runs the project's checks against the real OpenAI API.
-# Run from the repo root: python tests/integration/test_live_agents.py
-# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+# The project's checks against the real OpenAI API — each step adds
+# cases. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_agents
+#   case 1 — one message in, a real reply out
+#   case 2 — a wrong key is caught at startup, not mid-chat
+#   case 3 — turn 3 can use what was said in turn 1 (memory)
+#   case 4 — each sample complaint becomes a ticket
+#   case 5 — the complaint with no name gets no invented name
+#   case 6 — clear messages reach the expected agent
 import json
 
 from openai import OpenAI
 
-from supportdesk.agents.router import decide
-from supportdesk.agents.triage import triage_agent
-from supportdesk.config import load_config
-from supportdesk.models.llm import (
+# new in Step 4
+from src.agents.router import decide
+from src.agents.triage import triage_agent
+from src.config import load_config
+from src.models.llm import (
     check_api_key_at_startup,
     create_client,
     send_message,
@@ -440,87 +326,89 @@ from supportdesk.models.llm import (
 SAMPLES_PATH = "data/sample/messages.json"
 
 
-def load_samples() -> dict:
-    with open(SAMPLES_PATH) as samples_file:
-        # how: read the file as text, then json.loads() it (Doc02)
-        return json.loads(samples_file.read())
-
-
-def test_memory(client: OpenAI) -> None:
-    # case 1: turn 3 must be able to use what was said in turn 1
-    history = [{"role": "system", "content": "You are a helpful assistant."}]
-    send_message(client, history, "My order number is 4471.")
-    send_message(client, history, "Thanks, that's all for now.")
-    reply = send_message(client, history, "What was my order number?")
-    print(f"case 1 (memory)        -> {reply}")
+def test_first_reply(client: OpenAI) -> None:
+    reply = send_message(client, [], "What's 2+2?")
+    print(f"case 1 (first reply)   -> {reply}")
 
 
 def test_bad_key() -> None:
-    # case 2: a wrong key is caught at startup, not mid-chat
     bad_client = OpenAI(api_key="sk-fake-key-123")
     key_ok = check_api_key_at_startup(bad_client)
     print(f"case 2 (bad key ok?)   -> {key_ok}")
 
 
+def test_memory(client: OpenAI) -> None:
+    history = [{"role": "system", "content": "You are a helpful assistant."}]
+    send_message(client, history, "My order number is 4471.")
+    send_message(client, history, "Thanks, that's all for now.")
+    reply = send_message(client, history, "What was my order number?")
+    print(f"case 3 (memory)        -> {reply}")
+
+
+def load_samples() -> dict:
+    with open(SAMPLES_PATH) as samples_file:
+        return json.loads(samples_file.read())
+
+
 def test_triage(client: OpenAI, samples: dict) -> None:
-    # case 3: each sample complaint becomes a ticket
     for message in samples["triage"]:
         ticket = triage_agent(client, message)
-        print(f"case 3 (triage)        -> {ticket}")
+        print(f"case 4 (triage)        -> {ticket}")
 
-    # case 4: the second complaint gives no name — none may be invented
     second = triage_agent(client, samples["triage"][1])
     if second is not None and second.customer_name is None:
-        print("case 4 (no name)       -> OK, customer_name is None")
+        print("case 5 (no name)       -> OK, customer_name is None")
     else:
-        print("case 4 (no name)       -> WRONG, a name was invented")
+        print("case 5 (no name)       -> WRONG, a name was invented")
 
 
 # new in Step 4
 def test_routing(client: OpenAI, samples: dict) -> None:
-    # case 5: clear messages must reach the expected agent
     for case in samples["routing"]:
         decision = decide(client, case["message"])
         result = "OK"
         if decision.agent != case["expected"]:
             result = "WRONG"
-        print(f"case 5 (routing)       -> {result}: {decision.agent}")
+        print(f"case 6 (routing)       -> {result}: {decision.agent}")
 
 
 if __name__ == "__main__":
     config = load_config()
     client = create_client(config)
     samples = load_samples()
-    test_memory(client)
+    test_first_reply(client)
     test_bad_key()
+    test_memory(client)
     test_triage(client, samples)
+    # new in Step 4
     test_routing(client, samples)
 ```
 
 **Run everything** (from the repo root):
 
 ```bash
-python tests/unit/test_history.py
-python tests/unit/test_schemas.py
-python tests/integration/test_live_agents.py
-python -m supportdesk.main
+python -m tests.unit.test_config
+python -m tests.unit.test_history
+python -m tests.unit.test_schemas
+python -m tests.integration.test_live_agents
+python main.py
 ```
 
-**Expected output** of the new unit test line: `case 3 (bad agent name)      -> ValidationError`. The integration test ends with four `case 5 (routing) -> OK: ...` lines.
+**Expected output** of the new unit test line: `case 3 (bad agent name)      -> ValidationError`. The integration test ends with four `case 6 (routing) -> OK: ...` lines.
 
 **Expected app session** (the log lines go to the console too; the model's wording varies):
 
 ```
 SupportDesk AI — type a message, or /quit to exit.
 You: hi! what are your support hours?
-... supportdesk.agents.router INFO routed to concierge (The user asks
+... src.agents.router INFO routed to concierge (The user asks
 a general question about support hours.): 'hi! what are your support
 hours?'
 Concierge: We're available Monday to Friday, 9am to 6pm.
 You: can't log into my account, tried resetting password twice
-... supportdesk.agents.router INFO routed to triage (The user cannot
+... src.agents.router INFO routed to triage (The user cannot
 access their account.): "can't log into my account, tried ..."
-... supportdesk.services.desk_service INFO ticket: account_access / medium
+... src.services.desk_service INFO ticket: account_access / medium
 Ticket created:
   customer: (not given)
   category: account_access
@@ -532,7 +420,3 @@ You: /quit
 (Log lines are shortened with `...` and wrapped to fit the page.)
 
 Now try an unclear one, like `"just wondering what your refund policy is, no rush"`, and read the log's reason. Whichever agent it picks, you can see *why* — that's what the checklist's "logged, with the reason" means.
-
-**Difference from Basic:** the router understands wording, not just keywords, and every decision is logged with a reason. A failed routing call falls back to the safe agent. The flow sits in a service, so `main.py` stays thin. Step 3's error handling is kept. And the routing has its own test cases.
-
-**Which one should you actually write?** Intermediate — it meets every checklist item. The keyword router is still worth building first, for 10 minutes: it's free, and it shows you exactly which messages a word list gets wrong — which is why the model-call router is worth one extra small call per message.

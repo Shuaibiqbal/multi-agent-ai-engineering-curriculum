@@ -90,7 +90,7 @@ for k in (1, 3, 10):
     for score, chunk_text in results:
         print("   ", round(score, 3), repr(chunk_text))
 ```
-**Expected output (shape):** the fact's sentence gets sliced across 2-3 of the 40-character chunks, mid-word in at least one place. At `k=1`, the single chunk that comes back usually has only the date, or only the place, never both. As `k` grows to 3 and then 10, more surrounding chunks come back and the full fact becomes reconstructable — but the timing barely changes at this scale, because comparing a question against a handful of chunks one by one is already close to instant.
+**Expected output (shape):** the fact's sentence gets sliced across 40-character chunks, mid-word: one chunk is `' signed on 13 December 2007 in Lisbon, P'` and the next starts `'ortugal, marking...'`. At `k=1`, the best you can get is the date and half the place — "Portugal" is cut in two. As `k` grows to 3 and then 10, more surrounding chunks come back and the full fact becomes reconstructable — but the timing barely changes at this scale, because comparing a question against a handful of chunks one by one is already close to instant.
 
 <hr class="page-break">
 
@@ -187,14 +187,42 @@ if __name__ == "__main__":
 
 **Story:** the timing above barely moves between `k=1`, `k=3`, and `k=10` — and that result is easy to over-generalize from. It only barely moves because `retrieve()` compares the question against a *handful* of chunks; the cost that actually scales with corpus size was always there, just invisible at this size. **If not:** "raising `k` is basically free" would look true right up until the knowledge base actually grew.
 
+The large corpus has 1,365 chunks. Approach 1's `build_index()` would make 1,365 separate embedding calls — minutes of waiting. So this approach embeds them in batches, the [Basic exercise](embedding_similarity_solution.md)'s `get_embeddings_batch` idea: one call takes a list, and returns one vector per text, in the same order. One call accepts up to 2,048 texts, so the list is sent in slices of 1,000.
+
 ```python
 # chunking_practice.py — Failure section
+BATCH_SIZE = 1000   # one embeddings call accepts up to 2,048 texts
+
+
+def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
+    vectors: list[list[float]] = []
+    for start in range(0, len(texts), BATCH_SIZE):
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=texts[start:start + BATCH_SIZE],
+        )
+        for item in response.data:
+            vectors.append(item.embedding)
+    return vectors
+
+
+def build_index_batched(
+    text: str, chunk_size: int,
+) -> list[tuple[str, list[float]]]:
+    chunks = chunk_by_chars(text, chunk_size)
+    vectors = get_embeddings_batch(chunks)
+    results = []
+    for chunk, vector in zip(chunks, vectors):
+        results.append((chunk, vector))
+    return results
+
+
 def build_large_corpus(document: str, repeats: int) -> str:
     return document * repeats
 
 
 large_document = build_large_corpus(TEST_DOCUMENT, repeats=200)
-large_index = build_index(large_document, chunk_size=40)
+large_index = build_index_batched(large_document, chunk_size=40)
 print(f"large corpus: {len(large_index)} chunks")
 
 print("timing at k=1, k=3, k=10 (large corpus):")
@@ -204,7 +232,7 @@ for k in (1, 3, 10):
     elapsed = time.perf_counter() - start
     print(f"k = {k} | time: {elapsed:.4f} seconds")
 ```
-**Expected output (shape):** where the small corpus (a handful of chunks) showed almost no timing difference across `k` values, the large corpus's `retrieve()` calls all take noticeably longer than any of the small-corpus calls did — because `retrieve()` scores *every* stored chunk against the question no matter what `k` is; `k` only controls how many of those already-computed scores get returned. The cost that actually scales with corpus size was always there — the earlier, tiny example was just too small to show it. This is exactly why a real vector store (Chroma, FAISS, a hosted service) doesn't do this brute-force comparison at all once a knowledge base grows past a few thousand chunks — it builds an index ahead of time so a query only touches a small, likely-relevant fraction of the stored vectors, not every single one.
+**Expected output (shape):** `large corpus: 1365 chunks`, built with 2 embedding calls instead of 1,365. Where the small corpus showed almost no timing difference across `k` values, the large corpus's `retrieve()` calls all take noticeably longer than any of the small-corpus calls did — because `retrieve()` scores *every* stored chunk against the question no matter what `k` is; `k` only controls how many of those already-computed scores get returned. (Each `retrieve()` call also makes one embedding call for the question, so the time includes that network wait.) The cost that actually scales with corpus size was always there — the earlier, tiny example was just too small to show it. This is exactly why a real vector store (Chroma, FAISS, a hosted service) doesn't do this brute-force comparison at all once a knowledge base grows past a few thousand chunks — it builds an index ahead of time so a query only touches a small, likely-relevant fraction of the stored vectors, not every single one.
 
 ### Approach 3 — the real fix for the split fact: overlap, not a bigger k
 
@@ -234,13 +262,19 @@ def build_overlap_index(
     return results
 
 
-overlap_index = build_overlap_index(TEST_DOCUMENT, chunk_size=40, overlap=15)
+overlap_index = build_overlap_index(TEST_DOCUMENT, chunk_size=120, overlap=80)
 
 print("k=1 result, WITH overlap:")
 for score, chunk_text in retrieve(QUESTION, overlap_index, k=1):
     print(f"  {score:.3f}  {chunk_text!r}")
 ```
-**Expected output:** with `overlap=15` on a `chunk_size=40` split, the fact's date-and-place sentence now lands whole inside at least one chunk, so `retrieve(..., k=1)` alone returns the complete fact — no need for `k=3` or `k=10` to reconstruct it from separate pieces.
+**Expected output** (wrapped here to fit the page; your score will differ):
+```
+k=1 result, WITH overlap:
+  0.563  'er every month. The Treaty of Lisbon was signed on 13 December
+  2007 in Lisbon, Portugal, marking a major change to how t'
+```
+The fact sentence, `"The Treaty of Lisbon was signed on 13 December 2007 in Lisbon, Portugal"`, is 71 characters long. Any text up to `overlap` characters long always fits whole inside some chunk, so `overlap=80` (with `chunk_size=120`) guarantees one chunk holds the whole sentence — here, chunk 1 of 7. A smaller overlap is a gamble: `chunk_size=40, overlap=15` gives 11 chunks and **none** holds even the date and place together. With the right overlap, `retrieve(..., k=1)` alone returns the complete fact — no need for `k=3` or `k=10` to reconstruct it from separate pieces.
 
 **Difference from Approach 1, and between Approaches 2/3:** Approach 1 measures timing at a scale too small to reveal that brute-force cost actually grows with corpus size — Approach 2 makes that cost visible, and explains why real vector stores don't do this same brute-force comparison at scale. Approach 3 tackles a different question entirely: not "how do we search faster," but "how do we stop losing half the fact in the first place" — and shows that the answer isn't `k`, it's the chunker.
 

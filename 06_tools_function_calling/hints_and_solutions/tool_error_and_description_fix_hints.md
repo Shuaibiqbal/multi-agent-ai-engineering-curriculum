@@ -37,7 +37,7 @@ Things to use:
 
 **Half 2:** reuse the two ambiguous tools from the Intermediate ambiguity exercise (or write two new ones) — give one of them a genuinely bad description, run your existing 5-run trial function against it, then edit only the description (not the function body), and run the exact same trial again. Print each run's pick both before and after, and count the split as a ratio (like "4/5 picked tool A") rather than eyeballing it. Write out, for Half 2, exactly what you're going to hold constant between the "before" and "after" runs — the comparison only means something if everything else stays fixed except the description text.
 
-**Difference between Basic and Intermediate:** same two halves (catch instead of crash, measure a description fix) at 2 completeness levels — Basic gets both working once, Intermediate builds the "before" and "after" tools from one shared function body via `make_weather_tool()`, so the comparison only ever changes the docstring. Worth knowing this version treats every exception the same way, and trusts a single 5-run comparison — a real, kept tool would want to separate expected failures from genuine bugs, and a bigger sample before acting on the result.
+**Difference between Basic and Intermediate:** same two halves (catch instead of crash, measure a description fix) at 2 completeness levels — Basic gets both working once, Intermediate sends the error back to the model as a tool message and prints its real reaction, and gives both description versions the same tool name with `@tool("get_weather")`, so the comparison only changes the docstring. Worth knowing this version treats every exception the same way, and trusts a single 5-run comparison — a real, kept tool would want to separate expected failures from genuine bugs, and a bigger sample before acting on the result.
 
 <hr class="page-break">
 
@@ -91,16 +91,30 @@ For Half 2, the trickiest part is making the "before" and "after" comparison fai
 
 ### Intermediate Version
 
-One small piece to get you unstuck for Half 2 — a description-swappable tool factory, so "change nothing but the docstring" is actually enforced by the code, not just by discipline:
+Two small pieces to get you unstuck.
+
+Half 1 — send the error back, the same growing-list idea as Doc04's memory exercise:
 ```python
 # tool_selection_practice.py — Failure section
-def make_tool_with_description(description: str):
-    def get_weather(city: str) -> str:
-        return f"Sunny in {city}"
-    get_weather.__doc__ = description
-    return tool(get_weather)
+messages = [{"role": "user", "content": "Use the tool to divide 10 by 0"}]
+response = model_with_tools.invoke(messages)
+messages.append(response)
+for call in response.tool_calls:
+    result = flaky_divide.invoke(call["args"])
+    messages.append(
+        {"role": "tool", "content": result, "tool_call_id": call["id"]}
+    )
+final = model_with_tools.invoke(messages)
 ```
-Use this to build the "before" and "after" versions of the same tool from one shared function body. Try finishing both halves yourself before looking at the full [Solution](tool_error_and_description_fix_solution.md).
+
+Half 2 — the same tool name for both versions, so only the description differs:
+```python
+@tool("get_weather")
+def vague_weather(city: str) -> str:
+    """gets data"""
+    return f"Sunny in {city}"
+```
+Write `precise_weather` the same way with a precise docstring. Another way to keep it fair: a factory `make_weather_tool(description)` that defines one `get_weather`, sets `get_weather.__doc__ = description`, and returns `tool(get_weather)`. Try finishing both halves yourself before looking at the full [Solution](tool_error_and_description_fix_solution.md).
 
 <hr class="page-break">
 

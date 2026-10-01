@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-structured_parser_swap) · [Hint 1](structured_parser_swap_hints.md#hint-1) · [Hint 2](structured_parser_swap_hints.md#hint-2) · [Solution](structured_parser_swap_solution.md)
 
-**Story — `structured_output_practice.py` (Intermediate section):** `.with_structured_output(Model)` is LangChain's version of the exact same constrained-decoding call Doc04 made directly against the SDK — this exercise is where you feel that they're the same idea, reached two different ways. **If not:** the Build Task's parser choice would be the first time you ever saw LangChain's structured-output call, with no smaller version to compare it against Doc04's raw one.
+**Story — `structured_output_practice.py` (Intermediate section):** `.with_structured_output(Model)` is LangChain's version of the same constrained-decoding call Doc04 made with `.parse()`. This exercise is where you see that the two are the same idea — including the same trap: a required field forces the model to invent a value. **If not:** the Build Task's `model.with_structured_output(ExtractedInfo)` would be the first time you met LangChain's structured-output call.
 
 ## Basic Version
 
@@ -13,28 +13,29 @@
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 
+
 class Person(BaseModel):
     name: str
     age: int
 
-structured_model = ChatOpenAI().with_structured_output(Person)
+
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+structured_model = model.with_structured_output(Person)
 
 good_result = structured_model.invoke("Extract: Maria is 34 years old.")
-print("Good input:", good_result)
+print("Clear input:  ", good_result)
 
-try:
-    bad_result = structured_model.invoke("Extract: the sky is blue today.")
-    print("Bad input:", bad_result)
-except Exception as e:
-    print("Caught error:", type(e).__name__, "-", e)
+unclear_result = structured_model.invoke("Extract: the sky is blue today.")
+print("Unclear input:", unclear_result)
 ```
-**Expected output:**
+**Expected output** (the invented values vary):
+
 ```
-Good input: name='Maria' age=34
-Caught error: ValidationError - 1 validation error for Person...
+Clear input:   name='Maria' age=34
+Unclear input: name='' age=0
 ```
 
-This version works correctly and shows the difference clearly. It catches the broad `Exception` instead of the specific validation error class, which is fine for exploring, but not what you'd want in real code.
+No error on the unclear input — the model **had** to fill `name: str` and `age: int`, so it made something up. This is "shape during": the shape is guaranteed, the truth is not.
 
 <hr class="page-break">
 
@@ -42,51 +43,64 @@ This version works correctly and shows the difference clearly. It catches the br
 
 ## Intermediate Version
 
-### Approach 1 — catching the specific `ValidationError`
+### Approach 1 — `| None` fields, and `extract_person()` returns a `Person` or `None`
 
 ```python
 # structured_output_practice.py — Intermediate section
 from pydantic import BaseModel, ValidationError
+from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 
 
 class Person(BaseModel):
-    name: str
-    age: int
+    # why: str | None, not str — Doc04's rule: a required field forces
+    # the model to invent a value when the text has none
+    name: str | None
+    age: int | None
 
 
-def get_structured_model() -> ChatOpenAI:
+def get_structured_model() -> Runnable:
     # why: .with_structured_output(Person) is LangChain's version of the
-    # same constrained-decoding call Doc04 made directly against the SDK.
+    # same constrained-decoding call Doc04 made with .parse()
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     return model.with_structured_output(Person)
 
 
-def main() -> None:
+def extract_person(text: str) -> Person | None:
     structured_model = get_structured_model()
-
-    good_result = structured_model.invoke("Extract: Maria is 34 years old.")
-    print(f"Good input -> {good_result!r}")
-
     try:
-        structured_model.invoke("Extract: the sky is blue today.")
-    except ValidationError as e:
-        # how: catching the specific error first means a real "didn't
-        # match my shape" failure is distinguishable from anything else.
-        print(f"Caught a validation error, as expected: {e}")
-    except Exception as e:
-        print(f"Caught an unexpected error type: {type(e).__name__}: {e}")
+        person = structured_model.invoke(text)
+    except ValidationError:
+        # when: rare with "shape during", but a reply can still fail the
+        # model — the caller gets None, not a crash
+        return None
+
+    # when: nothing found — "no person", not an object full of None
+    if person.name is None and person.age is None:
+        return None
+    return person
+
+
+def main() -> None:
+    texts = [
+        "Extract: Maria is 34 years old.",
+        "Extract: the sky is blue today.",
+    ]
+    for text in texts:
+        person = extract_person(text)
+        print(f"{text} -> {person}")
 
 
 if __name__ == "__main__":
     main()
 ```
 **Expected output:**
+
 ```
-Good input -> Person(name='Maria', age=34)
-Caught a validation error, as expected: 1 validation error for Person...
+Extract: Maria is 34 years old. -> name='Maria' age=34
+Extract: the sky is blue today. -> None
 ```
 
-**Difference from Basic:** catching the specific `ValidationError` (from `pydantic`) first, with a broader `Exception` fallback after it, matches Doc01's "catch the specific error you know how to handle" rule — in real code, you want to react differently to "the model's answer didn't match my shape" than to, say, a network timeout, and a single broad `except Exception` can't tell them apart.
+**Difference from Basic:** `str | None` and `int | None` let the model say "not found" instead of inventing, and `extract_person()` turns that — or a rare `ValidationError` — into `None`, so the caller has exactly two cases.
 
-**Which one should you write?** Intermediate's catch-and-report is enough for exploring, or for a feature where a failure should stop the whole operation — which is what this document's Build Task needs. Two real options worth knowing exist for a mismatch you don't want to be fatal: `.with_fallbacks([...])` swaps in a plain-text chain so the call never raises (the caller then checks `isinstance(result, Person)`), or retry with the validation error fed back into the prompt, asking the model to try again. Neither is required here — reach for them once a structured-output failure needs to degrade gracefully instead of stopping the operation.
+**Which one should you write?** Intermediate's — it's the same pattern as Doc04's `extract_info()`, now through LangChain, and it's what the Build Task's chain relies on.

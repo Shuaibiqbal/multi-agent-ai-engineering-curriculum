@@ -40,7 +40,7 @@ def vague_weather(city: str) -> str:
 
 @tool
 def precise_weather(city: str) -> str:
-    """Get the current weather (temperature and conditions) for a named city."""
+    """Get the current weather (temperature, conditions) for a named city."""
     return f"Sunny in {city}"
 
 def count_calls(weather_tool, runs: int = 5) -> int:
@@ -72,15 +72,15 @@ This shows both halves working: an error string instead of a crash, and a measur
 
 ## Intermediate Version
 
-### Approach 1 — the model's reaction to the error, and a swappable-description factory
+### Approach 1 — the error sent back to the model, and a fair description test
 
 ```python
 # tool_selection_practice.py — Failure section
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
 from langchain_openai import ChatOpenAI
 
 
-# --- Half 1: a crashing tool, made safe ---
+# --- Half 1: a crashing tool, made safe, and the error sent back ---
 
 @tool
 def flaky_divide(a: int, b: int) -> str:
@@ -93,58 +93,65 @@ def flaky_divide(a: int, b: int) -> str:
 
 
 def demonstrate_safe_failure() -> None:
-    # why: proves the caught error string actually reaches the model, and
-    # that the model can react sensibly to it instead of treating it as data.
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     model_with_tools = model.bind_tools([flaky_divide])
-    response = model_with_tools.invoke("Use the tool to divide 10 by 0")
+    # how: the same growing message list as Doc04's memory exercise
+    messages = [{"role": "user", "content": "Use the tool to divide 10 by 0"}]
+    response = model_with_tools.invoke(messages)
+    if not response.tool_calls:
+        print(f"No tool called: {response.content}")
+        return
 
+    # how: the model's tool request goes into the history first
+    messages.append(response)
     for call in response.tool_calls:
         result = flaky_divide.invoke(call["args"])
         print(f"Tool call {call['args']} -> {result}")
+        # why: tool_call_id ties this result to the exact request, so the
+        # model knows which of its calls this answer belongs to
+        messages.append(
+            {"role": "tool", "content": result, "tool_call_id": call["id"]}
+        )
 
-    follow_up_prompt = (
-        "Use the tool to divide 10 by 0, then tell me in one sentence "
-        "what happened."
-    )
-    follow_up = model_with_tools.invoke(follow_up_prompt)
-    reaction = follow_up.content
-    print(f"Model's reaction to the error: {reaction}")
+    # why: a second call, now with the error in the history — this is
+    # the model really reacting to the tool's result
+    final = model_with_tools.invoke(messages)
+    print(f"Model's reaction to the error: {final.content}")
 
 
 # --- Half 2: a vague description, sharpened ---
+# how: @tool("get_weather") gives both tools the same name, so the
+# description is the only thing that differs between the two trials
 
-def make_weather_tool(description: str):
-    # why: builds "before" and "after" tools from the exact same function
-    # body, so the description is the only thing that changes between trials.
-    def get_weather(city: str) -> str:
-        return f"Sunny in {city}"
-    get_weather.__doc__ = description
-    return tool(get_weather)
+@tool("get_weather")
+def vague_weather(city: str) -> str:
+    """gets data"""
+    return f"Sunny in {city}"
 
 
-def count_tool_calls(weather_tool, prompt: str, runs: int = 5) -> int:
+@tool("get_weather")
+def precise_weather(city: str) -> str:
+    """Get the current weather (temperature, conditions) for a named city."""
+    return f"Sunny in {city}"
+
+
+# how: BaseTool is the type every @tool function has — so this hint
+# says "weather_tool is a tool", the same way `prompt: str` says text
+def count_tool_calls(weather_tool: BaseTool, prompt: str, runs: int = 5) -> int:
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     model_with_tools = model.bind_tools([weather_tool])
     called = 0
-    for _ in range(runs):
+    for run_number in range(runs):
         response = model_with_tools.invoke(prompt)
         if response.tool_calls:
-            called += 1
+            called = called + 1
     return called
 
 
 def demonstrate_description_fix() -> None:
     prompt = "what's the weather like"
-
-    vague_tool = make_weather_tool("gets data")
-    precise_tool = make_weather_tool(
-        "Get the current weather (temperature and conditions) for a named city."
-    )
-
-    vague_hits = count_tool_calls(vague_tool, prompt)
-    precise_hits = count_tool_calls(precise_tool, prompt)
-
+    vague_hits = count_tool_calls(vague_weather, prompt)
+    precise_hits = count_tool_calls(precise_weather, prompt)
     print(f"Vague description: called {vague_hits}/5 times")
     print(f"Precise description: called {precise_hits}/5 times")
 
@@ -157,12 +164,75 @@ if __name__ == "__main__":
 **Expected output (example):**
 ```
 Tool call {'a': 10, 'b': 0} -> Error: division by zero
-Model's reaction to the error: The division failed — you can't divide by zero.
+Model's reaction to the error: Dividing by zero isn't possible.
 
 Vague description: called 1/5 times
 Precise description: called 5/5 times
 ```
 
-**Difference from Basic:** `make_weather_tool()` builds both the "before" and "after" tools from the exact same function body, so the description is the *only* thing that changes between the two trials — this is what makes the comparison actually mean something, instead of accidentally comparing two tools that differ in more than one way. `demonstrate_safe_failure()` also shows the model's *reaction* to the error, not just the raw error string, which is the part that actually matters in production.
+**Difference from Basic:** the error string is really sent back to the model — the request goes into `messages`, then a `{"role": "tool", ...}` message tagged with the call's `tool_call_id`, then a second call — so the reaction you print is the model reacting to the actual error (the "Getting a tool's failure back to the model" topic). And `@tool("get_weather")` gives both tools the same name, so the description is the *only* thing that differs between the two trials — in Basic, the names differ too (`vague_weather`, `precise_weather`), and a tool's name is also a hint to the model. `count_tool_calls(weather_tool: BaseTool, ...)` also types its tool argument: `BaseTool` is the type every `@tool` function has — the Build Task's harness uses `list[BaseTool]` the same way.
+
+<hr class="page-break">
+
+> [Back to the exercise](../README.md#ex-tool_error_and_description_fix) · [Hint 1](tool_error_and_description_fix_hints.md#hint-1) · [Hint 2](tool_error_and_description_fix_hints.md#hint-2) · [Solution](tool_error_and_description_fix_solution.md)
+
+### Approach 2 — one function body, two descriptions, from a factory
+
+**Story — `make_weather_tool(description)`:** Approach 1 writes two separate functions with `@tool("get_weather")`. A factory builds both from ONE function body: it sets the docstring (`__doc__`), then wraps the function with `tool(...)` — which is exactly what `@tool` does. **If not:** the two tool bodies could drift apart, and a different result might come from the code, not the description.
+
+```python
+# tool_selection_practice.py — Failure section
+from langchain_core.tools import BaseTool, tool
+from langchain_openai import ChatOpenAI
+
+
+def make_weather_tool(description: str) -> BaseTool:
+    # why: ONE function body for both trials — only the description
+    # changes, so any difference in the split comes from the wording
+    def get_weather(city: str) -> str:
+        return f"Sunny in {city}"
+
+    # how: @tool reads the docstring as the description, so set it first,
+    # then wrap the function with tool(...) — the same as writing @tool
+    get_weather.__doc__ = description
+    return tool(get_weather)
+
+
+def count_tool_calls(weather_tool: BaseTool, prompt: str, runs: int = 5) -> int:
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    model_with_tools = model.bind_tools([weather_tool])
+    called = 0
+    for run_number in range(runs):
+        response = model_with_tools.invoke(prompt)
+        if response.tool_calls:
+            called = called + 1
+    return called
+
+
+def demonstrate_description_fix() -> None:
+    prompt = "what's the weather like"
+    vague_tool = make_weather_tool("gets data")
+    precise_tool = make_weather_tool(
+        "Get the current weather (temperature, conditions) for a named city."
+    )
+    vague_hits = count_tool_calls(vague_tool, prompt)
+    precise_hits = count_tool_calls(precise_tool, prompt)
+    print(f"names: {vague_tool.name}, {precise_tool.name}")
+    print(f"Vague description: called {vague_hits}/5 times")
+    print(f"Precise description: called {precise_hits}/5 times")
+
+
+if __name__ == "__main__":
+    demonstrate_description_fix()
+```
+**Expected output (example):**
+
+```
+names: get_weather, get_weather
+Vague description: called 1/5 times
+Precise description: called 5/5 times
+```
+
+**Difference from Approach 1:** both tools come from the same body and get the same name (`get_weather`, the function's own name), so the description is guaranteed to be the only difference.
 
 **Which one should you actually write?** Intermediate's version covers what this exercise asks for — a caught error instead of a crash, and a measured before/after description comparison. Two things are worth naming as gaps rather than fixing here: a bare `except Exception` treats a real bug in the tool's own code the same as an expected failure like a divide-by-zero, and a 5-run split is a quick sanity check, not something to act on without a bigger sample. Both are worth reaching for on a tool you're about to keep and reuse for real, not for this exercise.

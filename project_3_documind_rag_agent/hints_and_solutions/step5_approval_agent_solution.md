@@ -1,193 +1,210 @@
 # Step 5 — An Approval Agent That Only Asks a Human When It Really Needs To — Solution
 
-> [Back to this step](../README.md#step-5-an-approval-agent-that-only-asks-a-human-when-it-really-needs-to-final-3-agents) · [Hint 1](step5_approval_agent_hints.md#hint-1) · [Hint 2](step5_approval_agent_hints.md#hint-2) · [Solution](step5_approval_agent_solution.md)
+> [Back to this step](../READING_README.md#step-5-an-approval-agent-that-only-asks-a-human-when-it-really-needs-to-final-3-agents) · [Hint 1](step5_approval_agent_hints.md#hint-1) · [Hint 2](step5_approval_agent_hints.md#hint-2) · [Solution](step5_approval_agent_solution.md)
 
-## Basic Version
+**Story — Step 5:** asking a person about **every** answer (Steps 2-4) is safe but too slow — nobody keeps a tool that stops on every question. The Approval agent now runs an explicit checklist on each answer: grounded? cites a source? asks for an action? If every check passes, it approves by itself. If any fails, it pauses for a human and says **which** check failed. **If not:** you'd have to choose between "a human checks everything" and "nobody checks anything".
 
-### Approach 1 — one holistic "does this look okay?" check
+After this step the project is complete. Only `agents/approval_agent.py` and the tests change — the graph, `main.py` and the pause/resume scripts already work with it.
 
-```python
-# agents/approval_agent.py
-from langgraph.types import interrupt
-from langchain_openai import ChatOpenAI
+## Solution — an explicit checklist, and a human only when a check fails
 
-def approval_node(state):
-    draft = state["messages"][-1].content
-    model = ChatOpenAI(model="gpt-4o-mini")
-    verdict = model.invoke(f"Does this draft answer look okay to send? Draft: {draft}\nReply yes or no.").content
+**Changed from Step 2:** `approval_node` keeps its name, its pause and its yes/no handling. Two things change: the one fixed line of `reasons` becomes `run_checks(state)`, and an "all passed → approve" block is added before the pause. The check functions above it are new.
 
-    if verdict.strip().lower().startswith("yes"):
-        return {"approved": True}
-
-    decision = interrupt({"draft": draft, "reason": "model flagged this as unclear"})
-    return {"approved": decision.get("approved", False)}
-```
-**Expected output**, on almost any reasonably fluent draft:
-```
-approved=True   (the graph reaches END with no human ever consulted)
-```
-This technically wires `interrupt()` in and technically has a gate, but "does this look okay?" is exactly the vague, holistic judgment call the README warns about — a fluent-sounding draft with an unsupported claim in it will very often still get a "yes," for the same reason Project 2's first-draft Verifier over-approved: plausibility and correctness aren't the same thing, and a single vague question can't tell them apart.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-5-an-approval-agent-that-only-asks-a-human-when-it-really-needs-to-final-3-agents) · [Hint 1](step5_approval_agent_hints.md#hint-1) · [Hint 2](step5_approval_agent_hints.md#hint-2) · [Solution](step5_approval_agent_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — 2 concrete checks, and a real `interrupt()`/resume cycle
+**Story — `agents/approval_agent.py`:** each check is its own small function, and `run_checks()` returns the list of checks that **failed**. An empty list means auto-approve. Otherwise `interrupt()` pauses with the answer and the failed checks, so the person knows *why* they're being asked. **If not:** one vague "is this okay?" model call couldn't tell you which rule a wrongly-approved answer slipped past.
 
 ```python
-# agents/approval_agent.py
+# src/documind/agents/approval_agent.py
 from langgraph.types import interrupt
 
-RISKY_PHRASES = ["i've sent", "i have issued", "i've refunded", "i have deleted", "i've cancelled"]
+from documind.state import DocState
+from documind.utils.logger import get_logger
 
+# why: tasks asking the system to DO something are always checked by a
+# person — a wrong answer is bad, a wrong action is worse
+# new in Step 5: the checklist, one small function per check
+ACTION_WORDS = ["send", "cancel", "delete", "refund my", "change my"]
 
-def check_draft_cites_context(draft: str, found_chunks: list) -> bool:
-    combined_context = " ".join(c.page_content for c in found_chunks).lower()
-    significant_words = [w for w in draft.lower().split() if len(w) > 5]
-    return any(word in combined_context for word in significant_words)
+def cites_a_source(answer: str, sources: list[dict]) -> bool:
+    for source in sources:
+        if "[" + source["source_file"] + "]" in answer:
+            return True
+    return False
 
+def asks_for_an_action(task: str) -> bool:
+    lowered = task.lower()
+    for word in ACTION_WORDS:
+        if word in lowered:
+            return True
+    return False
 
-def check_no_unsupported_action_language(draft: str) -> bool:
-    return not any(phrase in draft.lower() for phrase in RISKY_PHRASES)
+def run_checks(state: DocState) -> list[str]:
+    # why: an explicit checklist, one item at a time — so a log line can
+    # say exactly WHICH check sent an answer to a human
+    failed = []
+    if not state["grounded"]:
+        failed.append("not grounded in the documents")
+    if not cites_a_source(state["answer"], state["sources"]):
+        failed.append("cites no source file")
+    if asks_for_an_action(state["task"]):
+        failed.append("the task asks for an action")
+    return failed
 
+def approval_node(state: DocState) -> dict:
+    logger = get_logger(__name__)
+    # changed in Step 5: real checks replace the fixed reason
+    reasons = run_checks(state)
 
-def approval_node(state):
-    draft = state["messages"][-1].content
-    cites_context = check_draft_cites_context(draft, state["found_chunks"])
-    no_risky_language = check_no_unsupported_action_language(draft)
+    # new in Step 5: nothing failed -> approve without asking
+    if not reasons:
+        # when: every check passed — approve without bothering a person
+        logger.info("auto-approved")
+        return {"approved": True, "path": ["auto_approved"]}
 
-    if cites_context and no_risky_language:
-        return {"approved": True}
-
-    decision = interrupt({
-        "draft": draft,
-        "cites_context": cites_context,
-        "no_risky_language": no_risky_language,
-    })
-    return {"approved": decision.get("approved", False)}
+    logger.info("asking a human, failed checks: %s", reasons)
+    # how: interrupt() pauses the graph here and saves the state; the
+    # value passed to Command(resume=...) comes back as `decision`
+    # when: on resume, this node runs again from its first line — so the
+    # log line above prints twice, and nothing above interrupt() may do a
+    # real action (like sending an email)
+    decision = interrupt({"answer": state["answer"], "failed_checks": reasons})
+    if decision == "yes":
+        return {"approved": True, "path": ["human_approved"]}
+    return {"approved": False,
+            "answer": "Not approved — nothing was sent.",
+            "path": ["human_rejected"]}
 ```
 
-```python
-# graph.py (excerpt — Step 4's END replaced with the Approval node)
-builder.add_node("approval", approval_node)
-builder.add_edge("reason", "approval")
-builder.add_edge("approval", END)
-graph = builder.compile(checkpointer=MemorySaver())
-```
+`main.py` doesn't change: since Step 2, `ask_human()` already prints the answer and the reasons it receives.
+
+**Story — `tests/unit/test_approval_checks.py`:** each checklist item, on hand-made states. **If not:** a broken check (say, citations never matching) would send every answer to a human, or none.
 
 ```python
-# main.py
-config = {"configurable": {"thread_id": "run-42"}}
-result = graph.invoke({"task": "...", "messages": [...]}, config=config)
-print(result)
-# if this printed an __interrupt__ payload instead of a finished answer, the graph paused —
-# run resume.py next
+# tests/unit/test_approval_checks.py
+# Checks the Approval agent's checklist with hand-made states.
+# No API key needed.
+# Run from the repo root: python tests/unit/test_approval_checks.py
+from documind.agents.approval_agent import run_checks
+
+SOURCES = [{"source_file": "refund_policy.md"}]
+
+def make_state(task: str, answer: str, grounded: bool) -> dict:
+    return {"task": task, "answer": answer, "grounded": grounded,
+            "sources": SOURCES}
+
+def test_all_checks_pass() -> None:
+    state = make_state("What is the refund policy?",
+                       "30 days [refund_policy.md]", True)
+    print(f"case 1 (grounded, cited)   -> {run_checks(state)}")
+
+def test_no_citation() -> None:
+    state = make_state("What is the refund policy?", "30 days", True)
+    print(f"case 2 (no citation)       -> {run_checks(state)}")
+
+def test_action_request() -> None:
+    state = make_state("Send the refund policy to the customer",
+                       "30 days [refund_policy.md]", True)
+    print(f"case 3 (asks for action)   -> {run_checks(state)}")
+
+if __name__ == "__main__":
+    test_all_checks_pass()
+    test_no_citation()
+    test_action_request()
 ```
 
+**Changed from Step 4:** the integration test now expects case 1 to be **auto-approved**, and adds case 4 and case 5 — an action request that pauses, approved in one run and rejected in another.
+
 ```python
-# resume.py
+# tests/integration/test_live_graph.py
+# Runs the whole graph against the real OpenAI API.
+# Run from the repo root: python tests/integration/test_live_graph.py
+# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
-from graph import build_graph
 
-graph = build_graph()
-config = {"configurable": {"thread_id": "run-42"}}
-result = graph.invoke(Command(resume={"approved": True}), config=config)
-print(result["approved"], result["messages"][-1].content)
+from documind.config import load_config
+from documind.graph import build_graph
+from documind.state import start_state
+
+def run(graph, thread_id: str, task: str) -> dict:
+    config = {"configurable": {"thread_id": thread_id}}
+    return graph.invoke(start_state(task), config)
+
+def test_grounded_answer(graph) -> None:
+    # case 1: a document question — searched, answered, auto-approved
+    result = run(graph, "t1", "What is the refund policy?")
+    print(f"case 1 (grounded)     -> {result['path']}")
+    print(f"                         {result['answer']}")
+
+def test_not_in_documents(graph) -> None:
+    # case 2: searched, but nothing relevant — must not make one up
+    result = run(graph, "t2", "What is the policy on remote work?")
+    print(f"case 2 (not found)    -> {result['path']}")
+
+def test_general_question(graph) -> None:
+    # case 3: not about the documents — no search at all
+    result = run(graph, "t3", "What is the capital of France?")
+    print(f"case 3 (general)      -> {result['path']}")
+
+def test_action_pauses(graph) -> None:
+    # case 4: asks for an action — must pause for a human, both answers
+    task = "What is the refund policy? Send it to the customer."
+    paused = run(graph, "t4", task)
+    print(f"case 4 (paused?)      -> {'__interrupt__' in paused}")
+    config = {"configurable": {"thread_id": "t4"}}
+    approved = graph.invoke(Command(resume="yes"), config)
+    print(f"case 4 (human: yes)   -> approved={approved['approved']}")
+
+    run(graph, "t5", task)
+    config = {"configurable": {"thread_id": "t5"}}
+    rejected = graph.invoke(Command(resume="no"), config)
+    print(f"case 5 (human: no)    -> {rejected['answer']}")
+
+if __name__ == "__main__":
+    load_config()
+    # how: tests use a fresh MemorySaver — nothing is written to disk
+    graph = build_graph(MemorySaver())
+    test_grounded_answer(graph)
+    test_not_in_documents(graph)
+    test_general_question(graph)
+    test_action_pauses(graph)
 ```
-**Expected output**, `main.py` on a draft that fails `no_risky_language` (a test prompt engineered to make the Reasoner say "I've issued the refund"):
+
+**Run everything:**
+
+```bash
+python tests/unit/test_chunking.py
+python tests/unit/test_routing.py
+python tests/unit/test_approval_checks.py
+python tests/integration/test_live_graph.py
+python scripts/pause_demo.py
+python scripts/resume_demo.py
+python -m documind.main
 ```
-{'__interrupt__': [Interrupt(value={'draft': "I've issued the refund for your damaged item.", ...})]}
+
+**Expected integration output:**
+
 ```
-**Expected output**, `resume.py` run right after, in a separate process, with the same `thread_id`:
+case 1 (grounded)     -> ['clean_task', 'retrieve_node', 'reason_node',
+                          'auto_approved']
+case 2 (not found)    -> ['clean_task', 'retrieve_node', 'no_grounding_node']
+case 3 (general)      -> ['clean_task', 'answer_node']
+case 4 (paused?)      -> True
+case 4 (human: yes)   -> approved=True
+case 5 (human: no)    -> Not approved — nothing was sent.
 ```
-True I've issued the refund for your damaged item.
+
+**Expected app session** (log lines left out; wording varies):
+
 ```
-
-**Difference from Basic:** the 2 checks are concrete and independently reasoned about, instead of one vague model question — `cites_context` catches ungrounded claims, `no_risky_language` catches a draft that implies an action actually happened. The resume cycle now genuinely uses `Command(resume=...)` against a real `thread_id`, proving `interrupt()` actually pauses and a later, separate call actually continues it — not just that the function compiles.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-5-an-approval-agent-that-only-asks-a-human-when-it-really-needs-to-final-3-agents) · [Hint 1](step5_approval_agent_hints.md#hint-1) · [Hint 2](step5_approval_agent_hints.md#hint-2) · [Solution](step5_approval_agent_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a named checklist instead of 2 inline variables
-
-```python
-# agents/approval_agent.py
-APPROVAL_CHECKS = [
-    ("cites_context", lambda draft, chunks: check_draft_cites_context(draft, chunks)),
-    ("no_risky_language", lambda draft, chunks: check_no_unsupported_action_language(draft)),
-]
-
-
-def approval_node(state):
-    draft = state["messages"][-1].content
-    found_chunks = state["found_chunks"]
-
-    results = {}
-    for name, check in APPROVAL_CHECKS:
-        results[name] = check(draft, found_chunks)
-
-    if all(results.values()):
-        return {"approved": True}
-
-    failed = [name for name, ok in results.items() if not ok]
-    decision = interrupt({"draft": draft, "failed_checks": failed})
-    return {"approved": decision.get("approved", False)}
+You: What is the refund policy?
+  path: clean_task -> retrieve_node -> reason_node -> auto_approved
+Answer: Customers can return any product within 30 days of purchase
+for a full refund [refund_policy.md].
+You: Send the warranty terms to the customer.
+  -- needs your approval --
+  answer: Every product has a 1-year warranty against manufacturing
+faults [warranty.md].
+  why:   the task asks for an action
+  Approve? (yes/no): yes
+  path: clean_task -> retrieve_node -> reason_node -> human_approved
 ```
-**Expected output**, on a draft that fails `no_risky_language` only:
-```
-failed_checks: ['no_risky_language']
-```
-Whoever reviews this interrupt (a human, or a log later) sees exactly which named check tripped, not just "something was unclear" — the same debuggability upgrade Project 2's Step 3 gave `MaxIterationsExceeded`.
-
-### Approach 2 — both branches proven with real tests
-
-```python
-# test_project3.py
-from unittest.mock import patch
-from graph import build_graph
-from langchain_core.documents import Document
-
-def test_auto_approves_clean_draft():
-    graph = build_graph()
-    config = {"configurable": {"thread_id": "test-clean"}}
-    result = graph.invoke({
-        "task": "What is the return window for a damaged item?",
-        "messages": [],
-        "found_chunks": [Document(page_content="Damaged items can be returned within 30 days for a full refund.")],
-        "grounded": True,
-    }, config=config)
-    assert result.get("approved") is True
-    assert "__interrupt__" not in result
-
-
-def test_pauses_for_unsupported_draft():
-    graph = build_graph()
-    config = {"configurable": {"thread_id": "test-risky"}}
-    # simulate a draft the Reasoner produced that uses risky action language,
-    # bypassing the Reasoner call itself to isolate the Approval node's own logic
-    with patch("agents.reasoner_agent.reason_node", return_value={
-        "messages": [AIMessage(content="I've issued the refund already.")]
-    }):
-        result = graph.invoke({
-            "task": "Can I get a refund for my damaged item?",
-            "messages": [],
-            "found_chunks": [Document(page_content="Damaged items can be returned within 30 days for a full refund.")],
-            "grounded": True,
-        }, config=config)
-    assert "__interrupt__" in result
-```
-**Expected output:**
-```
-test_auto_approves_clean_draft PASSED
-test_pauses_for_unsupported_draft PASSED
-```
-Both passing together is what proves the gate genuinely branches both ways — a version of `approval_node` that always returns `{"approved": True}` would still pass the first test alone.
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's 2 checks work, but they're 2 local variables with no shared structure — adding a third check later means editing the function body in 2 more places (the call, and the `if`). Approach 1 makes the checklist a real list that's easy to extend and easy to report on by name. Approach 2 is the concrete proof, matching this project's pattern from every prior step, that both the "approves on its own" and "pauses for a human" paths are real and tested, not just theoretically possible.
-
-**Which one should you actually write?** All of Approach 1's named-checklist structure — it's what keeps this gate maintainable as more checks get added over time, and it's what turns "the human reviewer sees a vague flag" into "the human reviewer sees exactly which rule tripped and why." Approach 2's 2 tests are the actual final item on the README's own checklist ("both paths tested") — treat them as required, not optional, the same way Project 2's Verifier needed proof it could actually reject something.

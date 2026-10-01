@@ -1,161 +1,329 @@
 # Step 1 — A Single LCEL Chain That Answers One Question, No Tools — Solution
 
-> [Back to this step](../README.md#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Hint 1](step1_lcel_chain_hints.md#hint-1) · [Hint 2](step1_lcel_chain_hints.md#hint-2) · [Solution](step1_lcel_chain_solution.md)
+> [Back to this step](../READING_README.md#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Hint 1](step1_lcel_chain_hints.md#hint-1) · [Hint 2](step1_lcel_chain_hints.md#hint-2) · [Solution](step1_lcel_chain_solution.md)
 
-## Basic Version
+**Story — Step 1:** before any tool or loop, prove the LangChain pieces work on their own: settings load, the model answers, and an LCEL chain (`prompt | model | parser`) turns a question into plain text. **If not:** in Step 2 a failure could come from the chain, the tool or the loop, and you'd be debugging three things at once.
 
-### Approach 1 — the direct way, everything hardcoded
+After this step the project runs: `python main.py` answers questions from the model's memory — no tools yet, so a live question like today's weather gets a guess.
 
-```python
-# chain.py
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
+## The Doc01 files
 
-def build_simple_chain():
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a careful research assistant."),
-        ("human", "{question}"),
-    ])
-    model = ChatOpenAI(model="gpt-4o-mini")
-    return prompt | model | StrOutputParser()
-```
+These are Doc01's Build Task files (Intermediate, Approach 1), **unchanged** — only the file location and the `from src...` import line differ. They're the same three files as Project 1.
+
+**Story — `src/exceptions.py`:** one file for every named error. Step 1 needs only Doc01's `MissingConfigError`; Step 3 adds more. **If not:** errors would be scattered over many files, and a caller wouldn't know where to import them from.
 
 ```python
-# main.py
-from chain import build_simple_chain
+# src/exceptions.py
+# The project's named errors. MissingConfigError: a required setting is
+# missing from .env. (Doc01's Build Task file.)
 
-chain = build_simple_chain()
-answer = chain.invoke({"question": "What is the capital of France?"})
-print(answer)
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
 ```
-**Expected output:**
+
+**Story — `src/config.py`:** the one place the project reads its settings from, failing loudly at startup. **If not:** a missing key would surface later as a confusing `AuthenticationError`.
+
+```python
+# src/config.py
+# Loads the settings from .env into a checked Config object. load_config()
+# raises MissingConfigError when OPENAI_API_KEY is missing.
+# (Doc01's Build Task file — only the import line changed.)
+import os
+from dataclasses import dataclass
+from dotenv import load_dotenv
+from src.exceptions import MissingConfigError
+
+@dataclass
+class Config:
+    openai_api_key: str
+    log_level: str
+
+def require_env(key: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
+
+def load_config() -> Config:
+    load_dotenv()
+    api_key = require_env("OPENAI_API_KEY")
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    return Config(openai_api_key=api_key, log_level=log_level)
 ```
-The capital of France is Paris.
+
+**Story — `src/utils/logger.py`:** every file logs the same way, from one setup function. **If not:** each file would set up logging on its own, and some lines would print twice.
+
+```python
+# src/utils/logger.py
+# get_logger(name): one logging setup for every file — a timestamp, the
+# file name and the level on every line. (Doc01's Build Task file.)
+import logging
+import os
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+
+    if not logger.handlers:
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        level = getattr(logging, level_name.upper(), logging.INFO)
+
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        formatter = logging.Formatter(log_format)
+        handler.setFormatter(formatter)
+
+        logger.addHandler(handler)
+        logger.setLevel(level)
+
+    return logger
 ```
-This works. It's missing type hints, doesn't use Doc01's `config`/`logger`, and has no way to change the model without editing this file directly — all fine for proving the chain works, worth fixing before it becomes something other steps depend on.
+
+Also create an empty `__init__.py` in `src/utils/`, so the folder is an importable package.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Hint 1](step1_lcel_chain_hints.md#hint-1) · [Hint 2](step1_lcel_chain_hints.md#hint-2) · [Solution](step1_lcel_chain_solution.md)
+> [Back to this step](../READING_README.md#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Hint 1](step1_lcel_chain_hints.md#hint-1) · [Hint 2](step1_lcel_chain_hints.md#hint-2) · [Solution](step1_lcel_chain_solution.md)
 
-## Intermediate Version
+## Solution — a reusable chain, a model helper, and a prompt file
 
-### Approach 1 — typed, with Doc01's config and logger wired in
+**Story — `models/llm.py`:** the one place that builds the `ChatOpenAI` model, with the key from `load_config()`. Every chain and agent in later steps gets its model from here. **If not:** each file would build its own model with its own settings, and changing the model would mean editing every one of them.
 
 ```python
-# chain.py
+# src/models/llm.py
+# The one place that builds the chat model: get_model(config) returns a
+# ChatOpenAI with the project's model name and the key from Config.
+from langchain_openai import ChatOpenAI
+
+from src.config import Config
+
+MODEL_NAME = "gpt-4o-mini"
+
+def get_model(config: Config) -> ChatOpenAI:
+    return ChatOpenAI(
+        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+    )
+```
+
+Also create an empty `__init__.py` in `models/` and in `chains/`.
+
+**Story — `prompts/direct.txt` + `utils/prompts.py`:** the prompt text lives in a `.txt` file, loaded by name — the same pattern as Project 1. The `{question}` placeholder is filled in by the chain. **If not:** the wording would be buried in Python code.
+
+`src/prompts/direct.txt`
+
+```text
+Answer this question from what you already know, in at most 2 sentences.
+
+Question: {question}
+```
+
+```python
+# src/utils/prompts.py
+# load_prompt(name): reads src/prompts/<name>.txt, so prompts live in
+# text files instead of Python strings. (Project 1's file.)
+
+PROMPTS_DIR = "src/prompts"
+
+def load_prompt(name: str) -> str:
+    path = PROMPTS_DIR + "/" + name + ".txt"
+    with open(path) as prompt_file:
+        return prompt_file.read().strip()
+```
+
+**Story — `chains/direct_answer.py`:** Doc05's `build_chain()` shape — prompt, model, parser — wrapped in a function so it can be imported. It stays in the project after this step: the compare script in Step 4 uses it to show how a from-memory answer differs from a tool-checked one. **If not:** the chain would be stuck inside `main.py`, and the whole point of the project (verified answers, not guesses) would have nothing to compare against.
+
+```python
+# src/chains/direct_answer.py
+# The no-tools chain: build_direct_chain(model) returns
+# prompt | model | parser — it answers from the model's memory only.
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import Runnable
 
+from src.utils.prompts import load_prompt
 
-def build_simple_chain() -> Runnable:
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a careful research assistant. Answer only from what you already know."),
-        ("human", "{question}"),
-    ])
-    model = ChatOpenAI(model="gpt-4o-mini")
+def build_direct_chain(model: ChatOpenAI):
+    prompt = ChatPromptTemplate.from_template(load_prompt("direct"))
     parser = StrOutputParser()
     return prompt | model | parser
 ```
 
+**Story — `main.py`:** config first, then the model and the chain, then a question loop. A wrong key gets one clear line and a clean exit (Doc04's error rule). **If not:** a missing or wrong key would show a long traceback.
+
 ```python
 # main.py
-from config import load_config
-from logging_setup import get_logger
-from chain import build_simple_chain
+# The file you run: python main.py
+# Asks the no-tools chain each question and prints its answer from memory.
+import sys
 
-config = load_config()
-logger = get_logger(__name__)
+import openai
 
-chain = build_simple_chain()
-question = "What is the capital of France?"
+from src.chains.direct_answer import build_direct_chain
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.models.llm import get_model
+from src.utils.logger import get_logger
 
-logger.info("Asking: %s", question)
-answer = chain.invoke({"question": question})
-logger.info("Got answer: %s", answer)
-print(answer)
+def main() -> None:
+    try:
+        config = load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+
+    logger = get_logger(__name__)
+    model = get_model(config)
+    chain = build_direct_chain(model)
+    print("ResearchHand — ask a question, or /quit to exit.")
+
+    while True:
+        question = input("You: ").strip()
+        if question == "/quit":
+            break
+        if question == "":
+            continue
+
+        try:
+            answer = chain.invoke({"question": question})
+        except openai.AuthenticationError:
+            logger.error("Authentication failed — check OPENAI_API_KEY.")
+            print("Login failed — check OPENAI_API_KEY in your .env file.")
+            sys.exit(1)
+        print(f"Answer (from memory): {answer}")
+
+if __name__ == "__main__":
+    main()
 ```
-**Expected output:**
+
+**Run it:** `python main.py`
+
+**Expected session** (the model's wording varies):
+
 ```
-The capital of France is Paris.
+ResearchHand — ask a question, or /quit to exit.
+You: What is the capital of France?
+Answer (from memory): The capital of France is Paris.
+You: What's the weather in Lahore right now?
+Answer (from memory): I don't have live data, but Lahore is usually
+warm — around 30°C at this time of year.
+You: /quit
 ```
 
-**Difference from Basic:** full type hints on `build_simple_chain()`, so anything importing it (Step 2's agent loop will) knows exactly what it gets back — a `Runnable`, which supports `.invoke()`, `.stream()`, and `.batch()` uniformly. It reuses Doc01's `config` and `logger`, which every later step in this project keeps building on. The model name is still hardcoded, though — that's what Advanced fixes.
+(The long answer is wrapped here to fit the page.)
 
-<hr class="page-break">
+The second answer is exactly the problem this project solves: the model can only guess. Step 2 gives it a tool.
 
-> [Back to this step](../README.md#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Hint 1](step1_lcel_chain_hints.md#hint-1) · [Hint 2](step1_lcel_chain_hints.md#hint-2) · [Solution](step1_lcel_chain_solution.md)
+## The Step 1 tests
 
-## Advanced Version
-
-### Approach 1 — configurable model/temperature, plus automatic retry
+**Story — `tests/unit/test_config.py`:** Doc01's own `test_config.py`, with only the imports changed — it proves a missing key stops the app with a clear error, with no API call. **If not:** the first sign of a broken `.env` would be a confusing OpenAI error.
 
 ```python
-# chain.py
-from langchain_core.prompts import ChatPromptTemplate
+# tests/unit/test_config.py
+# Checks load_config() with no API call — Doc01's test_config.py, with
+# the imports changed. It rewrites .env as it goes, so it moves your real
+# .env aside first and puts it back at the end.
+# Run from the repo root: python -m tests.unit.test_config
+#   case 1 — no .env file: MissingConfigError
+#   case 2 — .env without OPENAI_API_KEY: MissingConfigError
+#   case 3 — a complete .env: the Config loads
+import os
+
+from src.config import load_config
+from src.exceptions import MissingConfigError
+
+ENV_PATH = ".env"
+BACKUP_PATH = ".env.backup"
+
+
+def set_env_file(contents: str | None) -> None:
+    os.environ.pop("OPENAI_API_KEY", None)
+    os.environ.pop("LOG_LEVEL", None)
+    if contents is None:
+        if os.path.exists(ENV_PATH):
+            os.remove(ENV_PATH)
+    else:
+        with open(ENV_PATH, "w") as env_file:
+            env_file.write(contents)
+
+
+def main() -> None:
+    if os.path.exists(ENV_PATH):
+        os.rename(ENV_PATH, BACKUP_PATH)
+
+    set_env_file(None)
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"case 1 (.env missing)  -> MissingConfigError: {e}")
+
+    set_env_file("LOG_LEVEL=INFO\n")
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"case 2 (key missing)   -> MissingConfigError: {e}")
+
+    set_env_file("OPENAI_API_KEY=sk-test-123\n")
+    config = load_config()
+    print(f"case 3 (valid .env)    -> loaded, log level {config.log_level}")
+
+    if os.path.exists(ENV_PATH):
+        os.remove(ENV_PATH)
+    if os.path.exists(BACKUP_PATH):
+        os.rename(BACKUP_PATH, ENV_PATH)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+**Story — `tests/integration/test_live_agents.py`:** the checks that need the real model. It starts with one case — the no-tools chain answers a question — and every later step adds its own cases to this same file. **If not:** "it works" would only mean "it worked the one time I tried it by hand".
+
+```python
+# tests/integration/test_live_agents.py
+# The project's checks against the real OpenAI API (and Open-Meteo) —
+# each step adds cases. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_agents
+#   case 1 — the no-tools chain answers a question from memory
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import Runnable
-from config import Config
+
+from src.chains.direct_answer import build_direct_chain
+from src.config import load_config
+from src.models.llm import get_model
 
 
-def build_simple_chain(config: Config) -> Runnable:
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a careful research assistant. Answer only from what you already know."),
-        ("human", "{question}"),
-    ])
-    model = ChatOpenAI(model=config.chat_model, temperature=config.temperature)
-    chain = prompt | model | StrOutputParser()
-    return chain.with_retry(stop_after_attempt=3)
+def test_direct_answer(model: ChatOpenAI) -> None:
+    chain = build_direct_chain(model)
+    answer = chain.invoke({"question": "What is the capital of France?"})
+    print(f"case 1 (direct answer)  -> {answer}")
+
+
+if __name__ == "__main__":
+    config = load_config()
+    model = get_model(config)
+    test_direct_answer(model)
 ```
 
-```python
-# main.py
-from config import load_config
-from logging_setup import get_logger
-from chain import build_simple_chain
+Also create the empty folders `tests/unit/` and `tests/integration/`. Tests run as modules, so they need no `__init__.py`.
 
-config = load_config()
-logger = get_logger(__name__)
+**Run the tests** (from the repo root):
 
-chain = build_simple_chain(config)
-question = "What is the capital of France?"
-
-logger.info("Asking: %s", question)
-answer = chain.invoke({"question": question})
-logger.info("Got answer: %s", answer)
-print(answer)
+```bash
+python -m tests.unit.test_config
+python -m tests.integration.test_live_agents
 ```
+
 **Expected output:**
+
 ```
-The capital of France is Paris.
+case 1 (.env missing)  -> MissingConfigError: Required environment variable
+is missing: OPENAI_API_KEY
+case 2 (key missing)   -> MissingConfigError: Required environment variable
+is missing: OPENAI_API_KEY
+case 3 (valid .env)    -> loaded, log level INFO
+case 1 (direct answer)  -> The capital of France is Paris.
 ```
-`config.chat_model` and `config.temperature` need to exist on Doc01's `Config` — add them with defaults (`"gpt-4o-mini"`, `0.0`) if they aren't there yet, read from optional `.env` entries the same way the existing fields are. `.with_retry(stop_after_attempt=3)` means a transient network error or rate limit gets retried automatically up to 3 times before the exception actually reaches your code — this now matters, because Step 2's loop will call this chain repeatedly in a row, multiplying the chance of hitting a transient failure at least once.
 
-### Approach 2 — a tiny in-memory response cache for the dev loop
-
-```python
-# chain.py (same build_simple_chain as Approach 1, plus this wrapper)
-_response_cache: dict[str, str] = {}
-
-
-def ask_with_cache(chain: Runnable, question: str) -> str:
-    if question in _response_cache:
-        return _response_cache[question]
-    answer = chain.invoke({"question": question})
-    _response_cache[question] = answer
-    return answer
-```
-**Expected output**, calling `ask_with_cache(chain, "What is the capital of France?")` twice in a row in the same process:
-```
-The capital of France is Paris.
-The capital of France is Paris.
-```
-The second call never hits the API — it returns instantly from `_response_cache`. This is deliberately separate from `build_simple_chain()` itself, not baked into it: caching identical questions is a dev/test convenience (rerunning your script 10 times while debugging shouldn't cost 10 API calls), not something you'd want silently caching a *user-facing* agent's answers, where the same-looking question might reasonably deserve a fresh answer later.
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's chain always uses the exact model and temperature hardcoded inside it, and has no defense against a transient API failure. Approach 1 fixes both — the chain now reads its own settings, and survives the kind of one-off network hiccup a single manual test run would rarely happen to hit. Approach 2 is a separate, optional concern layered on top: it doesn't change what the chain does, it just avoids re-paying for identical calls while you're iterating on the rest of the project.
-
-**Which one should you actually write?** Approach 1's configurability and retry — always; this chain gets reused by every later step in this project, so it's worth getting right once here. Approach 2's cache is worth adding only if you notice yourself rerunning the exact same test question repeatedly during development — it's a convenience, not a requirement, and it should never wrap a chain that's actually serving real user questions, since two identical-looking questions from two different users shouldn't silently share an answer.
+(Cases 1 and 2 of the first file are shown wrapped onto 2 lines to fit the page — really one line each.)

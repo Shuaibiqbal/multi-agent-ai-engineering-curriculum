@@ -16,7 +16,7 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 ### Basic Version
 
-You're combining everything from the 5 practice exercises above into one small chatbot: memory (so it remembers earlier turns), streaming (so replies feel instant), and safe handling of the failure types you already saw (bad key, too-long input, a structured-output request that doesn't come back clean).
+You're combining everything from the 6 practice exercises above into one small chatbot: memory (so it remembers earlier turns), streaming (so replies feel instant), and safe handling of the failure types you already saw (bad key, too-long input, a structured-output request that doesn't come back clean).
 
 Think of it as 3 files working together: one that talks to the model (`chat_client.py`), one that describes the shape of any structured answer you want back (`schemas.py`), and one that runs the actual terminal loop (`main.py`).
 
@@ -25,7 +25,7 @@ Here are the exact pieces you need to look up and use:
 - `load_config()` and `get_logger()` from Doc01 — call them at the very top of `main.py`.
 - The multi-turn `history` list pattern from the conversation-memory exercise.
 - The streaming loop from the streaming-replies exercise.
-- A Pydantic `BaseModel` for the structured-output shape.
+- The `ExtractedInfo` model and the `refusal` check from the structured-output exercise.
 - `try/except` blocks for `openai.AuthenticationError` and `openai.BadRequestError`, one each — not one shared catch-all.
 
 <hr class="page-break">
@@ -34,15 +34,15 @@ Here are the exact pieces you need to look up and use:
 
 ### Intermediate Version
 
-The Build Task is a synthesis, not new material — every function here is a small variation on something you already built in the 5 exercises above. `chat_client.py` should expose `create_client()`, `send_message(history, user_input) -> str`, and `stream_message(history, user_input)`, so `main.py` never touches the OpenAI SDK directly — it only calls your own, already-tested wrapper functions.
+The Build Task is a synthesis, not new material — every function here is a small variation on something you already built in the 6 exercises above. `chat_client.py` should expose `create_client()`, `send_message(history, user_input) -> str`, and `stream_message(history, user_input)`, so `main.py` never touches the OpenAI SDK directly — it only calls your own, already-tested wrapper functions.
 
 Reusing Doc01's `config.py`/`logging_setup.py` here isn't optional decoration — it's the whole point of building them in Doc01: this is the first of many projects that starts by importing them unchanged.
 
 - `from config import load_config` / `from logging_setup import get_logger` — same functions from Doc01, unchanged, called at the top of `main.py`.
 - `history: list[dict]` — the growing message list; every user turn and assistant reply gets appended to it, in order.
 - Streaming: reuse `stream_message()`'s loop, but have it also return the accumulated `full_reply` string so `main.py` can append it to `history`.
-- `schemas.py`: `class ExtractedInfo(BaseModel): ...`. Use `client.beta.chat.completions.parse(response_format=ExtractedInfo, ...)` to get back an object Pydantic has already validated, instead of a raw string you'd have to parse and hope is valid JSON.
-- Separate `except` blocks matching the "Handles gracefully" requirements: `openai.AuthenticationError`, `openai.BadRequestError` (context length), and a Pydantic `ValidationError` for a structured-output reply that didn't come back clean.
+- `schemas.py`: the `ExtractedInfo` model from the structured-output exercise (`name` and `intent`, both `str | None`). `get_structured_reply()` is that exercise's `extract_info()`: `client.beta.chat.completions.parse(response_format=ExtractedInfo, ...)`, check `refusal`, and return `None` when nothing useful came back.
+- Separate `except` blocks matching the "Handles gracefully" requirements: `openai.AuthenticationError`, `openai.BadRequestError` (context length), and a Pydantic `ValidationError` plus the `refusal` check for a structured-output reply that didn't come back clean.
 
 The one genuinely new design question the Build Task raises on its own: **what should happen to `history` after a `BadRequestError`?** Losing the whole conversation and starting over is safe but harsh. Silently dropping the oldest turns and continuing (as sketched below) keeps the conversation alive, at the cost of the model "forgetting" the earliest parts — a real trade-off, not a free fix.
 
@@ -94,8 +94,8 @@ The trickiest part — the structured-output call and its own specific error han
 from pydantic import BaseModel, ValidationError
 
 class ExtractedInfo(BaseModel):
-    name: str
-    intent: str
+    name: str | None
+    intent: str | None
 
 def get_structured_reply(client, user_input):
     try:
@@ -104,10 +104,16 @@ def get_structured_reply(client, user_input):
             messages=[{"role": "user", "content": user_input}],
             response_format=ExtractedInfo,
         )
-        return completion.choices[0].message.parsed
     except ValidationError:
+        return None
+    message = completion.choices[0].message
+    if message.refusal:
+        return None
+    info = message.parsed
+    if info.name is None and info.intent is None:
         # caller should print a clean "couldn't understand that" message
         return None
+    return info
 ```
 **Expected output if you run just this (nothing calls it yet):** nothing — try wiring the rest of `main.py`'s loop yourself before checking the Solution.
 
@@ -148,10 +154,15 @@ main.py:
 from pydantic import BaseModel, ValidationError
 from openai import OpenAI
 
+EXTRACT_PROMPT = (
+    "Pull the person's name and what they want out of the message. "
+    "If there is no name or no request, use null — never guess."
+)
+
 
 class ExtractedInfo(BaseModel):
-    name: str
-    intent: str
+    name: str | None
+    intent: str | None
 
 
 def get_structured_reply(
@@ -160,12 +171,21 @@ def get_structured_reply(
     try:
         completion = client.beta.chat.completions.parse(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": user_input}],
+            messages=[
+                {"role": "system", "content": EXTRACT_PROMPT},
+                {"role": "user", "content": user_input},
+            ],
             response_format=ExtractedInfo,
         )
-        return completion.choices[0].message.parsed
     except ValidationError:
         return None
+    message = completion.choices[0].message
+    if message.refusal:
+        return None
+    info = message.parsed
+    if info.name is None and info.intent is None:
+        return None
+    return info
 ```
 
 Wire this into `main.py` behind its own command (e.g. the user types `/extract ...`), with its own `if result is None:` branch printing a clean failure message. Try finishing the rest yourself, then compare against the [Solution](#solution).
@@ -253,6 +273,13 @@ from pydantic import ValidationError
 
 from schemas import ExtractedInfo
 
+# why: the same rule as the structured-output exercise — use null when
+# a name or a request is missing, so the model never invents one
+EXTRACT_PROMPT = (
+    "Pull the person's name and what they want out of the message. "
+    "If there is no name or no request, use null — never guess."
+)
+
 
 def create_client() -> OpenAI:
     return OpenAI()
@@ -298,12 +325,25 @@ def get_structured_reply(
     try:
         completion = client.beta.chat.completions.parse(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": user_input}],
+            messages=[
+                {"role": "system", "content": EXTRACT_PROMPT},
+                {"role": "user", "content": user_input},
+            ],
             response_format=ExtractedInfo,
         )
-        return completion.choices[0].message.parsed
     except ValidationError:
+        # when: the reply didn't fit the form — the caller gets None
         return None
+
+    message = completion.choices[0].message
+    # why: check refusal before parsed — a refusal leaves parsed as None
+    if message.refusal:
+        return None
+    info = message.parsed
+    # when: no name and no request — "nothing found", not an empty object
+    if info.name is None and info.intent is None:
+        return None
+    return info
 ```
 
 **Story — `schemas.py`:** without a schema, "give me structured data" is just a hope that the model's text happens to look like JSON. `ExtractedInfo` makes it a real, checked guarantee — either you get a valid object back, or a `ValidationError` you can catch. **If not:** `main.py` would have to hand-parse the model's raw text and hope it's valid JSON every time, silently breaking the moment the model phrases something slightly differently.
@@ -314,8 +354,10 @@ from pydantic import BaseModel
 
 
 class ExtractedInfo(BaseModel):
-    name: str
-    intent: str
+    # why: str | None, not str — a required field would force the model
+    # to invent a name or a request when the message has none
+    name: str | None
+    intent: str | None
 ```
 
 **Story — `main.py`:** this is where every practice exercise above actually comes together — config, logging, memory, streaming, structured output, and all 3 required failure cases, in one real terminal app. **If not:** you'd have 5 separate, disconnected scripts that each prove one thing works, but no single place proving they all work *together* — which is exactly what Project 1 and every later document assume this Build Task already did.
@@ -375,9 +417,9 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 ```
-**Expected output:** the same streaming chat as Basic, plus typing `/extract Maria wants to reset her password` prints `ExtractedInfo(name='Maria', intent='reset her password')`, and `/extract the sky is blue` prints the clean fallback message.
+**Expected output:** the same streaming chat as Basic, plus typing `/extract Maria wants to reset her password` prints `name='Maria' intent='reset her password'`, and `/extract the sky is blue` prints the clean fallback message.
 
-**Story — `test_chat_client.py`:** `chat_client.py` is about to get imported by Project 1, and rewritten (not from scratch) by Doc05 and Doc06 — a silent regression here (say, `get_structured_reply()` no longer catching `ValidationError`) would show up as a confusing bug in one of those, far from its real cause. This script runs all 5 Test Cases from the README in one go, right after writing the code. **If not:** you'd only find out something broke here whenever a future document happened to trigger it — much harder to trace back to this file.
+**Story — `test_chat_client.py`:** `chat_client.py` is about to get imported by Project 1, and rewritten (not from scratch) by Doc05 and Doc06 — a silent regression here (say, `get_structured_reply()` no longer checking `refusal`) would show up as a confusing bug in one of those, far from its real cause. This script runs all 5 Test Cases from the README in one go, right after writing the code. **If not:** you'd only find out something broke here whenever a future document happened to trigger it — much harder to trace back to this file.
 
 ```python
 # test_chat_client.py
@@ -450,7 +492,7 @@ case 3 (context limit)        -> BadRequestError caught
 case 4 (clear structured)     -> name='Maria' intent='reset her password'
 case 5 (unclear structured)   -> None
 ```
-Case 5's `None` is expected, not a bug — "the sky is blue" genuinely doesn't contain a name or an intent to extract, so `get_structured_reply()` correctly has nothing valid to return.
+Case 5's `None` is expected, not a bug — "the sky is blue" has no name and no request, so the model fills both fields with `None` (the prompt and `str | None` allow that), and `get_structured_reply()` reports "nothing found" as `None`.
 
 **Difference from Basic:** full type hints throughout, a real `schemas.py` module, `send_message()` and `get_structured_reply()` pulled out as their own reusable, testable functions instead of logic inlined in `main()`, and a `test_chat_client.py` that actually proves all 5 Test Cases pass — none of which Basic's version has yet.
 

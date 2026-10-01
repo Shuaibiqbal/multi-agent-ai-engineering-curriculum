@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-2-a-real-terminal-chat-with-memory-and-live-streaming) · [Hint 1](step2_chat_memory_hints.md#hint-1) · [Hint 2](step2_chat_memory_hints.md#hint-2) · [Solution](step2_chat_memory_solution.md)
 
-Only 2 hints — work through them in order. Each has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (the shape of the real code).
+Only 2 hints — work through them in order. Each hint starts with the plain idea, then shows the shape of the real code.
 
 - [Hint 1 — Where the memory really lives](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -12,8 +12,6 @@ Only 2 hints — work through them in order. Each has 2 depth levels: **Basic** 
 > [Back to this step](../READING_README.md#step-2-a-real-terminal-chat-with-memory-and-live-streaming) · [Hint 1](step2_chat_memory_hints.md#hint-1) · [Hint 2](step2_chat_memory_hints.md#hint-2) · [Solution](step2_chat_memory_solution.md)
 
 ## Hint 1 — Where the memory really lives {: #hint-1 }
-
-### Basic Version
 
 The model remembers nothing between calls (Doc03). The memory is **your list**, `history`: a system message first, then every user turn and every reply, in order. Each call sends the whole list again.
 
@@ -25,16 +23,10 @@ So a chat is just a loop:
 
 For streaming, Doc04's `stream_message()` goes into `models/llm.py`, next to `send_message()`. Add `flush=True` to its `print(piece, end="")` — without it, the terminal holds the text back until the line ends, so nothing looks streamed.
 
-<hr class="page-break">
-
-> [Back to this step](../READING_README.md#step-2-a-real-terminal-chat-with-memory-and-live-streaming) · [Hint 1](step2_chat_memory_hints.md#hint-1) · [Hint 2](step2_chat_memory_hints.md#hint-2) · [Solution](step2_chat_memory_solution.md)
-
-### Intermediate Version
-
 Three new small files, each with one job:
 
 - `prompts/concierge.txt` — the system prompt, as plain text.
-- `utils/prompts.py` — `load_prompt(name)` builds the path `"src/supportdesk/prompts/" + name + ".txt"`, opens it with `with open(path) as prompt_file:` (as in Doc01), and returns its text. The path starts at the repo root, which is where every command runs from.
+- `utils/prompts.py` — `load_prompt(name)` builds the path `"src/prompts/" + name + ".txt"`, opens it with `with open(path) as prompt_file:` (as in Doc01), and returns its text. The path starts at the repo root, which is where every command runs from.
 - `utils/history.py` — two functions:
 
 ```python
@@ -55,8 +47,6 @@ def trim_history(history: list[dict], max_tokens: int) -> list[dict]:
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
 
-### Basic Version
-
 ```
 main():
     (Step 1's startup: config, logger, client, key check)
@@ -71,13 +61,7 @@ main():
 
 Test it: tell it your name, ask something else, then ask "what's my name?".
 
-<hr class="page-break">
-
-> [Back to this step](../READING_README.md#step-2-a-real-terminal-chat-with-memory-and-live-streaming) · [Hint 1](step2_chat_memory_hints.md#hint-1) · [Hint 2](step2_chat_memory_hints.md#hint-2) · [Solution](step2_chat_memory_solution.md)
-
-### Intermediate Version
-
-Add two things to the Basic plan:
+Then add two things to that plan:
 
 ```
 MAX_HISTORY_TOKENS = 3000        # far below the real 128,000 limit
@@ -94,6 +78,6 @@ Then write `tests/unit/test_history.py` in Doc04's test style — small `test_..
 - a short history → nothing removed;
 - 5 long turns with a small budget → the system prompt and the newest turn survive.
 
-Run it with `python tests/unit/test_history.py`. It needs no API key.
+Run it with `python -m tests.unit.test_history`. It needs no API key.
 
 Full solution: [Show me the solution](step2_chat_memory_solution.md)

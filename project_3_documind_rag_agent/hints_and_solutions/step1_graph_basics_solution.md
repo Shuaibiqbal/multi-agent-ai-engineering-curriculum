@@ -1,154 +1,289 @@
 # Step 1 — A 2-Node Graph With No Branching, Just to Prove the Mechanics — Solution
 
-> [Back to this step](../README.md#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Hint 1](step1_graph_basics_hints.md#hint-1) · [Hint 2](step1_graph_basics_hints.md#hint-2) · [Solution](step1_graph_basics_solution.md)
+> [Back to this step](../READING_README.md#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Hint 1](step1_graph_basics_hints.md#hint-1) · [Hint 2](step1_graph_basics_hints.md#hint-2) · [Solution](step1_graph_basics_solution.md)
 
-## Basic Version
+**Story — Step 1:** every later step adds nodes and branches to one graph. Before any of that, prove the mechanics on the smallest graph that does something real: a typed state, two nodes, plain edges, and one model call. **If not:** when Step 3's branching misbehaves, you won't know if the problem is the branch or your understanding of how state flows.
 
-### Approach 1 — the direct way, a generic field name
+After this step the project runs: `python -m documind.main` answers questions through a 2-node graph, and prints which nodes ran.
 
-```python
-# state.py
-from typing import TypedDict
+## The shared files
 
-class GraphState(TypedDict):
-    message: str
-```
+These are the same files as Projects 1 and 2 — Doc01's config, errors and logger, and Project 1's prompt loader — with only the package name changed to `documind`.
+
+**Story — `exceptions.py`, `config.py`, `utils/logger.py`:** settings load and fail loudly at startup; every file logs the same way. **If not:** a missing key would surface deep inside a graph node as a confusing error.
 
 ```python
-# nodes.py
-from state import GraphState
+# src/documind/exceptions.py
+# why: one file for every named error in the project, so any module can
+# raise or catch a specific problem instead of a bare Exception.
 
-def node_a(state: GraphState) -> dict:
-    return {"message": state["message"] + " -> touched by A"}
-
-def node_b(state: GraphState) -> dict:
-    return {"message": state["message"] + " -> touched by B"}
+# from Doc01
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
 ```
 
 ```python
-# graph.py
-from langgraph.graph import StateGraph, START, END
-from state import GraphState
-from nodes import node_a, node_b
+# src/documind/config.py
+# how: os.getenv() is how we read env vars
+import os
+# why: @dataclass auto-builds __init__ for a typed holder
+from dataclasses import dataclass
+# how: reads .env and loads it into os.environ
+from dotenv import load_dotenv
+# why: a specific error type, not a bare Exception
+from documind.exceptions import MissingConfigError
 
-def build_graph():
-    builder = StateGraph(GraphState)
-    builder.add_node("a", node_a)
-    builder.add_node("b", node_b)
-    builder.add_edge(START, "a")
-    builder.add_edge("a", "b")
-    builder.add_edge("b", END)
-    return builder.compile()
+@dataclass
+class Config:
+    # why: a typed object, not a plain dict — your editor autocompletes
+    # .openai_api_key and .log_level, and catches a typo'd field name.
+    openai_api_key: str
+    log_level: str
+
+def require_env(key: str) -> str:
+    # why: one place that turns a missing/empty env var into a clear,
+    # named error, instead of repeating the same if-check for every key.
+    # when: called once per required key, inside load_config().
+    value = os.getenv(key)
+    if value is None or value == "":
+        # how: both "never set" (None) and "set but blank" (empty string)
+        # count as missing — an empty API key is never usable either way.
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
+
+def load_config() -> Config:
+    # why: the one function every other file calls to get settings — so a
+    # missing key fails loudly here, at startup, not confusingly later.
+    # when: call this once, at the top of main(), before anything else.
+    # how: reads .env into os.environ; must run before os.getenv() below
+    load_dotenv()
+    # how: required — raises if missing
+    api_key = require_env("OPENAI_API_KEY")
+    # how: optional — "INFO" if unset
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    return Config(openai_api_key=api_key, log_level=log_level)
 ```
 
 ```python
-# main.py
-from graph import build_graph
+# src/documind/utils/logger.py
+import logging
+import os
 
-graph = build_graph()
-result = graph.invoke({"message": "start"})
-print(result)
+def get_logger(name: str) -> logging.Logger:
+    # why: gives every file in the project the same logging setup from one
+    # place, instead of each file configuring handlers its own way.
+    # when: logging.getLogger(name) always returns the same object for the
+    # same name, so calling this again in the same run is safe and cheap.
+    logger = logging.getLogger(name)
+
+    if not logger.handlers:
+        # how: only attach a handler the first time this name is
+        # configured — without this guard, every line would print twice.
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        # how: falls back to INFO if the env value is invalid
+        level = getattr(logging, level_name.upper(), logging.INFO)
+
+        # how: prints to the console
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        # why: every line carries a timestamp/source/level, not just the
+        # bare message
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        formatter = logging.Formatter(log_format)
+        handler.setFormatter(formatter)
+
+        logger.addHandler(handler)
+        # how: the logger's own level must be at least this low, or the
+        # handler never even sees the message
+        logger.setLevel(level)
+
+    return logger
 ```
-**Expected output:**
-```
-{'message': 'start -> touched by A -> touched by B'}
-```
-This proves the mechanics work — state really does flow node A, then node B, in order, and each node's returned dict really does merge into the running state. `message` is a fine name for a one-off exercise, but it's vague about what it will actually hold once real nodes replace these placeholders in Step 2.
+
+Also create empty `__init__.py` files in `src/documind/utils/` and `src/documind/models/`.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Hint 1](step1_graph_basics_hints.md#hint-1) · [Hint 2](step1_graph_basics_hints.md#hint-2) · [Solution](step1_graph_basics_solution.md)
+> [Back to this step](../READING_README.md#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Hint 1](step1_graph_basics_hints.md#hint-1) · [Hint 2](step1_graph_basics_hints.md#hint-2) · [Solution](step1_graph_basics_solution.md)
 
-## Intermediate Version
+## Solution — state, nodes and graph in their own files, with a path log
 
-### Approach 1 — typed, with a manual trace comment showing the point of the exercise
-
-```python
-# main.py
-from graph import build_graph
-
-graph = build_graph()
-
-# Trace by hand before running:
-#   after node_a: {"message": "start -> touched by A"}
-#   after node_b: {"message": "start -> touched by A -> touched by B"}
-result = graph.invoke({"message": "start"})
-print(result)
-assert result["message"] == "start -> touched by A -> touched by B"
-```
-**Expected output:**
-```
-{'message': 'start -> touched by A -> touched by B'}
-```
-The `assert` isn't required by the exercise, but it's a cheap, permanent way to record that your hand-trace and the code actually agreed — worth keeping as the graph gets more complex in later steps, when a silent mismatch would be much harder to spot by eye.
-
-**Difference from Basic:** same graph, same 2 nodes, same edge — the only addition is writing the trace down as a comment (and a real assertion) instead of just eyeballing the printed output once and moving on. This is the actual instruction in the README's Step 1 ("by hand, trace what the state looks like after each node runs... check that your own understanding matches what the code actually does") turned into something you keep, not just something you do once in your head.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Hint 1](step1_graph_basics_hints.md#hint-1) · [Hint 2](step1_graph_basics_hints.md#hint-2) · [Solution](step1_graph_basics_solution.md)
-
-## Advanced Version
-
-### Approach 1 — the field named for what it means project-wide, with ownership documented
+**Story — `models/llm.py`:** one place builds the model. Graph nodes only receive the state, so each node calls `get_model()` instead of being handed a model. **If not:** every node would build its own `ChatOpenAI` with its own settings.
 
 ```python
-# state.py
-from typing import TypedDict
+# src/documind/models/llm.py
+from langchain_openai import ChatOpenAI
 
+# why: one place to change the model for every node in the graph
+MODEL_NAME = "gpt-4o-mini"
 
-class GraphState(TypedDict):
-    task: str  # the user's original request — set once by the caller before graph.invoke();
-               # every later step's nodes read this, none of them overwrite it
+def get_model() -> ChatOpenAI:
+    # why: graph nodes only receive the state, so each node builds its
+    # model here instead of being handed one
+    # how: ChatOpenAI reads OPENAI_API_KEY from the environment, which
+    # load_config() filled from .env (and checked) at startup
+    return ChatOpenAI(model=MODEL_NAME, temperature=0)
 ```
 
+**Story — `state.py`:** the graph's whole public surface in one typed shape (Doc09). `path` uses `operator.add`, so each node *appends* its name — the graph keeps its own log of what ran. `start_state()` gives every field a known starting value. **If not:** field names would drift between nodes, and you'd need print statements to see the route taken.
+
 ```python
-# nodes.py
-from state import GraphState
+# src/documind/state.py
+import operator
+from typing import Annotated, TypedDict
 
+class DocState(TypedDict):
+    # why: one typed shape listing everything any node can read or write
+    task: str
+    # how: operator.add appends each node's entries instead of replacing
+    # the list — so path is a running log of the nodes that ran (Doc09)
+    path: Annotated[list[str], operator.add]
+    answer: str
 
-def node_a(state: GraphState) -> dict:
-    """Placeholder node A — Step 2 replaces this with real Worker logic."""
-    return {"task": state["task"] + " -> touched by A"}
+def start_state(task: str) -> DocState:
+    # why: every field starts with a known value, so no node ever has to
+    # guess whether a key exists yet
+    return {"task": task, "path": [], "answer": ""}
+```
 
+**Story — `prompts/general.txt` + `utils/prompts.py`:** the prompt text lives outside the code — Project 1's loader, with the folder changed to `src/documind/prompts`. **If not:** the wording would be buried in a node.
 
-def node_b(state: GraphState) -> dict:
-    """Placeholder node B — Step 2 replaces this with real Worker logic."""
-    return {"task": state["task"] + " -> touched by B"}
+`src/documind/prompts/general.txt`
+
+```text
+Answer this question from general knowledge, in at most 2 sentences.
+
+Question: {task}
 ```
 
 ```python
-# graph.py — identical structure to Intermediate, just the field name changed everywhere
-from langgraph.graph import StateGraph, START, END
-from state import GraphState
-from nodes import node_a, node_b
+# src/documind/utils/prompts.py
 
+# how: a path from the repo root — every command in this project is run
+# from the repo root, the same rule the tests and scripts follow
+PROMPTS_DIR = "src/documind/prompts"
+
+def load_prompt(name: str) -> str:
+    # why: prompts live in .txt files, not inside Python strings — you
+    # can reword an agent's behavior without touching its code.
+    # when: called whenever an agent needs its system prompt.
+    # how: e.g. "worker" -> "src/documind/prompts/worker.txt"
+    path = PROMPTS_DIR + "/" + name + ".txt"
+    with open(path) as prompt_file:
+        # how: strip() drops the blank line at the end of the file
+        return prompt_file.read().strip()
+```
+
+**Story — `nodes.py`:** each node takes the state and returns only the fields it changes (Doc09's rule). `answer_node` is a Doc05 LCEL chain inside a node; it labels its answer as general knowledge, because later steps add answers from your documents. This file doesn't change again after this step. **If not:** a node returning the whole state could overwrite fields it never meant to touch.
+
+```python
+# src/documind/nodes.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+
+from documind.models.llm import get_model
+from documind.state import DocState
+from documind.utils.prompts import load_prompt
+
+def clean_task(state: DocState) -> dict:
+    # why: the first node — tidies the input once, so every later node
+    # sees the same clean text
+    return {"task": state["task"].strip(), "path": ["clean_task"]}
+
+def answer_node(state: DocState) -> dict:
+    # why: questions that aren't about the documents still get an answer,
+    # clearly labelled as general knowledge, not as a document fact
+    prompt = ChatPromptTemplate.from_template(load_prompt("general"))
+    chain = prompt | get_model() | StrOutputParser()
+    reply = chain.invoke({"task": state["task"]})
+    answer = reply + "\n(general knowledge — not from your documents)"
+    return {"answer": answer, "path": ["answer_node"]}
+```
+
+**Story — `graph.py`:** `build_graph()` wires nodes and edges and returns the compiled graph. Keeping it in a function means `main.py`, tests and scripts can all build the same graph. **If not:** the graph would exist only while one script runs top to bottom.
+
+```python
+# src/documind/graph.py
+from langgraph.graph import END, START, StateGraph
+
+from documind.nodes import answer_node, clean_task
+from documind.state import DocState
 
 def build_graph():
-    builder = StateGraph(GraphState)
-    builder.add_node("a", node_a)
-    builder.add_node("b", node_b)
-    builder.add_edge(START, "a")
-    builder.add_edge("a", "b")
-    builder.add_edge("b", END)
+    builder = StateGraph(DocState)
+    builder.add_node("clean_task", clean_task)
+    builder.add_node("answer_node", answer_node)
+
+    # how: plain edges — START -> clean_task -> answer_node -> END
+    builder.add_edge(START, "clean_task")
+    builder.add_edge("clean_task", "answer_node")
+    builder.add_edge("answer_node", END)
     return builder.compile()
 ```
 
+**Story — `main.py`:** config first, then the graph, then a question loop that prints the path and the answer. **If not:** you couldn't see the graph working.
+
 ```python
-# main.py
-from graph import build_graph
+# src/documind/main.py
+import sys
 
-graph = build_graph()
-result = graph.invoke({"task": "start"})
-print(result)
-assert result["task"] == "start -> touched by A -> touched by B"
-```
-**Expected output:**
-```
-{'task': 'start -> touched by A -> touched by B'}
-```
-Nothing about the graph's behavior changed from Intermediate — only the field's name and the ownership comment. That's the entire point: this rename is free right now, on a 2-node graph nobody else depends on yet, and it's the exact name Step 2's real Worker nodes, Step 3's Retriever, and Step 5's Approval agent all read from without ever needing to rename it again.
+import openai
 
-**Difference from Intermediate:** Intermediate proves the mechanics and records the trace. Advanced additionally treats the state shape as the one artifact from this step that survives into every later one, naming its field for its eventual project-wide meaning and documenting who's allowed to set it — a decision that costs nothing to make correctly here and would cost a multi-file rename to fix later.
+from documind.config import load_config
+from documind.exceptions import MissingConfigError
+from documind.graph import build_graph
+from documind.state import start_state
+from documind.utils.logger import get_logger
 
-**Which one should you actually write?** The Advanced version's field name and comment, paired with Intermediate's hand-trace-then-assert habit. The graph-building code itself genuinely doesn't get more complex than this at any level — this step's whole lesson is trusting the mechanics, and the only decision here with real downstream weight is what you call the one field everything else will eventually read.
+def main() -> None:
+    # why: config first — a missing OPENAI_API_KEY stops the app here
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+
+    logger = get_logger(__name__)
+    graph = build_graph()
+    print("DocuMind — ask a question, or /quit to exit.")
+
+    while True:
+        task = input("You: ").strip()
+        if task == "/quit":
+            break
+        if task == "":
+            continue
+
+        try:
+            result = graph.invoke(start_state(task))
+        except openai.AuthenticationError:
+            logger.error("Authentication failed — check OPENAI_API_KEY.")
+            print("Login failed — check OPENAI_API_KEY in your .env file.")
+            sys.exit(1)
+
+        # why: path shows which nodes ran, in order — the graph's own log
+        print(f"  path: {' -> '.join(result['path'])}")
+        print(f"Answer: {result['answer']}")
+
+if __name__ == "__main__":
+    main()
+```
+
+**Run it:** `python -m documind.main`
+
+```
+DocuMind — ask a question, or /quit to exit.
+You: What is LangGraph?
+  path: clean_task -> answer_node
+Answer: LangGraph is a library for building stateful, multi-step agent
+workflows as graphs of nodes and edges.
+(general knowledge — not from your documents)
+You: /quit
+```
+
+(The answer is wrapped here to fit the page; the wording varies.)
+
+**Trace it by hand** before moving on: after `clean_task`, the state is `{"task": "What is LangGraph?", "path": ["clean_task"], "answer": ""}`. After `answer_node`, `path` is `["clean_task", "answer_node"]` and `answer` holds the reply.

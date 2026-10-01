@@ -677,7 +677,7 @@ practice/
 
 **Builds on:** the [Basic](#ex-first_graph) graph skeleton and the [Real-world](#ex-agent_loop_to_graph) loop-to-graph rebuild — **copy** both into this folder rather than starting from scratch. `tools.py` reuses [Doc07](../07_ai_agents/README.md#build-task-project-2-tool-using-agent)'s tool library unchanged.
 
-**Used later by:** [Project 3 — DocuMind](../project_3_documind_rag_agent/)'s Step 1 and Step 2 are this exact skeleton, rebuilt directly into the project's own files — Step 1 is this document's Basic exercise, Step 2 is its Real-world exercise, both grown with a checkpointer and, later, a Retriever, a Reasoner, and an Approval agent behind an `interrupt()` gate.
+**Used later by:** [Project 3 — DocuMind](../project_3_documind_rag_agent/)'s Step 1 and Step 2 are this skeleton's patterns, rebuilt directly into the project's own files — Step 1 is this document's Basic exercise (state, nodes, edges), Step 2 is its checkpointer + `interrupt()` cycle with `build_graph(checkpointer)` and `SqliteSaver`, later grown with a Retriever, a Reasoner, and an Approval agent.
 
 ## Expected Behavior
 

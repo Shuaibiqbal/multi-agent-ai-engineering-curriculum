@@ -1,180 +1,289 @@
-# Step 4 — Structured Output and Streaming the Final Response — Solution
+# Step 4 — Stream the Reply Live and Build One Structured Record per Ticket — Solution
 
-> [Back to this step](../README.md#step-4-structured-output-and-streaming-the-final-response) · [Hint 1](step4_structured_output_streaming_hints.md#hint-1) · [Hint 2](step4_structured_output_streaming_hints.md#hint-2) · [Solution](step4_structured_output_streaming_solution.md)
+> [Back to this step](../READING_README.md#step-4-stream-the-reply-live-and-build-one-structured-record-per-ticket) · [Hint 1](step4_structured_output_streaming_hints.md#hint-1) · [Hint 2](step4_structured_output_streaming_hints.md#hint-2) · [Solution](step4_structured_output_streaming_solution.md)
 
-All examples below are run from inside `project_13_langchain_patterns/`, continuing from Step 3's `handlers.py`.
+**Story — Step 4:** one reply is needed in two shapes. A support agent watching the screen wants to see it **as it's written**. The ticketing system wants a **checked record** — category, reply, fallback used, needs a human — to store and route on. Both must come from the same reply, and the unclear ticket and every fallback must be flagged for a person, not quietly decided. **If not:** the agent stares at a blank screen, and the ambiguity Step 1 revealed disappears without a trace.
 
-## Basic Version
+After this step the project is complete: every reply streams live, and every ticket ends with a record that says whether a human should look at it.
 
-### Approach 1 — structured output alone, no streaming yet
+## Solution — a `TicketRecord`, a testable review rule, and a streaming helper
+
+**Changed from Step 3:** `TicketRecord` adds two fields, both with defaults.
+
+**Story — `schemas.py`:** `needs_human_review` is the flag a ticketing system routes on; `review_reasons` says **which** rule fired. **If not:** a person would see `True` and have to guess why.
 
 ```python
-# models.py
+# src/langchainpro/schemas.py
+from typing import Literal
+
 from pydantic import BaseModel
 
+class TicketCategory(BaseModel):
+    # why: the classifier's answer as a checked object, not free text —
+    # only these 3 values can ever come back (Doc04's Literal)
+    category: Literal["billing", "technical", "general"]
+    # why: one short sentence, logged, so a wrong route can be explained
+    reason: str
+    # why: False when the ticket could fit more than one category — a
+    # guess the rest of the pipeline should know about
+    sure: bool
 
-class TicketResolution(BaseModel):
+class TicketRecord(BaseModel):
+    # why: one checked record per ticket — what a ticketing system would
+    # store, count and route on (a machine reads this, not a person)
+    customer_id: str
+    ticket: str
     category: str
-    resolution_summary: str
-    confidence: float
-    needs_human_review: bool
+    reply: str
+    # how: every field added in a later step has a default, so code
+    # (and tests) written in an earlier step keep working unchanged
+    used_fallback: bool = False
+    # new in Step 4
+    needs_human_review: bool = False
+    # why: not just "yes, review it" — which rule fired, so a person
+    # knows what to check first
+    # new in Step 4
+    review_reasons: list[str] = []
 ```
+
+**Changed from Step 3:** `handle_ticket()` now streams the reply and fills the two new fields. Its name, inputs and return type stay the same.
+
+**Story — `services/pipeline.py`:** `stream_reply()` prints each piece and returns the full text; `review_reasons()` holds the rules as plain code (fallback used, or not sure); `handle_ticket()` builds the record from the **same** streamed reply the customer saw. **If not:** a second model call for the record could quietly say something different from the reply.
 
 ```python
-# resolution.py
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from models import TicketResolution
+# src/langchainpro/services/pipeline.py
+# new in Step 4
+from langchain_core.runnables import Runnable
 
-RESOLUTION_PROMPT = ChatPromptTemplate.from_template(
-    "Given this support ticket and the drafted reply, produce a resolution "
-    "record: the category, a one-sentence resolution summary, your "
-    "confidence from 0 to 1, and whether a human should review this before "
-    "it's treated as resolved.\n\nTicket: {ticket}\nDrafted reply: {draft}"
-)
+from langchainpro.chains.classifier import classify_ticket
+from langchainpro.chains.fallback import FALLBACK_REPLY
+from langchainpro.chains.replies import build_reply_chain
+from langchainpro.schemas import TicketCategory, TicketRecord
 
+# new in Step 4
+def stream_reply(chain: Runnable, inputs: dict) -> str:
+    # why: a support agent watching the screen sees the reply as it is
+    # written, instead of staring at nothing for several seconds
+    # how: .stream() gives the reply in small pieces (Doc04's streaming,
+    # through LCEL); print each piece, and keep them all for the record
+    print("Reply: ", end="", flush=True)
+    reply = ""
+    for chunk in chain.stream(inputs):
+        print(chunk, end="", flush=True)
+        reply = reply + chunk
+    print()
+    return reply
 
-def build_resolution_chain():
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    return RESOLUTION_PROMPT | model.with_structured_output(TicketResolution)
+# new in Step 4
+def review_reasons(category: TicketCategory, used_fallback: bool) -> list[str]:
+    # why: plain rules in plain code — easy to test, and a person can
+    # see exactly which rule sent a ticket to them
+    reasons = []
+    if used_fallback:
+        reasons.append("the fallback reply was sent")
+    if not category.sure:
+        reasons.append("the ticket could fit more than one category")
+    return reasons
 
+def handle_ticket(ticket: str, customer_id: str) -> TicketRecord:
+    # how: classify -> pick the reply chain -> get the reply -> build
+    # the record
+    category = classify_ticket(ticket)
+    chain = build_reply_chain(category.category)
+    # how: every reply chain gets the same input dict; a prompt simply
+    # ignores keys it doesn't use (Doc05's template edge cases)
+    inputs = {"ticket": ticket, "customer_id": customer_id}
+    # changed in Step 4: .stream(), not .invoke()
+    reply = stream_reply(chain, inputs)
 
-resolution_chain = build_resolution_chain()
-result = resolution_chain.invoke({
-    "ticket": "I was charged twice for my Pro subscription.",
-    "draft": "I'm sorry about the duplicate charge -- I've flagged it for a refund.",
-})
-print(result)
+    # why: the fallback always returns exactly FALLBACK_REPLY, so an
+    # equal reply means the fallback ran
+    used_fallback = reply == FALLBACK_REPLY
+    # new in Step 4
+    reasons = review_reasons(category, used_fallback)
+
+    # why: the record is built from the reply the customer actually saw
+    # — never from a second model call that could say something else
+    return TicketRecord(
+        customer_id=customer_id,
+        ticket=ticket,
+        category=category.category,
+        reply=reply,
+        used_fallback=used_fallback,
+        # new in Step 4
+        needs_human_review=len(reasons) > 0,
+        # new in Step 4
+        review_reasons=reasons,
+    )
 ```
-**Expected output:**
-```
-category='billing' resolution_summary='Duplicate charge flagged for refund.' confidence=0.9 needs_human_review=False
-```
-This proves the structured half works, on its own, using a draft you typed in by hand — real streaming comes next.
 
-<hr class="page-break">
+**Changed from Step 3:** `print_record()` adds the review flag and its reasons; the reply itself was already streamed.
 
-> [Back to this step](../README.md#step-4-structured-output-and-streaming-the-final-response) · [Hint 1](step4_structured_output_streaming_hints.md#hint-1) · [Hint 2](step4_structured_output_streaming_hints.md#hint-2) · [Solution](step4_structured_output_streaming_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — one draft, streamed and then summarized
+**Story — `main.py`:** the loop only shows results; the review reasons are listed under each ticket. **If not:** a flagged ticket would look the same as a clean one.
 
 ```python
-# resolution.py -- add the streaming helper
-def stream_draft(drafting_chain, ticket_input):
-    for chunk in drafting_chain.stream(ticket_input):
-        yield chunk
+# src/langchainpro/main.py
+import json
+import sys
+
+import openai
+
+from langchainpro.config import load_config
+from langchainpro.exceptions import MissingConfigError
+from langchainpro.schemas import TicketRecord
+from langchainpro.services.pipeline import handle_ticket
+from langchainpro.utils.logger import get_logger
+
+# how: a path from the repo root — run every command from there
+SAMPLES_PATH = "data/sample/tickets.json"
+
+def load_samples() -> list[dict]:
+    # why: the same 4 tickets every run, shared with the tests (Doc02
+    # taught reading JSON)
+    with open(SAMPLES_PATH) as samples_file:
+        # how: read the file as text, then json.loads() it (Doc02)
+        return json.loads(samples_file.read())
+
+def print_record(record: TicketRecord) -> None:
+    print(f"  category:      {record.category}")
+    print(f"  used fallback: {record.used_fallback}")
+    # new in Step 4
+    print(f"  human review:  {record.needs_human_review}")
+    # new in Step 4
+    for reason in record.review_reasons:
+        print(f"    - {reason}")
+
+def main() -> None:
+    # why: config first — a missing OPENAI_API_KEY stops the app here
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+
+    logger = get_logger(__name__)
+    samples = load_samples()
+    print(f"LangChainPro — {len(samples)} tickets in the queue.")
+
+    for sample in samples:
+        print()
+        print(f"Ticket from {sample['customer_id']}: {sample['ticket']}")
+        try:
+            record = handle_ticket(sample["ticket"], sample["customer_id"])
+        except openai.AuthenticationError:
+            # why: a bad key is permanent — no retry fixes it, so exit
+            logger.error("Authentication failed — check OPENAI_API_KEY.")
+            print("Login failed — check OPENAI_API_KEY in your .env file.")
+            sys.exit(1)
+        print_record(record)
+
+if __name__ == "__main__":
+    main()
 ```
+
+**Story — the tests:** `test_review.py` checks each review rule with hand-made inputs, no key needed. `test_schemas.py` is unchanged: its Step 1 record still builds, because the new fields have defaults. The integration test now checks the unclear ticket really gets flagged. **If not:** a rule could stop firing and nobody would notice.
 
 ```python
-# main.py
-from handlers import billing_chain
-from resolution import build_resolution_chain, stream_draft
+# tests/unit/test_review.py
+# Checks the "needs human review" rules with hand-made inputs.
+# No API key needed. Run from the repo root:
+#   python tests/unit/test_review.py
+from langchainpro.schemas import TicketCategory
+from langchainpro.services.pipeline import review_reasons
 
-ticket_input = {"ticket": "I was charged twice for my Pro subscription, order INV-2201."}
+def make_category(sure: bool) -> TicketCategory:
+    return TicketCategory(category="billing", reason="test", sure=sure)
 
-print("Streaming draft to the UI:")
-full_draft = ""
-for piece in stream_draft(billing_chain, ticket_input):
-    print(piece, end="", flush=True)
-    full_draft += piece
-print()
+def test_clear_ticket() -> None:
+    reasons = review_reasons(make_category(True), False)
+    print(f"case 1 (sure, no fallback) -> {reasons}")
 
-resolution_chain = build_resolution_chain()
-resolution = resolution_chain.invoke({
-    "ticket": ticket_input["ticket"],
-    "draft": full_draft,
-})
-print("\nStructured record:")
-print(resolution)
+def test_unsure_ticket() -> None:
+    reasons = review_reasons(make_category(False), False)
+    print(f"case 2 (unsure)            -> {reasons}")
+
+def test_fallback_used() -> None:
+    reasons = review_reasons(make_category(True), True)
+    print(f"case 3 (fallback)          -> {reasons}")
+
+if __name__ == "__main__":
+    test_clear_ticket()
+    test_unsure_ticket()
+    test_fallback_used()
 ```
-**Expected output (the draft prints piece by piece, then the record):**
-```
-Streaming draft to the UI:
-I'm so sorry to hear about the duplicate charge on order INV-2201...
 
-Structured record:
-category='billing' resolution_summary='Duplicate charge on INV-2201, refund initiated.' confidence=0.88 needs_human_review=False
-```
-Notice `full_draft` is built up out of the exact same pieces printed to the terminal — the resolution chain reads that, not a second, independently generated draft.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-4-structured-output-and-streaming-the-final-response) · [Hint 1](step4_structured_output_streaming_hints.md#hint-1) · [Hint 2](step4_structured_output_streaming_hints.md#hint-2) · [Solution](step4_structured_output_streaming_solution.md)
-
-### Approach 2 — carrying `needs_human_review` forward from earlier steps
+**Changed from Step 1:** the integration test checks the review flag on a clear and an unclear ticket.
 
 ```python
-# resolution.py -- a resolve() that combines the model's own judgment
-# with the real signals Steps 1 and 3 already produced
-def resolve_ticket(resolution_chain, ticket, draft, was_ambiguous, fallback_fired):
-    result = resolution_chain.invoke({"ticket": ticket, "draft": draft})
-    if was_ambiguous or fallback_fired:
-        result.needs_human_review = True
-    return result
-```
-**Expected behavior:** even if the resolution chain's own judgment says `needs_human_review=False`, a ticket that Step 1 flagged as genuinely ambiguous, or one where Step 3's fallback fired, still ends up flagged for a human — because those two signals are things you already know for a fact, not something worth leaving entirely up to a second model call's guess.
+# tests/integration/test_live_pipeline.py
+# Runs the classifier and the whole pipeline against the real API.
+# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python tests/integration/test_live_pipeline.py
+import json
 
-**Difference from Basic:** Basic proves the structured chain works on a hand-typed draft. Intermediate connects it to a real streamed draft from the actual drafting chain, and Approach 2 makes sure the two earlier steps' hard-won signals (ambiguity, fallback) don't get silently lost the moment Step 4 takes over.
+from langchainpro.chains.classifier import classify_ticket
+from langchainpro.config import load_config
+from langchainpro.services.pipeline import handle_ticket
 
-<hr class="page-break">
+def load_samples() -> list[dict]:
+    with open("data/sample/tickets.json") as samples_file:
+        # how: read the file as text, then json.loads() it (Doc02)
+        return json.loads(samples_file.read())
 
-> [Back to this step](../README.md#step-4-structured-output-and-streaming-the-final-response) · [Hint 1](step4_structured_output_streaming_hints.md#hint-1) · [Hint 2](step4_structured_output_streaming_hints.md#hint-2) · [Solution](step4_structured_output_streaming_solution.md)
+def test_classification(samples: list[dict]) -> None:
+    # case 1: every sample ticket gets the category we expect
+    for sample in samples:
+        result = classify_ticket(sample["ticket"])
+        print(f"case 1 (expected {sample['expected']}) -> "
+              f"{result.category}, sure={result.sure}")
 
-## Advanced Version
+def test_full_pipeline(samples: list[dict]) -> None:
+    # case 2: the billing ticket goes all the way to a reply
+    billing = samples[0]
+    record = handle_ticket(billing["ticket"], billing["customer_id"])
+    print(f"case 2 (billing)  -> {record.category}")
+    # new in Step 4
+    print(f"                     review={record.needs_human_review}")
 
-### Approach 1 — proving streaming is really incremental, not a fake typing effect
+    # new in Step 4
+    # case 3: the unclear ticket — must be flagged for a human
+    unclear = samples[3]
+    record = handle_ticket(unclear["ticket"], unclear["customer_id"])
+    print(f"case 3 (unclear)  -> review={record.needs_human_review}, "
+          f"{record.review_reasons}")
 
-```python
-# test_pipeline.py (excerpt)
-import time
-from handlers import general_chain
-
-ticket_input = {"ticket": "Do you have a referral program?"}
-
-chunk_times = []
-start = time.perf_counter()
-for chunk in general_chain.stream(ticket_input):
-    chunk_times.append(time.perf_counter() - start)
-
-print(f"Received {len(chunk_times)} chunks")
-print(f"First chunk at {chunk_times[0]:.2f}s, last at {chunk_times[-1]:.2f}s")
-
-assert len(chunk_times) > 1, "Only one chunk arrived -- this isn't really streaming."
-assert chunk_times[0] < chunk_times[-1], "All chunks arrived at once."
-print("Confirmed: output is arriving incrementally, not all at once.")
-```
-**Expected output:**
-```
-Received 24 chunks
-First chunk at 0.31s, last at 1.42s
-Confirmed: output is arriving incrementally, not all at once.
-```
-If `len(chunk_times)` came back as `1`, that's a real red flag: something (a wrapping function, a `.invoke()` used by mistake instead of `.stream()`, or a fallback chain that doesn't support streaming) is collecting the whole answer before handing it back, defeating the entire point of this step.
-
-### Approach 2 — a fallback chain that can't stream, handled honestly
-
-```python
-# resolution.py -- fallback chains built from RunnableLambda (Step 3's
-# canned_response) don't naturally stream piece by piece; they just
-# return one string. stream_draft() still works with them, it just
-# yields exactly one chunk instead of many -- which is an honest
-# reflection of reality: there's nothing progressive about a canned
-# reply, so pretending to stream it word-by-word would be more
-# misleading than just showing it all at once.
-
-def stream_draft(drafting_chain, ticket_input):
-    chunk_count = 0
-    for chunk in drafting_chain.stream(ticket_input):
-        chunk_count += 1
-        yield chunk
-    if chunk_count == 1:
-        # Not necessarily a bug -- likely the fallback path fired,
-        # which only ever produces one fixed piece of text.
-        pass
+if __name__ == "__main__":
+    load_config()
+    samples = load_samples()
+    test_classification(samples)
+    test_full_pipeline(samples)
 ```
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate connects real streaming to a real structured record, once. Approach 1 turns "it looks like it's streaming" into a real, automated check with actual chunk counts and timestamps. Approach 2 is about honesty under a real failure path: once Step 3's fallback fires, "streaming" a fixed canned string piece by piece would just be theater — a single chunk is the truthful representation of what actually happened, and pretending otherwise would hide, not reveal, that the fallback path ran.
+**Run it:**
 
-**Which one should you actually write?** Approach 1's assertion-based chunk check, in your real test suite — it's the only way to know, later, if a refactor accidentally replaced `.stream()` with `.invoke()` somewhere and quietly broke the UX without breaking any functional test. Keep Approach 2's honest one-chunk behavior for the fallback path exactly as it is — don't build fake, artificial streaming for a canned reply just to make the two code paths look more similar than they actually are.
+```bash
+python tests/unit/test_review.py
+python tests/unit/test_schemas.py
+python tests/integration/test_live_pipeline.py
+python -m langchainpro.main
+```
+
+`test_review.py` prints:
+
+```
+case 1 (sure, no fallback) -> []
+case 2 (unsure)            -> ['the ticket could fit more than one category']
+case 3 (fallback)          -> ['the fallback reply was sent']
+```
+
+`python -m langchainpro.main` ends each ticket like this (log lines left out; model replies vary):
+
+```
+Ticket from C-1004: My invoice and the dashboard numbers don't match. Bug?
+Reply: Sorry about the mismatch. Our billing team will check your
+invoice within 2 business days.
+  category:      billing
+  used fallback: False
+  human review:  True
+    - the ticket could fit more than one category
+```

@@ -1,179 +1,224 @@
-# Project 2 — ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses
+# ResearchHand — Tool Agent: Get Verified Answers, Not Guesses
 
-**Title:** ResearchHand Tool Agent Get Verified Answers Not Guesses
+> **Short description:** A 2-agent research assistant in Python: a tool-using Worker (live weather, conversions, policy search) with a hand-built agent loop, checked by a Verifier agent before any answer reaches the user. LangChain, no agent framework.
 
-**Type:** Multi-agent (2 agents) · **Stack:** Python, LangChain (LCEL), an agent loop you build yourself · **Level:** Beginner–Intermediate
-**Tagline:** A tool-using Worker agent paired with a Verifier agent that checks the Worker's answer before it ever reaches the user.
+**Tech:** Python · LangChain (LCEL, tools) · OpenAI API · Pydantic · Open-Meteo API  ·  **Type:** Multi-agent (Worker + Verifier)  ·  **Level:** Beginner–Intermediate
 
 ## Overview
-ResearchHand is a tool-using agent that answers questions by actually looking things up — calling real tools instead of guessing from memory — and pairs that Worker with a second, independent Verifier agent that checks the answer before it ever reaches the user. It solves a real problem: a model working from memory alone states a wrong answer just as confidently as a right one, which is dangerous for anything where a wrong answer stated confidently is worse than no answer at all. Anyone building an assistant that needs live or exact information — a price lookup, a calculation, an internal API call — instead of a memorized guess would want something like this.
+
+ResearchHand answers questions with real lookups instead of guesses. A **Worker** agent runs a think → act → observe loop, calling tools for live weather, temperature conversions and company policy, with a hard step limit and recovery from tool failures. A separate **Verifier** agent then checks the answer against what the tools actually returned, and flags it if it doesn't hold up.
+
+The agent loop is written by hand — no `create_agent`, no agent framework — so every step is visible.
+
+## Why
+
+A language model answering from memory sounds just as confident when it's wrong. For questions that need live or exact data, you want an assistant that looks things up — and a second, independent check before the answer goes out. A model reviewing its own answer shares the blind spots that caused the mistake; a separate Verifier with its own prompt catches more.
 
 ## Features
-- Hand-built think→act→observe agent loop (no `create_agent`/`AgentExecutor`) that calls 3+ real, Pydantic-validated tools to answer a question
-- Hard step limit that guarantees the agent can never loop forever on an ambiguous or tricky task
-- Automatic recovery from a failing tool — errors are surfaced to the model as labeled results instead of causing a crash or a made-up answer
-- Independent Verifier agent that reviews every Worker answer against the original question, with its own separate system prompt
-- Full step-by-step logging of both agents, so any run can be checked and explained afterward
-- Retry-with-feedback flow: a flagged answer can send the Worker back to redo the task using the Verifier's critique
 
-## Tech Stack
-- Python
-- LangChain (LCEL)
-- OpenAI API
-- Pydantic (tool argument validation)
-- Hand-built agent loop (no `create_agent`/`AgentExecutor`)
+- **Hand-built agent loop** — think → act → observe, with every tool call the model asks for, not just the first.
+- **3 tools:** live temperature (Open-Meteo API), Celsius → Fahrenheit, and a company policy search.
+- **Arguments checked by Pydantic** before any tool runs; bad arguments become an error the model can read.
+- **Failure recovery** — a failing tool becomes an `Error: ...` observation, never a crash; the policy search fails on its first call on purpose, so recovery happens on every run.
+- **Hard step limit** — `MaxIterationsExceeded` is raised with the partial step log; the loop can never run forever.
+- **Independent Verifier** — its own prompt, a structured `approved` / `reason` verdict, and the tools' evidence to check against.
+- **One retry** — a rejected answer is retried once with the Verifier's reason; it's never shown as verified when it isn't.
+- **Full step log** for every run, plus the Verifier's verdict, logged separately.
 
-## Prerequisites
-- Comfortable with Python and basic LangChain LCEL (chaining pieces with the `|` operator)
-- Understand tool/function calling with Pydantic-typed arguments
-- Know the think → act → observe agent loop pattern, even if you haven't built one by hand yet
-- Comfortable handling OpenAI API errors (rate limits, timeouts)
+## Demo
+
+```
+$ python main.py
+ResearchHand — ask a question, or /quit to exit.
+You: What's the weather in Lahore in Fahrenheit?
+  step 0: get_weather({'city': 'Lahore'})
+          -> Currently 18.0°C in Lahore
+  step 1: celsius_to_fahrenheit({'celsius': 18.0})
+          -> 64.4
+Answer (verified): It's currently 64.4°F in Lahore.
+You: What is your refund policy?
+  step 0: search_docs({'query': 'refund policy'})
+          -> Error: search index temporarily unavailable
+  step 1: search_docs({'query': 'refund policy'})
+          -> Refunds are accepted within 30 days of purchase, with the
+             original receipt.
+Answer (verified): Refunds are accepted within 30 days of purchase,
+with the original receipt.
+You: /quit
+```
+
+(Log lines are left out and long lines wrapped to keep the demo short. Model replies vary from run to run.)
 
 ## Architecture
-A **Worker** agent runs a think → act → observe loop around 3+ Pydantic-validated tools, with a hard iteration limit, until it produces a final answer. That answer, together with the original question, is passed to a separate **Verifier** agent that has its own system prompt and never sees the Worker's step log — only the question and the final answer, so it can't be swayed by how hard the Worker "tried." This is a Generator → Critic pair: two independent agents with a real handoff, not one agent checking its own work.
 
-## Setup (do this once, before Step 1)
+```
+            task
+              │
+              ▼
+┌──────────────────────────┐   tools: get_weather,
+│  Worker  (worker.py)     │◄─ celsius_to_fahrenheit,
+│  think → act → observe   │   search_docs
+│  max 5 rounds            │
+└─────────────┬────────────┘
+              │ answer + step log
+              ▼
+┌──────────────────────────┐
+│  Verifier  (verifier.py) │   sees: the question, the
+│  -> VerifierVerdict      │   answer, and the tools'
+└─────────────┬────────────┘   successful results
+              │
+   approved   │   rejected -> Worker retries once
+              ▼
+   answer, labelled "verified" or "NOT verified"
+```
+
+- The Worker binds its tools to the model with LangChain's `bind_tools`, and runs the loop itself.
+- The Verifier is an LCEL chain (`prompt | model.with_structured_output(VerifierVerdict)`).
+- The Verifier sees only what the tools successfully returned — not the Worker's failed attempts — so it judges the answer, not the effort.
+- `services/research_service.py` holds the Worker → Verifier handoff, separate from terminal input/output.
+
+## Project Structure
+
+```
+ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses/
+├── data/
+│   └── sample/
+│       └── tasks.json          sample tasks for the script
+├── scripts/
+│   └── compare_with_tools.py   memory answer vs. verified answer
+├── src/
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── verifier.py     verify() -> VerifierVerdict
+│   │   └── worker.py       run_worker() -> AgentResult
+│   ├── chains/
+│   │   ├── __init__.py
+│   │   └── direct_answer.py build_direct_chain() — no tools
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py          get_model() -> ChatOpenAI
+│   ├── prompts/
+│   │   ├── direct.txt      the no-tools chain's prompt
+│   │   ├── verifier.txt    the Verifier's prompt
+│   │   └── worker.txt      the Worker's system prompt
+│   ├── services/
+│   │   ├── __init__.py
+│   │   └── research_service.py answer_task(): Worker -> Verifier
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   ├── converter.py    celsius_to_fahrenheit (pure logic)
+│   │   ├── docs_search.py  search_docs (fails on 1st call)
+│   │   └── weather.py      get_weather (real API)
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── http_client.py  request_with_retry()
+│   │   ├── logger.py       get_logger()
+│   │   └── prompts.py      load_prompt(name)
+│   ├── __init__.py
+│   ├── config.py           Config, load_config()
+│   ├── exceptions.py       all named errors
+│   └── schemas.py          VerifierVerdict
+├── tests/
+│   ├── integration/
+│   │   └── test_live_agents.py real API calls
+│   └── unit/
+│       ├── test_agents.py      no API key, no network
+│       ├── test_config.py      no API key, no network
+│       └── test_tools.py       no API key, no network
+├── .env                    your real key — never committed
+├── .env.example            the setting names, no real values
+├── .gitignore              keeps .env, .venv/, __pycache__/ out of git
+├── LICENSE                 lets others reuse your code (MIT)
+├── main.py                 the terminal loop — the file you run
+├── README.md               the repo's front page
+└── requirements.txt        the 5 libraries, for pip install -r
+```
+
+## Getting Started
+
+**Requirements:** Python 3.10+ and an OpenAI API key. The weather API (Open-Meteo) is free and needs no key.
+
 ```bash
-cd project_2_researchhand
+git clone <this-repo-url>
+cd ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses
 python -m venv .venv
-source .venv/bin/activate
-pip install openai langchain langchain-openai langchain-core python-dotenv pydantic
-pip freeze > requirements.txt
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env               # then put your key in .env
 ```
-Same `.env` / `.env.example` setup used in earlier projects (`OPENAI_API_KEY`, `LOG_LEVEL`) — copy it over if you already have one, or make a new one if starting fresh here.
 
-## Troubleshooting
+## Configuration
 
-| Problem | Fix |
+Settings are read from `.env` (never committed):
+
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `OPENAI_API_KEY` | yes | — | Your OpenAI API key |
+| `LOG_LEVEL` | no | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
+
+The model (`gpt-4o-mini`) is set in one place: `MODEL_NAME` in `src/models/llm.py`. The step limit is `MAX_ITERATIONS` in `main.py`. Prompts are in `src/prompts/`. Weather works for the cities listed in `tools/weather.py`.
+
+## Usage
+
+Run from the repo root:
+
+```bash
+python main.py
+```
+
+Ask about the weather (in °C or °F), the company's refund, shipping or warranty policy, or anything general. Type `/quit` to exit.
+
+To compare a from-memory answer with the verified one for each sample task:
+
+```bash
+python -m scripts.compare_with_tools
+```
+
+## Running the Tests
+
+Run from the repo root:
+
+```bash
+# unit tests — no API key, no network
+python -m tests.unit.test_config
+python -m tests.unit.test_tools
+python -m tests.unit.test_agents
+
+# integration tests — real API calls, needs OPENAI_API_KEY
+python -m tests.integration.test_live_agents
+```
+
+The unit tests check the config, the tools and the Worker's helpers. The integration tests check: the no-tools chain, the right tool for a clear task, no tool for general knowledge, recovery from a failing tool, the step limit, and that the Verifier **rejects** a deliberately wrong answer and approves a right one.
+
+## Error Handling
+
+| Situation | What happens |
 |---|---|
-| The agent loops forever on an unclear or tricky task | A hard `max_iterations` limit set in your code, which raises a clear error with the partial log attached — never trust the model to decide to stop on its own |
-| The model ignores a tool's error and states a made-up result as fact | Return errors as clear, labeled tool results (not silent failures), so the model actually has what it needs to react correctly — and test this path directly |
-| Two tools with overlapping jobs cause unreliable choices | Sharpen the tool descriptions until their jobs don't overlap — this is a prompt-writing fix, not a code fix |
+| `OPENAI_API_KEY` missing | Exits at startup with one clear line |
+| Invalid API key | Caught on the first call; exits cleanly |
+| Rate limit | The OpenAI client retries with backoff; then the user is asked to wait |
+| A tool fails or times out | Becomes an `Error: ...` observation; the Worker can retry or explain |
+| The model sends bad tool arguments | Rejected by Pydantic before the tool runs; returned as an error |
+| The model asks for an unknown tool | Returned as an error observation, not a crash |
+| Task needs more than 5 rounds | `MaxIterationsExceeded`; the partial step log is printed |
+| Verifier rejects the answer | One retry with the reason; if still rejected, shown as NOT verified |
 
-## How To Build This — Step by Step
+## Design Decisions
 
-**Jump to:** [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Step 2](#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Step 3](#step-3-scaling-to-3-tools-with-a-hard-step-limit-and-failure-recovery) · [Step 4](#step-4-a-verifier-agent-that-catches-the-workers-bad-answers-final-2-agents)
+- **Hand-built loop instead of `create_agent`** — every model call, tool call and observation is visible and testable.
+- **Tool errors as observations** — the model can react to a failure (retry, explain) instead of the program crashing.
+- **A separate Verifier with its own prompt** — self-review shares the Worker's blind spots.
+- **Evidence, not effort** — the Verifier gets the tools' successful results only, not the Worker's retries.
+- **One retry, then label** — enough to fix a real slip, never an endless loop; a rejected answer is never shown as verified.
+- **A deliberately flaky tool** — failure recovery is exercised on every run, not only during a real outage.
 
-### Step 1 — A Single LCEL Chain That Answers One Question, No Tools
+## Limitations and Roadmap
 
-*Project: **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — Step 1 of 4: A Single LCEL Chain That Answers One Question, No Tools*
+- Weather is limited to a fixed list of cities (no geocoding).
+- `search_docs` is a small local lookup, not real document retrieval.
+- Memory lasts one question; there's no conversation history.
+- Possible next steps: real document search (RAG), geocoding for any city, a LangGraph version of the loop, a web API.
 
-**What this step does:** proves the LCEL chain works on its own, with a task simple enough that it needs no tool or loop — keeping "does my chain work" separate from "does my agent loop work" (that's Step 2's job).
-**Why this step matters:** every later step in this project reuses this exact chain — if it's broken, you'd be debugging two things at once (the chain and the loop) instead of one.
-**When you'll hit this for real:** any time you're about to build a bigger agent and want the core "just answer" logic proven correct in isolation, before wrapping it in anything more complex.
-**Helpful background:** LCEL — connecting pieces with the `|` operator.
+## License
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step1_lcel_chain_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_lcel_chain_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step1_lcel_chain_solution.md)
-
-What to do:
-1. Build one plain LCEL chain: `prompt | ChatOpenAI | output_parser` — for a task with no tools at all (like "answer this research question from what the model already knows"). Pick a question the model can plausibly answer from training, not one needing live data — a stale or slightly-off answer here is expected, not a bug, since this step deliberately has no way to look anything up yet.
-2. Test it directly — no loop, no tool, just prompt → model → parsed answer. This proves the chain works before any agent complexity gets added.
-
-**Your files after Step 1:**
-```
-project_2_researchhand_tool_agent/
-├── chain.py            → build_simple_chain() -> Runnable, no tools
-└── main.py              → calls the chain directly, prints the answer
-```
-
-### Step 2 — One Tool, One Loop: the Smallest Possible Working Agent
-
-*Project: **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — Step 2 of 4: One Tool, One Loop: the Smallest Possible Working Agent*
-
-**What this step does:** proves the think→act→observe loop actually works, with exactly one tool — the smallest possible thing you could really call "an agent." Keeps "does my loop work" separate from "do all my tools work" (Step 3's job).
-**Why this step matters:** a hand-built loop with one tool is small enough to fully understand line by line — that understanding is what makes Step 3's multi-tool loop (and every library-provided agent function you use afterward, like `create_agent`) clear instead of magic.
-**What's new vs. Step 1:** one tool gets added; a loop you build by hand wraps Step 1's chain. **What stays the same:** Step 1's chain is still what generates the model's replies inside the loop — you're wrapping it with agent behavior, not throwing it away.
-**When you'll hit this for real:** this is the exact moment "chatbot" becomes "agent" in any project — the first time you give a model the ability to act, not just answer.
-**Helpful background:** tool/function calling basics, and the think→act→observe loop.
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step2_single_tool_loop_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_single_tool_loop_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_single_tool_loop_solution.md)
-
-What to do:
-1. Define exactly one tool with a Pydantic argument shape — pick the simplest, pure-logic one.
-2. Build the loop yourself (think → act → observe → repeat) around Step 1's chain, now with that one tool added — **do this before** reaching for `create_agent`, so you understand what it's doing under the hood. There's deliberately no iteration limit yet (that's Step 3), but watch for the model calling the tool repeatedly with near-identical input — it usually means the tool's result isn't being fed back into the message history clearly enough for the model to recognize it already has an answer.
-3. Test it: a prompt that clearly needs the tool, and one that doesn't. Confirm the loop only calls the tool when it actually should.
-
-**Your files after Step 2:**
-```
-project_2_researchhand_tool_agent/
-├── chain.py
-├── tools.py                → 1 @tool-decorated function, Pydantic arguments
-├── agent.py                 → run_agent(task) -> AgentResult (your own loop, no limit yet)
-└── main.py                   → runs the loop, prints each think/act/observe step
-```
-
-### Step 3 — Scaling to 3+ Tools With a Hard Step Limit and Failure Recovery
-
-*Project: **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — Step 3 of 4: Scaling to 3+ Tools With a Hard Step Limit and Failure Recovery*
-
-**What this step does:** turns Step 2's small loop into the real Worker — more tools to pick from, a hard ceiling so it can never run forever, and a clean recovery when a tool actually fails.
-**Why this step matters:** a demo loop with one reliable tool never shows you what breaks in production — real tools fail, and real tasks are ambiguous about which tool to use; this step is where the agent has to survive both on purpose.
-**What's new vs. Step 2:** 2+ more tools (including one that sometimes fails) get added; a `max_iterations` limit and step-by-step logging get added. **What stays the same:** the loop itself from Step 2 — you're giving it more tools and a safety limit, not rewriting how it thinks.
-**When you'll hit this for real:** the moment any agent you've built moves from "demo" to "something I'd actually deploy" — a step limit and failure recovery are non-negotiable the instant real, unpredictable users are involved.
-**Helpful background:** why an agent loop needs a hard limit on the number of steps it can take.
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step3_multi_tool_limits_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_multi_tool_limits_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step3_multi_tool_limits_solution.md)
-
-What to do:
-1. Add 2+ more tools with Pydantic shapes — at least one backed by a real service (reuse an existing API client), one that's set up to sometimes fail on purpose. Write each tool's description to state clearly when *not* to use it, not just what it does — once two tools' jobs could plausibly overlap, the model is choosing based entirely on the description text, not the function name.
-2. Add the hard `max_iterations` limit, raising a clear `MaxIterationsExceeded` error with the partial log attached when it's hit.
-3. Add step-by-step logging for every think/act/observe round.
-4. Test: an unclear prompt (two tools could apply), a tool-failure case (confirm it recovers, doesn't crash), and a tricky prompt built to hit the step limit.
-
-**Your files after Step 3:**
-```
-project_2_researchhand_tool_agent/
-├── chain.py
-├── tools.py                → 3+ @tool-decorated functions, Pydantic arguments
-├── agent.py                 → run_agent(task, max_iterations) -> AgentResult, limited + logged
-└── main.py                   → runs the Worker agent, prints the log + final answer
-```
-
-### Step 4 — A Verifier Agent That Catches the Worker's Bad Answers (final: 2 agents)
-
-*Project: **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — Step 4 of 4: A Verifier Agent That Catches the Worker's Bad Answers*
-
-**What this step does:** adds a second, separate agent whose only job is judging the first agent's answer — your first real multi-agent handoff with actual value, not just routing between two functions.
-**Why this step matters:** a single agent can be confidently wrong with no one checking it — pairing it with an independent Verifier is the cheapest, most reusable safety net in agent design, and it's the same generator/critic shape you'll see again in larger multi-agent systems.
-**What's new vs. Step 3:** a new Verifier agent, plus a check-then-maybe-retry flow around the Worker's final answer. **What stays the same:** the Worker agent itself — Step 4 doesn't change its loop, tools, or logic at all; the Verifier just watches it from the outside.
-**When you'll hit this for real:** any high-stakes agent answer (financial, medical, legal-adjacent, or just "customer-facing and embarrassing if wrong") where a second, independent check before the user sees it is worth the extra cost.
-**Helpful background:** the Generator → Critic → Revision pattern (you're building a small version of this pattern now, well before you build a full graph-based version of it later).
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step4_verifier_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_verifier_agent_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step4_verifier_agent_solution.md)
-
-What to do:
-1. Write a **Verifier agent**: a separate model call given the original question and the Worker's final answer, whose only job is to judge — does this answer actually address the question, and does it match what the tools actually returned? Give it its own separate system prompt (it should *not* share the Worker's personality). Show it only the question and the final answer, not the Worker's full step log — a Verifier that can see how hard the Worker "tried" tends to rubber-stamp effort instead of judging the actual answer, the same way a grader shouldn't be swayed by how long a student spent on an exam.
-2. Connect the main flow: Worker runs to the end → Verifier checks the result → if the Verifier flags a problem, either run the Worker again with the Verifier's feedback added, or show the flag to the user instead of quietly returning a possibly-wrong answer.
-3. Log both agents' output separately (Worker's log, Verifier's verdict), so anyone reviewing it can see the handoff, not just the final answer.
-4. Test it: on purpose, give the Worker a task likely to produce a shaky answer (like a tool returning unclear data), and confirm the Verifier actually catches it at least once in your test set. A Verifier that always approves isn't really tested — it's just for show.
-
-**Your files after Step 4 (final):**
-```
-project_2_researchhand_tool_agent/
-├── chain.py
-├── tools.py
-├── agents/
-│   ├── worker_agent.py       → run_worker(task, max_iterations) -> AgentResult
-│   └── verifier_agent.py      → verify(question, worker_result) -> VerifierVerdict
-├── main.py                     → Worker runs → Verifier checks → retry or show the flag
-└── test_agent.py
-```
-
-**Final Deliverable:** **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — a 2-agent system. A Worker solves multi-step, tool-using tasks with a hard safety limit. An independent Verifier checks every answer before it reaches the user.
-
-**Why this really is multi-agent (said plainly):** this is a simple **Generator → Critic** pair — no shared graph state yet, no supervisor routing between more than two roles yet. But it genuinely is two independent agents with a real handoff, and a real chance for the Verifier to catch something.
-
-## Checklist Before You Call This Done
-- [ ] 3+ tools registered on the Worker, each with a precise, testable description
-- [ ] A hard step limit on the Worker — never loops forever, even on a tricky input
-- [ ] At least one tool actually fails mid-run in a real test, and the Worker recovers instead of crashing or making things up
-- [ ] The Verifier agent runs independently on every Worker answer, with its own separate prompt
-- [ ] At least one test case where the Verifier actually flags a bad Worker answer (not just always approving)
-- [ ] Full step-by-step log for every run, for both agents
-- [ ] You can explain, for the unclear test prompts, why the Worker chose the tool it did, and why the Verifier approved or rejected
-
-Full requirements, test cases, and hints: see the Steps above and the `hints_and_solutions/` files in this project.
-
-## Status
-Not started. Track your own progress however works for you.
-
+MIT — see `LICENSE`.

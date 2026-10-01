@@ -4,11 +4,34 @@
 
 **Story — `chunking_practice.py`:** the same document, split two different ways, can hand the model two different answers to the same question — this is the exercise that makes "chunking is a real design decision" something you watched happen, not something you took on faith. **If not:** the Build Task's chunker would be the first place a split fact ever bit you, in a pipeline with far more moving parts to debug through.
 
-All examples below use the same test document — shown here as prose, not a code block, since the exact line-wrapping inside `DOCUMENT`'s triple-quoted string is what makes `chunk_by_chars` cut through "scalds" later on:
+All examples below use the same test document and question — put them at the top of the `# Intermediate` section:
 
-> `DOCUMENT` (a 3-paragraph string, separated by blank lines) — *"Coffee brewing starts with the grind size. A coarse grind works best for a French press, because its metal filter lets fine grounds slip through and makes the coffee taste muddy and bitter. A fine grind is right for espresso instead, where water touches the grounds for only a few seconds."* / *"Water temperature matters just as much as grind size. Water that is too hot, above 205 degrees Fahrenheit, scalds the coffee and pulls out bitter compounds that should have stayed in the grounds. Water that is too cool under-extracts the coffee, leaving it weak and sour even with plenty of grounds."* / *"The final step is the pour itself. A slow, steady pour in a spiral pattern wets all the grounds evenly, which is why baristas practice just the pour for weeks before worrying about anything else."*
->
-> `QUESTION = "What water temperature should be avoided when brewing coffee?"`
+```python
+# chunking_practice.py — Intermediate section
+PARAGRAPH_1 = (
+    "Coffee brewing starts with the grind size. A coarse grind works best "
+    "for a French press, because its metal filter lets fine grounds slip "
+    "through and makes the coffee taste muddy and bitter. A fine grind is "
+    "right for espresso instead, where water touches the grounds for only "
+    "a few seconds."
+)
+PARAGRAPH_2 = (
+    "Water temperature matters just as much as grind size. Water that is "
+    "too hot, above 205 degrees Fahrenheit, scalds the coffee and pulls "
+    "out bitter compounds that should have stayed in the grounds. Water "
+    "that is too cool under-extracts the coffee, leaving it weak and sour "
+    "even with plenty of grounds."
+)
+PARAGRAPH_3 = (
+    "The final step is the pour itself. A slow, steady pour in a spiral "
+    "pattern wets all the grounds evenly, which is why baristas practice "
+    "just the pour for weeks before worrying about anything else."
+)
+# a blank line ("\n\n") between paragraphs, like a real text file
+DOCUMENT = PARAGRAPH_1 + "\n\n" + PARAGRAPH_2 + "\n\n" + PARAGRAPH_3
+
+QUESTION = "What water temperature should be avoided when brewing coffee?"
+```
 
 ## Basic Version
 
@@ -101,8 +124,7 @@ from openai import OpenAI
 
 client = OpenAI()
 
-DOCUMENT: str = "..."   # as above
-QUESTION: str = "What water temperature should be avoided when brewing coffee?"
+# DOCUMENT and QUESTION: the block at the top of this page
 
 
 def chunk_by_chars(text: str, chunk_size: int = 200) -> list[str]:
@@ -226,10 +248,57 @@ print("chunk_by_paragraph_safe, same document:", safe_count, "chunk(s)")
 **Expected output:**
 ```
 naive chunk_by_paragraph, no blank lines: 1 chunk(s)
-chunk_by_paragraph_safe, same document: 4 chunk(s)
+chunk_by_paragraph_safe, same document: 5 chunk(s)
 ```
 The plain `chunk_by_paragraph` hands back the entire document as a single "chunk" — no error, no warning, just a search index that's secretly not chunked at all. `chunk_by_paragraph_safe` notices that and falls back to the overlapping character chunker instead.
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1's two chunkers both produce clean, non-overlapping pieces, and `chunk_by_paragraph` trusts that the document has real paragraph breaks to split on. Approach 2 fixes the boundary problem directly: overlap means a fact sitting near a cut usually survives whole in at least one chunk, without needing a bigger `k` at search time to compensate (the workaround `chunk_boundary_split`'s solution describes). Approach 3 fixes a different, quieter failure — a document that defeats `chunk_by_paragraph` entirely by having no blank lines — by detecting that case and falling back to Approach 2's chunker instead of returning one useless giant chunk.
+### Approach 4 — the chunker as a parameter: `Callable[[str], list[str]]`
 
-**Which one should you actually write?** For a document set you've actually looked at (like this exercise's `DOCUMENT`), Approach 1's plain `chunk_by_paragraph` is fine — real paragraph breaks, no boundary problem to speak of. The moment your documents come from somewhere you don't fully control — scraped pages, converted PDFs, user uploads — reach for Approach 3's fallback, since you can't guarantee every file will have the blank-line structure you're assuming. Reach for Approach 2's overlap specifically for `chunk_by_chars`-style fixed-size chunking, any time a fact could plausibly land near a chunk boundary — which, over a large enough document set, it eventually will.
+**Story:** Approaches 1–3 now give you four chunkers, and comparing them means calling each one by name. A function is a value in Python — you can pass `chunk_by_paragraph` (no `()`) into another function, which then calls it. **If not:** every new chunker would mean editing the comparison code, and the Build Task's `build_vector_store(doc_folder, chunk_fn)` — "the chunking method must be a swappable piece" — would be the first time you passed a function as an argument.
+
+`Callable[[str], list[str]]` from `typing` is the type hint for "a function that takes one `str` and returns a `list[str]`" — exactly the shape of every chunker above.
+
+```python
+# chunking_practice.py — Intermediate section
+from typing import Callable
+
+
+def best_chunk_for(
+    chunk_fn: Callable[[str], list[str]],
+    text: str,
+    question_vector: list[float],
+) -> tuple[str, float]:
+    chunks = chunk_fn(text)
+    return find_best_chunk(chunks, question_vector)
+
+
+CHUNKERS: dict[str, Callable[[str], list[str]]] = {
+    "chunk_by_chars": chunk_by_chars,
+    "chunk_by_chars_with_overlap": chunk_by_chars_with_overlap,
+    "chunk_by_paragraph": chunk_by_paragraph,
+    "chunk_by_paragraph_safe": chunk_by_paragraph_safe,
+}
+
+question_vector = get_embedding(QUESTION)
+for name, chunk_fn in CHUNKERS.items():
+    chunk_count = len(chunk_fn(DOCUMENT))
+    best_chunk, best_score = best_chunk_for(chunk_fn, DOCUMENT, question_vector)
+    print(f"{name}: {chunk_count} chunks, best score {best_score:.4f}")
+    print("   ", best_chunk[:60])
+```
+**Expected output** (the chunk counts are exact; scores and the chunk-based winners depend on the model, so yours will differ):
+```
+chunk_by_chars: 4 chunks, best score 0.54...
+    ...
+chunk_by_chars_with_overlap: 5 chunks, best score 0.5...
+    ...
+chunk_by_paragraph: 3 chunks, best score 0.55...
+    Water temperature matters just as much as grind size. Water
+chunk_by_paragraph_safe: 3 chunks, best score 0.55...
+    Water temperature matters just as much as grind size. Water
+```
+`chunk_by_paragraph_safe` gives the same 3 chunks as `chunk_by_paragraph` here, because this `DOCUMENT` has real blank lines — its fallback only runs on a wall of text (Approach 3). `best_chunk_for` never names a chunker — it calls whatever `chunk_fn` it was given. Adding a fifth chunker is one new line in `CHUNKERS`.
+
+**Difference between Approaches 1–4:** Approach 1's two chunkers both produce clean, non-overlapping pieces, and `chunk_by_paragraph` trusts that the document has real paragraph breaks to split on. Approach 2 fixes the boundary problem directly: overlap means a fact sitting near a cut usually survives whole in at least one chunk, without needing a bigger `k` at search time to compensate (the workaround `chunk_boundary_split`'s solution describes). Approach 3 fixes a different, quieter failure — a document that defeats `chunk_by_paragraph` entirely by having no blank lines — by detecting that case and falling back to Approach 2's chunker instead of returning one useless giant chunk. Approach 4 changes no chunker; it makes the chunker a parameter (`Callable[[str], list[str]]`), so any of them can be swapped in without touching the code that uses it.
+
+**Which one should you actually write?** For a document set you've actually looked at (like this exercise's `DOCUMENT`), Approach 1's plain `chunk_by_paragraph` is fine — real paragraph breaks, no boundary problem to speak of. The moment your documents come from somewhere you don't fully control — scraped pages, converted PDFs, user uploads — reach for Approach 3's fallback, since you can't guarantee every file will have the blank-line structure you're assuming. Reach for Approach 2's overlap specifically for `chunk_by_chars`-style fixed-size chunking, any time a fact could plausibly land near a chunk boundary — which, over a large enough document set, it eventually will. Use Approach 4's `chunk_fn` parameter whenever more than one chunker exists — it's how the Build Task's `build_vector_store()` stays swappable.

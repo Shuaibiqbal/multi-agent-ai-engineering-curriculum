@@ -1,181 +1,221 @@
-# Step 1 — Writer Drafting Chain — Solution
+# Step 1 — One Specialist's Drafting Logic, Working Alone, No Agent Behavior — Solution
 
-> [Back to this step](../README.md#step-1-one-specialists-drafting-logic-working-alone-no-agent-behavior) · [Hint 1](step1_writer_chain_hints.md#hint-1) · [Hint 2](step1_writer_chain_hints.md#hint-2) · [Solution](step1_writer_chain_solution.md)
+> [Back to this step](../READING_README.md#step-1-one-specialists-drafting-logic-working-alone-no-agent-behavior) · [Hint 1](step1_writer_chain_hints.md#hint-1) · [Hint 2](step1_writer_chain_hints.md#hint-2) · [Solution](step1_writer_chain_solution.md)
 
-## Basic Version
+**Story — Step 1:** a team is only as good as each member. Start with one specialist — the Writer, because it needs no tools — and prove its core skill alone: findings in, article out, as one LCEL chain. **If not:** in Step 5, a bad article could come from the Writer, the Reviewer, the routing or the state, and you'd be debugging all four at once.
 
-### Approach 1 — the direct way
+After this step the project runs: `python -m contentforge.main` writes three test articles from made-up findings.
 
-**`agents/writer_chain.py`**
+## The shared files
+
+The same files as Projects 1-3, with the package name changed to `contentforge`: Doc01's config, errors and logger, Project 1's prompt loader, and Project 3's `get_model()`.
+
+**Story — `exceptions.py`, `config.py`, `utils/logger.py`, `utils/prompts.py`:** settings load and fail loudly at startup, logging is set up once, prompts live in `.txt` files. **If not:** each agent would repeat this setup its own way.
+
 ```python
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
+# src/contentforge/exceptions.py
+# why: one file for every named error in the project, so any module can
+# raise or catch a specific problem instead of a bare Exception.
 
-def build_writer_chain():
-    prompt = ChatPromptTemplate.from_template(
-        "Write a short draft based on these research notes:\n{notes}"
-    )
-    model = ChatOpenAI(model="gpt-4o-mini")
-    parser = StrOutputParser()
-    return prompt | model | parser
+# from Doc01
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
 ```
 
-**`main.py`**
 ```python
-from agents.writer_chain import build_writer_chain
+# src/contentforge/config.py
+# how: os.getenv() is how we read env vars
+import os
+# why: @dataclass auto-builds __init__ for a typed holder
+from dataclasses import dataclass
+# how: reads .env and loads it into os.environ
+from dotenv import load_dotenv
+# why: a specific error type, not a bare Exception
+from contentforge.exceptions import MissingConfigError
 
-fake_notes = [
-    "Electric bikes cost $800-3000. Battery range 20-60 miles. Growing 15%/year.",
-    "Topic: remote work. Notes: productivity mixed, saves commute time, isolation a concern.",
-    "Topic: coffee. Notes: arabica vs robusta, cold brew trend, price volatility.",
-]
+@dataclass
+class Config:
+    # why: a typed object, not a plain dict — your editor autocompletes
+    # .openai_api_key and .log_level, and catches a typo'd field name.
+    openai_api_key: str
+    log_level: str
 
-chain = build_writer_chain()
-for notes in fake_notes:
-    draft = chain.invoke({"notes": notes})
-    print("---")
-    print(draft)
+def require_env(key: str) -> str:
+    # why: one place that turns a missing/empty env var into a clear,
+    # named error, instead of repeating the same if-check for every key.
+    # when: called once per required key, inside load_config().
+    value = os.getenv(key)
+    if value is None or value == "":
+        # how: both "never set" (None) and "set but blank" (empty string)
+        # count as missing — an empty API key is never usable either way.
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
+
+def load_config() -> Config:
+    # why: the one function every other file calls to get settings — so a
+    # missing key fails loudly here, at startup, not confusingly later.
+    # when: call this once, at the top of main(), before anything else.
+    # how: reads .env into os.environ; must run before os.getenv() below
+    load_dotenv()
+    # how: required — raises if missing
+    api_key = require_env("OPENAI_API_KEY")
+    # how: optional — "INFO" if unset
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    return Config(openai_api_key=api_key, log_level=log_level)
 ```
 
-This works and is a reasonable first version. It's missing type hints, there's no `if __name__ == "__main__":` guard, and nothing stops it from being called with empty notes — all fine to skip on a genuinely first pass.
+```python
+# src/contentforge/utils/logger.py
+import logging
+import os
+
+def get_logger(name: str) -> logging.Logger:
+    # why: gives every file in the project the same logging setup from one
+    # place, instead of each file configuring handlers its own way.
+    # when: logging.getLogger(name) always returns the same object for the
+    # same name, so calling this again in the same run is safe and cheap.
+    logger = logging.getLogger(name)
+
+    if not logger.handlers:
+        # how: only attach a handler the first time this name is
+        # configured — without this guard, every line would print twice.
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        # how: falls back to INFO if the env value is invalid
+        level = getattr(logging, level_name.upper(), logging.INFO)
+
+        # how: prints to the console
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        # why: every line carries a timestamp/source/level, not just the
+        # bare message
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        formatter = logging.Formatter(log_format)
+        handler.setFormatter(formatter)
+
+        logger.addHandler(handler)
+        # how: the logger's own level must be at least this low, or the
+        # handler never even sees the message
+        logger.setLevel(level)
+
+    return logger
+```
+
+```python
+# src/contentforge/utils/prompts.py
+
+# how: a path from the repo root — every command in this project is run
+# from the repo root, the same rule the tests and scripts follow
+PROMPTS_DIR = "src/contentforge/prompts"
+
+def load_prompt(name: str) -> str:
+    # why: prompts live in .txt files, not inside Python strings — you
+    # can reword an agent's behavior without touching its code.
+    # when: called whenever an agent needs its system prompt.
+    # how: e.g. "worker" -> "src/contentforge/prompts/worker.txt"
+    path = PROMPTS_DIR + "/" + name + ".txt"
+    with open(path) as prompt_file:
+        # how: strip() drops the blank line at the end of the file
+        return prompt_file.read().strip()
+```
+
+Also create empty `__init__.py` files in `utils/`, `models/` and `agents/`.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-1-one-specialists-drafting-logic-working-alone-no-agent-behavior) · [Hint 1](step1_writer_chain_hints.md#hint-1) · [Hint 2](step1_writer_chain_hints.md#hint-2) · [Solution](step1_writer_chain_solution.md)
+> [Back to this step](../READING_README.md#step-1-one-specialists-drafting-logic-working-alone-no-agent-behavior) · [Hint 1](step1_writer_chain_hints.md#hint-1) · [Hint 2](step1_writer_chain_hints.md#hint-2) · [Solution](step1_writer_chain_solution.md)
 
-## Intermediate Version
+## Solution — a reusable Writer with strict rules, tested on 3 inputs
 
-### Approach 1 — typed, with a real test entrypoint
+**Story — `models/llm.py`:** one place builds the model for every agent — the same `get_model()` as Project 3, since Step 5's graph nodes only receive the state. **If not:** four agents would build four models with four settings.
 
-**`agents/writer_chain.py`**
 ```python
-from langchain_core.prompts import ChatPromptTemplate
+# src/contentforge/models/llm.py
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import Runnable
 
-WRITER_PROMPT = (
-    "You are a content writer. Write a short, clear draft (3-5 paragraphs) "
-    "based only on these research notes. Do not invent facts that aren't "
-    "in the notes.\n\nResearch notes:\n{notes}"
-)
+# why: one place to change the model for every agent
+MODEL_NAME = "gpt-4o-mini"
 
-
-def build_writer_chain() -> Runnable:
-    prompt = ChatPromptTemplate.from_template(WRITER_PROMPT)
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-    parser = StrOutputParser()
-    return prompt | model | parser
+def get_model() -> ChatOpenAI:
+    # why: graph nodes only receive the state, so each node builds its
+    # model here instead of being handed one
+    # how: ChatOpenAI reads OPENAI_API_KEY from the environment, which
+    # load_config() filled from .env (and checked) at startup
+    return ChatOpenAI(model=MODEL_NAME, temperature=0)
 ```
 
-**`main.py`**
-```python
-from agents.writer_chain import build_writer_chain
+**Story — `prompts/writer.txt`:** the Writer's rules: a titled 150-250-word article, **only** the given findings, and keep each fact's `[source]` tag. **If not:** the article could quietly mix in facts nobody researched.
 
-FAKE_NOTES: list[str] = [
-    "Electric bikes cost $800-3000. Battery range 20-60 miles. Growing 15%/year.",
-    "Topic: remote work. Notes: productivity mixed, saves commute time, isolation a concern.",
-    "Topic: coffee. Notes: arabica vs robusta, cold brew trend, price volatility.",
+`src/contentforge/prompts/writer.txt`
+
+```text
+You are the Writer on a content team. Write a short article (150-250
+words) with a title, using ONLY the findings below. Do not add facts
+that are not in the findings. Keep each fact's [source] tag.
+
+Findings:
+{findings}
+```
+
+(Step 2 adds a feedback section to this prompt.)
+
+**Story — `agents/writer_agent.py`:** `build_writer_chain()` is the Writer's whole skill; `run_writer()` is the one function other code calls. **If not:** the chain would live inside `main.py`, and Step 2 couldn't wrap it.
+
+```python
+# src/contentforge/agents/writer_agent.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+
+from contentforge.models.llm import get_model
+from contentforge.utils.prompts import load_prompt
+
+def build_writer_chain():
+    # why: the Writer's whole skill is one LCEL chain (Doc05) — proven
+    # alone here, before any other agent exists
+    prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
+    return prompt | get_model() | StrOutputParser()
+
+def run_writer(findings: str) -> str:
+    chain = build_writer_chain()
+    return chain.invoke({"findings": findings})
+```
+
+**Story — `main.py`:** three test inputs, including a nearly empty one **on purpose** — to see now what the Writer does with almost nothing, before Research ever feeds it something thin. **If not:** you'd first see that behavior in the full pipeline, with four agents to suspect.
+
+```python
+# src/contentforge/main.py
+import sys
+
+from contentforge.agents.writer_agent import run_writer
+from contentforge.config import load_config
+from contentforge.exceptions import MissingConfigError
+
+# why: made-up findings for now — Research and Analysis don't exist yet.
+# The last one is nearly empty ON PURPOSE, to see what the chain does
+# with almost nothing to work from.
+TEST_FINDINGS = [
+    "Range:\n- A typical e-bike battery gives 40 to 100 km per charge. "
+    "[battery-review]\n- Most e-bikes are pedal-assist. [bike-basics]",
+    "Savings:\n- Remote workers save 72 minutes a day of commuting. "
+    "[commute-study]\n- Loneliness is the main downside. [wellbeing]",
+    "- Solar panels exist.",
 ]
 
-
 def main() -> None:
-    chain = build_writer_chain()
-    for notes in FAKE_NOTES:
-        draft = chain.invoke({"notes": notes})
-        print("---")
-        print(draft)
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
 
+    for findings in TEST_FINDINGS:
+        print("=" * 60)
+        print(run_writer(findings))
 
 if __name__ == "__main__":
     main()
 ```
 
-**Difference from Basic:** the prompt is pulled out into its own constant (`WRITER_PROMPT`) instead of buried inline — makes it easy to find and tune later, which matters once Step 2 needs a second, similar prompt for redrafting with feedback. Full type hints throughout. The prompt itself is more specific — "don't invent facts not in the notes" matters a lot once Research (Step 3) starts feeding this chain real, limited information; a vague prompt tends to quietly hallucinate details to fill gaps. The `if __name__ == "__main__":` guard means `main.py` can later be imported without immediately running its test calls. Nothing here yet handles empty input or strengthens the "don't invent facts" instruction beyond one sentence in a template string — that's what Advanced adds.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-one-specialists-drafting-logic-working-alone-no-agent-behavior) · [Hint 1](step1_writer_chain_hints.md#hint-1) · [Hint 2](step1_writer_chain_hints.md#hint-2) · [Solution](step1_writer_chain_solution.md)
-
-## Advanced Version
-
-### Approach 1 — guard clause against empty input
-
-```python
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import Runnable
-
-WRITER_PROMPT = (
-    "You are a content writer. Write a short, clear draft (3-5 paragraphs) "
-    "based only on these research notes. Do not invent facts that aren't "
-    "in the notes.\n\nResearch notes:\n{notes}"
-)
-
-
-def build_writer_chain() -> Runnable:
-    prompt = ChatPromptTemplate.from_template(WRITER_PROMPT)
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-    return prompt | model | StrOutputParser()
-
-
-def run_writer_chain(chain: Runnable, notes: str) -> str:
-    if not notes or not notes.strip():
-        raise ValueError("notes cannot be empty — nothing to draft from")
-    return chain.invoke({"notes": notes})
-```
-This catches the case Basic and Intermediate both miss: calling the chain with `notes=""` no longer burns an API call to produce a fluent, content-free draft — it fails immediately, with a message that says exactly what's wrong, right where the bad input entered the system.
-
-### Approach 2 — system/human split for a stickier instruction
-
-```python
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import Runnable
-
-WRITER_SYSTEM_PROMPT = (
-    "You are a content writer. Write a short, clear draft (3-5 paragraphs) "
-    "based only on the research notes you are given. Do not invent facts "
-    "that aren't in the notes."
-)
-WRITER_TEMPERATURE = 0.7
-
-
-def build_writer_chain() -> Runnable:
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", WRITER_SYSTEM_PROMPT),
-        ("human", "Research notes:\n{notes}"),
-    ])
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=WRITER_TEMPERATURE)
-    return prompt | model | StrOutputParser()
-
-
-def run_writer_chain(chain: Runnable, notes: str) -> str:
-    if not notes or not notes.strip():
-        raise ValueError("notes cannot be empty — nothing to draft from")
-    return chain.invoke({"notes": notes})
-
-
-if __name__ == "__main__":
-    test_chain = build_writer_chain()
-    for test_notes in [
-        "Electric bikes cost $800-3000. Battery range 20-60 miles. Growing 15%/year.",
-        "Topic: remote work. Notes: productivity mixed, saves commute time, isolation a concern.",
-        "Topic: coffee. Notes: arabica vs robusta, cold brew trend, price volatility.",
-    ]:
-        print("---")
-        print(run_writer_chain(test_chain, test_notes))
-
-    try:
-        run_writer_chain(test_chain, "   ")
-    except ValueError as e:
-        print("Correctly rejected empty notes:", e)
-```
-**Expected output:** three drafts, then `Correctly rejected empty notes: notes cannot be empty — nothing to draft from`.
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's chain works correctly as long as every caller happens to pass real notes. Approach 1 adds a safety net for when that assumption breaks — it doesn't change the prompt at all, just wraps the chain with an input check. Approach 2 is a separate improvement layered on top: moving the instruction into a dedicated `system` message, which models tend to follow more reliably than one instruction sentence mixed into a long user-role template — worth doing specifically because "don't invent facts" is a correctness requirement here, not a style preference. Both are small, additive changes; a real version would keep both together, which is what the combined code above does.
-
-**Which one should you actually write?** Keep both. Approach 1's guard clause costs three lines and catches a real bug class (silent, confusing failures three agents deep in Step 5) before it can happen. Approach 2's system/human split costs nothing extra at runtime and makes the "no invented facts" rule more likely to actually hold once Step 3's Research agent starts feeding this chain real, limited information instead of your generous made-up test notes. Neither is over-engineering for a project whose entire premise is "prove this piece is trustworthy before a team depends on it."
+**Run it:** `python -m contentforge.main`, and **read** all three articles. For the thin input, a good Writer writes something very short, or says there's too little to go on — it shouldn't invent facts about solar panels. If it invents, tighten the "ONLY the findings" wording now.

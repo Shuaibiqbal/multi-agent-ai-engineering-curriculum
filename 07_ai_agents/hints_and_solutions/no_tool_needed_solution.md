@@ -2,24 +2,30 @@
 
 > [Back to the exercise](../README.md#ex-no_tool_needed) · [Hint 1](no_tool_needed_hints.md#hint-1) · [Hint 2](no_tool_needed_hints.md#hint-2) · [Solution](no_tool_needed_solution.md)
 
-**Story — `no_tool_needed_practice.py`:** an agent that always reaches for a tool, even when general knowledge alone answers the question, wastes cost and time on every single call. Confirming zero tool calls for an obviously-answerable prompt is what proves the loop isn't reflexively tool-happy. **If not:** the Build Task's "task needs no tool → direct answer, zero tool calls" Test Case would be the first time you ever checked this, with no smaller version to trust it against.
+**Story — `no_tool_needed_practice.py`:** an agent that reaches for a tool on every question wastes a full round trip each time. This checks that your loop lets the model answer directly when no tool fits. **If not:** the Build Task's "task needs no tool" Test Case would be checked for the first time there.
 
-All examples below assume `run_agent()` from `build_react_loop` (returns an `AgentResult` with `final_answer` and `steps`), with `get_weather` and `celsius_to_fahrenheit` as the only 2 registered tools.
+Run from inside `practice/`, next to `react_loop_practice.py`.
 
 ## Basic Version
 
+### Approach 1 — one question, one look
+
 ```python
 # no_tool_needed_practice.py
-result = run_agent("What's the capital of France?", max_iterations=5)
-print(result.final_answer)
-print(result.steps)
+from react_loop_practice import run_agent
+
+result = run_agent("What's the capital of France?")
+print("Answer:", result.final_answer)
+print("Tool calls:", len(result.steps))
 ```
 **Expected output:**
+
 ```
-The capital of France is Paris.
-[]
+Answer: The capital of France is Paris.
+Tool calls: 0
 ```
-`result.steps` comes back empty because the model's very first response already had no `tool_calls` — it answered directly. This works correctly and confirms the exercise's core claim, but it's something you read once, not something a test suite can check for you automatically.
+
+One run is one data point — it doesn't prove the loop behaves on other questions.
 
 <hr class="page-break">
 
@@ -27,43 +33,94 @@ The capital of France is Paris.
 
 ## Intermediate Version
 
-### Approach 1 — one real assertion
+### Approach 1 — several prompts, one `case` line each
 
 ```python
 # no_tool_needed_practice.py
-def test_no_tool_call_for_general_knowledge():
-    result = run_agent("What's the capital of France?", max_iterations=5)
-    assert len(result.steps) == 0
-    assert "Paris" in result.final_answer
-```
-**Expected output when run with pytest:**
-```
-1 passed
-```
+from react_loop_practice import run_agent
 
-### Approach 2 — a small list of clearly-no-tool prompts
-
-```python
-# no_tool_needed_practice.py
+# why: none of these needs add, get_weather or flaky_lookup — a model
+# that calls a tool here is wasting a round trip on every question
 NO_TOOL_PROMPTS = [
     "What's the capital of France?",
-    "What year did World War II end?",
-    "Who wrote Romeo and Juliet?",
+    "What's the boiling point of water in Celsius?",
+    "Write a haiku about the sea.",
 ]
 
 
-def test_clear_prompts_never_call_a_tool():
-    # why: several prompts in one test catches a case where the model
-    # behaves correctly on one question but not another.
+def check_no_tool(prompt: str) -> bool:
+    result = run_agent(prompt)
+    return len(result.steps) == 0
+
+
+def main() -> None:
+    passed = 0
+    number = 0
     for prompt in NO_TOOL_PROMPTS:
-        result = run_agent(prompt, max_iterations=5)
-        assert len(result.steps) == 0, f"unexpected tool call for: {prompt}"
+        number = number + 1
+        ok = check_no_tool(prompt)
+        if ok:
+            passed = passed + 1
+        print(f"case {number} (no tool?) -> {ok}: {prompt}")
+    print(f"{passed}/{len(NO_TOOL_PROMPTS)} answered without a tool")
+
+
+if __name__ == "__main__":
+    main()
 ```
-**Expected output when run with pytest:**
+**Expected output:**
+
 ```
-1 passed
+case 1 (no tool?) -> True: What's the capital of France?
+case 2 (no tool?) -> True: What's the boiling point of water in Celsius?
+case 3 (no tool?) -> True: Write a haiku about the sea.
+3/3 answered without a tool
 ```
 
-**Difference from Basic:** Basic reads printed output once and trusts it looks right. Approach 1 turns that same check into a real `assert`, so it can run in CI and fail loudly if it ever stops being true. Approach 2 widens the check to several prompts in one test, catching a case where the model behaves correctly on one question but not another — a single example was never proof of the general claim, just one data point toward it.
+**Difference from Basic:** three prompts instead of one, each reported, with a total — a check you can re-run after every change to a tool description.
 
-**Which one should you actually write?** Approach 2's kind of test — a short list of clearly-no-tool prompts, each asserted to produce zero tool calls — is exactly what belongs in `test_agent.py` for the Build Task, matching the Test Cases table's "Task needs no tool → Direct answer, zero tool calls" row. Worth knowing beyond this exercise: a genuinely borderline prompt (like "is Paris generally a warm city?") can go either way depending on how precisely your Doc06 tool descriptions are worded — if you ever see a clearly-no-tool prompt start calling a tool it shouldn't, go check the tool's *description* first, before assuming your loop itself is broken.
+
+<hr class="page-break">
+
+> [Back to the exercise](../README.md#ex-no_tool_needed) · [Hint 1](no_tool_needed_hints.md#hint-1) · [Hint 2](no_tool_needed_hints.md#hint-2) · [Solution](no_tool_needed_solution.md)
+
+### Approach 2 — the same check as a pytest test
+
+**Story — `test_no_tool_needed.py`:** pytest (`pip install pytest`) finds every function named `test_...` and runs it; `assert` stops a test with a message when its check is false. It's the same check as Approach 1, reported as pass/fail. **If not:** the Build Task's pytest version of `test_agent.py` would be the first pytest file you ever wrote.
+
+```python
+# test_no_tool_needed.py
+# Run it with pytest, from inside practice/: pytest test_no_tool_needed.py -v
+from react_loop_practice import run_agent
+
+NO_TOOL_PROMPTS = [
+    "What's the capital of France?",
+    "What's the boiling point of water in Celsius?",
+    "Write a haiku about the sea.",
+]
+
+
+def test_general_knowledge_uses_no_tool() -> None:
+    for prompt in NO_TOOL_PROMPTS:
+        result = run_agent(prompt)
+        # how: assert stops the test, with this message, if it's False
+        assert len(result.steps) == 0, f"a tool was called for: {prompt}"
+
+
+def test_answer_is_not_empty() -> None:
+    result = run_agent("What's the capital of France?")
+    assert result.final_answer != ""
+```
+**Run it:** `pytest test_no_tool_needed.py -v`, from inside `practice/`.
+
+**Expected output** (shortened):
+
+```
+test_no_tool_needed.py::test_general_knowledge_uses_no_tool PASSED
+test_no_tool_needed.py::test_answer_is_not_empty PASSED
+2 passed
+```
+
+**Difference from Approach 1:** the same check, but pytest runs it, counts it, and prints exactly which `assert` failed and why.
+
+**Which one should you actually write?** Either — Approach 1 needs nothing installed; Approach 2 is the style Doc13 uses for everything. The Build Task shows its tests both ways. If a no-tool prompt ever starts calling a tool, look at the tool's *description* first (Doc06).

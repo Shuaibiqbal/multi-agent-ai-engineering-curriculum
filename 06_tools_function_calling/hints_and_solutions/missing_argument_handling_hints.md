@@ -94,7 +94,9 @@ def classify_response(response) -> str:
     return "called_with_guessed_value"
 ```
 
-Wire this into a 5-run loop yourself, printing each run's outcome (and the model's reply when it asked instead of calling), then compare against the [Solution](missing_argument_handling_solution.md).
+Wire this into a 5-run loop yourself, printing each run's outcome (and the model's reply when it asked instead of calling).
+
+Then fix it at the tool (Approach 2): a Pydantic model with `city: str = Field(min_length=1)`, attached with `@tool(args_schema=WeatherArgs)`. Now `get_weather.invoke({"city": ""})` raises `ValidationError` — catch it by name and return `"Error: a city name is required - ..."`. Compare against the [Solution](missing_argument_handling_solution.md).
 
 <hr class="page-break">
 

@@ -95,7 +95,7 @@ prompt = ChatPromptTemplate.from_template("Answer: {question}")
 model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 chain = prompt | model | StrOutputParser()
 ```
-Notice the input to `.invoke(...)` is a dictionary whose key (`question`) matches the template's placeholder name exactly. If they don't match, the chain fails while building the prompt, before any API call happens — you'll practice that failure directly in this document's Edge cases exercise. Add the `.invoke(...)` call and print line yourself, then compare against the [Solution](lcel_chain_basics_solution.md).
+Notice the input to `.invoke(...)` is a dictionary whose key (`question`) matches the template's placeholder name exactly. If they don't match, the chain fails while building the prompt, before any API call happens — you'll practice that failure directly in this document's Edge cases exercise. Add the `.invoke(...)` call and print line yourself. Then try `build_chain(config: Config | None = None)`: if `config` is `None`, call Doc01's `load_config()`; pass `api_key=config.openai_api_key` to `ChatOpenAI`. Compare against the [Solution](lcel_chain_basics_solution.md).
 
 **Difference between Basic and Intermediate:** Basic calls the chain once and prints the answer. Intermediate uses explicit `model=`/`temperature=` instead of hidden defaults, and wraps chain-building in a reusable function.
 

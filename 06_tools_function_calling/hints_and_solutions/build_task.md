@@ -16,18 +16,16 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 ### Basic Version
 
-You're building three small files that work together: `tools.py` holds the actual tools, `tool_harness.py` runs a prompt against all of them and reports what happened, and `test_prompts.py` holds the list of prompts you'll test with.
+You're building three small files that work together: `tools.py` holds the tools, `tool_harness.py` runs one prompt against all of them, and `test_prompts.py` runs the Test Cases.
 
-You need exactly 2-3 tools, and they can't all be the same kind: at least one that's pure logic (no outside calls at all), one that calls a real service (reuse Doc02's HTTP client), and one built to sometimes fail on purpose (so you have something real to test the failure-handling exercise against).
+You need 3 kinds of tool: one that's pure logic (`add`), one that calls a real service (`get_weather`), and one built to fail on purpose (`flaky_lookup`). Every piece is something an exercise above already practiced:
 
-Things to use:
+- `add` and the `for call in response.tool_calls` round trip — the Basic exercise.
+- `get_weather`, `build_weather_params()` and Doc02's `request_with_retry("GET", ...)` — the Real-world exercise.
+- A Pydantic model per tool with `@tool(args_schema=...)`, and catching `ValidationError` — the Edge cases exercise, Approach 2.
+- `return f"Error: {e}"` instead of a crash, and sending the result back with a `{"role": "tool", ...}` message — the Failure exercise.
 
-- `@tool` from `langchain_core.tools`, with typed function parameters (which `@tool` reads automatically to build the argument shape shown to the model).
-- Your Doc02 `request_with_retry()` — reuse it inside the real-API tool, don't rewrite it.
-- `try/except` inside your "sometimes fails" tool, returning `f"Error: {e}"` instead of crashing.
-- `model.bind_tools(ALL_TOOLS)` to register everything at once.
-
-Try writing down, in plain words, what each of your 2-3 tools actually does, before writing any code.
+Copy in unchanged first: `http_client.py`, `exceptions.py`, `logging_setup.py` from Doc02's Build Task.
 
 <hr class="page-break">
 
@@ -35,17 +33,12 @@ Try writing down, in plain words, what each of your 2-3 tools actually does, bef
 
 ### Intermediate Version
 
-`tools.py` should export a plain list of your `@tool`-decorated functions (`ALL_TOOLS = [tool_a, tool_b, tool_c]`), so `tool_harness.py` and any later document can import that one list instead of naming each tool individually.
+- **`tools.py`** — `AddArgs`, `WeatherArgs`, `LookupArgs` (Pydantic), the three `@tool(args_schema=...)` functions, and `ALL_TOOLS = [add, get_weather, flaky_lookup]`, so later documents import one list.
+- **`flaky_lookup(query, should_fail=False)`** — `should_fail` makes the failure predictable for testing instead of random. Its description tells the model when to set it.
+- **`tool_harness.py`** — a `ToolCallResult` dataclass (prompt, tool name, arguments, output, the model's final answer), `find_tool()`, `run_tool()` that turns a `ValidationError` into an error string, and `run_with_tools(prompt, tools)`, which runs every requested call and sends each result back before asking the model for its final answer.
+- **`test_prompts.py`** — one prompt per Test Cases row, plus one for the real service.
 
-`tool_harness.py`'s `run_with_tools(prompt: str, tools: list) -> ToolCallResult` should be a typed function — define a small `ToolCallResult` (a dataclass is fine) that records the prompt, which tool (if any) got called, what arguments it got, and what it returned.
-
-The "sometimes fails" tool should fail in a controllable, predictable way for testing — not randomly. A simple pattern: an argument like `should_fail: bool`, so your test harness can force the failure path on demand instead of hoping for bad luck. `test_prompts.py` should hold a list of prompts covering all three cases from the Test Cases table: a prompt that clearly matches one tool, one that matches none, and one that should trigger the failing tool.
-
-Here's what to actually go look at for `run_with_tools()`: call `model.bind_tools(tools)`, invoke with the prompt, read `response.tool_calls`, and if one exists, find the matching tool object by name and actually run it — not just log which tool got picked.
-
-Sketch `ToolCallResult`'s fields, and `run_with_tools()`'s full signature, before moving to Hint 2.
-
-**Difference between Basic and Intermediate:** Basic names the three files and the tools' jobs in plain words. Intermediate gives each file a real, typed shape — `ToolCallResult`, a `should_fail` flag, a `run_with_tools()` that actually finds and runs the matching tool. Worth knowing this version trusts `@tool`'s auto-inferred argument shape and only reads the first tool call in a response — a real, ongoing library would eventually want an explicit Pydantic `args_schema` per tool and to handle every call in a response, not just the first, but neither is required for this Build Task as written.
+**Difference between Basic and Intermediate:** Basic names the pieces and where each was practiced. Intermediate gives each file its exact shape.
 
 <hr class="page-break">
 
@@ -57,39 +50,20 @@ Sketch `ToolCallResult`'s fields, and `run_with_tools()`'s full signature, befor
 
 ```
 tools.py:
-    a pure-logic tool (e.g. add(a, b))
-    a real-API tool (calls request_with_retry)
-    a sometimes-fails tool (takes should_fail, raises on purpose if true,
-    caught and returned as an error string)
-    ALL_TOOLS = list of the three
+    a Pydantic args model per tool
+    add, get_weather, flaky_lookup — each with @tool(args_schema=...)
+    ALL_TOOLS = [add, get_weather, flaky_lookup]
 
 tool_harness.py:
-    ToolCallResult holds: prompt, tool_name (or none), arguments, result
-
-    function run_with_tools(prompt, tools):
-        register tools on a model
-        ask the prompt
-        if no tool called: return a result with tool_name=None
-        else: run the tool, return the result with its real output
+    ToolCallResult: prompt, tool_name, arguments, output, final_answer
+    run_with_tools(prompt, tools):
+        ask the model with the tools bound
+        no tool call -> result with tool_name None
+        else: run each call, send each result back, ask again
 
 test_prompts.py:
-    a list of test prompts
-
-main script:
-    for each test prompt:
-        result = run_with_tools(prompt, ALL_TOOLS)
-        print the result
+    for each (label, prompt): run it, print tool, output, answer
 ```
-
-The trickiest part — finding the right tool object from its name, so you can actually invoke it:
-```python
-def find_tool(tools, name):
-    for candidate in tools:
-        if candidate.name == name:
-            return candidate
-    return None
-```
-`@tool`-decorated functions carry a `.name` attribute (usually the function's own name). Use `find_tool()` inside `run_with_tools()`, then check against the [Solution](#solution).
 
 <hr class="page-break">
 
@@ -97,63 +71,21 @@ def find_tool(tools, name):
 
 ### Intermediate Version
 
-**`tools.py`:**
-```
-@tool
-def add(a: int, b: int) -> int: ...          # pure logic
-
-@tool
-def get_weather(city: str) -> str: ...        # real API, via request_with_retry
-
-@tool
-def flaky_lookup(query: str, should_fail: bool = False) -> str:
-    try:
-        if should_fail:
-            raise RuntimeError("simulated failure")
-        return f"Result for {query}"
-    except RuntimeError as e:
-        return f"Error: {e}"
-
-ALL_TOOLS = [add, get_weather, flaky_lookup]
-```
-
-**`tool_harness.py`:**
-```
-@dataclass
-class ToolCallResult:
-    prompt: str
-    tool_name: str | None
-    arguments: dict
-    output: str
-
-def find_tool(tools: list[BaseTool], name: str) -> BaseTool | None:
-    for candidate in tools:
-        if candidate.name == name:
-            return candidate
-    return None
-
-function run_with_tools(prompt, tools) -> ToolCallResult:
-    model_with_tools = ChatOpenAI(...).bind_tools(tools)
-    response = model_with_tools.invoke(prompt)
-    if not response.tool_calls:
-        return ToolCallResult(prompt, None, {}, response.content)
-    call = response.tool_calls[0]
+```python
+# tool_harness.py — the part that's new here
+def run_tool(tools: list[BaseTool], call: dict) -> str:
     matching_tool = find_tool(tools, call["name"])
-    output = matching_tool.invoke(call["args"])
-    return ToolCallResult(prompt, call["name"], call["args"], output)
+    if matching_tool is None:
+        return "Error: tool not found"
+    try:
+        return str(matching_tool.invoke(call["args"]))
+    except ValidationError:
+        return "Error: the arguments failed the tool's checks."
 ```
 
-**`test_prompts.py`:**
-```
-TEST_PROMPTS = [
-    "what's 5 + 7?",
-    "what's the weather in Lahore?",
-    "look up something but force it to fail",
-    "tell me a joke",
-]
-```
+Then `run_with_tools()` is the Failure exercise's round trip: append the model's response to `messages`, loop over `response.tool_calls`, append one tool message per call, and invoke again. Finish it, then compare against the [Solution](#solution).
 
-Wire these three files together with a `main()` that loops over `TEST_PROMPTS`, then compare against the [Solution](#solution).
+**Difference between Basic and Intermediate:** Basic is the plan. Intermediate is the one new function, almost complete.
 
 <hr class="page-break">
 
@@ -161,36 +93,84 @@ Wire these three files together with a `main()` that loops over `TEST_PROMPTS`, 
 
 ## Solution {: #solution }
 
-Read both depths — they're not "wrong, right," they're 2 real, valid ways to build the same library, with real tradeoffs between them.
+Copied in unchanged: `http_client.py`, `exceptions.py`, `logging_setup.py` (Doc02's Build Task). Run everything from inside `practice/build_task/`.
 
 ### Basic Version
 
-#### Approach 1 — one flat harness function
+#### Approach 1 — one flat harness, no round trip
 
-**Story — `tools.py`:** this is the one library every later document (Doc07 onward) imports instead of writing tools from scratch — 3 different kinds on purpose (pure logic, real API, deliberately fallible), so every later document has a real example of each shape to build on. **If not:** every later document would each invent its own tools, none tested against this document's failure-handling and selection-ambiguity lessons.
+**Story — `tools.py`:** the one library every later document (Doc07 onward) imports. Three kinds on purpose — pure logic, a real service, a tool that fails on purpose — each with a Pydantic `args_schema`, so bad arguments are rejected before the tool runs. **If not:** every later document would invent its own tools, none tested against this document's lessons.
 
 ```python
 # tools.py
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+
+from exceptions import PermanentHTTPError, TransientHTTPError
 from http_client import request_with_retry
 
-@tool
+WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
+
+CITY_COORDINATES = {
+    "lahore": {"latitude": 31.55, "longitude": 74.34},
+    "karachi": {"latitude": 24.86, "longitude": 67.01},
+}
+
+
+# why: one Pydantic model per tool — the arguments are checked before
+# the tool's body runs (the Edge cases exercise's args_schema)
+class AddArgs(BaseModel):
+    a: int
+    b: int
+
+
+class WeatherArgs(BaseModel):
+    city: str = Field(min_length=1)
+
+
+class LookupArgs(BaseModel):
+    query: str = Field(min_length=1)
+    should_fail: bool = False
+
+
+@tool(args_schema=AddArgs)
 def add(a: int, b: int) -> int:
     """Add two integers together and return the sum."""
     return a + b
 
-@tool
-def get_weather(city: str) -> str:
-    """Get the current weather for a named city."""
-    # how: reuses Doc02's request_with_retry() — the tool never calls
-    # requests directly, so it gets timeout/retry handling for free.
-    url = "https://api.open-meteo.com/v1/forecast"
-    response = request_with_retry(url, params={"q": city})
-    return f"Weather data for {city}: {response}"
 
-@tool
+def build_weather_params(city: str) -> dict | None:
+    # how: the Real-world exercise's function, copied unchanged
+    coords = CITY_COORDINATES.get(city.lower())
+    if coords is None:
+        return None
+    return {
+        "latitude": coords["latitude"],
+        "longitude": coords["longitude"],
+        "current_weather": True,
+    }
+
+
+@tool(args_schema=WeatherArgs)
+def get_weather(city: str) -> str:
+    """Get the current temperature for a named city."""
+    params = build_weather_params(city)
+    if params is None:
+        return f"No coordinates on file for {city}."
+
+    try:
+        response = request_with_retry("GET", WEATHER_URL, params=params)
+    except (TransientHTTPError, PermanentHTTPError) as e:
+        return f"Error: the weather service failed: {e}"
+
+    temperature = response["current_weather"]["temperature"]
+    return f"Currently {temperature}°C in {city}"
+
+
+@tool(args_schema=LookupArgs)
 def flaky_lookup(query: str, should_fail: bool = False) -> str:
-    """Look up information for a query. Can be forced to fail for testing."""
+    """Look up information about a query. Set should_fail to true only
+    when the user asks to force a failure."""
     # why: should_fail makes the failure controllable and predictable for
     # testing — not something you have to hope happens on its own.
     try:
@@ -200,16 +180,18 @@ def flaky_lookup(query: str, should_fail: bool = False) -> str:
     except RuntimeError as e:
         return f"Error: {e}"
 
+
 ALL_TOOLS = [add, get_weather, flaky_lookup]
 ```
 
-**Story — `tool_harness.py`:** this is the one round trip (register tools, ask, find the matching tool, run it) every later document reuses instead of writing its own. **If not:** Doc07's agent loop would have to build this same round trip from scratch instead of wrapping this one in a `while` loop.
+**Story — `tool_harness.py` (Basic):** the Basic exercise's round trip, made reusable: bind the tools, ask, run the first requested tool. **If not:** Doc07's agent loop would have to build this from scratch.
 
 ```python
 # tool_harness.py
 from dataclasses import dataclass
+
 from langchain_openai import ChatOpenAI
-from tools import ALL_TOOLS
+
 
 @dataclass
 class ToolCallResult:
@@ -218,26 +200,23 @@ class ToolCallResult:
     arguments: dict
     output: str
 
+
 def run_with_tools(prompt: str, tools: list) -> ToolCallResult:
-    model_with_tools = ChatOpenAI().bind_tools(tools)
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    model_with_tools = model.bind_tools(tools)
     response = model_with_tools.invoke(prompt)
 
     if not response.tool_calls:
-        # when: the model answered directly — a real, checkable outcome,
-        # not something you'd otherwise have to infer from an empty dict.
         return ToolCallResult(prompt, None, {}, response.content)
 
     call = response.tool_calls[0]
     for candidate in tools:
         if candidate.name == call["name"]:
-            output = candidate.invoke(call["args"])
+            output = str(candidate.invoke(call["args"]))
             return ToolCallResult(prompt, call["name"], call["args"], output)
 
-    error = "Error: tool not found"
-    return ToolCallResult(prompt, call["name"], call["args"], error)
+    return ToolCallResult(prompt, call["name"], call["args"], "Error: no tool")
 ```
-
-**Story — `test_prompts.py`:** proves which tool actually gets picked for a real set of prompts, not just an assumption — this is this Build Task's test file. **If not:** you'd ship `tools.py`/`tool_harness.py` never having watched them actually run against the 3 required prompt types.
 
 ```python
 # test_prompts.py
@@ -247,30 +226,30 @@ from tools import ALL_TOOLS
 TEST_PROMPTS = [
     "what's 5 + 7?",
     "what's the weather in Lahore?",
-    "look up something but force it to fail",
     "tell me a joke",
+    "look up the refund policy, and force the lookup to fail",
 ]
 
 for prompt in TEST_PROMPTS:
     result = run_with_tools(prompt, ALL_TOOLS)
     print(result)
 ```
-**Expected output (example):**
+**Expected output (example — shown wrapped):**
+
 ```
 ToolCallResult(prompt="what's 5 + 7?", tool_name='add',
-    arguments={'a': 5, 'b': 7}, output=12)
+    arguments={'a': 5, 'b': 7}, output='12')
 ToolCallResult(prompt="what's the weather in Lahore?",
     tool_name='get_weather', arguments={'city': 'Lahore'},
-    output='Weather data for Lahore: ...')
-ToolCallResult(prompt='look up something but force it to fail',
-    tool_name='flaky_lookup',
-    arguments={'query': 'something', 'should_fail': True},
-    output='Error: simulated failure')
+    output='Currently 34.2°C in Lahore')
 ToolCallResult(prompt='tell me a joke', tool_name=None, arguments={},
     output='Why did the chicken cross the road? ...')
+ToolCallResult(prompt='look up the refund policy, and force the lookup
+    to fail', tool_name='flaky_lookup', arguments={'query': 'refund
+    policy', 'should_fail': True}, output='Error: simulated failure')
 ```
 
-This version works correctly and meets the Build Task's core requirements. It relies on `@tool`'s auto-inferred argument shape rather than an explicit Pydantic model, and only ever looks at the first tool call in a response — both fine for a first working version.
+This works for these four prompts. But the model never sees the tool's result, so there's no final answer to check against "doesn't make up a fake success". And a model that sends an empty city makes `args_schema` raise a `ValidationError` that crashes the whole run — the "missing argument" Test Case isn't handled.
 
 <hr class="page-break">
 
@@ -278,46 +257,23 @@ This version works correctly and meets the Build Task's core requirements. It re
 
 ### Intermediate Version
 
-#### Approach 1 — `find_tool()` split out, model built fresh each call
+#### Approach 1 — every result sent back, bad arguments caught, and logged
 
-**`tools.py`** — identical to the Basic Version above (same 3 tools, same `ALL_TOOLS` list). Shown again here in full since this is the version the rest of this Intermediate section actually builds on:
+`tools.py` is the same as the Basic version above.
+
+**Story — `tool_harness.py`:** `run_tool()` turns bad arguments into an error string (Edge cases), and `run_with_tools()` sends every result back tagged with its `tool_call_id` and asks the model again (Failure) — so `final_answer` shows how the model really reacted. Every pick is logged with Doc01's `get_logger()`. **If not:** a failing tool's error would never reach the model, and one bad argument would crash the whole test run.
 
 ```python
-# tools.py
-from langchain_core.tools import tool
-from http_client import request_with_retry
-
-@tool
-def add(a: int, b: int) -> int:
-    """Add two integers together and return the sum."""
-    return a + b
-
-@tool
-def get_weather(city: str) -> str:
-    """Get the current weather for a named city."""
-    url = "https://api.open-meteo.com/v1/forecast"
-    response = request_with_retry(url, params={"q": city})
-    return f"Weather data for {city}: {response}"
-
-@tool
-def flaky_lookup(query: str, should_fail: bool = False) -> str:
-    """Look up information for a query. Can be forced to fail for testing."""
-    try:
-        if should_fail:
-            raise RuntimeError("simulated failure")
-        return f"Result for {query}"
-    except RuntimeError as e:
-        return f"Error: {e}"
-
-ALL_TOOLS = [add, get_weather, flaky_lookup]
-```
-
-**`tool_harness.py`**
-```python
+# tool_harness.py
 from dataclasses import dataclass
 
+# how: BaseTool is the type every @tool function has (the Failure
+# exercise's count_tool_calls) — list[BaseTool] means "a list of tools"
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
+from pydantic import ValidationError
+
+from logging_setup import get_logger
 
 
 @dataclass
@@ -326,6 +282,7 @@ class ToolCallResult:
     tool_name: str | None
     arguments: dict
     output: str
+    final_answer: str
 
 
 def find_tool(tools: list[BaseTool], name: str) -> BaseTool | None:
@@ -337,125 +294,113 @@ def find_tool(tools: list[BaseTool], name: str) -> BaseTool | None:
     return None
 
 
+def run_tool(tools: list[BaseTool], call: dict) -> str:
+    matching_tool = find_tool(tools, call["name"])
+    if matching_tool is None:
+        return "Error: tool not found"
+    try:
+        return str(matching_tool.invoke(call["args"]))
+    except ValidationError:
+        # why: bad arguments (an empty city) become a message the model
+        # can read and react to — the Edge cases exercise's rule
+        return "Error: the arguments failed the tool's checks."
+
+
 def run_with_tools(prompt: str, tools: list[BaseTool]) -> ToolCallResult:
+    logger = get_logger(__name__)
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     model_with_tools = model.bind_tools(tools)
-    response = model_with_tools.invoke(prompt)
+
+    messages = [{"role": "user", "content": prompt}]
+    response = model_with_tools.invoke(messages)
 
     if not response.tool_calls:
-        return ToolCallResult(
-            prompt=prompt, tool_name=None, arguments={}, output=response.content
+        # when: the model answered directly — a real, checkable outcome
+        logger.info(f"no tool for: {prompt}")
+        return ToolCallResult(prompt, None, {}, "", response.content)
+
+    # how: the Failure exercise's round trip — the request, then one
+    # tool message per call, then a second model call
+    messages.append(response)
+    outputs = []
+    for call in response.tool_calls:
+        logger.info(f"model picked {call['name']} with {call['args']}")
+        output = run_tool(tools, call)
+        outputs.append(output)
+        messages.append(
+            {"role": "tool", "content": output, "tool_call_id": call["id"]}
         )
 
-    call = response.tool_calls[0]
-    matching_tool = find_tool(tools, call["name"])
-
-    if matching_tool is None:
-        error = "Error: tool not found"
-        return ToolCallResult(prompt, call["name"], call["args"], error)
-
-    output = matching_tool.invoke(call["args"])
+    final = model_with_tools.invoke(messages)
+    first_call = response.tool_calls[0]
     return ToolCallResult(
         prompt=prompt,
-        tool_name=call["name"],
-        arguments=call["args"],
-        output=output,
+        tool_name=first_call["name"],
+        arguments=first_call["args"],
+        output=outputs[0],
+        final_answer=final.content,
     )
 ```
 
-**`test_prompts.py`**
-```python
-from tool_harness import run_with_tools
-from tools import ALL_TOOLS
-
-
-TEST_PROMPTS = [
-    "what's 5 + 7?",
-    "what's the weather in Lahore?",
-    "look up something but force it to fail",
-    "tell me a joke",
-]
-
-
-def main() -> None:
-    for prompt in TEST_PROMPTS:
-        result = run_with_tools(prompt, ALL_TOOLS)
-        print(result)
-
-
-if __name__ == "__main__":
-    main()
-```
-
-**Why this approach:** `find_tool()` as its own function is independently testable without any model call, and `ToolCallResult`'s `tool_name=None` branch makes "no tool was needed" a real, checkable outcome rather than something you infer from an empty dict.
-
-#### Approach 2 — the model is built once and reused, plus a summary count
-
-This version separates "build the model with tools" from "run one prompt through it," so the same bound model gets reused across every test prompt instead of rebuilding it each time — cheaper, and closer to how you'd actually run a batch of test prompts in real code.
-
-```python
-# tool_harness.py
-def build_model_with_tools(tools: list[BaseTool]) -> ChatOpenAI:
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    return model.bind_tools(tools)
-
-
-def run_with_tools(
-    prompt: str,
-    tools: list[BaseTool],
-    model_with_tools: ChatOpenAI | None = None,
-) -> ToolCallResult:
-    # why: model_with_tools defaults to None so a batch of test prompts can
-    # build it once and reuse it, instead of rebuilding on every call.
-    if model_with_tools is None:
-        model_with_tools = build_model_with_tools(tools)
-
-    response = model_with_tools.invoke(prompt)
-
-    if not response.tool_calls:
-        return ToolCallResult(prompt, None, {}, response.content)
-
-    call = response.tool_calls[0]
-    matching_tool = find_tool(tools, call["name"])
-    if matching_tool is None:
-        error = "Error: tool not found"
-        return ToolCallResult(prompt, call["name"], call["args"], error)
-
-    output = matching_tool.invoke(call["args"])
-    return ToolCallResult(prompt, call["name"], call["args"], output)
-```
+**Story — `test_prompts.py`:** this Build Task's test file — one prompt per row of the Test Cases table, plus the real service, each printed on four short lines. **If not:** you'd ship the library never having watched it handle a missing argument or a failing tool.
 
 ```python
 # test_prompts.py
-from tool_harness import build_model_with_tools, run_with_tools
+# Runs the 4 Test Cases from the README, plus the real-service tool.
+# Run it from inside this folder: python test_prompts.py
+# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+from tool_harness import run_with_tools
 from tools import ALL_TOOLS
 
-
+# how: (label, prompt) pairs — one per row of the Test Cases table
 TEST_PROMPTS = [
-    "what's 5 + 7?",
-    "what's the weather in Lahore?",
-    "look up something but force it to fail",
-    "tell me a joke",
+    ("clear match", "what's 5 + 7?"),
+    ("real service", "what's the weather in Lahore?"),
+    ("no tool", "tell me a joke"),
+    ("missing argument", "what's the weather like?"),
+    ("tool fails", "look up the refund policy, and force the lookup to fail"),
 ]
 
 
 def main() -> None:
-    model_with_tools = build_model_with_tools(ALL_TOOLS)
-    triggered = 0
-
-    for prompt in TEST_PROMPTS:
-        result = run_with_tools(prompt, ALL_TOOLS, model_with_tools)
-        print(result)
-        if result.tool_name is not None:
-            triggered += 1
-
-    print(f"\n{triggered}/{len(TEST_PROMPTS)} prompts triggered a tool")
+    for label, prompt in TEST_PROMPTS:
+        result = run_with_tools(prompt, ALL_TOOLS)
+        print(f"{label}: {prompt}")
+        print(f"  tool:   {result.tool_name} {result.arguments}")
+        print(f"  output: {result.output}")
+        print(f"  answer: {result.final_answer}")
 
 
 if __name__ == "__main__":
     main()
 ```
+**Expected output** (model wording varies):
 
-**Difference from Basic:** both Intermediate approaches add `find_tool()` as an independently testable function, and full type hints throughout. Approach 2 additionally separates building the bound model from running a prompt through it, so a batch of test prompts reuses one model instead of rebuilding it per prompt, and adds a summary line (`N/M triggered a tool`) — useful once this becomes a real regression check instead of a one-off look.
+```
+clear match: what's 5 + 7?
+  tool:   add {'a': 5, 'b': 7}
+  output: 12
+  answer: 5 + 7 is 12.
+real service: what's the weather in Lahore?
+  tool:   get_weather {'city': 'Lahore'}
+  output: Currently 34.2°C in Lahore
+  answer: It's currently 34.2°C in Lahore.
+no tool: tell me a joke
+  tool:   None {}
+  output:
+  answer: Why did the chicken cross the road? To get to the other side.
+missing argument: what's the weather like?
+  tool:   None {}
+  output:
+  answer: Which city would you like the weather for?
+tool fails: look up the refund policy, and force the lookup to fail
+  tool:   flaky_lookup {'query': 'refund policy', 'should_fail': True}
+  output: Error: simulated failure
+  answer: The lookup failed, so I couldn't get the refund policy.
+```
 
-**Which one should you actually use?** For the Build Task as written, Intermediate Approach 2 already satisfies every stated requirement and constraint, and is what most people should ship first. Two gaps are worth naming rather than fixing here: this version trusts `@tool`'s auto-inferred argument shape instead of an explicit Pydantic `args_schema`, and `run_with_tools()` only ever reads the first tool call in a response, silently dropping a second one if a prompt ever triggers two calls at once. Neither is required for this Build Task, but both are worth watching for as this library gets reused in later documents.
+For "missing argument" the model usually asks for the city. If it sends an empty city instead, you'll see `tool: get_weather {'city': ''}` and `output: Error: the arguments failed the tool's checks.` — both are a pass for that Test Case.
+
+**Difference from Basic:** bad arguments are caught instead of crashing the run, every tool result is sent back so the model's real final answer is recorded, all tool calls in a response get an answer (not just the first), and every pick is logged.
+
+**Which one should you actually use?** Intermediate — it meets every requirement and every Test Case. Doc07's agent loop is this same round trip, repeated in a `while` loop until the model stops asking for tools.

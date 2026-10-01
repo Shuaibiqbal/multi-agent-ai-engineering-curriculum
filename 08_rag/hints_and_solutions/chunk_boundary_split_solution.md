@@ -76,8 +76,9 @@ print("search with k=2 (all chunks):")
 for score, i in scored[:2]:
     print(chunks[i])
 ```
-**Expected output:**
+**Expected output** (first part):
 ```
+chunks:
 0 : 'The quarterly meeting will be held at 3 PM on Friday in Room 204,
      and everyone f'
 1 : 'rom the product and engineering teams is expected to attend
@@ -194,6 +195,8 @@ if __name__ == "__main__":
 
 **Story:** a bigger `k` isn't actually a fix, it's a workaround that only happens to work in this 2-chunk toy example — the real fix is not splitting the fact in the first place. **If not:** the Build Task's real knowledge base would need an ever-larger `k` to keep papering over the same class of bug, feeding more irrelevant chunks to the model each time (this document's "lost in the middle" problem).
 
+**The rule for overlap:** each new chunk starts `chunk_size - overlap` characters after the last one, so any piece of text up to `overlap` characters long always fits whole inside at least one chunk. Here the fact runs from `"3 PM"` to `"attend"` — 101 characters. That's longer than the old `chunk_size` of 80, so **no** overlap could save it at that size. The chunk must be bigger than the fact, and the overlap at least as long as it: `chunk_size=140, overlap=105`.
+
 ```python
 # chunking_practice.py — Edge cases section
 def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
@@ -208,10 +211,11 @@ def chunk_with_overlap(text: str, chunk_size: int, overlap: int) -> list[str]:
 
 
 def main() -> None:
-    overlap_chunks = chunk_with_overlap(DOCUMENT, chunk_size=80, overlap=20)
+    overlap_chunks = chunk_with_overlap(DOCUMENT, chunk_size=140, overlap=105)
     print(f"overlapping chunks ({len(overlap_chunks)}):")
     for i, chunk in enumerate(overlap_chunks):
-        print(f"  {i}: {chunk!r}")
+        whole_fact = "3 PM" in chunk and "attend" in chunk
+        print(f"  {i}: whole fact inside = {whole_fact}")
 
     overlap_embeddings = []
     for chunk in overlap_chunks:
@@ -226,7 +230,20 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 ```
-**Expected output:** with `overlap=20`, one of the overlapping chunks now spans past where the old, non-overlapping cut fell — the room number and the "expected to attend" clause end up inside the *same* chunk, because the new chunk starts 20 characters before the previous one ended. `search(..., k=1)` against the overlapping chunks returns that one chunk, and it now contains the complete fact — something `k=1` against the non-overlapping chunks could never do, no matter how the scores landed.
+**Expected output** (the last line is wrapped here to fit the page):
+```
+overlapping chunks (5):
+  0: whole fact inside = True
+  1: whole fact inside = True
+  2: whole fact inside = False
+  3: whole fact inside = False
+  4: whole fact inside = False
+
+k=1 result, WITH overlap:
+  The quarterly meeting will be held at 3 PM on Friday in Room 204, and
+  everyone from the product and engineering teams is expected to attend
+```
+Chunks 0 and 1 each hold the time, the room *and* who must attend. Chunks 2–4 are short leftovers from the end of the document. The question matches the whole-fact chunks best, so `k=1` now returns the complete answer — something `k=1` against the non-overlapping 80-character chunks could never do. The cost: 5 chunks instead of 2, with lots of repeated text.
 
 ### Approach 3 — proving `k` alone never fully solves this, at any size
 
@@ -251,8 +268,8 @@ print("k=3 result on the long document:")
 for chunk in top_3:
     print(" ", chunk)
 ```
-**Expected output (illustrative):** with dozens of chunks now competing for the top spots, `k=3` is no longer guaranteed to include *both* halves of the split fact — the "unrelated filler" chunks don't win, but the two fact-halves might not both make the top 3 either, depending on exactly how the cut fell relative to the surrounding filler text. This is the point: raising `k` was never a guarantee, just better odds in a small example. Chunking with overlap (Approach 1) removes the problem at its source, regardless of how many other chunks exist.
+**Expected output (illustrative):** with dozens of chunks now competing for the top spots, `k=3` is no longer guaranteed to include *both* halves of the split fact — the "unrelated filler" chunks don't win, but the two fact-halves might not both make the top 3 either, depending on exactly how the cut fell relative to the surrounding filler text. This is the point: raising `k` was never a guarantee, just better odds in a small example. Chunking with overlap (Approach 2) removes the problem at its source — as long as the overlap is at least as long as the fact — regardless of how many other chunks exist.
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1 shows that a bigger `k` recovers the full fact *in this specific 2-chunk document*. Approach 2 fixes the actual cause — with overlap, the fact is never split across chunks in the first place, so even `k=1` gets the whole thing. Approach 3 demonstrates why that matters: once the document is realistically sized, a bigger `k` stops being a reliable fix at all, because it's competing against many more chunks for a fixed number of "winning" slots.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 shows that a bigger `k` recovers the full fact *in this specific 2-chunk document*. Approach 2 fixes the actual cause — with an overlap at least as long as the fact, the fact always sits whole inside some chunk, so even `k=1` gets the whole thing. Approach 3 demonstrates why that matters: once the document is realistically sized, a bigger `k` stops being a reliable fix at all, because it's competing against many more chunks for a fixed number of "winning" slots.
 
-**Which one should you actually write?** Overlap (Approach 2) — always, for any fixed-size chunker used on real documents. It costs a little redundant storage (each chunk shares text with its neighbors) in exchange for removing an entire class of "half the fact went missing" bugs. Treat a bigger `k` as a mitigation you might still use for other reasons (recall on genuinely separate but related chunks), never as the actual fix for a boundary-split fact — Approach 3 is the proof that raising `k` doesn't scale the way it might feel like it does in a 2-chunk toy example.
+**Which one should you actually write?** Overlap (Approach 2) — always, for any fixed-size chunker used on real documents, with the overlap at least as long as the facts you need kept whole (a sentence or two). It costs a little redundant storage (each chunk shares text with its neighbors) in exchange for removing an entire class of "half the fact went missing" bugs. Treat a bigger `k` as a mitigation you might still use for other reasons (recall on genuinely separate but related chunks), never as the actual fix for a boundary-split fact — Approach 3 is the proof that raising `k` doesn't scale the way it might feel like it does in a 2-chunk toy example.

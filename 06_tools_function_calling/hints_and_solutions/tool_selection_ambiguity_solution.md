@@ -54,7 +54,7 @@ This version works and gives you a real split. It doesn't print per-run detail, 
 
 ```python
 # tool_selection_practice.py — Intermediate section
-from collections import Counter
+from langchain_core.runnables import Runnable
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -71,16 +71,16 @@ def get_forecast(city: str) -> str:
     return f"Rainy later this week in {city}"
 
 
-def get_model_with_tools() -> ChatOpenAI:
+def get_model_with_tools() -> Runnable:
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     return model.bind_tools([get_weather, get_forecast])
 
 
-def run_selection_trial(prompt: str, runs: int = 5) -> Counter:
+def run_selection_trial(prompt: str, runs: int = 5) -> dict:
     # why: one ambiguous prompt, asked several times, turns "which tool
     # gets picked" from a guess into a real, measured split.
     model_with_tools = get_model_with_tools()
-    tally: Counter = Counter()
+    counts = {"get_weather": 0, "get_forecast": 0, "none": 0}
 
     for run_number in range(1, runs + 1):
         response = model_with_tools.invoke(prompt)
@@ -89,14 +89,14 @@ def run_selection_trial(prompt: str, runs: int = 5) -> Counter:
         else:
             picked = "none"
         print(f"Run {run_number}: picked {picked}")
-        tally[picked] += 1
+        counts[picked] = counts[picked] + 1
 
-    return tally
+    return counts
 
 
 if __name__ == "__main__":
-    result = run_selection_trial("what's the weather like")
-    print(f"\nFinal split: {dict(result)}")
+    counts = run_selection_trial("what's the weather like")
+    print(f"Final split: {counts}")
 ```
 **Expected output (example):**
 ```
@@ -106,9 +106,79 @@ Run 3: picked get_weather
 Run 4: picked get_weather
 Run 5: picked get_forecast
 
-Final split: {'get_weather': 3, 'get_forecast': 2}
+Final split: {'get_weather': 3, 'get_forecast': 2, 'none': 0}
 ```
 
-**Difference from Basic:** printing each run's pick as it happens, not just the final tally, lets you actually look for a pattern (does the exact same prompt always pick the same tool, or does it genuinely vary?) — a detail the Basic version throws away. Using `Counter` instead of a hand-built dictionary also avoids needing a `.get(picked, 0)` fallback, since `Counter` handles unseen keys automatically.
+**Difference from Basic:** printing each run's pick as it happens, not just the final tally, lets you actually look for a pattern (does the exact same prompt always pick the same tool, or does it genuinely vary?) — a detail the Basic version throws away. Starting the dictionary with all three keys at `0` means `counts[picked] + 1` never hits a missing key, and every outcome shows in the split, even one that never happened.
+
+<hr class="page-break">
+
+> [Back to the exercise](../README.md#ex-tool_selection_ambiguity) · [Hint 1](tool_selection_ambiguity_hints.md#hint-1) · [Hint 2](tool_selection_ambiguity_hints.md#hint-2) · [Solution](tool_selection_ambiguity_solution.md)
+
+### Approach 2 — the same trial with `collections.Counter`
+
+**Story — `Counter`:** Approach 1 has to list every possible pick (`"get_weather"`, `"get_forecast"`, `"none"`) up front. `Counter` from Python's `collections` is a dictionary that starts any missing key at `0`, and `most_common()` sorts the results for you. **If not:** adding a third tool would mean remembering to add a third key, or a `KeyError` on the first pick of it.
+
+```python
+# tool_selection_practice.py — Intermediate section
+from collections import Counter
+
+from langchain_core.runnables import Runnable
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+
+
+@tool
+def get_weather(city: str) -> str:
+    """Get the current weather for a city."""
+    return f"Sunny in {city}"
+
+
+@tool
+def get_forecast(city: str) -> str:
+    """Get the weather forecast for a city."""
+    return f"Rainy later this week in {city}"
+
+
+def get_model_with_tools() -> Runnable:
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    return model.bind_tools([get_weather, get_forecast])
+
+
+def run_selection_trial(prompt: str, runs: int = 5) -> Counter:
+    model_with_tools = get_model_with_tools()
+    # how: a Counter is a dict that starts every missing key at 0, so
+    # there's no need to list all the possible picks up front
+    tally = Counter()
+    for run_number in range(1, runs + 1):
+        response = model_with_tools.invoke(prompt)
+        if response.tool_calls:
+            picked = response.tool_calls[0]["name"]
+        else:
+            picked = "none"
+        print(f"Run {run_number}: picked {picked}")
+        tally[picked] = tally[picked] + 1
+    return tally
+
+
+if __name__ == "__main__":
+    tally = run_selection_trial("what's the weather like")
+    print(f"Final split: {dict(tally)}")
+    # how: most_common(1) gives the top pick and its count
+    print(f"Most picked: {tally.most_common(1)}")
+```
+**Expected output (example):**
+
+```
+Run 1: picked get_weather
+Run 2: picked get_forecast
+Run 3: picked get_weather
+Run 4: picked get_weather
+Run 5: picked get_forecast
+Final split: {'get_weather': 3, 'get_forecast': 2}
+Most picked: [('get_weather', 3)]
+```
+
+**Difference from Approach 1:** no keys to list in advance, a pick that never happened simply doesn't appear, and `most_common(1)` answers "which tool won?" directly.
 
 **Which one should you actually write?** Intermediate's `run_selection_trial()` at 5 runs is enough for a quick, one-off look at whether two descriptions overlap — that's what this document's Build Task needs. Before writing down a real conclusion other people will act on, two hidden variables are worth checking: whether the *order* tools are registered in shifts the outcome (run the same trial with the tool list reversed), and whether 5 runs is even enough data to trust (a close split needs a much bigger sample before you treat it as signal, not noise). Neither is required for this exercise.

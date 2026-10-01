@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-3-a-triage-agent-that-extracts-a-structured-ticket-from-free-text) · [Hint 1](step3_triage_extraction_hints.md#hint-1) · [Hint 2](step3_triage_extraction_hints.md#hint-2) · [Solution](step3_triage_extraction_solution.md)
 
-Only 2 hints — work through them in order. Each has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (the shape of the real code).
+Only 2 hints — work through them in order. Each hint starts with the plain idea, then shows the shape of the real code.
 
 - [Hint 1 — The ticket, and the agent that fills it](#hint-1)
 - [Hint 2 — The plan, and every failure](#hint-2)
@@ -13,20 +13,12 @@ Only 2 hints — work through them in order. Each has 2 depth levels: **Basic** 
 
 ## Hint 1 — The ticket, and the agent that fills it {: #hint-1 }
 
-### Basic Version
-
-Write the ticket as a Pydantic model in `src/supportdesk/schemas.py` — the 4 fields from the README's Real Example. Two details matter:
+Write the ticket as a Pydantic model in `src/schemas.py` — the 4 fields from the README's Real Example. Two details matter:
 
 - `customer_name: str | None` — `None` must be a valid answer, or the model will invent a name.
 - `Literal[...]` for category and urgency, so only your exact words can come back.
 
-Then `src/supportdesk/agents/triage.py` (plus an empty `agents/__init__.py`). The agent sends 2 messages — its system prompt and the complaint — with **no** chat history. It uses Doc04's `client.beta.chat.completions.parse(model=..., messages=..., response_format=SupportTicket)` and reads `completion.choices[0].message.parsed`.
-
-<hr class="page-break">
-
-> [Back to this step](../READING_README.md#step-3-a-triage-agent-that-extracts-a-structured-ticket-from-free-text) · [Hint 1](step3_triage_extraction_hints.md#hint-1) · [Hint 2](step3_triage_extraction_hints.md#hint-2) · [Solution](step3_triage_extraction_solution.md)
-
-### Intermediate Version
+Then `src/agents/triage.py` (plus an empty `agents/__init__.py`). The agent sends 2 messages — its system prompt and the complaint — with **no** chat history. It uses Doc04's `client.beta.chat.completions.parse(model=..., messages=..., response_format=SupportTicket)` and reads `completion.choices[0].message.parsed`.
 
 ```python
 def triage_agent(client: OpenAI, message: str) -> SupportTicket | None:
@@ -49,8 +41,6 @@ Get the logger inside the function (`logger = get_logger(__name__)`), not at the
 
 ## Hint 2 — The plan, and every failure {: #hint-2 }
 
-### Basic Version
-
 In the loop, before the chat branch:
 
 ```
@@ -63,15 +53,9 @@ else:
     (Step 2's chat: trim, then stream)
 ```
 
-`print_ticket()` prints the 4 fields on their own lines, with `(not given)` when the name is `None`.
+`print_ticket()` goes in `services/desk_service.py` (with an empty `services/__init__.py`), so Step 4 can add the rest of the flow to the same file. It prints the 4 fields on their own lines, with `(not given)` when the name is `None`.
 
-Put the whole `if/else` inside a `try:`. The `except` blocks go right after it (Hint 2, Intermediate).
-
-<hr class="page-break">
-
-> [Back to this step](../READING_README.md#step-3-a-triage-agent-that-extracts-a-structured-ticket-from-free-text) · [Hint 1](step3_triage_extraction_hints.md#hint-1) · [Hint 2](step3_triage_extraction_hints.md#hint-2) · [Solution](step3_triage_extraction_solution.md)
-
-### Intermediate Version
+Put the whole `if/else` inside a `try:`. The `except` blocks go right after it (below).
 
 One `except` per failure, each with the reaction from Doc04's error table:
 

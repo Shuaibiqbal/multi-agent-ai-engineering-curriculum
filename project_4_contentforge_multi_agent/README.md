@@ -1,222 +1,211 @@
-# Project 4 — ContentForge-Research-Write-Review-Team-Turns-Any-Topic-Into-A-Publish-Ready-Article
+# ContentForge — Research, Write, Review Team: Turns Any Topic Into a Publish-Ready Article
 
-**Title:** ContentForge Research Write Review Team Turns Any Topic Into A Publish Ready Article
+> **Short description:** A supervisor-led multi-agent team in Python and LangGraph: Research looks facts up, Analysis organizes them, a Writer drafts, and a Reviewer scores and sends drafts back — with a hard revision limit and a reason logged for every routing decision.
 
-**Type:** Multi-agent (5 agents: 1 Supervisor + 4 specialists) · **Stack:** Python, LangGraph, `Command` tool · **Level:** Advanced
-**Tagline:** A supervisor-led team — Research, Analysis, Writer, and Reviewer — that takes a topic from raw research to a fact-checked, revised final article.
+**Tech:** Python · LangGraph (`Command` routing) · LangChain · OpenAI API · Pydantic  ·  **Type:** Multi-agent (Supervisor + 4 specialists)  ·  **Level:** Upper-Intermediate
 
 ## Overview
-ContentForge is a supervisor-led team of five agents that turns a single topic into a fact-checked, publish-ready article. It solves a real problem: one system prompt trying to research, organize, write, and critique all at once tends to blur all four jobs together, while a prompt scoped to one narrow job reliably does that job better. Anyone building a content pipeline (research → draft → fact-check → publish) or any multi-step workflow with genuinely separate phases would want something like this — and want to be able to defend, with real evidence, why it's worth more than one agent.
+
+ContentForge turns a topic into a short, sourced, reviewed article. A **Supervisor** agent reads a shared state and decides which specialist works next. **Research** looks facts up with a tool, **Analysis** groups them into themes without dropping any, the **Writer** drafts only from those findings, and the **Reviewer** scores the draft against written criteria — sending it back with feedback until it passes or a revision limit is reached.
+
+Every routing decision is logged with its reason, and the routing rules are a plain function you can test without calling a model.
+
+## Why
+
+One prompt asked to research, organize, write and critique at once blurs all four jobs — and a wrong fact early on goes straight into the final text. Splitting the work gives each step its own narrow prompt, its own test, and a place to catch mistakes: a Reviewer that can say "not yet", and a fact trail from source to sentence.
 
 ## Features
-- Supervisor agent that dynamically routes work to four specialists using LangGraph's `Command` tool
-- Research agent that looks up real information on a topic with a tool, before anything downstream runs
-- Analysis agent that organizes raw research into structured findings without silently dropping facts
-- Writer agent that drafts an article from findings and revises it using feedback
-- Reviewer agent that scores drafts and sends weak ones back for another pass, with a hard limit on revision rounds
-- Deliberately separated shared vs. per-agent state, so one specialist's scratch notes can't leak into and confuse another
-- Each specialist built and proven correct on its own before being wired into the team, so a bug in the final system is easy to trace
 
-## Tech Stack
-- Python
-- LangGraph
-- LangChain (LCEL)
-- `Command` tool (LangGraph)
-- OpenAI API
-- Pydantic
+- **Supervisor routing with `Command`** — the next step is decided at run time from the shared state.
+- **A reason for every move** in the routing log (`writer_agent: revising after reviewer feedback`).
+- **Tool-based research** — facts come from a lookup tool with sources, not from the model's memory.
+- **No lost facts** — Analysis keeps every fact and its `[source]` tag, checked in the tests.
+- **Scored review** — a checked `ReviewVerdict(score, feedback)`, with the pass mark set in code.
+- **Bounded revision loop** — rejected drafts go back to the Writer with feedback, up to `MAX_REVISIONS`; then a clear "couldn't agree" report with the full feedback history.
+- **Honest stop** — a topic with no known facts ends the run instead of producing an invented article.
+- **One writer per state field** — no agent overwrites another's work.
 
-## Prerequisites
-- Comfortable with multi-agent patterns: Sequential, Supervisor, Generator → Critic
-- Familiar with LangGraph's `Command` tool for dynamic routing between nodes
-- Know how to design shared vs. per-agent state in a graph
-- Comfortable building and testing one agent at a time before wiring a team together
+## Demo
+
+```
+$ python -m contentforge.main
+Topic: electric bikes
+Routing log:
+  research_agent: no research yet
+  analysis_agent: research done, no findings yet
+  writer_agent: findings ready, no draft yet
+  reviewer_agent: draft ready for review
+  writer_agent: revising after reviewer feedback
+  reviewer_agent: draft ready for review
+  END: reviewer accepted the draft
+
+Final article:
+
+E-Bikes: How Far, How Fast, and Why Europe Loves Them
+
+Europe sold over 5 million e-bikes in 2022 [market-report] ...
+```
+
+(Log lines are left out and the article shortened. Model output varies from run to run.)
 
 ## Architecture
-A **Supervisor** node inspects shared state and routes work to **Research → Analysis → Writer → Reviewer** using LangGraph's `Command` tool. Research and Analysis each run once; Writer and Reviewer form a small, bounded loop, redrafting until the Reviewer approves or a hard round limit is hit. State is deliberately split between what's shared (the growing article) and what's private to each agent, so the Supervisor can track what's already been done and no specialist redundantly repeats another's work.
 
-## Setup (do this once, before Step 1)
+```
+                 ┌────────────────┐
+     START ────► │   Supervisor   │ ◄──────────────────────┐
+                 │ decide_next()  │                        │
+                 └───────┬────────┘                        │
+            Command(goto=...)                    Command(goto=
+                         │                        "supervisor")
+     ┌───────────────┬───┴──────────┬──────────────┐       │
+     ▼               ▼              ▼              ▼       │
+ Research        Analysis        Writer        Reviewer ───┘
+ lookup tool     themes,         findings      score 1-10;
+ + notes         keep facts      only          fail -> clear
+                                               draft, add
+                                               feedback
+```
+
+- **One edge** in the graph (`START → supervisor`); every other move is a `Command` returned at run time.
+- **Routing policy** (`decide_next`): research → stop if nothing found → analysis → stop if accepted or at the limit → writer → reviewer.
+- **Revision loop**: the Reviewer clears a rejected draft, so the Supervisor sends the work back to the Writer with the newest feedback.
+- **Shared state** (`TeamState`): each field has exactly one writer; only the Supervisor writes the routing log.
+
+## Project Structure
+
+```
+<repo folder>/   (ContentForge-Research-...-Publish-Ready-Article/)
+├── README.md               the repo's front page
+├── LICENSE                 lets others reuse your code (MIT)
+├── .gitignore              keeps .env, .venv/, __pycache__/ out of git
+├── .env.example            the setting names, no real values
+├── .env                    your real key — never committed
+├── pyproject.toml          makes src/contentforge an installable package
+├── requirements.txt        the libraries, for pip install -r
+├── src/
+│   └── contentforge/
+│       ├── __init__.py
+│       ├── main.py             asks for a topic, prints the report
+│       ├── config.py           Config, load_config()
+│       ├── exceptions.py       MissingConfigError
+│       ├── schemas.py          ReviewVerdict (score, feedback)
+│       ├── state.py            TeamState, start_state()
+│       ├── graph.py            build_graph(): 5 nodes, 1 edge
+│       ├── models/
+│       │   ├── __init__.py
+│       │   └── llm.py          get_model()
+│       ├── agents/
+│       │   ├── __init__.py
+│       │   ├── supervisor.py      decide_next(), supervisor()
+│       │   ├── research_agent.py  run_research(), research_node
+│       │   ├── analysis_agent.py  run_analysis(), analysis_node
+│       │   ├── writer_agent.py    run_writer(), writer_node
+│       │   └── reviewer_agent.py  run_reviewer(), reviewer_node
+│       ├── tools/
+│       │   ├── __init__.py
+│       │   └── lookup.py       lookup_facts (@tool)
+│       ├── prompts/
+│       │   ├── research.txt
+│       │   ├── analysis.txt
+│       │   ├── writer.txt
+│       │   └── reviewer.txt
+│       └── utils/
+│           ├── __init__.py
+│           ├── logger.py       get_logger()
+│           └── prompts.py      load_prompt(name)
+├── tests/
+│   ├── unit/
+│   │   ├── test_lookup.py      no API key needed
+│   │   └── test_supervisor.py  no API key needed
+│   └── integration/
+│       └── test_live_agents.py real API calls
+└── data/
+    └── sample/
+        └── facts.json          the facts Research can look up
+```
+
+## Getting Started
+
+**Requirements:** Python 3.10+ and an OpenAI API key.
+
 ```bash
-cd project_4_contentforge
+git clone <this-repo-url>
+# the \ joins the two lines into one folder name
+cd ContentForge-Research-Write-Review-Team-Turns-Any-Topic-\
+Into-A-Publish-Ready-Article
 python -m venv .venv
-source .venv/bin/activate
-pip install openai langchain langchain-openai langgraph python-dotenv pydantic
-pip freeze > requirements.txt
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
+cp .env.example .env               # then put your key in .env
 ```
-Same core packages as before (no RAG-specific packages needed, unless your Research agent's tool uses one). Same `.env` setup as before.
 
-## Troubleshooting
+## Configuration
 
-| Problem | Fix |
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `OPENAI_API_KEY` | yes | — | Your OpenAI API key |
+| `LOG_LEVEL` | no | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
+
+| Setting | Where | Default |
+|---|---|---|
+| Chat model | `models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
+| Pass mark | `agents/reviewer_agent.py` → `PASS_SCORE` | `7` (out of 10) |
+| Revision limit | `agents/supervisor.py` → `MAX_REVISIONS` | `3` |
+| Known facts | `data/sample/facts.json` | electric bikes, remote work, solar panels |
+
+To support a new topic, add it with its facts and `[source]` tags to `facts.json`.
+
+## Usage
+
+Run from the repo root:
+
+```bash
+python -m contentforge.main     # or simply: contentforge
+```
+
+Enter a topic. You get the routing log and either the final article, a "couldn't agree" report with every round's feedback, or "nothing is known about this topic yet".
+
+## Running the Tests
+
+```bash
+# unit tests — no API key
+python tests/unit/test_lookup.py
+python tests/unit/test_supervisor.py
+
+# integration tests — real API calls, needs OPENAI_API_KEY
+python tests/integration/test_live_agents.py
+```
+
+The unit tests check the lookup tool and every routing rule on hand-made states. The integration test checks that the Reviewer fails a weak draft, that a known topic goes through all four specialists, and that an unknown topic stops the run.
+
+## Error Handling
+
+| Situation | What happens |
 |---|---|
-| The supervisor routes to the wrong specialist agent | Sharpen each specialist's description/routing rules, the same way you'd fix unclear tool-choice descriptions — this is a prompt-writing problem, not a code problem |
-| Writer and reviewer loop forever, never agreeing | A hard limit on revision rounds, with a clear "couldn't agree" report as the way out |
-| One agent's own scratch notes leak into shared state and confuse a later agent | Keep the state shape deliberately split into shared vs. per-agent fields — don't default everything to shared |
-| Two agents redundantly call the same tool for the same sub-task | Have the supervisor track what's already been done in shared state, and route based on that, instead of letting agents blindly repeat each other's work |
+| `OPENAI_API_KEY` missing | Exits at startup with one clear line |
+| Invalid API key | Caught; exits cleanly |
+| Topic not in the fact store | Research returns nothing; the Supervisor ends the run with a clear message |
+| Writer and Reviewer never agree | Stops at `MAX_REVISIONS`; prints every round's feedback and the last draft, marked NOT approved |
+| Reviewer returns malformed output | Structured output is validated against `ReviewVerdict`; a bad score fails loudly |
 
-## How To Build This — Step by Step
+## Design Decisions
 
-**Jump to:** [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-one-specialists-drafting-logic-working-alone-no-agent-behavior) · [Step 2](#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Step 3](#step-3-a-research-agent-that-looks-things-up-before-anyone-else-works) · [Step 4](#step-4-an-analysis-agent-that-turns-raw-research-into-organized-findings) · [Step 5](#step-5-the-full-team-a-supervisor-routing-4-specialists-via-command-final-5-agents)
+- **A Supervisor instead of fixed edges** — the route depends on the state (nothing found, rejected draft), so it's decided at run time.
+- **Routing rules as a pure function** — `decide_next()` is tested without a model or a graph.
+- **The pass mark in code, not in the prompt** — the same bar on every run.
+- **Clear the draft to revise** — one simple signal sends the work back to the Writer.
+- **One writer per state field** — agents can't overwrite each other.
+- **Each agent proven alone first** — every `run_...()` works and is tested outside the graph.
+- **Cost trade-off** — several model calls per article; for very short texts one call is cheaper, but you lose review and traceability.
 
-### Step 1 — One Specialist's Drafting Logic, Working Alone, No Agent Behavior
+## Limitations and Roadmap
 
-*Project: **ContentForge-Research-Write-Review-Team-Turns-Any-Topic-Into-A-Publish-Ready-Article** — Step 1 of 5: One Specialist's Drafting Logic, Working Alone, No Agent Behavior*
+- Research reads a small local fact file; real web or document search would widen the topics.
+- Nothing is saved between runs.
+- No human approval step before publishing.
+- Possible next steps: an API and a database for runs (production version), real search, an evaluation suite for article quality, a human sign-off step.
 
-**What this step does:** proves the Writer's core drafting logic works by itself — a plain in-prompt, out-text chain, before any agent behavior gets added. You're building the *smallest* correct piece first, on purpose.
-**Why this step matters:** if the Writer's core drafting logic is wrong, every later step inherits that bug silently — proving it alone, first, means any failure in Steps 2-5 can never be blamed on this piece.
-**Helpful background:** LCEL — connecting pieces with the `|` operator.
+## License
 
-What to do:
-
-1. Pick one specialist to start with — the Writer is the easiest, since it needs no tools: given research notes (fake ones you make up are fine for now), it produces a draft.
-2. Build it as one plain LCEL chain: `prompt | ChatOpenAI | output_parser`. No agent loop, no other specialists exist yet.
-3. Test it directly against 2-3 made-up "research notes" inputs, read the drafts, and confirm the chain itself works well. Include one deliberately thin or near-empty notes input in that batch — seeing what the chain does with almost nothing to work from now is what tells you whether you'll need an input check later, instead of discovering it by accident once Research (Step 3) feeds this chain something genuinely sparse.
-
-**What's new (this is the start):** you now have one working, tested piece of logic. **What stays the same going into Step 2:** this exact chain — you're not rewriting it, just wrapping it.
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step1_writer_chain_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_writer_chain_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step1_writer_chain_solution.md)
-
-**When you'll hit this for real:** every specialist agent in every multi-agent system you'll ever build starts exactly this way — prove the core logic alone before it has to answer to anyone else.
-
-**Your files after Step 1:**
-```
-project_4_contentforge_multi_agent/
-├── agents/
-│   └── writer_chain.py     → build_writer_chain() -> Runnable, plain LCEL, no agent behavior
-└── main.py                   → calls the chain directly with made-up test notes
-```
-
-### Step 2 — That Specialist, Now a Real Agent That Can Improve Its Own Work
-
-*Project: **ContentForge-Research-Write-Review-Team-Turns-Any-Topic-Into-A-Publish-Ready-Article** — Step 2 of 5: That Specialist, Now a Real Agent That Can Improve Its Own Work*
-
-**What this step does:** takes Step 1's Writer chain and proves that *one* specialist can work as a full, standalone agent (with the ability to improve its own draft), before any teammates exist — keeping "does this one agent work" separate from "does the team work," so bugs are easy to trace.
-**Why this step matters:** an agent that can't improve its own output under criticism isn't really agentic yet — proving that loop works alone means Step 5's Supervisor can trust it later without re-debugging it inside a bigger, harder-to-trace system.
-**Helpful background:** the think→act→observe loop, and the Generator → Critic pattern.
-
-What to do:
-
-1. Wrap Step 1's chain as `writer_agent.py`, with a real function: `run_writer(notes, feedback=None) -> Draft` — `feedback` is what makes this an *agent that can improve*, not just a one-shot chain.
-2. Build a small, standalone Reviewer as a second simple chain (no tools either) that scores a draft and gives back feedback text. Write its scoring criteria into the prompt explicitly (clarity, factual grounding, completeness) — a vague Reviewer prompt tends to approve almost everything on the first try, which means the loop in the next sub-step never actually gets exercised.
-3. Connect a small, limited loop: Writer drafts → Reviewer scores → if below a bar, Writer redrafts using the feedback → repeat up to N times.
-4. Test it: confirm the loop actually improves a first draft you made deliberately weak, and confirm it stops at the limit on a tricky case.
-
-**What's new vs. Step 1:** the Writer chain gets a `feedback` option and a loop calling it; a second agent (Reviewer) now exists. **What stays the same:** the Writer's core logic from Step 1 is *reused*, not rewritten — you're wrapping it, not redoing it.
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_writer_reviewer_loop_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_writer_reviewer_loop_solution.md)
-
-**When you'll hit this for real:** any time output quality matters enough to justify a second pass — first drafts of anything (code, writing, analysis) are rarely the best version.
-
-**Your files after Step 2:**
-```
-project_4_contentforge_multi_agent/
-├── agents/
-│   ├── writer_agent.py       → run_writer(notes, feedback=None) -> Draft (wraps Step 1's chain)
-│   └── reviewer_agent.py       → run_reviewer(draft) -> ReviewVerdict
-├── main.py                       → limited Writer↔Reviewer loop, no supervisor yet
-└── test_writer_reviewer.py
-```
-
-### Step 3 — A Research Agent That Looks Things Up Before Anyone Else Works
-
-*Project: **ContentForge-Research-Write-Review-Team-Turns-Any-Topic-Into-A-Publish-Ready-Article** — Step 3 of 5: A Research Agent That Looks Things Up Before Anyone Else Works*
-
-**What this step does:** adds the specialist that starts the whole pipeline — proving it works on its own, exactly like Writer was proven in Steps 1-2, before it has a Supervisor or teammates depending on it.
-**Why this step matters:** everything downstream — Analysis, the draft, the whole article — is only as trustworthy as the research it started from; proving Research works alone means a bad article can never be blamed on a Research bug hiding three steps later.
-**What's new vs. Step 2:** a new Research agent exists, built and tested on its own. **What stays the same:** Writer and Reviewer from Steps 1-2 don't change.
-**When you'll hit this for real:** any pipeline where the first step is "go find out what's actually true" before anything downstream can be trusted — this is the pattern behind that.
-**Helpful background:** tool/function calling basics (Research needs a real or fake lookup tool).
-
-What to do:
-
-1. Build the Research agent the same way you built Writer in Steps 1-2: a simple chain first if possible, turned into an agent with a lookup tool, since Research genuinely needs one (reuse standard tool-calling patterns). Get the lookup tool working and returning sensible results on its own first, before wrapping it in an agent — that way, if something looks wrong later, you already know whether it's the tool or the agent's use of it, instead of debugging both at once.
-2. Test it on its own against 2-3 made-up topics — confirm it produces usable research notes, before anything else depends on it.
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step3_research_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_research_agent_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step3_research_agent_solution.md)
-
-**Your files after Step 3:**
-```
-project_4_contentforge_multi_agent/
-├── agents/
-│   ├── writer_agent.py
-│   ├── reviewer_agent.py
-│   └── research_agent.py       → run_research(topic) -> ResearchNotes, tested on its own
-└── main.py
-```
-
-### Step 4 — An Analysis Agent That Turns Raw Research Into Organized Findings
-
-*Project: **ContentForge-Research-Write-Review-Team-Turns-Any-Topic-Into-A-Publish-Ready-Article** — Step 4 of 5: An Analysis Agent That Turns Raw Research Into Organized Findings*
-
-**What this step does:** adds the specialist that sits between Research and Writer — proving it works on Step 3's real output, before the full pipeline exists.
-**Why this step matters:** this is the first step that tests two already-built specialists together, not just one in isolation — it's where a real interface mismatch between Research and Analysis would actually surface, before the Supervisor exists to paper over it.
-**What's new vs. Step 3:** a new Analysis agent takes in Research's output and produces organized findings. **What stays the same:** Research, Writer, and Reviewer are all untouched — Step 4 just adds something new that uses Research's output.
-**When you'll hit this for real:** any time raw information (research, logs, survey results) needs organizing into a usable shape before someone (or something) can write from it — a very common real pipeline stage.
-**Helpful background:** LangChain fundamentals — LCEL chains (Analysis is likely just a plain chain, no tools needed).
-
-What to do:
-
-1. Build the Analysis agent: takes Step 3's `ResearchNotes`, produces organized findings the Writer can draft from. Watch for a model that quietly drops a fact it didn't obviously fit into any theme — "organize" is not the same instruction as "organize without losing anything," so say the second one explicitly if you want it to actually hold.
-2. Test it on its own: feed it Step 3's real test outputs (not new made-up data) — this confirms the two specialists' interfaces genuinely work together, before the Supervisor exists to connect them.
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step4_analysis_agent_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_analysis_agent_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step4_analysis_agent_solution.md)
-
-**Your files after Step 4:**
-```
-project_4_contentforge_multi_agent/
-├── agents/
-│   ├── writer_agent.py
-│   ├── reviewer_agent.py
-│   ├── research_agent.py
-│   └── analysis_agent.py         → run_analysis(notes) -> Findings, tested against Step 3's output
-└── main.py
-```
-
-### Step 5 — The Full Team: a Supervisor Routing 4 Specialists via Command (final: 5 agents)
-
-*Project: **ContentForge-Research-Write-Review-Team-Turns-Any-Topic-Into-A-Publish-Ready-Article** — Step 5 of 5: The Full Team: a Supervisor Routing 4 Specialists via Command*
-
-**What this step does:** adds the Supervisor that routes work on the fly using the `Command` tool — turning four separately-proven specialists into one connected pipeline.
-**Why this step matters:** this is the actual multi-agent system — everything before it proved the pieces work in isolation; this step proves they work *together*, coordinated by a Supervisor instead of your own test scripts, which is the entire point of the project.
-**What's new vs. Step 4:** a Supervisor now handles routing (replacing any standalone test loops); shared state is properly designed; Step 2's limited Writer↔Reviewer loop gets reconnected *inside* this bigger flow. **What stays the same:** all four specialists' inner logic is *unchanged* from Steps 1-4 — they're now called *by* the Supervisor instead of by your test scripts, but their own code doesn't need to change to join the team. This is the whole point of building it in this order: putting pieces together, not rewriting them.
-**When you'll hit this for real:** this exact moment — separately-proven pieces getting composed into one system by a coordinator — is what "building a multi-agent system" actually means at a real job, more than any single agent's internal logic.
-**Helpful background:** the full multi-agent pattern table, and how LangGraph's `Command` tool works.
-
-What to do:
-
-1. Design the shared state shape — clear about what's shared (the growing article) vs. private to each agent (each specialist's own working notes), following the general rule that one agent's private notes shouldn't leak into another agent's state.
-2. Build the Supervisor node: routes to Research → Analysis → Writer → Reviewer in order, using `Command`, keeping track of what's already been done so no agent redundantly repeats another's work. Test the routing logic against a hand-built fake state first (a dict with `completed_steps` already set to different combinations), before wiring in the real specialist calls — that separates "is the routing decision correct" from "do the real agents work inside the graph," so a bug is easy to place.
-3. Reconnect Step 2's limited Writer↔Reviewer loop *inside* this bigger flow — same limit, same logic, now started by the Supervisor.
-4. Test the full pipeline start to finish, plus: a task where the Supervisor has to route correctly, and the tricky non-agreement case from Step 2, now inside the full system.
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step5_supervisor_command_hints.md#hint-1) · [Hint 2](hints_and_solutions/step5_supervisor_command_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step5_supervisor_command_solution.md)
-
-**Your files after Step 5 (final):**
-```
-project_4_contentforge_multi_agent/
-├── main.py
-├── graph.py
-├── state.py
-├── agents/
-│   ├── supervisor.py         → routing logic using Command
-│   ├── research_agent.py       → unchanged from Step 3
-│   ├── analysis_agent.py         → unchanged from Step 4
-│   ├── writer_agent.py             → unchanged from Step 2
-│   └── reviewer_agent.py             → unchanged from Step 2
-└── test_project4.py
-```
-
-**Final Deliverable:** **ContentForge-Research-Write-Review-Team-Turns-Any-Topic-Into-A-Publish-Ready-Article** — a Supervisor that routes Research, Analysis, Writer, and Reviewer on the fly via `Command`, with a carefully-designed shared state and a limited revision loop, turning a raw topic into a fact-checked final article.
-
-## Checklist Before You Call This Done
-- [ ] Supervisor routes correctly using the `Command` tool, not a hand-made routing text code
-- [ ] Shared state is deliberately organized — no unfiltered mixing of notes between agents
-- [ ] Reviewer can reject and send work back to the writer, with a fixed limit on revision rounds
-- [ ] No repeated tool calls across agents for the same sub-task
-- [ ] The full task completes through all four agents in a real test case
-- [ ] You can defend "why 4 agents and not 1" without being asked twice, backed by your own cost/speed comparison
-
-Full requirements, test cases, and hints: see the Steps above and the `hints_and_solutions/` files in this project.
-
-## Status
-Not started. Track your own progress however works for you.
-
+MIT — see `LICENSE`.

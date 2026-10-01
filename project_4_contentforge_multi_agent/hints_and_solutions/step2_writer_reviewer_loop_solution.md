@@ -1,228 +1,219 @@
-# Step 2 — Writer↔Reviewer Loop — Solution
+# Step 2 — That Specialist, Now a Real Agent That Can Improve Its Own Work — Solution
 
-> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
+> [Back to this step](../READING_README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
 
-## Basic Version
+**Story — Step 2:** a first draft is rarely the best one. This step gives the Writer a way to improve: a Reviewer scores each draft, and a small loop sends the feedback back to the Writer — up to a hard limit. It's still just two agents in a plain Python loop, with no graph. **If not:** Step 5 would be the first place the revision loop ever ran, inside a much bigger system.
 
-### Approach 1 — the direct way
+After this step the project runs: it writes an article, has it reviewed, and revises it until it passes or the limit is reached. Files not shown here don't change.
 
-**`agents/writer_agent.py`**
-```python
-from agents.writer_chain import build_writer_chain
+## Solution — a scored verdict, written criteria, and an honest report
 
-_chain = build_writer_chain()
+**Changed from Step 1:** `writer.txt` gets a feedback section; `run_writer()` gets a `feedback` parameter.
 
-def run_writer(notes, feedback=None):
-    if feedback:
-        prompt_notes = notes + "\n\nPrevious feedback to address:\n" + feedback
-    else:
-        prompt_notes = notes
-    return _chain.invoke({"notes": prompt_notes})
+**Story — `prompts/writer.txt` + `agents/writer_agent.py`:** the chain is the same; now it can be told what to fix. An empty feedback becomes the word "none", so the prompt always reads cleanly. **If not:** the Writer would redraft blindly, and could repeat the same mistake every round.
+
+`src/contentforge/prompts/writer.txt`
+
+```text
+You are the Writer on a content team. Write a short article (150-250
+words) with a title, using ONLY the findings below. Do not add facts
+that are not in the findings. Keep each fact's [source] tag.
+
+Findings:
+{findings}
+
+Reviewer feedback on your last draft (fix every point, or "none"):
+{feedback}
 ```
 
-**`agents/reviewer_agent.py`**
 ```python
-from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
+# src/contentforge/agents/writer_agent.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+
+from contentforge.models.llm import get_model
+from contentforge.utils.prompts import load_prompt
+
+def build_writer_chain():
+    # why: the Writer's whole skill is one LCEL chain (Doc05) — proven
+    # alone in Step 1, and never rewritten after that
+    prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
+    return prompt | get_model() | StrOutputParser()
+
+# changed in Step 2: + feedback
+def run_writer(findings: str, feedback: str = "") -> str:
+    # why: feedback is what turns a one-shot chain into an agent that
+    # can improve its own work
+    if feedback == "":
+        feedback = "none"
+    chain = build_writer_chain()
+    return chain.invoke({"findings": findings, "feedback": feedback})
+```
+
+**Story — `schemas.py`:** the verdict as a checked object: a score from 1 to 10 and the feedback text (Doc05's `with_structured_output`). **If not:** you'd parse "GOOD"/"BAD" out of free text.
+
+```python
+# src/contentforge/schemas.py
+from pydantic import BaseModel, Field
 
 class ReviewVerdict(BaseModel):
-    approved: bool
+    # why: a number the code can compare, not a word to search for
+    score: int = Field(ge=1, le=10)
+    # why: the Writer gets this text back on a revision
     feedback: str
-
-def run_reviewer(draft):
-    model = ChatOpenAI(model="gpt-4o-mini").with_structured_output(ReviewVerdict)
-    return model.invoke("Review this draft for clarity and accuracy:\n" + draft)
 ```
 
-**`main.py`**
-```python
-from agents.writer_agent import run_writer
-from agents.reviewer_agent import run_reviewer
+**Story — `prompts/reviewer.txt`:** three written criteria — clarity, grounding, completeness — and "7 or more only if all three are met". **If not:** a vague Reviewer approves the first draft almost every time, and the loop never gets tested.
 
-MAX_ROUNDS = 3
-notes = "Electric bikes cost $800-3000. Battery range 20-60 miles."
-feedback = None
+`src/contentforge/prompts/reviewer.txt`
 
-for i in range(MAX_ROUNDS):
-    draft = run_writer(notes, feedback)
-    verdict = run_reviewer(draft)
-    print(f"Round {i+1}, approved={verdict.approved}")
-    if verdict.approved:
-        break
-    feedback = verdict.feedback
+```text
+You are the Reviewer on a content team. Score this draft from 1 to 10
+against three criteria:
+1. Clarity - is it easy to read, with a clear title and structure?
+2. Grounding - is every fact backed by a [source] tag from the findings?
+3. Completeness - does it cover the main findings, in 150-250 words?
+Give 7 or more only if all three criteria are met. In the feedback, list
+exactly what to fix.
 
-print(draft)
+Findings the draft must be based on:
+{findings}
+
+Draft:
+{draft}
 ```
 
-This works. It reuses Step 1's chain via a module-level `_chain`, which is fine, though building the chain fresh inside `run_writer` on every call (Intermediate version) is a little cleaner for testing. Nothing here notices if the Reviewer gives the same feedback twice in a row — it just spends every remaining round anyway.
+**Story — `agents/reviewer_agent.py`:** the model scores; **the code** decides the pass mark (`PASS_SCORE = 7`). **If not:** "pass" would drift with the model's mood from run to run.
 
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a real, testable loop function
-
-**`agents/writer_agent.py`**
 ```python
+# src/contentforge/agents/reviewer_agent.py
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
 
-WRITER_PROMPT = (
-    "You are a content writer. Write a short, clear draft (3-5 paragraphs) "
-    "based only on these research notes. Do not invent facts not in the notes.\n\n"
-    "Research notes:\n{notes}\n\n"
-    "{feedback_section}"
+from contentforge.models.llm import get_model
+from contentforge.schemas import ReviewVerdict
+from contentforge.utils.prompts import load_prompt
+
+# why: the pass mark is decided in code, not by the model's mood — so
+# the bar is the same on every run and easy to change in one place
+PASS_SCORE = 7
+
+def run_reviewer(findings: str, draft: str) -> ReviewVerdict:
+    prompt = ChatPromptTemplate.from_template(load_prompt("reviewer"))
+    # how: with_structured_output returns a checked ReviewVerdict (Doc05)
+    chain = prompt | get_model().with_structured_output(ReviewVerdict)
+    return chain.invoke({"findings": findings, "draft": draft})
+```
+
+**Story — `main.py`:** `write_with_review()` is the Generator → Critic loop (Doc11): write, review, pass the feedback back, stop at `MAX_REVISIONS`. It returns a dict with the **same keys the Step 5 team will use** (`draft`, `accepted`, `feedback_history`, `revision_count`), and `print_report(result)` prints it — never showing a rejected draft as finished. `print_report()` keeps its name and its input for the rest of the project. **If not:** a Writer and Reviewer that never agree would loop forever, and Step 5 would have to rewrite how results are printed.
+
+```python
+# src/contentforge/main.py
+import sys
+
+from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from contentforge.agents.writer_agent import run_writer
+from contentforge.config import load_config
+from contentforge.exceptions import MissingConfigError
+from contentforge.utils.logger import get_logger
+
+# why: the hard limit on Writer <-> Reviewer rounds — never loop forever
+MAX_REVISIONS = 3
+
+SAMPLE_FINDINGS = (
+    "Range:\n- A battery gives 40 to 100 km per charge. [battery-review]\n"
+    "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-
-def run_writer(notes: str, feedback: str | None = None) -> str:
-    feedback_section = ""
-    if feedback:
-        feedback_section = f"Revise to address this reviewer feedback:\n{feedback}"
-
-    prompt = ChatPromptTemplate.from_template(WRITER_PROMPT)
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-    chain = prompt | model | StrOutputParser()
-    return chain.invoke({"notes": notes, "feedback_section": feedback_section})
-```
-
-**`agents/reviewer_agent.py`**
-```python
-from pydantic import BaseModel, Field
-from langchain_openai import ChatOpenAI
-
-
-class ReviewVerdict(BaseModel):
-    approved: bool = Field(description="True only if clear, accurate to the notes, and complete")
-    feedback: str = Field(description="Specific, actionable feedback if not approved; empty if approved")
-
-
-def run_reviewer(draft: str) -> ReviewVerdict:
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(ReviewVerdict)
-    return model.invoke(
-        "Review this draft against: clarity, factual grounding in the notes, completeness.\n"
-        f"Draft:\n{draft}"
-    )
-```
-
-**`main.py`**
-```python
-from agents.writer_agent import run_writer
-from agents.reviewer_agent import run_reviewer, ReviewVerdict
-
-MAX_ROUNDS = 3
-
-
-def run_writer_reviewer_loop(notes: str) -> tuple[str, ReviewVerdict]:
-    feedback: str | None = None
-    verdict: ReviewVerdict | None = None
-    draft = ""
-
-    for round_num in range(MAX_ROUNDS):
-        draft = run_writer(notes, feedback)
-        verdict = run_reviewer(draft)
-        if verdict.approved:
-            return draft, verdict
+def write_with_review(findings: str) -> dict:
+    # why: returns a dict with the SAME keys the Step 5 team state uses,
+    # so print_report() never has to change its input
+    logger = get_logger(__name__)
+    result = {
+        "draft": "",
+        "accepted": False,
+        "feedback_history": [],
+        "revision_count": 0,
+    }
+    feedback = ""
+    for round_number in range(1, MAX_REVISIONS + 1):
+        result["draft"] = run_writer(findings, feedback)
+        verdict = run_reviewer(findings, result["draft"])
+        logger.info("round %s: score %s", round_number, verdict.score)
+        if verdict.score >= PASS_SCORE:
+            result["accepted"] = True
+            return result
+        # how: the Reviewer's feedback goes into the Writer's next round
         feedback = verdict.feedback
+        result["feedback_history"].append(feedback)
+        result["revision_count"] = result["revision_count"] + 1
+    return result
 
-    return draft, verdict  # ran out of rounds; return last attempt, unapproved
+def print_report(result: dict) -> None:
+    if result["accepted"]:
+        print("\nFinal article:\n")
+        print(result["draft"])
+    else:
+        # why: never pass a rejected draft off as finished
+        attempts = result["revision_count"]
+        print(f"\nCouldn't agree after {attempts} revisions. Feedback:")
+        number = 1
+        for feedback in result["feedback_history"]:
+            print(f"  round {number}: {feedback}")
+            number = number + 1
+        print("\nLast draft (NOT approved):\n")
+        print(result["draft"])
 
+def main() -> None:
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+
+    result = write_with_review(SAMPLE_FINDINGS)
+    print_report(result)
 
 if __name__ == "__main__":
-    notes = "Electric bikes cost $800-3000. Battery range 20-60 miles."
-    final_draft, final_verdict = run_writer_reviewer_loop(notes)
-    print(final_draft)
-    print("Approved:", final_verdict.approved)
+    main()
 ```
 
-**Difference from Basic:** the loop logic is pulled into its own testable function, `run_writer_reviewer_loop`, instead of living directly in a script's top level — this is exactly what `test_writer_reviewer.py` needs to import and call. Full type hints, including the `tuple[str, ReviewVerdict]` return type, which tells any caller (including Step 5's Supervisor, later) exactly what it gets back. `temperature=0` on the Reviewer keeps its judgments consistent between runs. Still missing: any way to tell "gave up because it wasn't improving" apart from "gave up because rounds ran out" — both return the same shape, `(draft, unapproved_verdict)`.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
-
-## Advanced Version
-
-### Approach 1 — no-progress detection + round history
+**Story — `tests/integration/test_live_agents.py`:** the one check that matters most here — a weak draft must **fail**. **If not:** a Reviewer that passes everything looks exactly like one that works.
 
 ```python
-from dataclasses import dataclass, field
-from agents.writer_agent import run_writer
-from agents.reviewer_agent import run_reviewer, ReviewVerdict
+# tests/integration/test_live_agents.py
+# Runs the agents against the real OpenAI API.
+# Run from the repo root: python tests/integration/test_live_agents.py
+# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from contentforge.config import load_config
 
-MAX_ROUNDS = 3
+FINDINGS = (
+    "Range:\n- A battery gives 40 to 100 km per charge. [battery-review]\n"
+    "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
+)
 
-
-@dataclass
-class LoopResult:
-    draft: str
-    verdict: ReviewVerdict
-    status: str  # "approved" | "no_progress" | "max_rounds"
-    history: list[tuple[str, ReviewVerdict]] = field(default_factory=list)
-
-
-def run_writer_reviewer_loop(notes: str, max_rounds: int = MAX_ROUNDS) -> LoopResult:
-    feedback: str | None = None
-    previous_feedback: str | None = None
-    history: list[tuple[str, ReviewVerdict]] = []
-    draft = ""
-    verdict: ReviewVerdict | None = None
-
-    for round_num in range(max_rounds):
-        draft = run_writer(notes, feedback)
-        verdict = run_reviewer(draft)
-        history.append((draft, verdict))
-
-        if verdict.approved:
-            return LoopResult(draft, verdict, "approved", history)
-
-        if previous_feedback is not None and verdict.feedback == previous_feedback:
-            return LoopResult(draft, verdict, "no_progress", history)
-
-        previous_feedback = verdict.feedback
-        feedback = verdict.feedback
-
-    return LoopResult(draft, verdict, "max_rounds", history)
-
+def test_reviewer_rejects_weak_draft() -> None:
+    # case 1: a weak draft must fail — a Reviewer that passes everything
+    # would never make the revision loop run
+    verdict = run_reviewer(FINDINGS, "E-bikes are good.")
+    passed = verdict.score >= PASS_SCORE
+    print(f"case 1 (weak draft)     -> score {verdict.score}, "
+          f"passed={passed}")
 
 if __name__ == "__main__":
-    result = run_writer_reviewer_loop(
-        "Electric bikes cost $800-3000. Battery range 20-60 miles."
-    )
-    print(result.draft)
-    print("Status:", result.status, "| Rounds run:", len(result.history))
-```
-**Expected output (a normal case):** a draft, then `Status: approved | Rounds run: 1` or `2`. On a deliberately-impossible-to-satisfy case where the Reviewer repeats the same complaint, you'd see `Status: no_progress | Rounds run: 2` — stopped one round earlier than `max_rounds` would have allowed, because continuing clearly wasn't helping.
-
-### Approach 2 — same idea, exposed as a plain function return instead of a dataclass
-
-```python
-def run_writer_reviewer_loop(notes: str, max_rounds: int = MAX_ROUNDS):
-    feedback = None
-    previous_feedback = None
-    history = []
-    draft = ""
-    verdict = None
-
-    for round_num in range(max_rounds):
-        draft = run_writer(notes, feedback)
-        verdict = run_reviewer(draft)
-        history.append((draft, verdict))
-
-        if verdict.approved:
-            return draft, verdict, "approved", history
-        if previous_feedback is not None and verdict.feedback == previous_feedback:
-            return draft, verdict, "no_progress", history
-
-        previous_feedback = verdict.feedback
-        feedback = verdict.feedback
-
-    return draft, verdict, "max_rounds", history
+    load_config()
+    test_reviewer_rejects_weak_draft()
 ```
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's loop only ever tells you `verdict.approved` — `True`, or `False` with no explanation of why it gave up. Both Advanced approaches add the same two things on top: a `history` list (every round's draft and verdict, useful for debugging and for a later observability step), and a third status, `"no_progress"`, that stops the loop early when the Reviewer's feedback repeats verbatim instead of burning every remaining round on a redraft that already failed to help once. Approach 1 packages the result as a small `LoopResult` dataclass, which is easier for a caller to read (`result.status`, `result.history`) and easier to extend later without breaking every call site's unpacking. Approach 2 is the plain-tuple version — no new class to define, but every caller has to remember the order of 4 return values, and adding a 5th one later means changing every call site.
+**Run it:**
 
-**Which one should you actually write?** Approach 1's dataclass. Step 5's Supervisor is going to call this exact loop from inside a bigger system, and by then you'll likely also want to log `result.status` and `result.history` somewhere — a named dataclass with clear fields survives that kind of growth much better than a 4-item tuple. The no-progress check itself (in either approach) is worth keeping regardless: it's a small, cheap addition that turns "wasted every remaining round" into "recognized it was stuck and said so," which is exactly the difference between a demo loop and one you'd trust in a system a real caller depends on.
+```bash
+python tests/integration/test_live_agents.py
+python -m contentforge.main
+```
+
+```
+case 1 (weak draft)     -> score 2, passed=False
+```
+
+To see the limit, set `PASS_SCORE = 11` for one run: you should get "Couldn't agree after 3 revisions" and the full feedback list — never an endless loop.

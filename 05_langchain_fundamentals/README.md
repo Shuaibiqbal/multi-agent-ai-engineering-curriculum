@@ -3,10 +3,11 @@
 > This is for self-study and live mentoring. Full plan: [CURRICULUM.md](../CURRICULUM.md#document-05-langchain-basics)
 
 ## Prerequisites
-[04_openai_api](../04_openai_api/) (Project 1 done) — you'll reuse two Doc01 scripts again here, copied unchanged into `practice/build_task/`:
+[04_openai_api](../04_openai_api/) (Project 1 done) — you'll reuse Doc01 and Doc04 scripts again here, copied unchanged:
 
 - `config.py` — **What:** `load_config() -> Config`. **Why:** the model choice (name, temperature) comes from config, never hardcoded. **How:** copy `01_python_foundations/practice/build_task/config.py` in as-is; don't rewrite it.
-- `logging_setup.py` — **What:** `get_logger(name)`. **Why:** same consistent logging as every other document. **How:** copy `01_python_foundations/practice/build_task/logging_setup.py` in as-is; don't rewrite it.
+- `logging_setup.py` — **What:** `get_logger(name)`. **Why:** same consistent logging as every other document. **How:** copy `01_python_foundations/practice/build_task/logging_setup.py` in as-is; don't rewrite it. Copy `exceptions.py` (`MissingConfigError`) with it — `config.py` imports it.
+- `chat_client.py` + `schemas.py` — **What:** Doc04's `get_structured_reply()`, `EXTRACT_PROMPT` and `ExtractedInfo`. **Why:** the Real-world exercise and the Build Task compare your LCEL chain against this exact raw-SDK version. **How:** copy both from `04_openai_api/practice/build_task/` into `practice/` and `practice/build_task/`, unchanged.
 
 ## How to Read & Practice This Document
 
@@ -18,7 +19,7 @@
   2. Do the **Basic** exercise closed-book.
   3. Do the **Intermediate/Real-world/Edge case** exercises with notes open.
   4. Build the chain without copying Doc04's raw-SDK version — rebuild it yourself, don't paste.
-  5. Use **Hint 1 → Hint 4** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
+  5. Use **Hint 1 → Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, explain out loud when you'd pick LangChain over the raw SDK for a new task, and why. If you can't, you're not done.
 
 **Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-reusable-chain-module)
@@ -199,7 +200,7 @@ An **output parser** is the last step of a chain — it turns the model's reply 
 - *Mistake:* prompt and parser describing different shapes — prompt says "list the tags," chain ends in an `Order` parser. → *Symptom:* every call fails, or a loose parser quietly returns the wrong type. → *Fix:* make the prompt's format instructions and the parser's model describe the same shape.
 - *Mistake:* treating a parsed object as a correct one. → *Symptom:* `{"price": 0}` passes because `0` is a valid `int`, but it's still wrong. → *Fix:* add a Pydantic `field_validator` — shape is guaranteed, truth is not (Doc04).
 
-**Where you'll meet it:** this document's Intermediate and Failure exercises, and the Build Task, compared against Project 1's structured output. [Doc06](../06_tools_function_calling/)'s tool arguments use the same Pydantic check. In [Doc11](../11_multi_agent_systems/) and [Project 4](../project_4_contentforge_multi_agent/), agents hand each other typed objects (a reviewer's `approved: bool`); a parser failure here is the handover point breaking — Doc02's "valid JSON, wrong shape" problem, one layer up.
+**Where you'll meet it:** this document's Intermediate and Failure exercises, and the Build Task, compared against Doc04's raw structured output. [Doc06](../06_tools_function_calling/)'s tool arguments use the same Pydantic check. In [Doc11](../11_multi_agent_systems/) and [Project 4](../project_4_contentforge_multi_agent/), agents hand each other typed objects (a reviewer's `approved: bool`); a parser failure here is the handover point breaking — Doc02's "valid JSON, wrong shape" problem, one layer up.
 
 **Quick cheat sheet:**
 
@@ -260,43 +261,54 @@ _You don't need any of these to understand the Core Concepts above — use them 
 ```
 practice/
 ├── lcel_chain_basics_practice.py    Basic
+├── config.py, exceptions.py         copied from Doc01, unchanged (Basic)
 ├── structured_output_practice.py    Intermediate + Failure (two sections)
 ├── lcel_vs_raw_sdk_practice.py      Real-world
+├── lcel_patterns_practice.py        Real-world (part 2)
 ├── prompt_template_practice.py      Edge cases
+├── chat_client.py                   copied from Doc04, unchanged
+├── schemas.py                       copied from Doc04, unchanged
 └── build_task/                      Build Task — its own folder
     ├── chain.py                     build_extraction_chain() -> Runnable
-    ├── prompts.py                   PromptTemplate/ChatPromptTemplate
-    ├── compare_with_raw_sdk.py      runs both versions, prints the diff
+    ├── prompts.py                   get_extraction_prompt()
+    ├── compare_with_raw_sdk.py      the 3 Test Cases
+    ├── chat_client.py               copied from Doc04, unchanged
+    ├── schemas.py                   copied from Doc04, unchanged
     ├── config.py                    copied from Doc01, unchanged
+    ├── exceptions.py                copied from Doc01, unchanged
     └── logging_setup.py             copied from Doc01, unchanged
 ```
 
 **Why each script exists:**
 
 - `lcel_chain_basics_practice.py` — the 3-piece chain every LangChain thing you'll build is made of.
-- `structured_output_practice.py` — feels, directly, the difference between after-the-fact parser checking and during-generation structured output.
+- `structured_output_practice.py` — feels, directly, the difference between "shape during" (`.with_structured_output`) and "check after" (`PydanticOutputParser`), and which error each one raises.
+- `chat_client.py` / `schemas.py` — Doc04's raw extraction, copied unchanged, so the Real-world exercise has a real version to compare against.
 - `lcel_vs_raw_sdk_practice.py` — the only way to actually compare LangChain vs. raw SDK is having both versions side by side.
+- `lcel_patterns_practice.py` — runs steps in parallel, falls back to a backup, and streams, once each, so none of them is new when Project 6 uses them.
 - `prompt_template_practice.py` — knowing whether a broken template fails while building the prompt or only once the call goes out changes how fast you can debug it.
 - `build_task/chain.py` / `build_task/prompts.py` — the one chain module every later document imports instead of writing raw SDK calls again.
-- `build_task/compare_with_raw_sdk.py` — proves the LCEL version and Doc04's raw version genuinely agree, not just look similar.
-- `build_task/config.py` / `build_task/logging_setup.py` — copied unchanged from Doc01, same settings/logging behavior as every other document.
+- `build_task/compare_with_raw_sdk.py` — the Build Task's test file: proves the LCEL version and Doc04's raw version agree, and checks the two failure cases.
+- `build_task/config.py` / `exceptions.py` / `logging_setup.py` — copied unchanged from Doc01, same settings/logging behavior as every other document.
+- `build_task/chat_client.py` / `schemas.py` — copied unchanged from Doc04: the raw version the chain is compared against.
 
 **For this document, save your practice code as:**
 
 - **Basic** (your first LCEL chain) is its own topic — save it as `practice/lcel_chain_basics_practice.py`.
 - **Intermediate** (swap in a structured parser) and **Failure** (force the parser to actually fail) are both about structured-output parsing and its errors — save them together as `practice/structured_output_practice.py`, one section per level.
-- **Real-world** (rebuild a Project 1 feature, LCEL-style) is its own topic — save it as `practice/lcel_vs_raw_sdk_practice.py`.
+- **Real-world** (rebuild Doc04's extraction, LCEL-style) is its own topic — save it as `practice/lcel_vs_raw_sdk_practice.py`.
+- **Real-world (part 2)** (run in parallel, fall back, and stream) is its own topic — save it as `practice/lcel_patterns_practice.py`.
 - **Edge cases** (a template with the wrong variables) is its own topic — save it as `practice/prompt_template_practice.py`.
 
 Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
-**Jump to an exercise:** [Basic](#ex-lcel_chain_basics) · [Intermediate](#ex-structured_parser_swap) · [Real-world](#ex-lcel_vs_raw_sdk) · [Edge cases](#ex-template_variable_errors) · [Failure](#ex-parser_failure_handling) · [Build Task](#build-task-reusable-chain-module)
+**Jump to an exercise:** [Basic](#ex-lcel_chain_basics) · [Intermediate](#ex-structured_parser_swap) · [Real-world](#ex-lcel_vs_raw_sdk) · [Real-world (part 2)](#ex-lcel_patterns) · [Edge cases](#ex-template_variable_errors) · [Failure](#ex-parser_failure_handling) · [Build Task](#build-task-reusable-chain-module)
 
 ### Basic — your first LCEL chain {: #ex-lcel_chain_basics }
 
 - **What:** connect a prompt template → `ChatOpenAI` → text output parser with `|`.
 - **Why:** this 3-piece chain is the atom every LangChain thing you'll ever build is made of — get comfortable with it before adding anything else.
-- **How to code it:** `prompt = ChatPromptTemplate.from_template("Answer: {question}")`, `chain = prompt | ChatOpenAI() | StrOutputParser()`, then `chain.invoke({"question": "..."})`.
+- **How to code it:** `prompt = ChatPromptTemplate.from_template("Answer: {question}")`, `chain = prompt | ChatOpenAI() | StrOutputParser()`, then `chain.invoke({"question": "..."})`. Then wrap it in `build_chain(config: Config | None = None)`, which takes the key from Doc01's `Config` — loaded when none is passed.
 - **Save as:** `practice/lcel_chain_basics_practice.py`.
 - **Builds on:** Doc04's Basic exercise (`practice/chat_api_basics_practice.py`) — the same first call, now split into a prompt, a model, and a parser instead of one raw `client.chat.completions.create(...)`.
 - **Used later by:** the [Real-world exercise](#ex-lcel_vs_raw_sdk) below and the [Build Task](#build-task-reusable-chain-module) — this exact three-piece shape, reused.
@@ -304,23 +316,33 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 ### Intermediate — swap in a structured parser {: #ex-structured_parser_swap }
 
-- **What:** replace the text parser with a Pydantic/structured one, and see what happens when the model's answer doesn't match the shape.
-- **Why:** this is where you feel, directly, the difference between LCEL's after-the-fact parser checking and Doc04's during-generation structured output.
-- **How to code it:** define a small Pydantic model, use `.with_structured_output(YourModel)` on the chat model, run it on a clearly-matching input, then a deliberately mismatched one — read the exact error.
+- **What:** replace the text parser with a structured one (`.with_structured_output(Person)`), and see what comes back when the text has no answer in it.
+- **Why:** this is Doc04's "shape during" method reached through LangChain — including its trap: a required field makes the model invent a value instead of raising an error.
+- **How to code it:** define `Person` (`name`, `age`), run it on a clear input, then on "the sky is blue" — read what comes back. Then make both fields `| None` and write `extract_person(text) -> Person | None`.
 - **Save as:** `practice/structured_output_practice.py`, under an `# Intermediate` section (this file also holds the [Failure exercise](#ex-parser_failure_handling) below, in its own `# Failure` section).
 - **Builds on:** the [Basic exercise](#ex-lcel_chain_basics)'s chain, and Doc04's structured-output topic — `.with_structured_output(Model)` is the exact same constrained-decoding call, just reached through LangChain.
 - **Used later by:** the [Failure exercise](#ex-parser_failure_handling) right below (same file), and the [Build Task](#build-task-reusable-chain-module)'s parser choice.
 - **Stuck?** [Hint 1](hints_and_solutions/structured_parser_swap_hints.md#hint-1) · [Hint 2](hints_and_solutions/structured_parser_swap_hints.md#hint-2) · [Show me the solution](hints_and_solutions/structured_parser_swap_solution.md)
 
-### Real-world — rebuild a Project 1 feature, LCEL-style {: #ex-lcel_vs_raw_sdk }
+### Real-world — rebuild Doc04's extraction, LCEL-style {: #ex-lcel_vs_raw_sdk }
 
-- **What:** take one feature from Project 1 (the raw-SDK version) and rebuild it with LCEL, keeping both versions.
+- **What:** take Doc04's Build Task extraction (`get_structured_reply()` + `ExtractedInfo`) and rebuild it with LCEL, keeping both versions.
 - **Why:** this is the only way to actually compare LangChain vs. raw SDK — reading about the trade-off isn't the same as having both versions of the same feature side by side.
-- **How to code it:** copy Project 1's structured-extraction feature into a new file, rewrite it as prompt → model → parser with `|`, then write a script that runs both on the same 3 inputs and diffs the outputs.
+- **How to code it:** copy Doc04's `chat_client.py` and `schemas.py` into `practice/` unchanged. Build `ChatPromptTemplate.from_messages([("system", EXTRACT_PROMPT), ("human", "{text}")]) | model.with_structured_output(ExtractedInfo)`, run both versions on the same 3 inputs, and check the names match.
 - **Save as:** `practice/lcel_vs_raw_sdk_practice.py`.
-- **Builds on:** [Doc04](../04_openai_api/)'s Project 1 structured-extraction feature (the raw-SDK version), and the [Basic exercise](#ex-lcel_chain_basics)'s chain shape.
+- **Builds on:** [Doc04](../04_openai_api/)'s Build Task extraction (the raw-SDK version), the [Basic exercise](#ex-lcel_chain_basics)'s chain shape, and the [Intermediate exercise](#ex-structured_parser_swap)'s `.with_structured_output()`.
 - **Used later by:** the [Build Task](#build-task-reusable-chain-module)'s `compare_with_raw_sdk.py`, which **copies** this same comparison almost unchanged.
 - **Stuck?** [Hint 1](hints_and_solutions/lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](hints_and_solutions/lcel_vs_raw_sdk_hints.md#hint-2) · [Show me the solution](hints_and_solutions/lcel_vs_raw_sdk_solution.md)
+
+### Real-world (part 2) — run in parallel, fall back, and stream {: #ex-lcel_patterns }
+
+- **What:** run two slow lookups at the same time with `RunnableParallel`, add a backup with `.with_fallbacks()` + `RunnableLambda`, and stream a reply with `.stream()` — then prove each one works.
+- **Why:** the LCEL topic says every chain can do these three things for free; doing each once is what makes them usable, not just readable.
+- **How to code it:** two functions that `time.sleep(1)`, timed with `time.time()`; a model pointed at `base_url="http://127.0.0.1:9"` (nothing listens there) for a real outage; `exceptions_to_handle=` so a bug in your own code still raises; and a loop over `chain.stream(...)` that joins the pieces.
+- **Save as:** `practice/lcel_patterns_practice.py`.
+- **Builds on:** the [Basic exercise](#ex-lcel_chain_basics)'s `prompt | model | parser`, and Doc04's streaming exercise and error table.
+- **Used later by:** [Project 6](../project_6_langchainpro_lcel_patterns/) — its lookup step, its fallbacks and its streamed replies are these exact shapes.
+- **Stuck?** [Hint 1](hints_and_solutions/lcel_patterns_hints.md#hint-1) · [Hint 2](hints_and_solutions/lcel_patterns_hints.md#hint-2) · [Show me the solution](hints_and_solutions/lcel_patterns_solution.md)
 
 ### Edge cases — a template with the wrong variables {: #ex-template_variable_errors }
 
@@ -334,68 +356,72 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 ### Failure — force the parser to actually fail {: #ex-parser_failure_handling }
 
-- **What:** ask the model something that won't fit your Pydantic shape on purpose, and read the real error the parser raises.
+- **What:** use a "check after" parser (`PydanticOutputParser`) with a prompt that never mentions the shape, and read the real error it raises. Then fix the prompt with the parser's format instructions.
 - **Why:** you need to know, before it happens in production, exactly what kind of exception your code needs to catch here.
-- **How to code it:** ask a structured-output chain expecting a number field for something that's clearly a description, not a number — catch the resulting error and print its type.
+- **How to code it:** `prompt | model | PydanticOutputParser(pydantic_object=Rating)` with the prompt "Rate {thing} from 1 to 10." — catch `OutputParserException` by name. Then add `{format_instructions}`, fill it with `.partial()`, and test `parser.parse(...)` on plain text with no API call.
 - **Save as:** `practice/structured_output_practice.py`, under a `# Failure` section (this file also holds the [Intermediate exercise](#ex-structured_parser_swap) above, in its own `# Intermediate` section).
-- **Builds on:** the [Intermediate](#ex-structured_parser_swap) section of this same file, and Doc04's error-handling habit — catch the specific parser exception, never a bare `except`.
-- **Used later by:** the [Build Task](#build-task-reusable-chain-module)'s requirement to handle a bad structured-output reply gracefully.
+- **Builds on:** the [Intermediate](#ex-structured_parser_swap) section of this same file ("shape during" — this is "check after"), the [Edge cases](#ex-template_variable_errors) exercise's templates, and Doc04's error-handling habit — catch the specific parser exception, never a bare `except`.
+- **Used later by:** the [Build Task](#build-task-reusable-chain-module)'s "wrong shape" test case (`parser.parse(...)` → `OutputParserException`).
 - **Stuck?** [Hint 1](hints_and_solutions/parser_failure_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/parser_failure_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/parser_failure_handling_solution.md)
 
 ## Build Task — Reusable Chain Module
 **Stuck on the Build Task?** [Hint 1](hints_and_solutions/build_task.md#hint-1) · [Hint 2](hints_and_solutions/build_task.md#hint-2) · [Show me the solution](hints_and_solutions/build_task.md#solution)
 
-**Goal:** a small chain module that later documents will reuse instead of writing raw SDK calls each time — a comparison point next to Project 1, not a replacement for it.
+**Goal:** a small chain module that later documents will reuse instead of writing raw SDK calls each time — a comparison point next to Doc04's raw-SDK version, not a replacement for it.
 
 **Requirements:**
 
 - One LCEL chain that wraps a prompt template, a model, and a parser as one callable piece.
-- The model choice (name, temperature) comes from your config — never hardcoded — using Doc01's `config.py`/`get_logger(name)`, copied in unchanged the way Doc04's Build Task did.
-- A side-by-side test/script that proves your LCEL version and Doc04's raw-SDK version give the same answer for the same input.
+- The model choice (name, temperature) lives in one named place — `MODEL_NAME` and the default parameters of `build_extraction_chain()`, the Basic exercise's shape — never scattered. Doc01's `config.py`/`get_logger(name)` are copied in unchanged, the way Doc04's Build Task did (Doc01's `Config` holds only the key and the log level).
+- A test script that proves your LCEL version and Doc04's raw-SDK version agree for the same inputs, and checks the two failure cases.
 
-**Inputs:** the same structured-extraction task as Project 1's structured-output feature.
+**Inputs:** the same structured-extraction task as Doc04's Build Task (`/extract`).
 
-**Outputs:** the same typed object as Project 1's, but built a different way.
+**Outputs:** the same typed `ExtractedInfo` as Doc04's, but built a different way.
 
 **Constraints:** don't delete or replace the Doc04 raw version — you need both, to compare them and to answer the interview question "when would you use which."
 
 ```
 05_langchain_fundamentals/practice/build_task/
 ├── chain.py              build_extraction_chain() -> Runnable
-├── prompts.py            PromptTemplate/ChatPromptTemplate
-├── compare_with_raw_sdk.py  runs both versions, prints the diff
+├── prompts.py            get_extraction_prompt()
+├── compare_with_raw_sdk.py  the 3 Test Cases
+├── chat_client.py        copied from 04_openai_api's Build Task
+├── schemas.py            copied from 04_openai_api's Build Task
 ├── config.py             copied from 01_python_foundations's Build Task
+├── exceptions.py         copied from 01_python_foundations's Build Task
 └── logging_setup.py      copied from 01_python_foundations's Build Task
 ```
 
 - `chain.py` / `prompts.py` — **What/Why:** the one chain module every later document imports instead of writing raw SDK calls again.
-- `compare_with_raw_sdk.py` — **What/Why:** proves the LCEL version and Doc04's raw version genuinely agree, not just look similar — also doubles as this Build Task's test file.
-- `config.py` / `logging_setup.py` — **What/Why:** copied unchanged from Doc01, so this module uses the exact same settings/logging behavior as every other document.
+- `compare_with_raw_sdk.py` — **What/Why:** this Build Task's test file — proves the LCEL version and Doc04's raw version agree on every name, and that a missing slot and a wrong shape fail with named errors.
+- `chat_client.py` / `schemas.py` — **What/Why:** copied unchanged from Doc04 — the raw version the chain is compared against.
+- `config.py` / `exceptions.py` / `logging_setup.py` — **What/Why:** copied unchanged from Doc01, so this module uses the exact same settings/logging behavior as every other document.
 
 **Run it:** `cd practice/build_task && python compare_with_raw_sdk.py` — from inside the folder, so `from config import load_config` finds the file next to it.
 
-**Builds on:** Doc01's Build Task `config.py`/`get_logger(name)` — **copy** both in unchanged, same as Doc04 did. Doc04's Project 1 structured-extraction feature — the same task, rebuilt with LCEL. The [Basic](#ex-lcel_chain_basics), [Intermediate](#ex-structured_parser_swap), [Real-world](#ex-lcel_vs_raw_sdk), and [Edge cases](#ex-template_variable_errors) exercises above — fold their chain, parser, comparison script, and template checks into this one module.
+**Builds on:** Doc01's Build Task `config.py`/`get_logger(name)` — **copy** both in unchanged, same as Doc04 did. Doc04's Build Task extraction (`chat_client.py`, `schemas.py`) — copied unchanged, the same task rebuilt with LCEL. All five exercises above — the [Basic](#ex-lcel_chain_basics) `build_chain()` shape, the [Intermediate](#ex-structured_parser_swap) `.with_structured_output()`, the [Real-world](#ex-lcel_vs_raw_sdk) comparison, the [Edge cases](#ex-template_variable_errors) `KeyError`, and the [Failure](#ex-parser_failure_handling) `OutputParserException` — fold into this one module.
 
 **Used later by:** [Doc06](../06_tools_function_calling/) attaches tools to this same `ChatOpenAI` object with `.bind_tools(...)`; [Doc08](../08_rag/) reuses this LCEL chain shape for its RAG pipeline; [Project 6](../project_6_langchainpro_lcel_patterns/) builds directly on this chain, adding retries and fallbacks on top.
 
 **Functions/Components to build:**
 
-- `prompts.py` → the `PromptTemplate`/`ChatPromptTemplate`
-- `chain.py` → `build_extraction_chain() -> Runnable`
-- `compare_with_raw_sdk.py` → runs both versions on the same inputs, prints the difference
+- `prompts.py` → `get_extraction_prompt() -> ChatPromptTemplate`
+- `chain.py` → `build_extraction_chain(model_name, temperature) -> Runnable`
+- `compare_with_raw_sdk.py` → `run_comparison()` and one test function per Test Case
 
 ## Expected Behavior
 
-- The chain gives the same structured object as Project 1's raw version, for the same input.
+- The chain finds the same name as Doc04's raw version, for the same input (the intent's wording can differ between any two calls).
 - Changing the prompt template's variables shouldn't require touching the chain-building code.
 
 ## Test Cases
 
 | Scenario | Expected |
 |---|---|
-| A well-formed input | Chain and raw-SDK results match |
+| A well-formed input | Chain and raw-SDK results agree on the name |
 | A missing template variable | A clear error while building the prompt, not silently left blank |
-| The model's answer doesn't fit the shape | The parser raises a clear, named, catchable error |
+| A reply that doesn't fit the shape | `OutputParserException` — a clear, named, catchable error |
 
 ## Break-It / Debug Preview
 

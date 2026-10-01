@@ -124,7 +124,7 @@ Asking the model in a prompt to "answer in JSON" is only a request — it can st
 
 - Three layers, each stronger than the last: a plain prompt guarantees nothing; `response_format={"type": "json_object"}` (JSON mode) guarantees valid JSON but not the right keys; structured outputs with `strict` on guarantees the right keys, types, and enum values.
 - The shape is guaranteed; the **truth** is not — the model can still pick the wrong category or invent a date that matches the schema perfectly and is still wrong. Check important values yourself, the same "don't trust a 200 blindly" instinct Doc02 taught for HTTP JSON.
-- `client.chat.completions.parse(..., response_format=MyModel)` does three jobs at once: sends your model as a strict schema, reads the JSON back, and runs Pydantic's `model_validate` on it — automating the manual shape-check Doc02's JSON topic walked through by hand.
+- `client.beta.chat.completions.parse(..., response_format=MyModel)` does three jobs at once: sends your model as a strict schema, reads the JSON back, and runs Pydantic's `model_validate` on it — automating the manual shape-check Doc02's JSON topic walked through by hand.
 - Always check `message.refusal` before touching `message.parsed` — the model can decline (for safety reasons) instead of returning either.
 - If `max_tokens` is too small, the model's JSON gets cut off mid-object — `finish_reason == "length"` (Doc03's context-window topic) and `.parse()` raises `openai.LengthFinishReasonError`.
 - Making a field required (`order_id: str`) when the user never gave one forces the model to invent a value just to satisfy the schema — allow `X | None` and check for it instead.
@@ -248,8 +248,10 @@ _You don't need any of these to understand the Core Concepts above — use them 
 ```
 practice/
 ├── chat_api_basics_practice.py     Basic
+├── prompts/                        formal.txt, pirate.txt (Basic)
 ├── conversation_memory_practice.py Intermediate
 ├── streaming_practice.py           Real-world
+├── structured_output_practice.py   Structured output
 ├── context_limit_practice.py       Edge cases
 ├── auth_and_cost_practice.py       Failure
 └── build_task/                     Build Task — its own folder
@@ -264,8 +266,10 @@ practice/
 **Why each script exists:**
 
 - `chat_api_basics_practice.py` — the single call every other document and project builds on.
+- `prompts/` — the Basic exercise's system prompts as `.txt` files, read by `load_prompt()`.
 - `conversation_memory_practice.py` — builds, by hand, the exact resend-everything behavior that *is* an LLM's "memory."
 - `streaming_practice.py` — the difference between a chatbot that feels instant and one that feels like it's stalling.
+- `structured_output_practice.py` — practices the Pydantic form (`str | None`, `Literal`, `model_validate`), the `.parse()` call, and an `/extract` command loop before the Build Task needs them.
 - `context_limit_practice.py` — sees the real exception type/message once, instead of just reading about it.
 - `auth_and_cost_practice.py` — catching the specific auth error is what makes a config problem fixable, not hidden.
 - `build_task/chat_client.py` — the one client every later exercise/project in this app actually calls.
@@ -274,11 +278,11 @@ practice/
 - `build_task/config.py` / `build_task/logging_setup.py` — copied unchanged from Doc01, so every later document imports the same settings/logging behavior.
 - `build_task/test_chat_client.py` — catches a regression here before Project 1 (or Doc05/Doc06, which build on this same shape) hits it downstream.
 
-**Jump to an exercise:** [Basic](#ex-first_chat_call) · [Intermediate](#ex-conversation_memory) · [Real-world](#ex-streaming_replies) · [Edge cases](#ex-context_limit_error) · [Failure](#ex-auth_error_cost_compare) · [Build Task](#build-task-project-1-beginner-llm-app)
+**Jump to an exercise:** [Basic](#ex-first_chat_call) · [Intermediate](#ex-conversation_memory) · [Real-world](#ex-streaming_replies) · [Structured output](#ex-structured_output) · [Edge cases](#ex-context_limit_error) · [Failure](#ex-auth_error_cost_compare) · [Build Task](#build-task-project-1-beginner-llm-app)
 
 ### Basic — your first real API call {: #ex-first_chat_call }
 
-- **What:** one call to the model, print the reply, then change the system prompt and watch the answer change.
+- **What:** one call to the model, print the reply, then change the system prompt and watch the answer change. Last, load each system prompt from a `.txt` file with `load_prompt(name)` (`.read()`, `.lower()`).
 - **Why:** this is the single call every other document and project builds on — get it working with your own eyes before adding anything else.
 - **Save as:** `practice/chat_api_basics_practice.py`.
 - **Builds on:** Doc01's Build Task `config.py`/`load_config()` for `OPENAI_API_KEY`, and `get_logger(__name__)` for logging the reply — reuse both, don't rewrite them.
@@ -302,6 +306,15 @@ practice/
 - **Builds on:** the [Intermediate exercise](#ex-conversation_memory)'s message loop — same `history`, same call, just `stream=True` and a `for chunk in ...` loop instead of one return value.
 - **Used later by:** the [Build Task](#build-task-project-1-beginner-llm-app)'s `stream_message()`.
 - **Stuck?** [Hint 1](hints_and_solutions/streaming_replies_hints.md#hint-1) · [Hint 2](hints_and_solutions/streaming_replies_hints.md#hint-2) · [Show me the solution](hints_and_solutions/streaming_replies_solution.md)
+
+### Structured output — a checked answer, not a hope {: #ex-structured_output }
+
+- **What:** write a Pydantic model (`name: str | None`, `intent: str | None`, `urgency` as a `Literal`), check a good and a bad dict by hand with `model_validate()`, then let the model fill the same form with `.parse()`. Check `refusal` before `parsed`, and return `None` when nothing useful was found. Last, read an `/extract <text>` command in a small loop with `.startswith()` and `.removeprefix()`.
+- **Why:** the [Structured output topic](#structured-output-how-give-me-json-is-actually-guaranteed) explains the idea; this is where you use it once, with your own eyes, before the Build Task and Project 1 depend on it.
+- **Save as:** `practice/structured_output_practice.py`.
+- **Builds on:** the [Basic exercise](#ex-first_chat_call)'s single call, and Doc02's JSON topic — `model_validate()` is the manual shape-check Doc02 did by hand, done by Pydantic.
+- **Used later by:** the [Build Task](#build-task-project-1-beginner-llm-app)'s `schemas.py` and `get_structured_reply()`; Project 1's triage agent; Doc05's `.with_structured_output()`.
+- **Stuck?** [Hint 1](hints_and_solutions/structured_output_hints.md#hint-1) · [Hint 2](hints_and_solutions/structured_output_hints.md#hint-2) · [Show me the solution](hints_and_solutions/structured_output_solution.md)
 
 ### Edge cases — what actually happens when you go over the limit {: #ex-context_limit_error }
 
@@ -353,7 +366,7 @@ practice/
 
 **Run it:** `cd practice/build_task && python test_chat_client.py` — from inside the folder, so `from config import load_config` finds the file next to it.
 
-**Builds on:** Doc01's Build Task `config.py`/`load_config()` and `get_logger(name)` — **copy** both in unchanged, same names, not a fresh explanation. Doc02's `http_client.py` retry pattern (or the library's own `max_retries=` — pick one, and write down why). All five practice exercises above — [conversation memory](#ex-conversation_memory), [streaming](#ex-streaming_replies), [the context-limit error](#ex-context_limit_error), and [the auth-error/cost handling](#ex-auth_error_cost_compare) — fold into this one app; the [Structured output topic](#structured-output-how-give-me-json-is-actually-guaranteed) becomes `schemas.py`.
+**Builds on:** Doc01's Build Task `config.py`/`load_config()` and `get_logger(name)` — **copy** both in unchanged, same names, not a fresh explanation. Doc02's `http_client.py` retry pattern (or the library's own `max_retries=` — pick one, and write down why). All six practice exercises above — [the first call](#ex-first_chat_call), [conversation memory](#ex-conversation_memory), [streaming](#ex-streaming_replies), [structured output](#ex-structured_output), [the context-limit error](#ex-context_limit_error), and [the auth-error/cost handling](#ex-auth_error_cost_compare) — fold into this one app; the structured-output exercise's `ExtractedInfo` and `extract_info()` become `schemas.py` and `get_structured_reply()`, and its Approach 2 command loop becomes `main.py`'s `/extract` branch.
 
 **Used later by:** [Project 1](../project_1_supportdesk_chat_and_triage/) is this same app, one level more serious — its own **Setup** section is what you actually follow to build the graded version; this Build Task is the practice run that removes the surprises first. [Doc05](../05_langchain_fundamentals/) rewrites this same chatbot with LangChain; [Doc06](../06_tools_function_calling/) adds tool calls to this same `chat_client.py` shape.
 

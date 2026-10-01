@@ -1,179 +1,215 @@
-# Step 1 — FastAPI Route — Solution
+# Step 1 — ContentForge, Reachable Over HTTP for the First Time — Solution
 
-> [Back to this step](../README.md#step-1-contentforge-reachable-over-http-for-the-first-time) · [Hint 1](step1_fastapi_route_hints.md#hint-1) · [Hint 2](step1_fastapi_route_hints.md#hint-2) · [Solution](step1_fastapi_route_solution.md)
+> [Back to this step](../READING_README.md#step-1-contentforge-reachable-over-http-for-the-first-time) · [Hint 1](step1_fastapi_route_hints.md#hint-1) · [Hint 2](step1_fastapi_route_hints.md#hint-2) · [Solution](step1_fastapi_route_solution.md)
 
-## Basic Version
+**Story — Step 1:** Project 4 works, but only for someone sitting at the terminal. This step gives it a front door: `POST /run-task` takes a topic as JSON and returns the team's article. The five agents don't change at all — the API calls them through **one** function, `run_pipeline()`. **If not:** every caller would need Python, your code and your key on their own machine.
 
-### Approach 1 — the direct way
+After this step the project runs as a web API: `uvicorn contentforge.api.main:app --reload`, then `/docs` in the browser. Project 4's files (copied in during Setup) don't change.
 
-**`api/schemas.py`**
+## Solution — one door into the team, typed shapes, 400/500, and tests with a faked team
+
+**Story — `pipeline.py`:** the **one** function that runs Project 4's team and turns its final state into plain values: the article, whether it was accepted, why the run stopped, and one text line per routing step. **If not:** the route would reach into the graph's state itself — and a test couldn't swap the team for a fake in one place.
+
 ```python
-from pydantic import BaseModel
+# src/contentforge/pipeline.py
+from contentforge.graph import build_graph
+from contentforge.state import start_state
 
-class TaskRequest(BaseModel):
-    topic: str
+def steps_from_log(routing_log: list[dict]) -> list[str]:
+    # why: one plain text line per Supervisor decision — easy to read
+    # in a log file, and easy to save in one database column (Step 2)
+    steps = []
+    for entry in routing_log:
+        steps.append(entry["step"] + ": " + entry["reason"])
+    return steps
 
-class TaskResponse(BaseModel):
-    final_report: str
-    approved: bool
+def run_pipeline(topic: str) -> dict:
+    # why: the ONE door into Project 4's team — the API calls this,
+    # never the graph directly, so a test can swap it for a fake
+    # how: compiling the graph takes milliseconds; the model calls
+    # inside invoke() take seconds
+    graph = build_graph()
+    result = graph.invoke(start_state(topic))
+    # how: the Supervisor's last log entry says WHY the run stopped
+    last_entry = result["routing_log"][-1]
+    return {
+        "article": result["draft"],
+        "accepted": result["accepted"],
+        "reason": last_entry["reason"],
+        "steps": steps_from_log(result["routing_log"]),
+    }
 ```
 
-**`api/routes.py`**
+**Story — `api/schemas.py`:** the API's contract, written once (Doc12's `chat_schemas.py`). `Field(min_length=1, max_length=200)` rejects an empty or huge topic with a 422 before any model is called. **If not:** a 5,000-word "topic" would be sent to five agents, and a typo in a reply field would only be found by the client.
+
 ```python
-from fastapi import APIRouter
-from api.schemas import TaskRequest, TaskResponse
-from graph import graph
-from state import make_initial_state
-
-router = APIRouter()
-
-@router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest):
-    result = graph.invoke(make_initial_state(request.topic))
-    return TaskResponse(final_report=result["final_report"], approved=result["review_verdict"].approved)
-
-@router.get("/health")
-def health():
-    return {"status": "ok"}
-```
-
-**`api/main.py`**
-```python
-from fastapi import FastAPI
-from api.routes import router
-
-app = FastAPI(title="ContentForge API")
-app.include_router(router)
-```
-
-Run with `uvicorn api.main:app --reload`, then hit `/docs` or `curl -X POST localhost:8000/run-task -H "Content-Type: application/json" -d '{"topic": "electric bikes"}'`. This works. A missing or crashed graph run currently returns FastAPI's default `500` with the full traceback in the response body — fine to notice now, not yet fixed.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-contentforge-reachable-over-http-for-the-first-time) · [Hint 1](step1_fastapi_route_hints.md#hint-1) · [Hint 2](step1_fastapi_route_hints.md#hint-2) · [Solution](step1_fastapi_route_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — typed, split into the standard FastAPI project shape
-
-**`api/schemas.py`**
-```python
+# src/contentforge/api/schemas.py
 from pydantic import BaseModel, Field
 
-
 class TaskRequest(BaseModel):
-    topic: str = Field(..., min_length=1, description="The topic to research and write about")
-
+    # why: the same input as Project 4's "Topic:" prompt, now as JSON
+    # how: "" or a 5,000-character topic gets a 422 before the route
+    # even runs — a long topic would only cost money
+    topic: str = Field(min_length=1, max_length=200)
 
 class TaskResponse(BaseModel):
-    final_report: str
-    approved: bool
+    # why: the client must see whether the Reviewer approved the
+    # article — never pass a rejected draft off as finished
+    accepted: bool
+    reason: str
+    article: str
 ```
 
-**`api/routes.py`**
+**Story — `api/routes.py`:** the routes on an `APIRouter` (Doc12's `health_routes.py`). `POST /run-task` is Doc12's `chat_route`: our own 400 for a blank topic, and any crash turned into a plain 500 while `logger.exception()` keeps the real traceback on the server. (Also create an empty `api/__init__.py`.) **If not:** a client could see file paths from a traceback, and nobody on the server would know why a run failed.
+
 ```python
-from fastapi import APIRouter
-from api.schemas import TaskRequest, TaskResponse
-from graph import graph
-from state import make_initial_state
+# src/contentforge/api/routes.py
+from fastapi import APIRouter, HTTPException
+
+from contentforge.api.schemas import TaskRequest, TaskResponse
+from contentforge.pipeline import run_pipeline
+from contentforge.utils.logger import get_logger
 
 router = APIRouter()
 
-
-@router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest) -> TaskResponse:
-    result = graph.invoke(make_initial_state(request.topic))
-    return TaskResponse(
-        final_report=result["final_report"],
-        approved=result["review_verdict"].approved,
-    )
-
+# why: the one message a client ever sees for a server-side failure
+INTERNAL_ERROR = "Internal error. Please try again later."
 
 @router.get("/health")
-def health() -> dict[str, str]:
+def health() -> dict:
     return {"status": "ok"}
+
+# how: a plain def route — the team's model calls block, so FastAPI
+# runs this in its thread pool and other requests keep moving
+@router.post("/run-task", response_model=TaskResponse)
+def run_task(request: TaskRequest) -> TaskResponse:
+    logger = get_logger(__name__)
+    # why: "   " passes Pydantic (it IS 3 characters) — our own 400
+    if not request.topic.strip():
+        raise HTTPException(status_code=400, detail="topic cannot be empty")
+
+    try:
+        outcome = run_pipeline(request.topic)
+    except Exception:
+        # how: the full traceback goes to the server log only
+        logger.exception("run-task failed")
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR)
+
+    logger.info("run-task done: %s", outcome["reason"])
+    return TaskResponse(
+        accepted=outcome["accepted"],
+        reason=outcome["reason"],
+        article=outcome["article"],
+    )
 ```
 
-**`api/main.py`**
-```python
-from fastapi import FastAPI
-from api.routes import router
+**Story — `api/main.py`:** the one file uvicorn starts. `load_config()` runs first — it reads `.env` (the agents need the key) and stops the app at once if `OPENAI_API_KEY` is missing. **If not:** the server would start "fine" and fail on every real request.
 
-app = FastAPI(title="ContentForge API", version="0.1.0")
+```python
+# src/contentforge/api/main.py
+from fastapi import FastAPI
+
+from contentforge.api.routes import router
+from contentforge.config import load_config
+
+# why: fail at startup, not on the first real request — load_config()
+# reads .env, and raises MissingConfigError if OPENAI_API_KEY is
+# missing (Doc01's check, Doc12's "fail loudly" container rule)
+load_config()
+
+app = FastAPI(title="ContentForge Pro")
 app.include_router(router)
 ```
 
-**Difference from Basic:** `Field(..., min_length=1)` rejects a request with `topic: ""` at the validation layer — an empty-but-technically-present string that the Basic version's plain `str` type hint would let straight through, straight into Step 1 of Project 4's own "notes cannot be empty" guard clause deep inside the graph, where the error is far harder to trace back to a bad API request. Full type hints on every function. `app.include_router(router)` separates app setup (`main.py`) from route definitions (`routes.py`), which is what makes adding `GET /runs/{id}` in Step 2 a change to one file, not a restructure. Still not handled: what a client actually sees if `graph.invoke(...)` itself raises, and what happens to other requests while one is running.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-contentforge-reachable-over-http-for-the-first-time) · [Hint 1](step1_fastapi_route_hints.md#hint-1) · [Hint 2](step1_fastapi_route_hints.md#hint-2) · [Solution](step1_fastapi_route_solution.md)
-
-## Advanced Version
-
-### Approach 1 — safe error handling, logged detail server-side
+**Story — `tests/api/test_routes.py`:** API tests with pytest and `TestClient` (Doc12, Doc13), with the team **faked**: `monkeypatch` swaps `routes.run_pipeline` for a function that returns a fixed answer, or crashes on purpose (Doc13's integration-test pattern). No model calls, no cost, the same result every run. **If not:** every API test would run five real agents — slow, paid, and never the same twice.
 
 ```python
-import logging
-from fastapi import APIRouter, HTTPException
-from api.schemas import TaskRequest, TaskResponse
-from graph import graph
-from state import make_initial_state
+# tests/api/test_routes.py
+# The API's own behavior — status codes and replies — with Project 4's
+# team FAKED: no model calls, no cost, same every time.
+# Run from the repo root: pytest tests/api -v
+# The app still refuses to start without OPENAI_API_KEY — any value
+# works here, because no real model is ever called.
+from fastapi.testclient import TestClient
 
-logger = logging.getLogger("contentforge.api")
-router = APIRouter()
+from contentforge.api import routes
+from contentforge.api.main import app
 
+client = TestClient(app)
 
-@router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest) -> TaskResponse:
-    try:
-        result = graph.invoke(make_initial_state(request.topic))
-    except Exception:
-        logger.exception("run-task failed for topic=%s", request.topic)
-        raise HTTPException(status_code=500, detail="Task failed — please try again")
+def fake_run_pipeline(topic: str) -> dict:
+    # why: a fixed answer instead of the team's real model calls
+    return {
+        "article": "E-Bikes Explained\n\nUp to 100 km. [battery-review]",
+        "accepted": True,
+        "reason": "reviewer accepted the draft",
+        "steps": [
+            "research_agent: no research yet",
+            "END: reviewer accepted the draft",
+        ],
+    }
 
-    return TaskResponse(
-        final_report=result["final_report"],
-        approved=result["review_verdict"].approved,
-    )
+def broken_run_pipeline(topic: str) -> dict:
+    # why: a crash on command, to test the 500 path
+    raise RuntimeError("simulated internal failure")
+
+def use_fake_team(monkeypatch, fake) -> None:
+    # how: swaps routes.run_pipeline for the fake, for this test only
+    monkeypatch.setattr(routes, "run_pipeline", fake)
+
+def test_health():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_valid_request_is_answered(monkeypatch):
+    use_fake_team(monkeypatch, fake_run_pipeline)
+    response = client.post("/run-task", json={"topic": "electric bikes"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["accepted"] is True
+    assert "[battery-review]" in body["article"]
+
+def test_bad_body_is_422(monkeypatch):
+    use_fake_team(monkeypatch, fake_run_pipeline)
+    response = client.post("/run-task", json={})
+    assert response.status_code == 422
+
+def test_blank_topic_is_400(monkeypatch):
+    use_fake_team(monkeypatch, fake_run_pipeline)
+    response = client.post("/run-task", json={"topic": "   "})
+    assert response.status_code == 400
+    assert response.json() == {"detail": "topic cannot be empty"}
+
+def test_internal_error_is_a_plain_500(monkeypatch):
+    use_fake_team(monkeypatch, broken_run_pipeline)
+    response = client.post("/run-task", json={"topic": "electric bikes"})
+    assert response.status_code == 500
+    # why: the client never sees "RuntimeError" or a traceback
+    expected = {"detail": "Internal error. Please try again later."}
+    assert response.json() == expected
 ```
-**Expected behavior on a real crash (e.g. bad `OPENAI_API_KEY`):** the client receives `{"detail": "Task failed — please try again"}` with a `500` status — no file paths, no Python traceback, no internal variable names. The real exception and its full traceback are written to the server's own logs via `logger.exception(...)`, so you (not the client) can actually debug it.
 
-### Approach 2 — off the event loop, async route with `run_in_threadpool`
+**Run it:**
 
-```python
-import logging
-from fastapi import APIRouter, HTTPException
-from starlette.concurrency import run_in_threadpool
-from api.schemas import TaskRequest, TaskResponse
-from graph import graph
-from state import make_initial_state
-
-logger = logging.getLogger("contentforge.api")
-router = APIRouter()
-
-
-@router.post("/run-task", response_model=TaskResponse)
-async def run_task(request: TaskRequest) -> TaskResponse:
-    initial_state = make_initial_state(request.topic)
-    try:
-        result = await run_in_threadpool(graph.invoke, initial_state)
-    except Exception:
-        logger.exception("run-task failed for topic=%s", request.topic)
-        raise HTTPException(status_code=500, detail="Task failed — please try again")
-
-    return TaskResponse(
-        final_report=result["final_report"],
-        approved=result["review_verdict"].approved,
-    )
-
-
-@router.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+```bash
+pytest tests/api -v
+uvicorn contentforge.api.main:app --reload
 ```
-**Expected behavior under concurrent load:** a second `curl` request against `/health` (or another `/run-task`) fired while the first `/run-task` is still mid-flight now gets a response immediately — the blocking `graph.invoke(...)` call runs in a worker thread, not on the event loop that also has to answer every other request.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's route works, but a real failure leaks internals to the client, and a slow request blocks every other request behind it — invisible with one request in testing, real under actual traffic. Approach 1 fixes the first problem alone: it's a synchronous route, still blocking, but now fails safely. Approach 2 fixes both — the route becomes `async def` and off-loads the blocking call via `run_in_threadpool`, on top of the same safe error handling.
+```
+tests/api/test_routes.py::test_health PASSED
+tests/api/test_routes.py::test_valid_request_is_answered PASSED
+tests/api/test_routes.py::test_bad_body_is_422 PASSED
+tests/api/test_routes.py::test_blank_topic_is_400 PASSED
+tests/api/test_routes.py::test_internal_error_is_a_plain_500 PASSED
+```
 
-**Which one should you actually write?** Approach 2. The safe error handling in Approach 1 is non-negotiable regardless of concurrency — never skip it. But `run_in_threadpool` is what actually makes this a *service* rather than a script wearing an HTTP route: FastAPI's whole performance model assumes routes don't block the event loop, and `graph.invoke(...)` — several LLM calls, possibly multiple writer/reviewer rounds — is exactly the kind of slow, synchronous call that assumption breaks on if you don't handle it explicitly.
+Project 4's own tests stay exactly as Project 4 wrote them — plain scripts you run with `python tests/unit/test_lookup.py` — so point pytest at `tests/api` only. New tests in this project use pytest (Doc13); old ones are never rewritten. Then send the Basic `curl` request to the running server:
+
+```
+{"accepted":true,"reason":"reviewer accepted the draft",
+ "article":"E-Bikes: How Far, How Fast ... [battery-review] ..."}
+```
+
+(Really one line — shown wrapped to fit the page. The article varies from run to run.) Try `{"topic": "deep sea mining"}` too: `"accepted":false`, `"reason":"research found no facts for this topic"` and an empty article — the team's honest stop, now visible to the client.

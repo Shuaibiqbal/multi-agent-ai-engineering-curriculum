@@ -1,320 +1,452 @@
-# Step 5 — Supervisor + Command Routing — Solution
+# Step 5 — The Full Team: a Supervisor Routing 4 Specialists via Command — Solution
 
-> [Back to this step](../README.md#step-5-the-full-team-a-supervisor-routing-4-specialists-via-command-final-5-agents) · [Hint 1](step5_supervisor_command_hints.md#hint-1) · [Hint 2](step5_supervisor_command_hints.md#hint-2) · [Solution](step5_supervisor_command_solution.md)
+> [Back to this step](../READING_README.md#step-5-the-full-team-a-supervisor-routing-4-specialists-via-command-final-5-agents) · [Hint 1](step5_supervisor_command_hints.md#hint-1) · [Hint 2](step5_supervisor_command_hints.md#hint-2) · [Solution](step5_supervisor_command_solution.md)
 
-## Basic Version
+**Story — Step 5:** four specialists, each proven alone. Now a **Supervisor** runs the team: it reads the shared state, decides who works next, logs why, and routes with LangGraph's `Command` (Doc11). The Writer ↔ Reviewer loop moves from `main.py` into the graph — same limit, same pass mark. The agents' inner `run_...()` functions don't change; each only gets a small node wrapper. **If not:** the order of work would stay hard-coded in `main.py`, with no shared state to inspect and no routing log to explain a bad run.
 
-### Approach 1 — the direct way
+After this step the project is complete. Files not shown here don't change.
 
-**`state.py`**
+## Solution — a testable routing function, a reason for every move, one writer per field
+
+**Story — `state.py`:** the shared state, with **one writer per field** (Doc11's rule) — Research writes the notes, Analysis the findings, and so on; only the Supervisor writes the routing log. `research_done` records that Research ran even if it found nothing, so it's never repeated. **If not:** one agent's working notes could overwrite another's, and the Supervisor couldn't tell "not run yet" from "ran, found nothing".
+
 ```python
+# src/contentforge/state.py
 from typing import TypedDict
-from agents.research_agent import ResearchNotes
-from agents.analysis_agent import Findings
-from agents.reviewer_agent import ReviewVerdict
 
-class ContentForgeState(TypedDict):
+class TeamState(TypedDict):
+    # shared input — every agent may read it
     topic: str
-    research_notes: ResearchNotes
-    findings: Findings
-    draft: str
-    review_verdict: ReviewVerdict
-    revision_count: int
-    completed_steps: list
-    final_report: str
-```
+    # why: each field has exactly ONE writer (Doc11's shared-state rule),
+    # so no agent's working notes overwrite another's
+    research_notes: str       # written by Research
+    research_done: bool       # written by Research
+    findings: str             # written by Analysis
+    draft: str                # written by Writer (cleared by Reviewer)
+    feedback_history: list[str]  # written by Reviewer
+    accepted: bool            # written by Reviewer
+    revision_count: int       # written by Reviewer
+    routing_log: list[dict]   # written by the Supervisor only
 
-**`agents/supervisor.py`**
-```python
-from langgraph.types import Command
-from langgraph.graph import END
-
-def supervisor_node(state):
-    done = state["completed_steps"]
-    if "research" not in done:
-        return Command(goto="research")
-    if "analysis" not in done:
-        return Command(goto="analysis")
-    if "writer_reviewer" not in done:
-        return Command(goto="writer")
-    return Command(goto=END, update={"final_report": state["draft"]})
-```
-
-**`graph.py`**
-```python
-from langgraph.graph import StateGraph, START
-from state import ContentForgeState
-from agents.supervisor import supervisor_node
-from agents.research_agent import run_research
-from agents.analysis_agent import run_analysis
-from agents.writer_agent import run_writer
-from agents.reviewer_agent import run_reviewer
-from langgraph.types import Command
-
-def research_node(state):
-    notes = run_research(state["topic"])
-    return Command(goto="supervisor", update={"research_notes": notes, "completed_steps": state["completed_steps"] + ["research"]})
-
-def analysis_node(state):
-    findings = run_analysis(state["research_notes"])
-    return Command(goto="supervisor", update={"findings": findings, "completed_steps": state["completed_steps"] + ["analysis"]})
-
-def writer_node(state):
-    feedback = state["review_verdict"].feedback if state.get("review_verdict") else None
-    notes_text = "\n".join(f"- {t.label}: {', '.join(t.supporting_facts)}" for t in state["findings"].themes)
-    draft = run_writer(notes_text, feedback)
-    return Command(goto="reviewer", update={"draft": draft, "revision_count": state["revision_count"] + 1})
-
-def reviewer_node(state):
-    verdict = run_reviewer(state["draft"])
-    if verdict.approved or state["revision_count"] >= 3:
-        return Command(goto="supervisor", update={"review_verdict": verdict, "completed_steps": state["completed_steps"] + ["writer_reviewer"]})
-    return Command(goto="writer", update={"review_verdict": verdict})
-
-builder = StateGraph(ContentForgeState)
-builder.add_node("supervisor", supervisor_node)
-builder.add_node("research", research_node)
-builder.add_node("analysis", analysis_node)
-builder.add_node("writer", writer_node)
-builder.add_node("reviewer", reviewer_node)
-builder.add_edge(START, "supervisor")
-graph = builder.compile()
-```
-
-**`main.py`**
-```python
-from graph import graph
-
-initial_state = {
-    "topic": "electric bikes",
-    "research_notes": None,
-    "findings": None,
-    "draft": None,
-    "review_verdict": None,
-    "revision_count": 0,
-    "completed_steps": [],
-    "final_report": None,
-}
-result = graph.invoke(initial_state)
-print(result["final_report"])
-```
-
-This works — the full pipeline runs start to finish, the Supervisor routes in order, and the Writer↔Reviewer loop reconnects correctly. It's missing type hints and `Literal` return annotations on the node functions, and nothing stops the graph from looping forever if a bug ever breaks `completed_steps`.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-5-the-full-team-a-supervisor-routing-4-specialists-via-command-final-5-agents) · [Hint 1](step5_supervisor_command_hints.md#hint-1) · [Hint 2](step5_supervisor_command_hints.md#hint-2) · [Solution](step5_supervisor_command_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — typed nodes, `Literal` routing, real project layout
-
-**`state.py`**
-```python
-from typing import TypedDict, Optional
-from agents.research_agent import ResearchNotes
-from agents.analysis_agent import Findings
-from agents.reviewer_agent import ReviewVerdict
-
-
-class ContentForgeState(TypedDict):
-    topic: str
-    research_notes: Optional[ResearchNotes]
-    findings: Optional[Findings]
-    draft: Optional[str]
-    review_verdict: Optional[ReviewVerdict]
-    revision_count: int
-    completed_steps: list[str]
-    final_report: Optional[str]
-
-
-def make_initial_state(topic: str) -> ContentForgeState:
+def start_state(topic: str) -> TeamState:
     return {
         "topic": topic,
-        "research_notes": None,
-        "findings": None,
-        "draft": None,
-        "review_verdict": None,
+        "research_notes": "",
+        "research_done": False,
+        "findings": "",
+        "draft": "",
+        "feedback_history": [],
+        "accepted": False,
         "revision_count": 0,
-        "completed_steps": [],
-        "final_report": None,
+        "routing_log": [],
     }
 ```
 
-**`agents/supervisor.py`**
+**Story — `agents/supervisor.py`:** `decide_next()` is a plain function of the state that returns `(next step, reason)` — testable with a hand-made dict. `supervisor()` logs the decision and returns `Command(update=..., goto=...)`. The order of the rules is the whole routing policy: research → stop if nothing found → analysis → stop if accepted or at the limit → writer → reviewer. **If not:** routing bugs could only be found by running the whole team.
+
 ```python
-from typing import Literal
+# src/contentforge/agents/supervisor.py
 from langgraph.graph import END
 from langgraph.types import Command
-from state import ContentForgeState
 
-MAX_REVISION_ROUNDS = 3
+from contentforge.state import TeamState
+from contentforge.utils.logger import get_logger
 
+# why: the hard limit on Writer <-> Reviewer rounds — never loop forever
+MAX_REVISIONS = 3
 
-def supervisor_node(
-    state: ContentForgeState,
-) -> Command[Literal["research", "analysis", "writer", "__end__"]]:
-    done = state["completed_steps"]
-    if "research" not in done:
-        return Command(goto="research")
-    if "analysis" not in done:
-        return Command(goto="analysis")
-    if "writer_reviewer" not in done:
-        return Command(goto="writer")
-    return Command(goto=END, update={"final_report": state["draft"]})
+def decide_next(state: TeamState) -> tuple[str, str]:
+    # why: a plain function of the state, returning (next step, reason) —
+    # testable with a hand-made dict, no model and no graph needed
+    if not state["research_done"]:
+        return "research_agent", "no research yet"
+    if state["research_notes"] == "":
+        return "END", "research found no facts for this topic"
+    if state["findings"] == "":
+        return "analysis_agent", "research done, no findings yet"
+    if state["accepted"]:
+        return "END", "reviewer accepted the draft"
+    if state["revision_count"] >= MAX_REVISIONS:
+        return "END", f"revision limit ({MAX_REVISIONS}) reached"
+    if state["draft"] == "":
+        if state["feedback_history"]:
+            return "writer_agent", "revising after reviewer feedback"
+        return "writer_agent", "findings ready, no draft yet"
+    return "reviewer_agent", "draft ready for review"
+
+def supervisor(state: TeamState) -> Command:
+    logger = get_logger(__name__)
+    step, reason = decide_next(state)
+    logger.info("supervisor -> %s (%s)", step, reason)
+    # why: every decision is logged WITH its reason (Doc11), not only the
+    # node name
+    log = state["routing_log"] + [{"step": step, "reason": reason}]
+    if step == "END":
+        return Command(update={"routing_log": log}, goto=END)
+    return Command(update={"routing_log": log}, goto=step)
 ```
 
-**`graph.py`** (nodes now live in their own agent files; sketch shown inline for brevity)
+**Changed from Steps 2-4:** each agent file gets a small **node wrapper** that reads its inputs from the state, calls the unchanged `run_...()` function, and returns `Command(update=..., goto="supervisor")`.
+
 ```python
-from typing import Literal
-from langgraph.graph import StateGraph, START
+# src/contentforge/agents/research_agent.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import Command
-from state import ContentForgeState
-from agents.supervisor import supervisor_node, MAX_REVISION_ROUNDS
-from agents.research_agent import run_research
-from agents.analysis_agent import run_analysis
-from agents.writer_agent import run_writer
-from agents.reviewer_agent import run_reviewer
 
+from contentforge.models.llm import get_model
+from contentforge.state import TeamState
+from contentforge.tools.lookup import lookup_facts
+from contentforge.utils.logger import get_logger
+from contentforge.utils.prompts import load_prompt
 
-def research_node(state: ContentForgeState) -> Command[Literal["supervisor"]]:
+def run_research(topic: str) -> str:
+    logger = get_logger(__name__)
+    # why: look things up FIRST, with a tool — the notes can only be as
+    # true as what was found
+    facts = lookup_facts.invoke({"topic": topic})
+    if facts == "":
+        # when: nothing known about the topic — say so, never invent
+        logger.warning("no facts found for %r", topic)
+        return ""
+    prompt = ChatPromptTemplate.from_template(load_prompt("research"))
+    chain = prompt | get_model() | StrOutputParser()
+    return chain.invoke({"topic": topic, "facts": facts})
+
+# new in Step 5: the node wrapper
+def research_node(state: TeamState) -> Command:
+    # why: research_done is set even when nothing was found, so the
+    # Supervisor never sends the same lookup twice (Doc11's guard)
     notes = run_research(state["topic"])
-    return Command(
-        goto="supervisor",
-        update={"research_notes": notes, "completed_steps": state["completed_steps"] + ["research"]},
-    )
-
-
-def analysis_node(state: ContentForgeState) -> Command[Literal["supervisor"]]:
-    findings = run_analysis(state["research_notes"])
-    return Command(
-        goto="supervisor",
-        update={"findings": findings, "completed_steps": state["completed_steps"] + ["analysis"]},
-    )
-
-
-def _findings_to_notes_text(findings) -> str:
-    lines = []
-    for theme in findings.themes:
-        lines.append(f"{theme.label}: " + "; ".join(theme.supporting_facts))
-    return "\n".join(lines)
-
-
-def writer_node(state: ContentForgeState) -> Command[Literal["reviewer"]]:
-    feedback = state["review_verdict"].feedback if state.get("review_verdict") else None
-    draft = run_writer(_findings_to_notes_text(state["findings"]), feedback)
-    return Command(goto="reviewer", update={"draft": draft, "revision_count": state["revision_count"] + 1})
-
-
-def reviewer_node(state: ContentForgeState) -> Command[Literal["writer", "supervisor"]]:
-    verdict = run_reviewer(state["draft"])
-    if verdict.approved or state["revision_count"] >= MAX_REVISION_ROUNDS:
-        return Command(
-            goto="supervisor",
-            update={"review_verdict": verdict, "completed_steps": state["completed_steps"] + ["writer_reviewer"]},
-        )
-    return Command(goto="writer", update={"review_verdict": verdict})
-
-
-builder = StateGraph(ContentForgeState)
-for name, node in [
-    ("supervisor", supervisor_node),
-    ("research", research_node),
-    ("analysis", analysis_node),
-    ("writer", writer_node),
-    ("reviewer", reviewer_node),
-]:
-    builder.add_node(name, node)
-builder.add_edge(START, "supervisor")
-graph = builder.compile()
+    return Command(update={"research_notes": notes, "research_done": True},
+                   goto="supervisor")
 ```
 
-**`main.py`**
 ```python
-from graph import graph
-from state import make_initial_state
-
-
-def run_content_forge(topic: str) -> str:
-    result = graph.invoke(make_initial_state(topic))
-    return result["final_report"]
-
-
-if __name__ == "__main__":
-    print(run_content_forge("electric bikes"))
-```
-
-**Difference from Basic:** full type hints, including `Command[Literal[...]]` return annotations on every node, which document exactly where each node is and isn't allowed to route to — genuinely useful once the graph has 5 nodes and you're debugging a routing path. `make_initial_state()` replaces a hand-typed dict literal, so `main.py` and `test_project4.py` can't drift out of sync on the state shape. `MAX_REVISION_ROUNDS` reuses Step 2's exact constant/logic, imported rather than re-typed. Still missing: any bound on the *whole graph's* hop count if `completed_steps` ever fails to update correctly, and a `supervisor_node` that's correct today but has no test forcing it to be re-checked on every call rather than assumed.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-5-the-full-team-a-supervisor-routing-4-specialists-via-command-final-5-agents) · [Hint 1](step5_supervisor_command_hints.md#hint-1) · [Hint 2](step5_supervisor_command_hints.md#hint-2) · [Solution](step5_supervisor_command_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a graph-wide hop limit, surfaced as a specific error
-
-```python
-# main.py
-from langgraph.errors import GraphRecursionError
-from graph import graph
-from state import make_initial_state
-
-
-class GraphStuckError(Exception):
-    pass
-
-
-def run_content_forge(topic: str, max_hops: int = 25) -> str:
-    try:
-        result = graph.invoke(make_initial_state(topic), {"recursion_limit": max_hops})
-    except GraphRecursionError as e:
-        raise GraphStuckError(
-            f"ContentForge did not finish within {max_hops} hops for topic '{topic}' — "
-            "likely a routing bug in the Supervisor, not a slow run."
-        ) from e
-    return result["final_report"]
-
-
-if __name__ == "__main__":
-    print(run_content_forge("electric bikes"))
-```
-`max_hops=25` covers a normal run generously: 1 supervisor hop before Research, 1 before Analysis, 1 before Writer, up to 3 writer↔reviewer round-trips (6 hops), 1 final supervisor hop to END — well under 25 even with the maximum revision rounds. If a routing bug ever causes the Supervisor to keep re-visiting a node, this turns a process you'd have to `Ctrl-C` into a clear, named `GraphStuckError` telling you exactly what to go look at.
-
-### Approach 2 — a redundancy check that's re-derived on every call, plus an explicit test for it
-
-```python
-# agents/supervisor.py
-from typing import Literal
-from langgraph.graph import END
+# src/contentforge/agents/analysis_agent.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import Command
-from state import ContentForgeState
 
-MAX_REVISION_ROUNDS = 3
-STEP_ORDER = ["research", "analysis", "writer_reviewer"]
-ROUTE_FOR_STEP = {"research": "research", "analysis": "analysis", "writer_reviewer": "writer"}
+from contentforge.models.llm import get_model
+from contentforge.state import TeamState
+from contentforge.utils.prompts import load_prompt
 
+def run_analysis(notes: str) -> str:
+    # why: a plain chain, no tool — organizing is thinking, not looking up
+    prompt = ChatPromptTemplate.from_template(load_prompt("analysis"))
+    chain = prompt | get_model() | StrOutputParser()
+    return chain.invoke({"notes": notes})
 
-def supervisor_node(
-    state: ContentForgeState,
-) -> Command[Literal["research", "analysis", "writer", "__end__"]]:
-    done = set(state["completed_steps"])
-    for step_name in STEP_ORDER:
-        if step_name not in done:
-            return Command(goto=ROUTE_FOR_STEP[step_name])
-    return Command(goto=END, update={"final_report": state["draft"]})
+# new in Step 5: the node wrapper
+def analysis_node(state: TeamState) -> Command:
+    findings = run_analysis(state["research_notes"])
+    return Command(update={"findings": findings}, goto="supervisor")
 ```
+
 ```python
-# test_project4.py (excerpt)
-def test_supervisor_never_reroutes_a_completed_step():
-    state = make_initial_state("electric bikes")
-    state["completed_steps"] = ["research", "analysis"]
-    state["draft"] = "placeholder"
-    command = supervisor_node(state)
-    assert command.goto == "writer"  # not "research" or "analysis" again
+# src/contentforge/agents/writer_agent.py
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langgraph.types import Command
+
+from contentforge.models.llm import get_model
+from contentforge.state import TeamState
+from contentforge.utils.prompts import load_prompt
+
+def build_writer_chain():
+    # why: the Writer's whole skill is one LCEL chain (Doc05) — proven
+    # alone in Step 1, and never rewritten after that
+    prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
+    return prompt | get_model() | StrOutputParser()
+
+def run_writer(findings: str, feedback: str = "") -> str:
+    # why: feedback is what turns a one-shot chain into an agent that
+    # can improve its own work
+    if feedback == "":
+        feedback = "none"
+    chain = build_writer_chain()
+    return chain.invoke({"findings": findings, "feedback": feedback})
+
+# new in Step 5: the node wrapper
+def writer_node(state: TeamState) -> Command:
+    # how: on a revision, the newest Reviewer feedback goes back in
+    feedback = ""
+    if state["feedback_history"]:
+        feedback = state["feedback_history"][-1]
+    draft = run_writer(state["findings"], feedback)
+    return Command(update={"draft": draft}, goto="supervisor")
 ```
-This is the same routing logic as Approach 1's underlying graph, made explicit and table-driven (`STEP_ORDER` / `ROUTE_FOR_STEP`) instead of a chain of `if`/`elif`, specifically so a test can assert the Supervisor never re-routes to a step already marked done — the exact redundant-work failure mode in this project's own problems table.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's Supervisor and graph both work correctly as long as nothing goes wrong. Approach 1 protects against the graph *itself* going wrong — a routing bug that would otherwise loop silently forever now fails fast with a specific, actionable error. Approach 2 protects against the Supervisor's *own logic* going wrong — it restructures the routing decision so it's trivially testable, and adds the test that actually proves redundant routing can't happen, rather than just hoping the `if`/`elif` chain stays correct as the project grows.
+**Story — `reviewer_node`:** Step 2's loop logic, now as a node. On a pass it sets `accepted`. On a fail it adds the feedback to the history and counts the revision — and while revisions are left, it **clears the draft**, which is what makes the Supervisor send the work back to the Writer (Doc11). `MAX_REVISIONS` now lives in the Supervisor, the one place that stops the loop. **If not:** the loop would have no memory of past feedback, or no way back to the Writer.
 
-**Which one should you actually write?** Both — they protect against different failures and cost almost nothing together. The `recursion_limit` (Approach 1) is a five-minute addition with no downside: a correct graph never comes close to hitting it, and an incorrect one fails loudly instead of hanging. The table-driven Supervisor plus its test (Approach 2) is worth the extra structure specifically because this is the project's headline deliverable — "the Supervisor routes correctly" is the first item on the project's own Checklist Before You Call This Done, and a table you can unit-test is a much stronger claim than an `if`/`elif` chain you're merely confident about.
+```python
+# src/contentforge/agents/reviewer_agent.py
+from langchain_core.prompts import ChatPromptTemplate
+from langgraph.types import Command
+
+from contentforge.agents.supervisor import MAX_REVISIONS
+from contentforge.models.llm import get_model
+from contentforge.schemas import ReviewVerdict
+from contentforge.state import TeamState
+from contentforge.utils.logger import get_logger
+from contentforge.utils.prompts import load_prompt
+
+# why: the pass mark is decided in code, not by the model's mood — so
+# the bar is the same on every run and easy to change in one place
+PASS_SCORE = 7
+
+def run_reviewer(findings: str, draft: str) -> ReviewVerdict:
+    prompt = ChatPromptTemplate.from_template(load_prompt("reviewer"))
+    # how: with_structured_output returns a checked ReviewVerdict (Doc05)
+    chain = prompt | get_model().with_structured_output(ReviewVerdict)
+    return chain.invoke({"findings": findings, "draft": draft})
+
+# new in Step 5: Step 2's loop, as a node
+def reviewer_node(state: TeamState) -> Command:
+    logger = get_logger(__name__)
+    verdict = run_reviewer(state["findings"], state["draft"])
+    logger.info("review score %s: %s", verdict.score, verdict.feedback)
+
+    if verdict.score >= PASS_SCORE:
+        return Command(update={"accepted": True}, goto="supervisor")
+
+    new_count = state["revision_count"] + 1
+    # why: keep EVERY rejection reason (Doc11), so a "couldn't agree"
+    # report shows the whole pattern, not just the last one
+    history = state["feedback_history"] + [verdict.feedback]
+    update = {"revision_count": new_count, "feedback_history": history}
+    # how: under the limit, clear the draft so the Supervisor sends the
+    # work back to the Writer; at the limit, keep the last draft
+    if new_count < MAX_REVISIONS:
+        update["draft"] = ""
+    return Command(update=update, goto="supervisor")
+```
+
+**Story — `graph.py`:** five nodes and **one** edge (`START → supervisor`). Every other move is a `Command(goto=...)` returned at run time. **If not:** you'd draw fixed edges, and the Supervisor would have nothing to decide.
+
+```python
+# src/contentforge/graph.py
+from langgraph.graph import START, StateGraph
+
+from contentforge.agents.analysis_agent import analysis_node
+from contentforge.agents.research_agent import research_node
+from contentforge.agents.reviewer_agent import reviewer_node
+from contentforge.agents.supervisor import supervisor
+from contentforge.agents.writer_agent import writer_node
+from contentforge.state import TeamState
+
+def build_graph():
+    builder = StateGraph(TeamState)
+    builder.add_node("supervisor", supervisor)
+    builder.add_node("research_agent", research_node)
+    builder.add_node("analysis_agent", analysis_node)
+    builder.add_node("writer_agent", writer_node)
+    builder.add_node("reviewer_agent", reviewer_node)
+    # how: only ONE edge is drawn — every other move is a Command(goto=...)
+    # returned by a node, so the Supervisor decides the route at run time
+    builder.add_edge(START, "supervisor")
+    return builder.compile()
+```
+
+**Changed from Step 4:** `print_report()` keeps its name and input — it only **gains** two things: the routing log at the top, and a "nothing is known" branch (the team can now stop right after an empty research). `main()` runs the graph instead of calling the agents one by one. And `write_with_review()` is removed: its job — write, review, send back, stop at the limit — is now done by the Supervisor and `reviewer_node`. That is the one function in the project that gets replaced, because the whole point of this step is handing that loop to the team.
+
+```python
+# src/contentforge/main.py
+import sys
+
+import openai
+
+from contentforge.config import load_config
+from contentforge.exceptions import MissingConfigError
+from contentforge.graph import build_graph
+from contentforge.state import start_state
+from contentforge.utils.logger import get_logger
+
+def print_report(result: dict) -> None:
+    # new in Step 5: the routing log
+    print("Routing log:")
+    for entry in result["routing_log"]:
+        print(f"  {entry['step']}: {entry['reason']}")
+    if result["accepted"]:
+        print("\nFinal article:\n")
+        print(result["draft"])
+    # new in Step 5: the team can stop after an empty research
+    elif result["research_notes"] == "":
+        print("\nNo article: nothing is known about this topic yet.")
+    else:
+        # why: never pass a rejected draft off as finished
+        attempts = result["revision_count"]
+        print(f"\nCouldn't agree after {attempts} revisions. Feedback:")
+        number = 1
+        for feedback in result["feedback_history"]:
+            print(f"  round {number}: {feedback}")
+            number = number + 1
+        print("\nLast draft (NOT approved):\n")
+        print(result["draft"])
+
+def main() -> None:
+    try:
+        load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+
+    logger = get_logger(__name__)
+    graph = build_graph()
+    topic = input("Topic: ").strip()
+    try:
+        result = graph.invoke(start_state(topic))
+    except openai.AuthenticationError:
+        logger.error("Authentication failed — check OPENAI_API_KEY.")
+        print("Login failed — check OPENAI_API_KEY in your .env file.")
+        sys.exit(1)
+    print_report(result)
+
+if __name__ == "__main__":
+    main()
+```
+
+**Story — `tests/unit/test_supervisor.py`:** the routing rules on hand-made states — every step in order, and every way the run can stop. No model, no graph, no key. **If not:** a wrong rule order would only show up as a strange, expensive run.
+
+```python
+# tests/unit/test_supervisor.py
+# Checks the Supervisor's routing rules with hand-made states — no model,
+# no graph, no API key.
+# Run from the repo root: python tests/unit/test_supervisor.py
+from contentforge.agents.supervisor import MAX_REVISIONS, decide_next
+from contentforge.state import start_state
+
+def show(label: str, state: dict) -> None:
+    step, reason = decide_next(state)
+    print(f"{label} -> {step} ({reason})")
+
+def test_routing_order() -> None:
+    state = start_state("electric bikes")
+    show("case 1 (fresh start)", state)
+
+    state["research_done"] = True
+    state["research_notes"] = "notes"
+    show("case 2 (research done)", state)
+
+    state["findings"] = "findings"
+    show("case 3 (findings ready)", state)
+
+    state["draft"] = "draft"
+    show("case 4 (draft ready)", state)
+
+def test_stopping_rules() -> None:
+    nothing_found = start_state("deep sea mining")
+    nothing_found["research_done"] = True
+    show("case 5 (nothing found)", nothing_found)
+
+    revising = start_state("electric bikes")
+    revising["research_done"] = True
+    revising["research_notes"] = "notes"
+    revising["findings"] = "findings"
+    revising["feedback_history"] = ["add sources"]
+    revising["revision_count"] = 1
+    show("case 6 (draft rejected)", revising)
+
+    revising["revision_count"] = MAX_REVISIONS
+    revising["draft"] = "last draft"
+    show("case 7 (limit reached)", revising)
+
+    revising["revision_count"] = 1
+    revising["accepted"] = True
+    show("case 8 (accepted)", revising)
+
+if __name__ == "__main__":
+    test_routing_order()
+    test_stopping_rules()
+```
+
+**Changed from Step 4:** the integration test now runs the **whole team**: the weak-draft check, a full pipeline, and an unknown topic.
+
+```python
+# tests/integration/test_live_agents.py
+# Runs the agents and the whole team against the real OpenAI API.
+# Run from the repo root: python tests/integration/test_live_agents.py
+# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from contentforge.config import load_config
+from contentforge.graph import build_graph
+from contentforge.state import start_state
+
+FINDINGS = (
+    "Range:\n- A battery gives 40 to 100 km per charge. [battery-review]\n"
+    "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
+)
+
+def test_reviewer_rejects_weak_draft() -> None:
+    # case 1: a weak draft must fail — a Reviewer that passes everything
+    # would never make the revision loop run
+    verdict = run_reviewer(FINDINGS, "E-bikes are good.")
+    passed = verdict.score >= PASS_SCORE
+    print(f"case 1 (weak draft)     -> score {verdict.score}, "
+          f"passed={passed}")
+
+def test_full_pipeline(graph) -> None:
+    # case 2: a known topic goes through all four specialists
+    result = graph.invoke(start_state("electric bikes"))
+    steps = []
+    for entry in result["routing_log"]:
+        steps.append(entry["step"])
+    print(f"case 2 (full pipeline)  -> {steps}")
+    print(f"                           accepted={result['accepted']}, "
+          f"revisions={result['revision_count']}")
+
+def test_unknown_topic(graph) -> None:
+    # case 3: nothing is known — the team must stop, not invent facts
+    result = graph.invoke(start_state("deep sea mining"))
+    last = result["routing_log"][-1]
+    print(f"case 3 (unknown topic)  -> {last['step']}: {last['reason']}")
+
+if __name__ == "__main__":
+    load_config()
+    graph = build_graph()
+    test_reviewer_rejects_weak_draft()
+    test_full_pipeline(graph)
+    test_unknown_topic(graph)
+```
+
+**Run everything:**
+
+```bash
+python tests/unit/test_lookup.py
+python tests/unit/test_supervisor.py
+python tests/integration/test_live_agents.py
+python -m contentforge.main
+```
+
+**Expected unit output:**
+
+```
+case 1 (fresh start) -> research_agent (no research yet)
+case 2 (research done) -> analysis_agent (research done, no findings yet)
+case 3 (findings ready) -> writer_agent (findings ready, no draft yet)
+case 4 (draft ready) -> reviewer_agent (draft ready for review)
+case 5 (nothing found) -> END (research found no facts for this topic)
+case 6 (draft rejected) -> writer_agent (revising after reviewer feedback)
+case 7 (limit reached) -> END (revision limit (3) reached)
+case 8 (accepted) -> END (reviewer accepted the draft)
+```
+
+**Expected app run** (log lines left out; the article varies):
+
+```
+Topic: electric bikes
+Routing log:
+  research_agent: no research yet
+  analysis_agent: research done, no findings yet
+  writer_agent: findings ready, no draft yet
+  reviewer_agent: draft ready for review
+  writer_agent: revising after reviewer feedback
+  reviewer_agent: draft ready for review
+  END: reviewer accepted the draft
+
+Final article:
+
+E-Bikes: How Far, How Fast, and Why Europe Loves Them
+...
+```

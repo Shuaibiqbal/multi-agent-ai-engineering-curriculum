@@ -46,7 +46,7 @@ The exact pieces:
 
 A bigger `k` isn't actually a fix — it's a workaround. Even at `k=len(chunks)` (every chunk, guaranteed to include both halves), you only get lucky because this is a 2-chunk toy example. In a real knowledge base with thousands of chunks, a bigger `k` just makes it *more likely* the missing half scores well enough to make the cut — it still depends on that chunk actually ranking high enough, and a bigger `k` also means more irrelevant chunks get handed to the model as context (this document's Core Concepts calls this "lost in the middle").
 
-The real fix is **chunking with overlap**: instead of cutting the document into non-overlapping blocks, each new chunk starts a little *before* where the previous one ended, so a fact sitting near a boundary usually ends up whole inside at least one chunk — not permanently split in two, regardless of `k`.
+The real fix is **chunking with overlap**: instead of cutting the document into non-overlapping blocks, each new chunk starts a little *before* where the previous one ended, so a fact sitting near a boundary ends up whole inside at least one chunk — not permanently split in two, regardless of `k`. The rule: any text up to `overlap` characters long always fits whole in some chunk. A fact longer than `chunk_size` can never fit, whatever the overlap — so check the fact's length first.
 
 ```python
 # chunking_practice.py — Edge cases section
@@ -171,11 +171,12 @@ Once that's working, add the real fix — overlap:
 
 ```
 document = same quarterly-meeting sentence as before
-chunk_size = 80, overlap = 20
+the fact, "3 PM" ... "attend", is 101 characters long
+rule: text up to `overlap` characters long always fits whole in a chunk
+so: chunk_size = 140, overlap = 105   (80 is smaller than the fact itself)
 
 chunk_with_overlap(document, chunk_size, overlap) -> should produce
-    chunks where the fact's sentence, near the old cut point, now
-    appears whole in at least one chunk
+    chunks where "3 PM" and "attend" sit inside the same chunk
 
 embed each overlapping chunk
 

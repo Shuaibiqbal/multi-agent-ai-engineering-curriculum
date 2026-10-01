@@ -1,277 +1,368 @@
-# Step 2 — Database Persistence — Solution
+# Step 2 — Every Run Saved to a Database and Findable by ID — Solution
 
-> [Back to this step](../README.md#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Hint 1](step2_database_persistence_hints.md#hint-1) · [Hint 2](step2_database_persistence_hints.md#hint-2) · [Solution](step2_database_persistence_solution.md)
+> [Back to this step](../READING_README.md#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Hint 1](step2_database_persistence_hints.md#hint-1) · [Hint 2](step2_database_persistence_hints.md#hint-2) · [Solution](step2_database_persistence_solution.md)
 
-## Basic Version
+**Story — Step 2:** after Step 1 a run's result lives only in the HTTP reply — once it's sent, it's gone. This step saves every run to SQLite (Doc12): a `"started"` row **before** the team runs, then `"completed"` or `"failed"` after, so even a crashed run leaves an honest record. `GET /runs/{id}` reads one back, and a request ID ties each request's log lines together. **If not:** "what happened on that run yesterday?" has no answer.
 
-### Approach 1 — the direct way
+After this step the project runs: every `POST /run-task` saves a row, and `GET /runs/1` shows it. Files not shown here don't change.
 
-**`db/models.py`**
+## The shared change
+
+**Changed from Step 1:** the reply now carries the saved run's ID and status.
+
 ```python
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.orm import declarative_base
+# src/contentforge/api/schemas.py
+from pydantic import BaseModel, Field
 
-Base = declarative_base()
+class TaskRequest(BaseModel):
+    # why: the same input as Project 4's "Topic:" prompt, now as JSON
+    # how: "" or a 5,000-character topic gets a 422 before the route
+    # even runs — a long topic would only cost money
+    topic: str = Field(min_length=1, max_length=200)
 
-class Run(Base):
-    __tablename__ = "runs"
-    id = Column(String, primary_key=True)
-    input = Column(String)
-    output = Column(String, nullable=True)
-    log = Column(String, nullable=True)
-    status = Column(String, default="pending")
-    created_at = Column(DateTime)
-    completed_at = Column(DateTime, nullable=True)
+class TaskResponse(BaseModel):
+    # new in Step 2: the saved run's ID and status
+    run_id: int
+    status: str
+    # why: the client must see whether the Reviewer approved the
+    # article — never pass a rejected draft off as finished
+    accepted: bool
+    reason: str
+    article: str
 ```
-
-**`db/database.py`**
-```python
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from db.models import Base
-
-engine = create_engine("sqlite:///runs.db")
-SessionLocal = sessionmaker(bind=engine)
-Base.metadata.create_all(engine)
-```
-
-**`api/routes.py`** (excerpt)
-```python
-from uuid import uuid4
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
-from db.database import SessionLocal
-from db.models import Run
-
-router = APIRouter()
-
-@router.post("/run-task")
-def run_task(request: TaskRequest):
-    run_id = str(uuid4())
-    session = SessionLocal()
-    session.add(Run(id=run_id, input=request.topic, status="pending", created_at=datetime.now(timezone.utc)))
-    session.commit()
-
-    result = graph.invoke(make_initial_state(request.topic))
-
-    run = session.get(Run, run_id)
-    run.output = result["final_report"]
-    run.status = "success"
-    run.completed_at = datetime.now(timezone.utc)
-    session.commit()
-    session.close()
-
-    return {"final_report": result["final_report"], "approved": result["review_verdict"].approved}
-
-@router.get("/runs/{run_id}")
-def get_run(run_id: str):
-    session = SessionLocal()
-    run = session.get(Run, run_id)
-    session.close()
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    return run
-```
-
-This works — every run gets saved and can be looked up by ID. The session is opened and closed by hand rather than with a context manager, so a mid-request exception leaves it open (a real connection leak). Nothing catches a database failure — it would surface as a raw `500` traceback, exactly what the Advanced test in Hint 1 is designed to catch.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Hint 1](step2_database_persistence_hints.md#hint-1) · [Hint 2](step2_database_persistence_hints.md#hint-2) · [Solution](step2_database_persistence_solution.md)
+> [Back to this step](../READING_README.md#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Hint 1](step2_database_persistence_hints.md#hint-1) · [Hint 2](step2_database_persistence_hints.md#hint-2) · [Solution](step2_database_persistence_solution.md)
 
-## Intermediate Version
+## Solution — a `db/` package, a checked run shape, and a request ID
 
-### Approach 1 — context-managed sessions, request ID threaded through logging
+**Story — `db/database.py`:** every SQL statement behind a small named function — Doc12's `runs_db.py` and Build Task, unchanged except for `DB_PATH`. Each write has its own `with conn:`, so the `"started"` row is saved on its own. `?` placeholders keep a topic like `x'); DROP TABLE runs; --` plain text. (Also create an empty `db/__init__.py`.) **If not:** SQL would be scattered through the routes, and a crashed run could vanish or stay `"started"` forever.
 
-**`db/models.py`**
 ```python
-from datetime import datetime
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.orm import declarative_base
+# src/contentforge/db/database.py
+import sqlite3
+from datetime import datetime, timezone
 
-Base = declarative_base()
+# how: a path from the repo root, like facts.json and the prompts
+DB_PATH = "runs.db"
 
+# why: Doc12's runs table — input, output, the agent log, a status
+# that moves "started" -> "completed" / "failed", and a UTC timestamp
+CREATE_RUNS_TABLE = """
+    CREATE TABLE IF NOT EXISTS runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        input TEXT,
+        output TEXT,
+        log TEXT,
+        status TEXT,
+        created_at TEXT
+    )
+"""
 
-class Run(Base):
-    __tablename__ = "runs"
-    id: str = Column(String, primary_key=True)
-    input: str = Column(String, nullable=False)
-    output: str | None = Column(String, nullable=True)
-    log: str | None = Column(String, nullable=True)
-    status: str = Column(String, nullable=False, default="pending")
-    created_at: datetime = Column(DateTime, nullable=False)
-    completed_at: datetime | None = Column(DateTime, nullable=True)
+def get_connection():
+    # how: check_same_thread=False — FastAPI runs plain def routes in
+    # a thread pool, so the connection is used from other threads
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    # how: rows behave like dicts — row["input"] works
+    conn.row_factory = sqlite3.Row
+    conn.execute(CREATE_RUNS_TABLE)
+    return conn
+
+def insert_started_run(conn, topic):
+    now = datetime.now(timezone.utc).isoformat()
+    # why: its own transaction — the "started" row is saved right away,
+    # so a crash later still leaves a record to look up
+    with conn:
+        cursor = conn.execute(
+            "INSERT INTO runs (input, status, created_at) VALUES (?, ?, ?)",
+            (topic, "started", now),
+        )
+    # how: the id SQLite just gave the new row
+    return cursor.lastrowid
+
+def finish_run(conn, run_id, output, log_text):
+    with conn:
+        conn.execute(
+            "UPDATE runs SET output = ?, log = ?, status = ? WHERE id = ?",
+            (output, log_text, "completed", run_id),
+        )
+
+def fail_run(conn, run_id):
+    with conn:
+        conn.execute(
+            "UPDATE runs SET status = ? WHERE id = ?",
+            ("failed", run_id),
+        )
+
+def fetch_run(conn, run_id):
+    # why: ? placeholders — a value is never pasted into the SQL text
+    sql = "SELECT * FROM runs WHERE id = ?"
+    row = conn.execute(sql, (run_id,)).fetchone()
+    # when: no row with this id — the route turns None into a 404
+    if row is None:
+        return None
+    return dict(row)
 ```
 
-**`api/routes.py`**
+**Story — `db/models.py`:** one saved run's shape, used as `GET /runs/{id}`'s `response_model` (Doc12's `RunRecord`). **If not:** a column added later — say, a cost figure — would leak to every client.
+
 ```python
-import logging
-from uuid import uuid4
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
-from db.database import SessionLocal
-from db.models import Run
-from graph import graph
-from state import make_initial_state
-from api.schemas import TaskRequest, TaskResponse
+# src/contentforge/db/models.py
+from pydantic import BaseModel
 
-logger = logging.getLogger("contentforge.api")
+# why: one saved run's shape, checked on the way out — a column added
+# to the table later never leaks to the client by accident
+class Run(BaseModel):
+    id: int
+    input: str
+    output: str | None     # None while the run is "started" or "failed"
+    log: str | None
+    status: str
+    created_at: str
+```
+
+**Changed from Step 1:** `routes.py` opens the connection, saves the run around the team's work, puts the request ID on every log line, and adds `GET /runs/{run_id}` with a 404.
+
+```python
+# src/contentforge/api/routes.py
+from fastapi import APIRouter, HTTPException, Request
+
+from contentforge.api.schemas import TaskRequest, TaskResponse
+# new in Step 2: the database helpers and the run shape
+from contentforge.db.database import get_connection, insert_started_run
+from contentforge.db.database import finish_run, fail_run, fetch_run
+from contentforge.db.models import Run
+from contentforge.pipeline import run_pipeline
+from contentforge.utils.logger import get_logger
+
 router = APIRouter()
+# why: one connection, opened once when the app starts (Doc12)
+# new in Step 2
+conn = get_connection()
 
+# why: the one message a client ever sees for a server-side failure
+INTERNAL_ERROR = "Internal error. Please try again later."
 
+@router.get("/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+# how: a plain def route — the team's model calls block, so FastAPI
+# runs this in its thread pool and other requests keep moving
 @router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest) -> TaskResponse:
-    run_id = str(uuid4())
-    logger.info("run %s starting for topic=%s", run_id, request.topic)
+# changed in Step 2: + http_request, to read the request ID
+def run_task(request: TaskRequest, http_request: Request) -> TaskResponse:
+    logger = get_logger(__name__)
+    # new in Step 2: the ID made by the middleware
+    request_id = http_request.state.request_id
+    # why: "   " passes Pydantic (it IS 3 characters) — our own 400
+    if not request.topic.strip():
+        raise HTTPException(status_code=400, detail="topic cannot be empty")
 
-    with SessionLocal() as session:
-        session.add(Run(id=run_id, input=request.topic, status="pending", created_at=datetime.now(timezone.utc)))
-        session.commit()
+    # new in Step 2: saved as "started" BEFORE the team runs
+    run_id = insert_started_run(conn, request.topic)
+    logger.info("[%s] run %s started", request_id, run_id)
+    try:
+        outcome = run_pipeline(request.topic)
+    except Exception:
+        # new in Step 2
+        fail_run(conn, run_id)
+        # how: the full traceback goes to the server log only
+        # changed in Step 2: the log line now names the request and the run
+        logger.exception("[%s] run %s failed", request_id, run_id)
+        raise HTTPException(status_code=500, detail=INTERNAL_ERROR)
 
-    result = graph.invoke(make_initial_state(request.topic))
-    logger.info("run %s graph finished, approved=%s", run_id, result["review_verdict"].approved)
+    # new in Step 2: the routing steps become the log column
+    log_text = "\n".join(outcome["steps"])
+    finish_run(conn, run_id, outcome["article"], log_text)
+    # changed in Step 2: same log line, plus the request and run IDs
+    logger.info("[%s] run %s completed: %s",
+                request_id, run_id, outcome["reason"])
+    return TaskResponse(
+        run_id=run_id,
+        status="completed",
+        accepted=outcome["accepted"],
+        reason=outcome["reason"],
+        article=outcome["article"],
+    )
 
-    with SessionLocal() as session:
-        run = session.get(Run, run_id)
-        run.output = result["final_report"]
-        run.status = "success"
-        run.completed_at = datetime.now(timezone.utc)
-        session.commit()
-
-    return TaskResponse(final_report=result["final_report"], approved=result["review_verdict"].approved)
-
-
-@router.get("/runs/{run_id}")
-def get_run(run_id: str) -> Run:
-    with SessionLocal() as session:
-        run = session.get(Run, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+# new in Step 2: look one run up by ID
+@router.get("/runs/{run_id}", response_model=Run)
+def get_run(run_id: int):
+    run = fetch_run(conn, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="run not found")
     return run
 ```
 
-**Difference from Basic:** `with SessionLocal() as session:` guarantees the session is closed even if something inside the block raises — Basic's manual `session.close()` never runs if an earlier line throws. `run_id` is generated once, at the top, and appears in every `logger.info(...)` call for this request, so every log line for one run is greppable by that ID afterward. Full type hints. Still missing: what happens to the client, and to the `Run` row's status, if the database write or the graph call itself raises — right now, either one crashes the whole request with an unhandled exception.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Hint 1](step2_database_persistence_hints.md#hint-1) · [Hint 2](step2_database_persistence_hints.md#hint-2) · [Solution](step2_database_persistence_solution.md)
-
-## Advanced Version
-
-### Approach 1 — every database call and the graph call independently guarded
+**Changed from Step 1:** `main.py` adds Doc12's request-ID middleware.
 
 ```python
-import logging
-from uuid import uuid4
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
-from db.database import SessionLocal
-from db.models import Run
-from graph import graph
-from state import make_initial_state
-from api.schemas import TaskRequest, TaskResponse
+# src/contentforge/api/main.py
+# new in Step 2
+import uuid
 
-logger = logging.getLogger("contentforge.api")
-router = APIRouter()
+from fastapi import FastAPI, Request
 
+from contentforge.api.routes import router
+from contentforge.config import load_config
 
-@router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest) -> TaskResponse:
-    run_id = str(uuid4())
-    logger.info("run %s starting for topic=%s", run_id, request.topic)
+# why: fail at startup, not on the first real request — load_config()
+# reads .env, and raises MissingConfigError if OPENAI_API_KEY is
+# missing (Doc01's check, Doc12's "fail loudly" container rule)
+load_config()
 
-    try:
-        with SessionLocal() as session:
-            session.add(Run(id=run_id, input=request.topic, status="pending", created_at=datetime.now(timezone.utc)))
-            session.commit()
-    except Exception:
-        logger.exception("run %s: failed to write initial pending row", run_id)
-        raise HTTPException(status_code=500, detail="Could not start task — please try again")
+app = FastAPI(title="ContentForge Pro")
+app.include_router(router)
 
-    try:
-        result = graph.invoke(make_initial_state(request.topic))
-    except Exception:
-        logger.exception("run %s: graph execution failed", run_id)
-        try:
-            with SessionLocal() as session:
-                run = session.get(Run, run_id)
-                run.status = "failed"
-                run.completed_at = datetime.now(timezone.utc)
-                session.commit()
-        except Exception:
-            logger.exception("run %s: also failed to record 'failed' status", run_id)
-        raise HTTPException(status_code=500, detail="Task failed — please try again")
-
-    try:
-        with SessionLocal() as session:
-            run = session.get(Run, run_id)
-            run.output = result["final_report"]
-            run.status = "success"
-            run.completed_at = datetime.now(timezone.utc)
-            session.commit()
-    except Exception:
-        logger.exception("run %s: graph succeeded but failed to save the result", run_id)
-        raise HTTPException(status_code=500, detail="Task completed but could not be saved — please retry")
-
-    return TaskResponse(final_report=result["final_report"], approved=result["review_verdict"].approved)
-
-
-@router.get("/runs/{run_id}")
-def get_run(run_id: str) -> Run:
-    try:
-        with SessionLocal() as session:
-            run = session.get(Run, run_id)
-    except Exception:
-        logger.exception("failed to look up run %s", run_id)
-        raise HTTPException(status_code=500, detail="Could not look up run — please try again")
-
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    return run
+# why: one short ID per request, made in one place for every route
+# new in Step 2: runs around EVERY request
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = str(uuid.uuid4())[:8]
+    # how: request.state carries the ID into the route
+    request.state.request_id = request_id
+    response = await call_next(request)
+    # why: the client can quote this ID when reporting a problem
+    response.headers["X-Request-ID"] = request_id
+    return response
 ```
-**Expected behavior with the database connection killed mid-request** (Doc12's Break-It exercise): whichever of the 3 guarded blocks was running when the connection died raises inside its own `try`, gets logged with `logger.exception(...)` (full traceback, server-side only), and the client receives a plain `{"detail": "..."}` message with a `500` — never a raw traceback. **Expected behavior calling `GET /runs/{id}` while that same run is still mid-flight:** a `200` with `status: "pending"`, not a `404` — the row already exists because it was written before the graph ever ran.
 
-### Approach 2 — same guarantees, expressed as one helper instead of 3 repeated try/except blocks
+**Changed from Step 1:** the same tests, with the same names, now also check the saved rows — a valid run is saved as `"completed"`, a bad body writes nothing, a crash is saved as `"failed"`, a wrong ID is a 404, and every reply has an `X-Request-ID`.
 
 ```python
-from contextlib import contextmanager
+# tests/api/test_routes.py
+# The API's own behavior — status codes and replies — with Project 4's
+# team FAKED: no model calls, no cost, same every time.
+# Run from the repo root: pytest tests/api -v
+# The app still refuses to start without OPENAI_API_KEY — any value
+# works here, because no real model is ever called.
+from fastapi.testclient import TestClient
 
-@contextmanager
-def db_session_or_500(run_id: str, action: str):
-    try:
-        with SessionLocal() as session:
-            yield session
-    except Exception:
-        logger.exception("run %s: database error during %s", run_id, action)
-        raise HTTPException(status_code=500, detail=f"Could not {action} — please try again")
+from contentforge.api import routes
+from contentforge.api.main import app
 
+client = TestClient(app)
 
-@router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest) -> TaskResponse:
-    run_id = str(uuid4())
+def fake_run_pipeline(topic: str) -> dict:
+    # why: a fixed answer instead of the team's real model calls
+    return {
+        "article": "E-Bikes Explained\n\nUp to 100 km. [battery-review]",
+        "accepted": True,
+        "reason": "reviewer accepted the draft",
+        "steps": [
+            "research_agent: no research yet",
+            "END: reviewer accepted the draft",
+        ],
+    }
 
-    with db_session_or_500(run_id, "start task") as session:
-        session.add(Run(id=run_id, input=request.topic, status="pending", created_at=datetime.now(timezone.utc)))
-        session.commit()
+def broken_run_pipeline(topic: str) -> dict:
+    # why: a crash on command, to test the 500 path
+    raise RuntimeError("simulated internal failure")
 
-    try:
-        result = graph.invoke(make_initial_state(request.topic))
-    except Exception:
-        logger.exception("run %s: graph execution failed", run_id)
-        with db_session_or_500(run_id, "record failure"):
-            pass  # swallow secondary failure intentionally; already logged above
-        raise HTTPException(status_code=500, detail="Task failed — please try again")
+def use_fake_team(monkeypatch, fake) -> None:
+    # how: swaps routes.run_pipeline for the fake, for this test only
+    monkeypatch.setattr(routes, "run_pipeline", fake)
 
-    with db_session_or_500(run_id, "save result") as session:
-        run = session.get(Run, run_id)
-        run.output = result["final_report"]
-        run.status = "success"
-        run.completed_at = datetime.now(timezone.utc)
-        session.commit()
+# new in Step 2: count saved rows
+def row_count() -> int:
+    sql = "SELECT COUNT(*) FROM runs"
+    return routes.conn.execute(sql).fetchone()[0]
 
-    return TaskResponse(final_report=result["final_report"], approved=result["review_verdict"].approved)
+def failed_count() -> int:
+    sql = "SELECT COUNT(*) FROM runs WHERE status = ?"
+    return routes.conn.execute(sql, ("failed",)).fetchone()[0]
+
+def test_health():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_valid_request_is_answered(monkeypatch):
+    use_fake_team(monkeypatch, fake_run_pipeline)
+    response = client.post("/run-task", json={"topic": "electric bikes"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "completed"
+    assert body["accepted"] is True
+    assert "[battery-review]" in body["article"]
+
+    # new in Step 2: read the saved run back
+    saved = client.get("/runs/" + str(body["run_id"])).json()
+    assert saved["input"] == "electric bikes"
+    assert saved["status"] == "completed"
+    assert "END: reviewer accepted the draft" in saved["log"]
+
+def test_bad_body_is_422(monkeypatch):
+    use_fake_team(monkeypatch, fake_run_pipeline)
+    # new in Step 2
+    before = row_count()
+    response = client.post("/run-task", json={})
+    assert response.status_code == 422
+    assert row_count() == before
+
+def test_blank_topic_is_400(monkeypatch):
+    use_fake_team(monkeypatch, fake_run_pipeline)
+    response = client.post("/run-task", json={"topic": "   "})
+    assert response.status_code == 400
+    assert response.json() == {"detail": "topic cannot be empty"}
+
+def test_internal_error_is_a_plain_500(monkeypatch):
+    use_fake_team(monkeypatch, broken_run_pipeline)
+    # new in Step 2
+    before = failed_count()
+    response = client.post("/run-task", json={"topic": "electric bikes"})
+    assert response.status_code == 500
+    # why: the client never sees "RuntimeError" or a traceback
+    expected = {"detail": "Internal error. Please try again later."}
+    assert response.json() == expected
+    # how: the crashed run is still saved, honestly, as "failed"
+    assert failed_count() == before + 1
+
+# new in Step 2
+def test_unknown_run_is_404():
+    response = client.get("/runs/999999")
+    assert response.status_code == 404
+
+# new in Step 2
+def test_every_reply_has_a_request_id():
+    response = client.get("/health")
+    assert len(response.headers["X-Request-ID"]) == 8
 ```
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate assumes every database call and the graph call all succeed — any one of them failing crashes the whole request with an unhandled exception and (depending on your FastAPI error-handling setup) potentially a raw traceback back to the client. Both Advanced approaches add the same real behavior: a `"pending"` row written before the graph runs (so `GET /runs/{id}` is honest about in-progress work), independent failure handling at each of the 3 database touch-points, and a `"failed"` status recorded when the graph itself blows up. Approach 1 spells out each `try/except` explicitly — more repetitive, but every failure path is visible in one read-through. Approach 2 extracts the repeated shape into a `db_session_or_500` context manager — less repetition, at the cost of the actual error handling now living in one shared helper instead of next to each call site.
+**Run it:**
 
-**Which one should you actually write?** Approach 1 while this route is this simple — 3 database touch-points is not enough repetition yet to justify the indirection of a shared context manager, and explicit code here is easier for anyone (including future-you) to read top to bottom during an incident. Switch to Approach 2's pattern once you have several routes doing the same kind of guarded database work (Step 4 will add more) — that's the point where the helper starts paying for the extra abstraction it costs to understand.
+```bash
+pytest tests/api -v
+uvicorn contentforge.api.main:app --reload
+```
+
+```
+tests/api/test_routes.py::test_health PASSED
+tests/api/test_routes.py::test_valid_request_is_answered PASSED
+tests/api/test_routes.py::test_bad_body_is_422 PASSED
+tests/api/test_routes.py::test_blank_topic_is_400 PASSED
+tests/api/test_routes.py::test_internal_error_is_a_plain_500 PASSED
+tests/api/test_routes.py::test_unknown_run_is_404 PASSED
+tests/api/test_routes.py::test_every_reply_has_a_request_id PASSED
+```
+
+Then `curl localhost:8000/runs/1` (shown wrapped to fit the page — really one line):
+
+```
+{"id":1,"input":"electric bikes","output":"E-Bikes: How Far ...",
+ "log":"research_agent: no research yet\nanalysis_agent: research done,
+ no findings yet\n...\nEND: reviewer accepted the draft",
+ "status":"completed","created_at":"2026-01-01T00:00:00.000000+00:00"}
+```
+
+**Server log for one request** (every line has the same ID):
+
+```
+2026-01-01 00:00:00,000 contentforge.api.routes INFO [9ee100c1] run 1 started
+2026-01-01 00:00:09,000 contentforge.api.routes INFO [9ee100c1] run 1 compl
+eted: reviewer accepted the draft
+```
+
+(The second line is really one line — shown wrapped.) The tests write to the same `runs.db` as the app; it's in `.gitignore`, and you can delete it any time.

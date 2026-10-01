@@ -17,14 +17,13 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 You're going to swap the last piece of the chain: instead of "just give me text back," you'll say "give me back an object that matches this exact shape."
 
-To describe the shape, you write a small Pydantic class with named fields, like `name` and `age`. Then you tell your model, "always answer in this shape."
+The shape is a small Pydantic class — the same kind you wrote in Doc04's structured-output exercise. Then you tell the model, "always answer in this shape."
 
-Once that's set up, try asking it something that clearly matches the shape, and something that clearly doesn't — and watch what happens differently.
+- A Pydantic model: `class Person(BaseModel):` with `name: str` and `age: int`
+- Attach it: `structured_model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(Person)`
+- Run it: `structured_model.invoke("Extract: Maria is 34 years old.")`
 
-- A Pydantic model: `from pydantic import BaseModel` then `class Person(BaseModel): name: str; age: int`
-- Attach it to the model: `structured_model = ChatOpenAI().with_structured_output(Person)`
-- Run it: `structured_model.invoke("...")`
-- Catch a mismatch: wrap the call in `try/except Exception as e:` and print `type(e)`.
+Then ask it something that has **no** person in it, and look closely at what comes back.
 
 <hr class="page-break">
 
@@ -32,13 +31,13 @@ Once that's set up, try asking it something that clearly matches the shape, and 
 
 ### Intermediate Version
 
-`.with_structured_output(YourModel)` is a method on a chat model that returns a *new* runnable — one whose output is already parsed and validated into `YourModel`, instead of raw text. This is different from manually chaining a `PydanticOutputParser` after the model: `.with_structured_output(...)` uses the provider's own structured-output feature under the hood when it's available, which is more reliable than asking the model nicely in the prompt and hoping the reply parses.
+`.with_structured_output(Person)` returns a new runnable whose output is already a `Person`, not text. With `gpt-4o-mini` it uses the same constrained decoding as Doc04's `.parse()` — the "shape during" method from the Output parsers topic.
 
-The key thing to observe: when the model's answer genuinely can't be coerced into your Pydantic shape, the parsing step raises a validation error — and that happens *after* the model has already replied, which is different from Doc04's `response_format`, where the shape is enforced *during* generation.
+That means a text with no person in it does **not** raise an error: the model **must** fill the form, so with `name: str` and `age: int` it invents something (`''` and `0`, for example). The fix is Doc04's rule again — `str | None` and `int | None` — so "nothing found" becomes a real answer.
 
-You can still put this inside a full LCEL chain — `prompt | ChatOpenAI().with_structured_output(Person)` — the parsing step is now built into the model piece itself, so you don't need a separate parser step after it.
+A `ValidationError` is still possible (the reply fails the model in a rare case), so catch it by name.
 
-**Difference between Basic and Intermediate:** Basic detects a mismatch and prints that it happened. Intermediate catches the specific `ValidationError` class and explains why the failure happens *after* the model replies, unlike Doc04's structured output.
+**Difference between Basic and Intermediate:** Basic sees the invented values. Intermediate explains why they appear, and fixes them with `| None` fields.
 
 <hr class="page-break">
 
@@ -49,30 +48,27 @@ You can still put this inside a full LCEL chain — `prompt | ChatOpenAI().with_
 ### Basic Version
 
 ```
-define a shape called Person with fields: name (text), age (number)
-
+define Person: name (text), age (number)
 build a model that always answers in the Person shape
-
-test 1: ask it about someone with a clear name and age
-    -> print the result, confirm it's a real Person, not text
-
-test 2: ask it something that doesn't have a name and age in it
-    -> wrap in try/except, print what kind of error happens
+ask about Maria -> print the Person
+ask about the sky -> print what comes back (no error!)
 ```
 
-Here is almost the whole thing:
 ```python
 # structured_output_practice.py — Intermediate section
 from pydantic import BaseModel
 from langchain_openai import ChatOpenAI
 
+
 class Person(BaseModel):
     name: str
     age: int
 
-structured_model = ChatOpenAI().with_structured_output(Person)
+
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+structured_model = model.with_structured_output(Person)
 ```
-**Expected output if you run just this:** nothing yet — add the 2 test calls (one printed directly, one inside `try/except`) below it.
+**Expected output if you run just this:** nothing yet — add the two `.invoke()` calls and print both results.
 
 <hr class="page-break">
 
@@ -81,24 +77,18 @@ structured_model = ChatOpenAI().with_structured_output(Person)
 ### Intermediate Version
 
 ```
-class Person(BaseModel):
-    name: str
-    age: int
+class Person: name: str | None, age: int | None
 
-model = ChatOpenAI(model="...", temperature=0)
-structured_model = model.with_structured_output(Person)
-
-good_result = structured_model.invoke("Extract: Maria is 34 years old.")
-print(good_result)                       # a real Person object
-
-try:
-    bad_result = structured_model.invoke("Extract: the sky is blue.")
-except Exception as e:
-    print(f"Caught {type(e).__name__}: {e}")
+function extract_person(text) -> Person | None:
+    try: person = structured_model.invoke(text)
+    except ValidationError: return None
+    if name is None and age is None: return None
+    return person
 ```
-Notice you're printing `type(e).__name__`, not just the message — knowing the *exact* exception class is what tells your production code which `except` clause needs to catch it. Write this out fully, run it, write down the exact class name you actually get, then compare against the [Solution](structured_parser_swap_solution.md).
 
-**Difference between Basic and Intermediate:** Basic builds one structured model and observes the raised error on a mismatch. Intermediate catches the specific `ValidationError` class, with a broader fallback after it — the same "catch the specific error you know how to handle" rule from Doc01.
+This is the same shape as Doc04's `extract_info()` — only the call changed from `client.beta.chat.completions.parse(...)` to `.invoke(...)`. Write it, run it on both texts, then compare against the [Solution](structured_parser_swap_solution.md).
+
+**Difference between Basic and Intermediate:** Basic calls the structured model inline. Intermediate wraps it in `extract_person()`, which returns a checked `Person` or `None` — the caller has exactly two cases.
 
 <hr class="page-break">
 
