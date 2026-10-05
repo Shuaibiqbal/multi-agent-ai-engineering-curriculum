@@ -172,7 +172,7 @@ python -m tests.unit.test_schemas
 python -m tests.integration.test_live_agents
 ```
 
-The unit tests check the config, history trimming and the schemas. The integration tests check a first reply, the startup key check, conversation memory, ticket extraction (including that no customer name is invented), and routing on clear messages.
+Every test case prints `OK` or `WRONG`. The unit tests check the config, history trimming and the schemas. The integration tests check a first reply, the startup key check, conversation memory, ticket extraction (including that no customer name is invented), and routing on clear messages.
 
 ## Error Handling
 

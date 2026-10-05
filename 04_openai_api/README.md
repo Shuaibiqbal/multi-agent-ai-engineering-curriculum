@@ -284,6 +284,7 @@ practice/
 
 - **What:** one call to the model, print the reply, then change the system prompt and watch the answer change. Last, load each system prompt from a `.txt` file with `load_prompt(name)` (`.read()`, `.lower()`).
 - **Why:** this is the single call every other document and project builds on — get it working with your own eyes before adding anything else.
+- **How to code it:** `client = OpenAI()`, then `client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "system", ...}, {"role": "user", ...}])`, and print `response.choices[0].message.content`. Change only the system message and compare. Then write `load_prompt(name)`, which opens `prompts/<name>.txt` (using `name.lower()`) with `with open(...)` and returns `.read()`.
 - **Save as:** `practice/chat_api_basics_practice.py`.
 - **Builds on:** Doc01's Build Task `config.py`/`load_config()` for `OPENAI_API_KEY`, and `get_logger(__name__)` for logging the reply — reuse both, don't rewrite them.
 - **Used later by:** the [Intermediate exercise](#ex-conversation_memory) right below, which wraps this same call in a loop.
@@ -293,6 +294,7 @@ practice/
 
 - **What:** a loop that sends multiple turns, adding each one to a growing message list.
 - **Why:** this *is* what "memory" means for an LLM — there's no other kind. Building it yourself once means you'll never be confused by it again.
+- **How to code it:** start a `history` list with the system message. In a `while True` loop: read the user's line, `append` it, call the model with the whole `history`, print the reply and `append` it too; stop on `/quit`. Then pull the call into a typed `get_reply()` function.
 - **Save as:** `practice/conversation_memory_practice.py`.
 - **Builds on:** the [Basic exercise](#ex-first_chat_call)'s single call, and Doc03's "no memory" topic — you are building, by hand, the exact resend-everything behavior that topic described.
 - **Used later by:** the [Real-world exercise](#ex-streaming_replies) below, same loop with `stream=True` swapped in; the [Build Task](#build-task-project-1-beginner-llm-app)'s `chat_client.py`.
@@ -302,6 +304,7 @@ practice/
 
 - **What:** switch the same call to `stream=True` and print words as they arrive instead of waiting for the whole reply.
 - **Why:** this is the difference between a chatbot that feels instant and one that feels like it's stalling — a real, user-facing quality difference, not just a technical detail.
+- **How to code it:** add `stream=True` to the same call, then `for chunk in stream:` print `chunk.choices[0].delta.content` with `end="", flush=True` whenever it isn't `None`, and add each piece to a `full_reply` string you return at the end.
 - **Save as:** `practice/streaming_practice.py`.
 - **Builds on:** the [Intermediate exercise](#ex-conversation_memory)'s message loop — same `history`, same call, just `stream=True` and a `for chunk in ...` loop instead of one return value.
 - **Used later by:** the [Build Task](#build-task-project-1-beginner-llm-app)'s `stream_message()`.
@@ -311,6 +314,7 @@ practice/
 
 - **What:** write a Pydantic model (`name: str | None`, `intent: str | None`, `urgency` as a `Literal`), check a good and a bad dict by hand with `model_validate()`, then let the model fill the same form with `.parse()`. Check `refusal` before `parsed`, and return `None` when nothing useful was found. Last, read an `/extract <text>` command in a small loop with `.startswith()` and `.removeprefix()`.
 - **Why:** the [Structured output topic](#structured-output-how-give-me-json-is-actually-guaranteed) explains the idea; this is where you use it once, with your own eyes, before the Build Task and Project 1 depend on it.
+- **How to code it:** write `class ExtractedInfo(BaseModel)`, check one good and one bad dict with `ExtractedInfo.model_validate(...)` inside `try` / `except ValidationError`, then call `client.beta.chat.completions.parse(..., response_format=ExtractedInfo)`. Read `.refusal` first, then `.parsed`, and return `None` when there's nothing usable. Last, wrap it in an `/extract` command inside a small loop.
 - **Save as:** `practice/structured_output_practice.py`.
 - **Builds on:** the [Basic exercise](#ex-first_chat_call)'s single call, and Doc02's JSON topic — `model_validate()` is the manual shape-check Doc02 did by hand, done by Pydantic.
 - **Used later by:** the [Build Task](#build-task-project-1-beginner-llm-app)'s `schemas.py` and `get_structured_reply()`; Project 1's triage agent; Doc05's `.with_structured_output()`.
@@ -320,6 +324,7 @@ practice/
 
 - **What:** force a too-long input on purpose and see the exact error OpenAI gives you.
 - **Why:** reading about "context limit errors" is not the same as seeing the real exception type and message once, with your own eyes.
+- **How to code it:** build a huge message (`"word " * 200_000`) and send it inside `try` with `except Exception as e:` first, to see what really comes back. Then catch `openai.BadRequestError` specifically and print its message.
 - **Save as:** `practice/context_limit_practice.py`.
 - **Builds on:** Doc03's Real-world exercise (guessing how many turns fit in a context window) — this is that same arithmetic, now verified against a real `BadRequestError` instead of a guess.
 - **Used later by:** the [Build Task](#build-task-project-1-beginner-llm-app)'s requirement to catch a too-long conversation gracefully.
@@ -329,6 +334,7 @@ practice/
 
 - **What:** use a wrong API key on purpose and catch `AuthenticationError` specifically. Then, separately, compare token counts between a short system prompt and a long one, for the same task.
 - **Why:** a bare `except` here would hide a config problem from you and your users forever — catching the specific error is what makes it fixable. The cost comparison is Doc03's Intermediate exercise, run for real this time.
+- **How to code it:** create `OpenAI(api_key="sk-fake-key-123")` and make a call inside `try` / `except openai.AuthenticationError`. Then send the same user message twice — once with a short system prompt, once with a long one — and compare `response.usage.prompt_tokens`.
 - **Save as:** `practice/auth_and_cost_practice.py`.
 - **Builds on:** Doc01's custom-error-class habit (catch the specific thing, not `Exception`), and Doc03's Cost topic — same formula, now driven by real `response.usage` numbers instead of hand math.
 - **Used later by:** the [Build Task](#build-task-project-1-beginner-llm-app)'s requirement to handle a bad key without a scary stack trace.

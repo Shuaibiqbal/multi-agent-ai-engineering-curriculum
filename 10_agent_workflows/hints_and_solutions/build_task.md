@@ -2,7 +2,9 @@
 
 > [Back to the Build Task](../README.md#build-task-project-3-langgraph-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — how a real production graph handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — how a real codebase would actually write it).
+
+This Build Task **is** Project 3 — the full step-by-step build lives in [Project 3's READING_README](../../project_3_documind_rag_agent/READING_README.md). The solution below is the same graph at its smallest, in one folder, so you can see every piece working together first.
 
 - [Hint 1 — The shape, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
@@ -16,19 +18,21 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 ### Basic Version
 
-Project 3 is really the five practice exercises above, wired into one continuous graph instead of five separate scripts. Nothing here is a new idea — it's assembly.
+One graph, made of pieces this document's exercises already practiced:
 
-Think about the shape first, before any code: a task comes in, the graph decides if it needs to search, it searches if so, it reasons over whatever it found (or admits it found nothing), then — before doing anything that can't be undone — it pauses and asks a human to approve, and only then finishes.
+```
+question -> route_search ---skip---> reason_node -> approval_node -> finish
+                 |                       ^
+               search                    | reason
+                 v                       |
+            search_node -> has_grounding --no_grounding--> no_grounding_node
+```
 
-Try drawing this as boxes and arrows on paper first. Where does branching happen? Where does the pause happen?
-
-Things to use:
-
-- Your Doc09 graph's `StateGraph`, node/edge setup, and checkpointer.
-- Your `08_rag` `retrieve()` function, wrapped as a tool (from the `search_as_tool` exercise).
-- `add_conditional_edges` for both the "need search or not" decision and the "found anything or not" decision.
-- `interrupt()` and `Command(resume=...)` for the approval pause.
-- A state shape (a `TypedDict` or similar) that has room for: the task, search results/sources, a draft, an approval decision, and the final answer.
+- **The entry decision** (`route_search`, wired with `set_conditional_entry_point`): the [Intermediate exercise](../README.md#ex-conditional_search).
+- **The search** (Doc08's `retrieve(collection, query)` through `kb.py`): the [Basic exercise](../README.md#ex-search_as_tool).
+- **"Nothing relevant found"** (`has_grounding` with `MAX_DISTANCE`): the [Edge cases exercise](../README.md#ex-empty_search).
+- **The approval pause** (`interrupt()` + `Command(resume=...)` + a checkpointer): the [Real-world exercise](../README.md#ex-approval_pause).
+- **Showing progress:** Doc07's `stream_mode="updates"` — print each node's name as it finishes.
 
 <hr class="page-break">
 
@@ -36,37 +40,14 @@ Things to use:
 
 ### Intermediate Version
 
-Think of Project 3 as your Doc09 graph skeleton, with three additions layered on, each one already practiced separately above:
+On top of that:
 
-1. A search node/tool from `search_as_tool`, routed conditionally using `conditional_search`'s pattern.
-2. A reasoning node that handles both "search found something" and "search found nothing" (`empty_search`'s pattern) — it should never silently guess when grounding is missing.
-3. An approval node using `approval_pause`'s `interrupt()`/`Command(resume=...)` pattern, placed right before whatever the "risky action" is in your version (it can be a placeholder action — sending an email, updating a record, anything you choose to represent it).
-
-The graph also needs a real checkpointer (not the in-memory placeholder you might have used for quick tests) so the pause/resume cycle is genuinely durable, per `search_failure`'s lesson about state surviving between steps.
-
-The exact pieces:
-
-- **State shape** — design this first, on paper. It needs: `task: str`, `sources: list`, `draft: str`, `approved: bool`, `answer: str`, at minimum. Getting this shape right before writing nodes saves you from constantly reshaping it mid-build.
-- **Two conditional edges, not one** — the "route to search or skip" decision (right after the task comes in) and the "search found something or nothing" decision (right after search runs) are two separate decisions, at two separate points in the graph. Don't try to collapse them into one.
-- **The approval node's placement** — it needs to run *after* the reasoning node produces a draft, but *before* whatever "the risky action" is in your version. It receives the draft and sources, not just the raw task, since that's what the human actually needs to judge.
-- **The checkpointer** — use `MemorySaver` for local testing; note in your code (a comment is fine) that production would use a persistent one (like `SqliteSaver` or a Postgres-backed one), since `MemorySaver` loses everything on restart.
-
-Now try building the graph's node and edge structure completely, with placeholder node bodies (`pass` or a simple return), before writing any real logic inside them.
-
-Each practice exercise above got a hardened version of its own — a hardened search tool, a hybrid router, a relevance threshold for empty search, a retry loop for search failures, and an audit trail for approvals. The Build Task's real question is: **do these five hardening ideas compose cleanly into one graph, or do they interfere with each other?**
-
-They mostly compose cleanly, but two interactions are worth thinking through deliberately, not just bolting all five pieces on and hoping:
-
-- **Retry (from `search_failure`) and the "found nothing" check (from `empty_search`) need to run in the right order.** A transient failure and "genuinely no relevant documents" are different problems with different correct responses — retrying a genuinely-empty result forever accomplishes nothing, and treating a timeout as "no grounding" throws away information (a retry might have succeeded). Your search node should exhaust its retries *first*, and only once it has a real result (even an empty one) should `has_results`-style routing decide what to do with it.
-- **The approval payload (from `approval_pause`) should reflect what actually happened upstream**, not just the final draft. If search hit its relevance threshold and fell back to `cant_answer_node`'s honest message, the human reviewing at the approval step should see that this was an ungrounded response, not a normal one — otherwise the approval step becomes a rubber stamp instead of a real check.
-
-The real design question underneath the whole Build Task isn't "did I add all five hardening features" — it's "does a human looking at the approval pause have an honest, complete picture of what the graph actually did to get here: did it search, did it find anything good, did it have to retry, is this grounded or not?"
-
-One extra piece worth adding at this level: a `path` list in your state (e.g. `state["path"] = ["searched", "found_grounding", "awaiting_approval"]`), appended to by every node as it runs, and shown alongside the draft at the approval pause — this is what turns "trust the final answer" into "see exactly how the graph got here," which is this whole document's stated Goal.
-
-Sketch what you'd add to your state shape and your approval payload to make the path fully visible, before checking Hint 2.
-
-**Difference between Basic and Intermediate:** Basic wires the five pieces together as if each works in isolation, exactly as practiced. Intermediate also asks how they interact once combined — search's retry logic has to run to completion before the "found nothing" check means anything, and the approval step needs to honestly reflect whether the draft is genuinely grounded or a fallback — plus adds a visible `path` trail so a human approving something can see the graph's actual journey, not just its destination.
+- **A visible path:** a `path: Annotated[list[str], operator.add]` field; every node adds one short entry (`"searched"`, `"no grounding"`, `"approved"`), so the final state says exactly what happened.
+- **`build_graph(checkpointer=None)`** — Doc09's Build Task, so a test can pass its own.
+- **`test_project3.py`** — the README's 5 Test Cases, each printing `OK` or `WRONG`.
+- **Retry on search** — the [Failure exercise](../README.md#ex-search_failure)'s `search_with_retry()`.
+- **Who approved, and when** — the Real-world exercise's structured resume payload.
+- **A validated state** — Pydantic's `BaseModel` (Doc04) instead of `TypedDict`. Watch out: nodes then get an **object**, so they read `state.task`, not `state["task"]`.
 
 <hr class="page-break">
 
@@ -77,28 +58,40 @@ Sketch what you'd add to your state shape and your approval payload to make the 
 ### Basic Version
 
 ```
-state has: task, sources, draft, approved, answer
+state.py:  task, sources, draft, approved, answer
 
-nodes:
-    router_node        -- just passes the task through
-    search_node         -- calls retrieve(), saves results into sources
-    reason_node          -- builds a draft from sources
-                            (or a "no grounding" message)
-    approval_node        -- interrupts, waits for a human decision
-    finish_node          -- builds the final answer
+nodes.py:
+    route_search(state):  "search" if a keyword is in the task, else "skip"
+    search_node(state):   {"sources": retrieve(collection, state["task"])}
+    has_grounding(state): "no_grounding" if no sources, or the best (smallest)
+                          score > MAX_DISTANCE; else "reason"
+    reason_node(state):   answer from the sources' text, or directly if none
+    no_grounding_node:    the honest "I don't have grounding" answer
+    approval_node(state): decision = interrupt({"draft": ...})
+    finish_node(state):   the draft if approved, else "Not approved"
 
-edges:
-    router_node -> (conditional: search or skip) -> search_node or reason_node
-    search_node -> (conditional: found something or not) ->
-        reason_node either way (just a different draft)
-    reason_node -> approval_node
-    approval_node -> finish_node
+graph.py:  build_graph() -- the diagram above, compiled with MemorySaver()
 
-run it:
-    a search-needing task -> should pause at approval_node -> resume
-        -> finish
-    a task with no matching documents -> reason_node makes an honest
-        "can't answer" draft -> still goes through approval -> finish
+main.py:   stream the run (print each node name), and if it paused,
+           show the draft, ask yes/no, resume with Command(resume=...)
+```
+
+Here's almost the whole `main.py` — fill in the resume part:
+```python
+def main():
+    graph = build_graph()
+    config = {"configurable": {"thread_id": "run-1"}}
+    task = input("Your question: ")
+    show_steps(graph, {"task": task}, config)
+
+    paused = graph.get_state(config)
+    if paused.next:
+        print("Draft:", paused.values["draft"])
+        # your turn: ask yes/no, then show_steps(graph,
+        # Command(resume=...), config)
+        ...
+
+    print("Answer:", graph.get_state(config).values["answer"])
 ```
 
 <hr class="page-break">
@@ -108,140 +101,21 @@ run it:
 ### Intermediate Version
 
 ```
-class ProjectState(TypedDict):
-    task: str
-    sources: list
-    draft: str
-    approved: bool
-    answer: str
+state.py:   + path: Annotated[list[str], operator.add]
+nodes.py:   each node returns its path entry too, e.g. {"path": ["searched"]}
+graph.py:   build_graph(checkpointer=None)
+test_project3.py:
+    run(graph, task, thread_id, decision) -> final state values
+    case 1 search + found + approved   case 2 no search
+    case 3 nothing relevant            case 4 approved -> answer == draft
+    case 5 rejected -> "Not approved"
 
-def route_search(state) -> str:
-    # keyword check or small model call, from conditional_search exercise
-    ...
-
-def search_node(state) -> dict:
-    # calls retrieve(), from search_as_tool exercise
-    ...
-
-def has_grounding(state) -> str:
-    # from empty_search exercise
-    ...
-
-def reason_node(state) -> dict:
-    # builds draft from sources, or an honest "can't ground this"
-    # draft if sources is empty
-    ...
-
-def approval_node(state) -> dict:
-    # interrupt() with draft + sources, from approval_pause exercise
-    ...
-
-def finish_node(state) -> dict:
-    if state["approved"]:
-        return {"answer": state["draft"]}
-    return {"answer": "Not approved -- no action taken."}
-
-builder = StateGraph(ProjectState)
-builder.add_node("router", lambda state: state)
-builder.add_node("search_node", search_node)
-builder.add_node("reason_node", reason_node)
-builder.add_node("approval_node", approval_node)
-builder.add_node("finish_node", finish_node)
-
-builder.add_conditional_edges(
-    "router", route_search, {"search": "search_node", "skip": "reason_node"},
-)
-builder.add_conditional_edges(
-    "search_node", has_grounding,
-    {"no_grounding": "reason_node", "reason": "reason_node"},
-)
-builder.add_edge("reason_node", "approval_node")
-builder.add_edge("approval_node", "finish_node")
-
-graph = builder.compile(checkpointer=MemorySaver())
+Approach 2: search_node calls search_with_retry(); the resume value is
+            {"decision": ..., "by": ..., "at": ...}
+Approach 3: ProjectState(BaseModel) with defaults; nodes use state.task
 ```
 
-Note both conditional-edge branches from `search_node` land on `reason_node` here — the difference is what `reason_node` finds in `state["sources"]` when it runs (empty vs. populated), which is what decides whether the draft is a real answer or an honest "can't answer."
-
-Once that's working, layer in the retry loop, the relevance threshold, and a visible `path` trail:
-
-```
-class ProjectState(TypedDict):
-    task: str
-    sources: list
-    grounded: bool
-    draft: str
-    approved: bool
-    answer: str
-    path: list[str]   # a visible trail of what the graph actually did
-
-def search_node(state):
-    for up to MAX_ATTEMPTS:
-        try: call retrieve(), return sources + append "searched" to path
-        except a transient error: wait and retry, unless out of attempts
-        except a permanent error: append "search_failed" to path, re-raise
-
-def has_grounding(state):
-    if sources is empty or best score is below threshold:
-        append "no_grounding" to path
-        return "no_grounding"
-    append "found_grounding" to path
-    return "reason"
-
-def approval_node(state):
-    payload = draft, sources, grounded flag, and the full path so far
-    decision = interrupt(payload)
-    append "approved" or "rejected" to path
-    return approved flag + who/when, from the decision
-```
-
-Here's almost the whole thing — fill in the missing piece yourself:
-```python
-from datetime import datetime, timezone
-from langgraph.types import interrupt
-
-MAX_ATTEMPTS = 3
-TRANSIENT_ERRORS = (TimeoutError, ConnectionError)
-RELEVANCE_THRESHOLD = 0.75
-
-
-def search_node(state: ProjectState) -> dict:
-    path = state.get("path", []) + []
-    for attempt in range(MAX_ATTEMPTS):
-        try:
-            scored_sources = retrieve_with_scores(state["task"])
-            path.append("searched")
-            return {"sources": scored_sources, "path": path}
-        except TRANSIENT_ERRORS:
-            if attempt == MAX_ATTEMPTS - 1:
-                path.append("search_failed")
-                raise
-    return {"sources": [], "path": path}
-
-
-def has_grounding(state: ProjectState) -> str:
-    scored_sources = state.get("sources", [])
-    best_score = 0.0
-    for _, score in scored_sources:
-        if score > best_score:
-            best_score = score
-    if best_score < RELEVANCE_THRESHOLD:
-        return "no_grounding"
-    return "reason"
-
-
-def approval_node(state: ProjectState) -> dict:
-    # your turn: build the interrupt() payload from state["draft"],
-    # state["sources"], state["grounded"], and state["path"] -- this is
-    # what makes the approval step honest about what actually happened,
-    # not just a draft with no context -- then handle the returned
-    # decision dict the same way approval_pause's Intermediate section does
-    ...
-```
-
-Fill in `approval_node` yourself, then compare all of your finished versions against the [Solution](#solution).
-
-**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code wire the five pieces together assuming each one always works cleanly on the first try. Intermediate adds the retry loop from `search_failure`, the relevance threshold from `empty_search`, and a `path` field every node appends to — so the approval step (and anyone debugging a run later) can see the graph's actual journey, including any retries or fallbacks, not just its final draft.
+**Difference between Basic and Intermediate:** Basic wires the five practiced pieces into one working graph. Intermediate makes it checkable (a path, OK/WRONG tests), sturdier (retries, who-and-when), and stricter (a validated state).
 
 <hr class="page-break">
 
@@ -249,17 +123,33 @@ Fill in `approval_node` yourself, then compare all of your finished versions aga
 
 ## Solution {: #solution }
 
-Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them. Every example assumes a `.env`-configured model and a `retriever.py` reused from `08_rag`.
+Read both depths below — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
+
+**Your files:**
+```
+10_agent_workflows/practice/build_task/
+├── docs/                the coffee documents (Doc08)
+├── chunking.py ... retriever.py   Doc08's Build Task files, unchanged
+├── graph.py             build_graph()
+├── kb.py                builds the knowledge base once (the exercises' file)
+├── main.py              runs a question, shows each step, asks for approval
+├── nodes.py             route_search, search_node, has_grounding,
+│                        reason_node, no_grounding_node, approval_node,
+│                        finish_node
+├── state.py             ProjectState
+└── test_project3.py     Intermediate: the 5 Test Cases
+```
 
 ### Basic Version
 
-#### Approach 1 — the direct way, all five pieces wired together
+#### Approach 1 — all five pieces in one graph
 
-**Story — `state.py`/`nodes.py`/`graph.py`:** this is Project 3 — every practice exercise above (conditional search, search-as-tool, empty search, search failure, approval pause) folds into this one graph. **If not:** Project 3 would be the first place any of these five pieces ever had to work together, with no smaller version to trust.
+**Story — `state.py`/`nodes.py`/`graph.py`/`main.py`:** this is Project 3 at its smallest — every exercise above (search as a tool, the entry decision, the empty-search check, the approval pause, the search failure) meets in one graph. **If not:** Project 3 would be the first place these five pieces ever had to work together.
 
 ```python
 # state.py
 from typing import TypedDict
+
 
 class ProjectState(TypedDict):
     task: str
@@ -271,63 +161,156 @@ class ProjectState(TypedDict):
 
 ```python
 # nodes.py
-from retriever import retrieve
+from langchain_openai import ChatOpenAI
+from langgraph.types import interrupt
 
-def route_search(state):
+from kb import collection
+from retriever import retrieve
+from state import ProjectState
+
+KEYWORDS = ["coffee", "brew", "grind", "water", "beans", "according to"]
+MAX_DISTANCE = 1.2
+
+
+def route_search(state: ProjectState) -> str:
     task = state["task"].lower()
-    if "document" in task or "policy" in task:
-        return "search"
+    for keyword in KEYWORDS:
+        if keyword in task:
+            return "search"
     return "skip"
 
-def search_node(state):
-    results = retrieve(state["task"])
-    return {"sources": results}
 
-def reason_node(state):
-    if not state["sources"]:
-        return {"draft": "I don't have grounding for this in my documents."}
+def search_node(state: ProjectState) -> dict:
+    return {"sources": retrieve(collection, state["task"])}
+
+
+def has_grounding(state: ProjectState) -> str:
+    sources = state["sources"]
+    if not sources:
+        return "no_grounding"
+    best = sources[0]["score"]
+    for source in sources:
+        if source["score"] < best:
+            best = source["score"]
+    if best > MAX_DISTANCE:
+        return "no_grounding"
+    return "reason"
+
+
+def reason_node(state: ProjectState) -> dict:
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    if not state.get("sources"):
+        return {"draft": model.invoke(state["task"]).content}
     pieces = []
-    for s in state["sources"]:
-        pieces.append(s.page_content)
+    for source in state["sources"]:
+        pieces.append(source["text"])
     context = "\n\n".join(pieces)
-    draft = model.invoke("Context: " + context + "\n\nTask: " + state["task"])
-    return {"draft": draft.content}
+    prompt = "Context:\n" + context + "\n\nQuestion: " + state["task"]
+    return {"draft": model.invoke(prompt).content}
 
-def approval_node(state):
+
+def no_grounding_node(state: ProjectState) -> dict:
+    return {"answer": "I don't have grounding for this in my documents."}
+
+
+def approval_node(state: ProjectState) -> dict:
     decision = interrupt({"draft": state["draft"]})
     return {"approved": decision == "approved"}
 
-def finish_node(state):
+
+def finish_node(state: ProjectState) -> dict:
     if state["approved"]:
         return {"answer": state["draft"]}
-    return {"answer": "Not approved -- no action taken."}
+    return {"answer": "Not approved -- nothing was sent."}
 ```
 
 ```python
 # graph.py
-from langgraph.graph import StateGraph
 from langgraph.checkpoint.memory import MemorySaver
-from state import ProjectState
-from nodes import route_search, search_node, reason_node
-from nodes import approval_node, finish_node
+from langgraph.graph import END, StateGraph
 
-builder = StateGraph(ProjectState)
-builder.add_node("search_node", search_node)
-builder.add_node("reason_node", reason_node)
-builder.add_node("approval_node", approval_node)
-builder.add_node("finish_node", finish_node)
-
-builder.set_conditional_entry_point(
-    route_search, {"search": "search_node", "skip": "reason_node"},
+from nodes import (
+    approval_node,
+    finish_node,
+    has_grounding,
+    no_grounding_node,
+    reason_node,
+    route_search,
+    search_node,
 )
-builder.add_edge("search_node", "reason_node")
-builder.add_edge("reason_node", "approval_node")
-builder.add_edge("approval_node", "finish_node")
+from state import ProjectState
 
-graph = builder.compile(checkpointer=MemorySaver())
+
+def build_graph():
+    builder = StateGraph(ProjectState)
+    builder.add_node("search_node", search_node)
+    builder.add_node("reason_node", reason_node)
+    builder.add_node("no_grounding_node", no_grounding_node)
+    builder.add_node("approval_node", approval_node)
+    builder.add_node("finish_node", finish_node)
+
+    builder.set_conditional_entry_point(
+        route_search, {"search": "search_node", "skip": "reason_node"}
+    )
+    builder.add_conditional_edges(
+        "search_node", has_grounding,
+        {"reason": "reason_node", "no_grounding": "no_grounding_node"},
+    )
+    builder.add_edge("reason_node", "approval_node")
+    builder.add_edge("approval_node", "finish_node")
+    builder.add_edge("no_grounding_node", END)
+    builder.add_edge("finish_node", END)
+    return builder.compile(checkpointer=MemorySaver())
 ```
 
-This meets every Build Task requirement: routed search, an honest "no grounding" draft, a real approval pause, and durable state. It's missing type hints, and it doesn't yet handle a `retrieve()` failure or a stale approval — both fine to leave out of a first working version.
+```python
+# main.py
+from langgraph.types import Command
+
+from graph import build_graph
+
+
+def show_steps(graph, graph_input, config):
+    for update in graph.stream(graph_input, config, stream_mode="updates"):
+        for node_name in update:
+            print("  step:", node_name)
+
+
+def main():
+    graph = build_graph()
+    config = {"configurable": {"thread_id": "run-1"}}
+    task = input("Your question: ")
+    show_steps(graph, {"task": task}, config)
+
+    paused = graph.get_state(config)
+    if paused.next:
+        print("Draft:", paused.values["draft"])
+        if input("Approve? (yes/no): ").strip().lower() == "yes":
+            decision = "approved"
+        else:
+            decision = "rejected"
+        show_steps(graph, Command(resume=decision), config)
+
+    print("Answer:", graph.get_state(config).values["answer"])
+
+
+if __name__ == "__main__":
+    main()
+```
+
+**Run it:** `python main.py`, then answer the questions. **Expected session** (the wording varies):
+```
+Your question: How hot should the water be when brewing?
+  step: search_node
+  step: reason_node
+  step: __interrupt__
+Draft: Water for brewing coffee should be between 195 and 205 degrees F.
+Approve? (yes/no): yes
+  step: approval_node
+  step: finish_node
+Answer: Water for brewing coffee should be between 195 and 205 degrees F.
+```
+`__interrupt__` is the stream telling you the run paused. Try "What is 2 + 2?" (no `search_node` step), an off-topic coffee question like "Which coffee suits a marathon?" (`search_node`, then `no_grounding_node`, and no approval), and answer `no` once (`Not approved -- nothing was sent.`). Those are the README's 5 Test Cases, checked by hand.
 
 <hr class="page-break">
 
@@ -335,363 +318,479 @@ This meets every Build Task requirement: routed search, an honest "no grounding"
 
 ### Intermediate Version
 
-#### Approach 1 — type hints, `main.py`'s visible pause/resume loop
+#### Approach 1 — a visible path, `build_graph(checkpointer)`, and the 5 Test Cases
 
-**Story — `state.py`/`nodes.py`/`graph.py` (Intermediate):** Basic proved the graph works; this version separates "define the graph" from "run the graph," and gives `main.py` a real inspect-then-decide loop instead of trusting one `invoke()` return value. **If not:** every new caller of this graph (a test, Document 11's supervisor) would need to re-derive how to inspect a paused run instead of importing `build_graph()`.
+**Story — `state.py`/`nodes.py`/`test_project3.py`:** Basic works, but "what happened?" means scrolling through step lines, and the 5 Test Cases are checked by hand. **If not:** a change that broke the rejection path would only be noticed when a rejected answer went out anyway.
 
 ```python
 # state.py
-from typing import TypedDict
+import operator
+from typing import Annotated, TypedDict
 
 
 class ProjectState(TypedDict):
     task: str
-    sources: list
+    sources: list[dict]
     draft: str
     approved: bool
     answer: str
+    # every node adds its own name, so the path taken is visible
+    path: Annotated[list[str], operator.add]
 ```
 
 ```python
 # nodes.py
+from langchain_openai import ChatOpenAI
 from langgraph.types import interrupt
+
+from kb import collection
 from retriever import retrieve
+from state import ProjectState
+
+KEYWORDS = ["coffee", "brew", "grind", "water", "beans", "according to"]
+MAX_DISTANCE = 1.2
 
 
 def route_search(state: ProjectState) -> str:
     task = state["task"].lower()
-    keywords = ["document", "policy", "according to"]
-    has_match = False
-    for keyword in keywords:
+    for keyword in KEYWORDS:
         if keyword in task:
-            has_match = True
-    if has_match:
-        return "search"
+            return "search"
     return "skip"
 
 
 def search_node(state: ProjectState) -> dict:
-    results = retrieve(state["task"])
-    return {"sources": results}
+    sources = retrieve(collection, state["task"])
+    return {"sources": sources, "path": ["searched"]}
+
+
+def best_distance(sources: list[dict]) -> float:
+    best = sources[0]["score"]
+    for source in sources:
+        if source["score"] < best:
+            best = source["score"]
+    return best
+
+
+def has_grounding(state: ProjectState) -> str:
+    if not state["sources"]:
+        return "no_grounding"
+    if best_distance(state["sources"]) > MAX_DISTANCE:
+        return "no_grounding"
+    return "reason"
 
 
 def reason_node(state: ProjectState) -> dict:
-    if not state["sources"]:
-        return {"draft": "I don't have grounding for this in my documents."}
-
-    pieces = []
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    if not state.get("sources"):
+        draft = model.invoke(state["task"]).content
+        return {"draft": draft, "path": ["answered directly"]}
+    pieces: list[str] = []
     for source in state["sources"]:
-        pieces.append(source.page_content)
+        pieces.append(source["text"])
     context = "\n\n".join(pieces)
-    prompt = (
-        f"Using this context, answer the task.\n\nContext:\n{context}\n\n"
-        f"Task: {state['task']}"
-    )
-    response = model.invoke(prompt)
-    return {"draft": response.content}
+    prompt = f"Context:\n{context}\n\nQuestion: {state['task']}"
+    draft = model.invoke(prompt).content
+    return {"draft": draft, "path": ["answered from documents"]}
+
+
+def no_grounding_node(state: ProjectState) -> dict:
+    return {
+        "answer": "I don't have grounding for this in my documents.",
+        "path": ["no grounding"],
+    }
 
 
 def approval_node(state: ProjectState) -> dict:
-    decision = interrupt({"draft": state["draft"], "sources": state["sources"]})
-    return {"approved": decision == "approved"}
+    decision = interrupt({
+        "draft": state["draft"],
+        "prompt": "Approve this answer before it's sent? (approved/rejected)",
+    })
+    approved = decision == "approved"
+    if approved:
+        return {"approved": True, "path": ["approved"]}
+    return {"approved": False, "path": ["rejected"]}
 
 
 def finish_node(state: ProjectState) -> dict:
     if state["approved"]:
         return {"answer": state["draft"]}
-    return {"answer": "Not approved -- no action taken."}
+    return {"answer": "Not approved -- nothing was sent."}
 ```
 
 ```python
 # graph.py
-from langgraph.graph import StateGraph
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, StateGraph
+
+from nodes import (
+    approval_node,
+    finish_node,
+    has_grounding,
+    no_grounding_node,
+    reason_node,
+    route_search,
+    search_node,
+)
 from state import ProjectState
-from nodes import route_search, search_node, reason_node
-from nodes import approval_node, finish_node
 
 
-def build_graph():
+def build_graph(checkpointer=None):
+    if checkpointer is None:
+        checkpointer = MemorySaver()
     builder = StateGraph(ProjectState)
     builder.add_node("search_node", search_node)
     builder.add_node("reason_node", reason_node)
+    builder.add_node("no_grounding_node", no_grounding_node)
     builder.add_node("approval_node", approval_node)
     builder.add_node("finish_node", finish_node)
 
     builder.set_conditional_entry_point(
         route_search, {"search": "search_node", "skip": "reason_node"}
     )
-    builder.add_edge("search_node", "reason_node")
+    builder.add_conditional_edges(
+        "search_node", has_grounding,
+        {"reason": "reason_node", "no_grounding": "no_grounding_node"},
+    )
     builder.add_edge("reason_node", "approval_node")
     builder.add_edge("approval_node", "finish_node")
-
-    return builder.compile(checkpointer=MemorySaver())
-
-
-graph = build_graph()
+    builder.add_edge("no_grounding_node", END)
+    builder.add_edge("finish_node", END)
+    return builder.compile(checkpointer=checkpointer)
 ```
 
 ```python
 # main.py
 from langgraph.types import Command
-from graph import graph
+
+from graph import build_graph
+
+
+def show_steps(graph, graph_input, config: dict) -> None:
+    for update in graph.stream(graph_input, config, stream_mode="updates"):
+        for node_name in update:
+            print(f"  step: {node_name}")
+
+
+def ask_reviewer(draft: str) -> str:
+    print(f"Draft: {draft}")
+    answer = input("Approve? (yes/no): ").strip().lower()
+    if answer == "yes":
+        return "approved"
+    return "rejected"
 
 
 def main() -> None:
-    task = input("Enter a task: ")
+    graph = build_graph()
     config = {"configurable": {"thread_id": "run-1"}}
+    task = input("Your question: ")
+    show_steps(graph, {"task": task, "path": []}, config)
 
-    graph.invoke({"task": task}, config)
     paused = graph.get_state(config)
-    print(f"Draft: {paused.values['draft']}")
-    print(f"Sources used: {len(paused.values.get('sources', []))}")
+    if paused.next:
+        decision = ask_reviewer(paused.values["draft"])
+        show_steps(graph, Command(resume=decision), config)
 
-    decision = input("Approve this answer? (yes/no): ")
-    if decision.strip().lower() == "yes":
-        resume_value = "approved"
-    else:
-        resume_value = "rejected"
-    final = graph.invoke(Command(resume=resume_value), config)
-
-    print(f"Final answer: {final['answer']}")
+    final = graph.get_state(config).values
+    print(f"Path:   {final['path']}")
+    print(f"Answer: {final['answer']}")
 
 
 if __name__ == "__main__":
     main()
 ```
 
-**Difference from Basic:** full type hints throughout. `graph.py` wraps construction in `build_graph()` instead of module-level statements, matching how a real project separates "define the graph" from "run the graph." `main.py` now uses `graph.get_state(config)` to inspect the paused draft and source count, instead of relying on `invoke()`'s return value alone — and reports the final answer explicitly. This version still doesn't retry a failed search, cap what gets shown at approval, or distinguish a genuinely-empty search from a low-relevance one — that's what Approach 2 adds.
+```python
+# test_project3.py
+# Runs the 5 Test Cases from the README. Each case prints OK or WRONG.
+# Run it from inside this folder: python test_project3.py
+# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+from langgraph.types import Command
 
-#### Approach 2 — retry on search, a relevance threshold, and a visible `path` at approval
+from graph import build_graph
 
-**Story:** each practice exercise above got a hardened version of its own — a retry loop, a relevance threshold, an audit trail. The Build Task's real question is whether these compose cleanly into one graph, not just whether each works alone. **If not:** the approval step would show a human a bare draft with no way to tell a genuinely grounded answer from a fallback, or a retried search from a first-try success.
 
+def run(graph, task: str, thread_id: str, decision: str | None) -> dict:
+    config = {"configurable": {"thread_id": thread_id}}
+    graph.invoke({"task": task, "path": []}, config)
+    if decision is not None and graph.get_state(config).next:
+        graph.invoke(Command(resume=decision), config)
+    return graph.get_state(config).values
+
+
+def check(case: str, passed: bool, path: list[str]) -> None:
+    result = "OK"
+    if not passed:
+        result = "WRONG"
+    print(f"{case} -> {result}: {path}")
+
+
+if __name__ == "__main__":
+    graph = build_graph()
+    found = run(graph, "How hot should the water be?", "t1", "approved")
+    check("case 1 (search, found)   ",
+          found["path"][0] == "searched" and "approved" in found["path"],
+          found["path"])
+
+    direct = run(graph, "What is 2 + 2?", "t2", "approved")
+    check("case 2 (no search)       ",
+          "searched" not in direct["path"], direct["path"])
+
+    nothing = run(graph, "Which coffee suits a marathon?", "t3", None)
+    check("case 3 (nothing relevant)",
+          nothing["path"] == ["searched", "no grounding"], nothing["path"])
+
+    check("case 4 (approved)        ",
+          found["answer"] == found["draft"], found["path"])
+
+    rejected = run(graph, "How hot should the water be?", "t5", "rejected")
+    check("case 5 (rejected)        ",
+          rejected["answer"].startswith("Not approved"), rejected["path"])
+```
+**Expected output of `python test_project3.py`:**
+```
+case 1 (search, found)    -> OK: ['searched', 'answered from documents',
+'approved']
+case 2 (no search)        -> OK: ['answered directly', 'approved']
+case 3 (nothing relevant) -> OK: ['searched', 'no grounding']
+case 4 (approved)         -> OK: ['searched', 'answered from documents',
+'approved']
+case 5 (rejected)         -> OK: ['searched', 'answered from documents',
+'rejected']
+```
+(Wrapped to fit the page.) Each node returns its own one-item `path` list, and `operator.add` joins them in order — Doc09's reducer.
+
+#### Approach 2 — retry on search, and who approved when
+
+**Story:** the exercises hardened each piece on its own; the Build Task's real question is whether they work together. **If not:** a brief search outage would fail the whole run, and the path couldn't say who approved.
+
+Changes to Approach 1's files. **`state.py`** — one new field, `approved_by`:
 ```python
 # state.py
-from typing import TypedDict
+import operator
+from typing import Annotated, TypedDict
 
 
 class ProjectState(TypedDict):
     task: str
-    sources: list
-    grounded: bool
+    sources: list[dict]
     draft: str
     approved: bool
-    approved_by: str | None
+    approved_by: str
     answer: str
-    path: list[str]
+    # every node adds its own name, so the path taken is visible
+    path: Annotated[list[str], operator.add]
 ```
 
+**`nodes.py`** — the Failure exercise's retry, and the Real-world exercise's who-and-when:
 ```python
 # nodes.py
 import time
+
+from langchain_openai import ChatOpenAI
 from langgraph.types import interrupt
-from retriever import retrieve_with_scores
 
-MAX_ATTEMPTS = 3
+from kb import collection
+from logging_setup import get_logger
+from retriever import retrieve
+from state import ProjectState
+```
+
+```python
 TRANSIENT_ERRORS = (TimeoutError, ConnectionError)
-RELEVANCE_THRESHOLD = 0.75
+MAX_ATTEMPTS = 3
+```
 
-
-def route_search(state: ProjectState) -> str:
-    task = state["task"].lower()
-    keywords = ["document", "policy", "according to"]
-    has_match = False
-    for keyword in keywords:
-        if keyword in task:
-            has_match = True
-    if has_match:
-        return "search"
-    return "skip"
+```python
+def search_with_retry(query: str) -> list[dict]:
+    logger = get_logger(__name__)
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            return retrieve(collection, query)
+        except TRANSIENT_ERRORS as exc:
+            if attempt == MAX_ATTEMPTS - 1:
+                raise
+            wait_seconds = 2 ** attempt
+            logger.warning(f"search failed ({exc}); retry in {wait_seconds}s")
+            time.sleep(wait_seconds)
+    raise RuntimeError("search_with_retry left its loop unexpectedly")
 
 
 def search_node(state: ProjectState) -> dict:
-    path = state.get("path", []) + []
-    for attempt in range(MAX_ATTEMPTS):
-        try:
-            scored_sources = retrieve_with_scores(state["task"])
-            path.append("searched")
-            return {"sources": scored_sources, "path": path}
-        except TRANSIENT_ERRORS:
-            if attempt == MAX_ATTEMPTS - 1:
-                path.append("search_failed")
-                raise
-            time.sleep(2 ** attempt)
-    return {"sources": [], "path": path}
-
-
-def has_grounding(state: ProjectState) -> str:
-    scored_sources = state.get("sources", [])
-    best_score = 0.0
-    for _, score in scored_sources:
-        if score > best_score:
-            best_score = score
-    if best_score < RELEVANCE_THRESHOLD:
-        return "no_grounding"
-    return "reason"
-
-
-def reason_node(state: ProjectState) -> dict:
-    path = state.get("path", []) + []
-    scored_sources = state.get("sources", [])
-    best_score = 0.0
-    for _, score in scored_sources:
-        if score > best_score:
-            best_score = score
-
-    if not scored_sources or best_score < RELEVANCE_THRESHOLD:
-        path.append("no_grounding")
-        return {
-            "draft": "I don't have grounding for this in my documents.",
-            "grounded": False,
-            "path": path,
-        }
-
-    pieces = []
-    for chunk, _ in scored_sources:
-        pieces.append(chunk.page_content)
-    context = "\n\n".join(pieces)
-    prompt = (
-        f"Using this context, answer the task.\n\nContext:\n{context}\n\n"
-        f"Task: {state['task']}"
-    )
-    response = model.invoke(prompt)
-    path.append("found_grounding")
-    return {"draft": response.content, "grounded": True, "path": path}
-
-
-def approval_node(state: ProjectState) -> dict:
-    path = state.get("path", []) + []
-    # why: truncate each source so approval_node isn't the same
-    # unbounded-context risk search_as_tool's Intermediate section fixes
-    sources = state.get("sources", [])
-    source_previews = []
-    for chunk, _ in sources:
-        source_previews.append(chunk.page_content[:200])
-    decision = interrupt({
-        "draft": state["draft"],
-        "grounded": state["grounded"],
-        "sources": source_previews,
-        "path_so_far": path,
-        "prompt": "Approve this answer before it's sent? (approved/rejected)",
-    })
-    approved = decision["decision"] == "approved"
-    if approved:
-        path.append("approved")
-    else:
-        path.append("rejected")
-    return {
-        "approved": approved,
-        "approved_by": decision.get("by"),
-        "path": path,
-    }
-
-
-def finish_node(state: ProjectState) -> dict:
-    if state["approved"]:
-        return {"answer": state["draft"]}
-    return {"answer": "Not approved -- no action taken."}
+    sources = search_with_retry(state["task"])
+    return {"sources": sources, "path": ["searched"]}
 ```
 
 ```python
-# graph.py
-from langgraph.graph import StateGraph
-from langgraph.checkpoint.memory import MemorySaver
-from state import ProjectState
-from nodes import (
-    route_search,
-    search_node,
-    has_grounding,
-    reason_node,
-    approval_node,
-    finish_node,
-)
-
-
-def build_graph():
-    builder = StateGraph(ProjectState)
-    builder.add_node("search_node", search_node)
-    builder.add_node("reason_node", reason_node)
-    builder.add_node("approval_node", approval_node)
-    builder.add_node("finish_node", finish_node)
-
-    builder.set_conditional_entry_point(
-        route_search, {"search": "search_node", "skip": "reason_node"},
-    )
-    builder.add_conditional_edges(
-        "search_node", has_grounding,
-        {"no_grounding": "reason_node", "reason": "reason_node"},
-    )
-    builder.add_edge("reason_node", "approval_node")
-    builder.add_edge("approval_node", "finish_node")
-
-    # NOTE: MemorySaver loses everything on restart -- a real deployment
-    # would use SqliteSaver or a Postgres-backed checkpointer instead.
-    return builder.compile(checkpointer=MemorySaver())
-
-
-graph = build_graph()
+def approval_node(state: ProjectState) -> dict:
+    decision = interrupt({
+        "draft": state["draft"],
+        "prompt": "Approve this answer before it's sent? (approved/rejected)",
+    })
+    who = decision["by"]
+    if decision["decision"] == "approved":
+        return {
+            "approved": True,
+            "approved_by": who,
+            "path": [f"approved by {who} at {decision['at']}"],
+        }
+    return {
+        "approved": False,
+        "approved_by": who,
+        "path": [f"rejected by {who} at {decision['at']}"],
+    }
 ```
 
+**`main.py`** — `ask_reviewer()` returns the who-and-when dict:
 ```python
 # main.py
 from datetime import datetime, timezone
+
 from langgraph.types import Command
-from graph import graph
+```
 
-
-def main() -> None:
-    task = input("Enter a task: ")
-    config = {"configurable": {"thread_id": "run-1"}}
-
-    graph.invoke({"task": task}, config)
-    paused = graph.get_state(config)
-    print(f"Path so far: {paused.values['path']}")
-    print(f"Grounded: {paused.values['grounded']}")
-    print(f"Draft: {paused.values['draft']}")
-
-    reviewer = input("Your email: ")
-    decision = input("Approve this answer? (yes/no): ")
-    if decision.strip().lower() == "yes":
-        decision_value = "approved"
-    else:
-        decision_value = "rejected"
-    resume_value = {
-        "decision": decision_value,
+```python
+def ask_reviewer(draft: str) -> dict:
+    print(f"Draft: {draft}")
+    reviewer = input("Your email: ").strip()
+    answer = input("Approve? (yes/no): ").strip().lower()
+    decision = "rejected"
+    if answer == "yes":
+        decision = "approved"
+    return {
+        "decision": decision,
         "by": reviewer,
         "at": datetime.now(timezone.utc).isoformat(),
     }
-    final = graph.invoke(Command(resume=resume_value), config)
-
-    print(f"Final path: {final['path']}")
-    print(f"Final answer: {final['answer']}")
-
-
-if __name__ == "__main__":
-    main()
 ```
 
-#### Approach 3 — same structure, `pydantic` for a validated state instead of `TypedDict`
+**`test_project3.py`** — `run()` sends the same kind of dict, and case 1 checks `found["approved"]`:
+```python
+def run(graph, task: str, thread_id: str, decision: str | None) -> dict:
+    config = {"configurable": {"thread_id": thread_id}}
+    graph.invoke({"task": task, "path": []}, config)
+    if decision is not None and graph.get_state(config).next:
+        payload = {
+            "decision": decision,
+            "by": "tester@example.com",
+            "at": datetime.now(timezone.utc).isoformat(),
+        }
+        graph.invoke(Command(resume=payload), config)
+    return graph.get_state(config).values
+```
 
-**Story:** `TypedDict` (Approach 1/2) gives you type hints but no runtime checking — a node can still return `{"approved": "yes"}` (a string, not a bool) and nothing catches it until something downstream breaks confusingly. **If not:** a wrong-typed field would surface as a confusing bug three nodes downstream instead of a clear error at the point it was actually written.
+**Expected path** for an approved run:
+```
+['searched', 'answered from documents', 'approved by ana@example.com at
+2026-10-01T10:00:00+00:00']
+```
 
+#### Approach 3 — a Pydantic state instead of `TypedDict`
+
+**Story:** `TypedDict` gives type hints but no checking — a node can write `{"approved": "yes"}` and nothing complains until something downstream breaks. **If not:** a wrong-typed field would surface as a confusing bug three nodes later.
+
+Based on Approach 1. **`state.py`:**
 ```python
 # state.py
+import operator
+from typing import Annotated
+
 from pydantic import BaseModel
 
 
 class ProjectState(BaseModel):
     task: str
-    sources: list = []
-    grounded: bool = False
+    sources: list[dict] = []
     draft: str = ""
     approved: bool = False
-    approved_by: str | None = None
     answer: str = ""
-    path: list[str] = []
+    path: Annotated[list[str], operator.add] = []
 ```
-Everything else stays the same shape as Approach 2 — nodes still read and return dicts that LangGraph merges into state, but now any field with the wrong type (an `approved` that isn't genuinely a `bool`, for example) raises a clear `pydantic.ValidationError` immediately, at the point state is constructed, instead of surfacing later as a confusing `if state["approved"]:` bug three nodes downstream.
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1's graph works correctly on the happy path but trusts `retrieve()` never to fail, trusts any non-empty result list to mean real grounding, and shows the approval step only a bare draft with no record of how it got there. Approach 2 fixes all three: a retry loop around search, a relevance threshold instead of an empty-list check, and a `path` trail plus an audited resume payload at the approval step, so a human reviewer sees the graph's actual journey. Approach 3 doesn't change any of that behavior — it swaps the state container from `TypedDict` (hints only) to `pydantic.BaseModel` (hints enforced at runtime), catching a wrong-typed field the moment it's written instead of whenever it happens to cause a visible bug.
+**`nodes.py`** — the same functions, but a Pydantic state reaches each node as an **object**, so every `state["task"]` becomes `state.task` (`state["task"]` would raise `TypeError`):
+```python
+# nodes.py
+from langchain_openai import ChatOpenAI
+from langgraph.types import interrupt
 
-**Which one should you actually write?** For the Build Task as scoped, Approach 1 already satisfies every stated requirement — ship that first, and confirm the full test-case table in the exercise README passes before adding anything else. Reach for Approach 2's retry-plus-threshold-plus-path once you're running this against a real, occasionally-flaky search backend and real human reviewers who need to trust what they're approving — which, per this document's own Goal, is the whole point of Project 3. Reach for Approach 3's `pydantic` state only once a wrong-typed state field has actually caused a confusing bug, or once this graph is being extended by more than one person and a runtime check on every field is worth the small added dependency.
+from kb import collection
+from retriever import retrieve
+from state import ProjectState
+
+KEYWORDS = ["coffee", "brew", "grind", "water", "beans", "according to"]
+MAX_DISTANCE = 1.2
+
+
+def route_search(state: ProjectState) -> str:
+    task = state.task.lower()
+    for keyword in KEYWORDS:
+        if keyword in task:
+            return "search"
+    return "skip"
+
+
+def search_node(state: ProjectState) -> dict:
+    sources = retrieve(collection, state.task)
+    return {"sources": sources, "path": ["searched"]}
+
+
+def best_distance(sources: list[dict]) -> float:
+    best = sources[0]["score"]
+    for source in sources:
+        if source["score"] < best:
+            best = source["score"]
+    return best
+
+
+def has_grounding(state: ProjectState) -> str:
+    if not state.sources:
+        return "no_grounding"
+    if best_distance(state.sources) > MAX_DISTANCE:
+        return "no_grounding"
+    return "reason"
+
+
+def reason_node(state: ProjectState) -> dict:
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    if not state.sources:
+        draft = model.invoke(state.task).content
+        return {"draft": draft, "path": ["answered directly"]}
+    pieces: list[str] = []
+    for source in state.sources:
+        pieces.append(source["text"])
+    context = "\n\n".join(pieces)
+    prompt = f"Context:\n{context}\n\nQuestion: {state.task}"
+    draft = model.invoke(prompt).content
+    return {"draft": draft, "path": ["answered from documents"]}
+
+
+def no_grounding_node(state: ProjectState) -> dict:
+    return {
+        "answer": "I don't have grounding for this in my documents.",
+        "path": ["no grounding"],
+    }
+
+
+def approval_node(state: ProjectState) -> dict:
+    decision = interrupt({
+        "draft": state.draft,
+        "prompt": "Approve this answer before it's sent? (approved/rejected)",
+    })
+    approved = decision == "approved"
+    if approved:
+        return {"approved": True, "path": ["approved"]}
+    return {"approved": False, "path": ["rejected"]}
+
+
+def finish_node(state: ProjectState) -> dict:
+    if state.approved:
+        return {"answer": state.draft}
+    return {"answer": "Not approved -- nothing was sent."}
+```
+
+`graph.py`, `main.py` and `test_project3.py` don't change — `get_state(config).values` is still a dict, and the same 5 `OK` lines come back. Now a wrong type fails loudly: `graph.invoke({"task": 42}, config)` raises `pydantic.ValidationError` straight away, and a node that returned `{"approved": "not-a-bool"}` would raise one at the next step.
+
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 makes the run visible and tested. Approach 2 adds a retry and a who-and-when record. Approach 3 changes no behavior — it checks every field's type at runtime.
+
+### Which one should you actually use?
+Approach 1 meets every requirement — ship it first, with all 5 Test Cases passing. Add Approach 2's retry and audit once real users and real reviewers are involved, which is Project 3's whole point. Use Approach 3's Pydantic state once more than one person edits the graph, or a wrong-typed field has already bitten you. Project 3 builds the same graph step by step, in its own `src/` layout.

@@ -218,75 +218,65 @@ The second answer is exactly the problem this project solves: the model can only
 
 ## The Step 1 tests
 
-**Story — `tests/unit/test_config.py`:** Doc01's own `test_config.py`, with only the imports changed — it proves a missing key stops the app with a clear error, with no API call. **If not:** the first sign of a broken `.env` would be a confusing OpenAI error.
+**Story — `tests/unit/test_config.py`:** the same three checks as Doc01's `test_config.py` — a missing setting, an empty one, and a config that loads — with no API call. It tests `require_env()` with a made-up setting name, so your real `.env` is never moved or rewritten. **If not:** the first sign of a broken `.env` would be a confusing OpenAI error.
 
 ```python
 # tests/unit/test_config.py
-# Checks load_config() with no API call — Doc01's test_config.py, with
-# the imports changed. It rewrites .env as it goes, so it moves your real
-# .env aside first and puts it back at the end.
+# Checks the settings code with no API call. Each case prints OK or WRONG.
+# It only changes settings inside this test run — your .env file is never
+# touched.
 # Run from the repo root: python -m tests.unit.test_config
-#   case 1 — no .env file: MissingConfigError
-#   case 2 — .env without OPENAI_API_KEY: MissingConfigError
-#   case 3 — a complete .env: the Config loads
 import os
 
-from src.config import load_config
+from src.config import load_config, require_env
 from src.exceptions import MissingConfigError
 
-ENV_PATH = ".env"
-BACKUP_PATH = ".env.backup"
+TEST_SETTING = "RESEARCHHAND_TEST_SETTING"
 
 
-def set_env_file(contents: str | None) -> None:
-    os.environ.pop("OPENAI_API_KEY", None)
-    os.environ.pop("LOG_LEVEL", None)
-    if contents is None:
-        if os.path.exists(ENV_PATH):
-            os.remove(ENV_PATH)
-    else:
-        with open(ENV_PATH, "w") as env_file:
-            env_file.write(contents)
-
-
-def main() -> None:
-    if os.path.exists(ENV_PATH):
-        os.rename(ENV_PATH, BACKUP_PATH)
-
-    set_env_file(None)
+def test_missing_setting() -> None:
+    os.environ.pop(TEST_SETTING, None)
+    result = "WRONG"
     try:
-        load_config()
-    except MissingConfigError as e:
-        print(f"case 1 (.env missing)  -> MissingConfigError: {e}")
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 1 (missing setting) -> {result}")
 
-    set_env_file("LOG_LEVEL=INFO\n")
+
+def test_empty_setting() -> None:
+    os.environ[TEST_SETTING] = ""
+    result = "WRONG"
     try:
-        load_config()
-    except MissingConfigError as e:
-        print(f"case 2 (key missing)   -> MissingConfigError: {e}")
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 2 (empty setting)   -> {result}")
 
-    set_env_file("OPENAI_API_KEY=sk-test-123\n")
+
+def test_config_loads() -> None:
+    os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
-    print(f"case 3 (valid .env)    -> loaded, log level {config.log_level}")
-
-    if os.path.exists(ENV_PATH):
-        os.remove(ENV_PATH)
-    if os.path.exists(BACKUP_PATH):
-        os.rename(BACKUP_PATH, ENV_PATH)
+    result = "OK"
+    if config.openai_api_key != "sk-test-123":
+        result = "WRONG"
+    print(f"case 3 (config loads)    -> {result}")
 
 
 if __name__ == "__main__":
-    main()
+    test_missing_setting()
+    test_empty_setting()
+    test_config_loads()
 ```
 
 **Story — `tests/integration/test_live_agents.py`:** the checks that need the real model. It starts with one case — the no-tools chain answers a question — and every later step adds its own cases to this same file. **If not:** "it works" would only mean "it worked the one time I tried it by hand".
 
 ```python
 # tests/integration/test_live_agents.py
-# The project's checks against the real OpenAI API (and Open-Meteo) —
-# each step adds cases. Needs a valid OPENAI_API_KEY in .env.
+# Checks the app against the real OpenAI API (and Open-Meteo) — each step
+# adds cases. Each case prints OK or WRONG.
+# Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-#   case 1 — the no-tools chain answers a question from memory
 from langchain_openai import ChatOpenAI
 
 from src.chains.direct_answer import build_direct_chain
@@ -297,7 +287,10 @@ from src.models.llm import get_model
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
-    print(f"case 1 (direct answer)  -> {answer}")
+    result = "OK"
+    if "Paris" not in answer:
+        result = "WRONG"
+    print(f"case 1 (direct answer)  -> {result}: {answer}")
 
 
 if __name__ == "__main__":
@@ -308,6 +301,8 @@ if __name__ == "__main__":
 
 Also create the empty folders `tests/unit/` and `tests/integration/`. Tests run as modules, so they need no `__init__.py`.
 
+**Every test prints `OK` or `WRONG`** — you never have to judge the output yourself. `WRONG` means: read that test function and the code it calls.
+
 **Run the tests** (from the repo root):
 
 ```bash
@@ -315,15 +310,16 @@ python -m tests.unit.test_config
 python -m tests.integration.test_live_agents
 ```
 
-**Expected output:**
+**Expected output** of `test_config`:
 
 ```
-case 1 (.env missing)  -> MissingConfigError: Required environment variable
-is missing: OPENAI_API_KEY
-case 2 (key missing)   -> MissingConfigError: Required environment variable
-is missing: OPENAI_API_KEY
-case 3 (valid .env)    -> loaded, log level INFO
-case 1 (direct answer)  -> The capital of France is Paris.
+case 1 (missing setting) -> OK
+case 2 (empty setting)   -> OK
+case 3 (config loads)    -> OK
 ```
 
-(Cases 1 and 2 of the first file are shown wrapped onto 2 lines to fit the page — really one line each.)
+**Expected output** of `test_live_agents` (the model's wording varies):
+
+```
+case 1 (direct answer)  -> OK: The capital of France is Paris.
+```

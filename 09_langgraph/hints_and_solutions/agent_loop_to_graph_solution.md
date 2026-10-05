@@ -2,25 +2,9 @@
 
 > [Back to the exercise](../README.md#ex-agent_loop_to_graph) · [Hint 1](agent_loop_to_graph_hints.md#hint-1) · [Hint 2](agent_loop_to_graph_hints.md#hint-2) · [Solution](agent_loop_to_graph_solution.md)
 
-The `call_model_with_tools` and `run_tool` functions below stand in for your real Doc07 functions — in your own rebuild, import and call your actual Project 2 code instead of these. They're written as small, deterministic stubs here so the whole example is runnable and its output is predictable, without needing a live API key.
+**Story — `agent_loop_to_graph_practice.py`:** this is where Doc07's whole ReAct loop gets rebuilt as a graph — the same "think, act, observe, repeat" shape, with nodes and edges instead of a `for` loop, and Doc07's own `AGENT_TOOLS` and `run_tool()` doing the real work. **If not:** the Build Task's graph would be the first place you ever turned a loop into a graph, with no smaller version to trust it against.
 
-```python
-# agent_loop_to_graph_practice.py
-# stand-ins for your real Doc07 code — replace with your actual imports
-def call_model_with_tools(task: str, scratchpad: list[str]) -> dict:
-    if not scratchpad and "*" in task:
-        return {
-            "wants_tool": True, "tool_name": "calculator", "tool_input": task
-        }
-    return {"wants_tool": False, "answer": "84"}
-
-def run_tool(tool_name: str, tool_input: str) -> str:
-    if tool_name == "calculator":
-        return "84"
-    return "unknown tool"
-```
-
-**Story — `agent_loop_to_graph_practice.py`:** this is where Doc07's whole ReAct loop gets rebuilt as a graph — the same "think, act, observe, repeat" shape, just with nodes and edges instead of a `while` loop. **If not:** the Build Task's own graph skeleton would be the first place you ever turned a loop into a graph, with no smaller version to trust it against.
+**Before you start:** copy Doc07's Build Task files — `agent.py`, `docs_search.py`, `exceptions.py`, `http_client.py`, `logging_setup.py`, `tools.py` — into `09_langgraph/practice/`, next to this file, unchanged. Then `from agent import AGENT_TOOLS, run_tool` works.
 
 Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
@@ -30,71 +14,75 @@ Read both depths — they're not "wrong, right," they're 2 real, valid ways to s
 
 ```python
 # agent_loop_to_graph_practice.py
-from typing import TypedDict, Annotated
 import operator
-from langgraph.graph import StateGraph, START, END
+from typing import Annotated, TypedDict
+
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
+
+from agent import AGENT_TOOLS, run_tool
 
 
 class AgentState(TypedDict):
-    task: str
-    scratchpad: Annotated[list[str], operator.add]
-    next_action: str
-    final_answer: str
+    messages: Annotated[list, operator.add]
+    steps: Annotated[list, operator.add]
 
 
 def think(state):
-    decision = call_model_with_tools(state["task"], state["scratchpad"])
-    if decision["wants_tool"]:
-        return {
-            "scratchpad": [f"Thought: calling {decision['tool_name']}"],
-            "next_action": "call_tool",
-        }
-    return {
-        "scratchpad": ["Thought: done"],
-        "next_action": "finish",
-        "final_answer": decision["answer"],
-    }
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    response = model.bind_tools(AGENT_TOOLS).invoke(state["messages"])
+    return {"messages": [response]}
 
 
 def act(state):
-    result = run_tool("calculator", state["task"])
-    return {"scratchpad": [f"Observation: {result}"]}
-
-
-def finish_node(state):
-    return {}
+    tool_messages = []
+    steps = []
+    for call in state["messages"][-1].tool_calls:
+        result, error = run_tool(call, AGENT_TOOLS)
+        observation = result
+        if error is not None:
+            observation = "Error: " + error
+        tool_messages.append({
+            "role": "tool",
+            "content": observation,
+            "tool_call_id": call["id"],
+        })
+        steps.append({"tool": call["name"], "result": result, "error": error})
+    return {"messages": tool_messages, "steps": steps}
 
 
 def route(state):
-    return state["next_action"]
+    if state["messages"][-1].tool_calls:
+        return "act"
+    return "finish"
 
 
 builder = StateGraph(AgentState)
 builder.add_node("think", think)
 builder.add_node("act", act)
-builder.add_node("finish_node", finish_node)
 builder.add_edge(START, "think")
-builder.add_conditional_edges(
-    "think", route, {"call_tool": "act", "finish": "finish_node"},
-)
+builder.add_conditional_edges("think", route, {"act": "act", "finish": END})
 builder.add_edge("act", "think")
-builder.add_edge("finish_node", END)
-
 graph = builder.compile()
-starting_state = {
-    "task": "What is 12 * 7?", "scratchpad": [],
-    "next_action": "", "final_answer": "",
-}
-result = graph.invoke(starting_state, config={"recursion_limit": 20})
-print(result["final_answer"])
-print(result["scratchpad"])
+
+task = {"messages": [{"role": "user", "content": "What is 12 + 30?"}]}
+result = graph.invoke(task)
+print("answer:", result["messages"][-1].content)
+for step in result["steps"]:
+    print("  step:", step["tool"], "->", step["result"])
 ```
-**Expected output:**
+**Expected output** (the wording varies; the tool and its result don't):
 ```
-84
-['Thought: calling calculator', 'Observation: 84', 'Thought: done']
+answer: 12 + 30 is 42.
+  step: add -> 42
 ```
-This traces exactly like the Doc07 loop would: `think` decides a tool is needed, `act` runs it and appends the observation, control loops back to `think`, which now sees the observation in `scratchpad` and decides it's done.
+- **The state** holds Doc07's `messages` list and the step log. `Annotated[list, operator.add]` means each node's returned list is **added** to the old one — just like Doc07's `messages.append(...)`.
+- **`think`** is Doc07's model call: `bind_tools(AGENT_TOOLS)`, then `.invoke(messages)`. It returns the reply, which gets added to `messages`.
+- **`act`** is the inner `for call in response.tool_calls:` loop from Doc07, using the same `run_tool()`, and the same `{"role": "tool", ...}` messages.
+- **`route`** is Doc07's `if not response.tool_calls: return ...` check, turned into an edge: tool calls → `act`, none → `END`.
+- **`act → think`** is the loop's "go round again".
+
+This version works correctly. It's missing type hints and a step limit — both fine for a first working version.
 
 <hr class="page-break">
 
@@ -102,175 +90,167 @@ This traces exactly like the Doc07 loop would: `think` decides a tool is needed,
 
 ## Intermediate Version
 
-### Approach 1 — type hints, and reusing real tool dispatch
+### Approach 1 — type hints, a `build_graph()` function, and a step limit
 
 ```python
 # agent_loop_to_graph_practice.py
-from typing import TypedDict, Annotated
 import operator
-from langgraph.graph import StateGraph, START, END
+from typing import Annotated, TypedDict
+
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
+
+from agent import AGENT_TOOLS, run_tool
+
+RECURSION_LIMIT = 20
 
 
 class AgentState(TypedDict):
-    task: str
-    scratchpad: Annotated[list[str], operator.add]
-    next_action: str
-    final_answer: str
+    messages: Annotated[list, operator.add]
+    steps: Annotated[list[dict], operator.add]
 
 
 def think(state: AgentState) -> dict:
-    decision = call_model_with_tools(state["task"], state["scratchpad"])
-    if decision["wants_tool"]:
-        return {
-            "scratchpad": [f"Thought: calling {decision['tool_name']}"],
-            "next_action": "call_tool",
-            "task": state["task"],
-        }
-    return {
-        "scratchpad": ["Thought: done"],
-        "next_action": "finish",
-        "final_answer": decision["answer"],
-    }
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    response = model.bind_tools(AGENT_TOOLS).invoke(state["messages"])
+    return {"messages": [response]}
 
 
 def act(state: AgentState) -> dict:
-    # in your real rebuild: look up state's chosen tool name/args, then call
-    # your Doc07 tool registry, same as `run_tool` in your original loop
-    result = run_tool("calculator", state["task"])
-    return {"scratchpad": [f"Observation: {result}"]}
-
-
-def finish_node(state: AgentState) -> dict:
-    return {}
+    tool_messages: list[dict] = []
+    steps: list[dict] = []
+    for call in state["messages"][-1].tool_calls:
+        result, error = run_tool(call, AGENT_TOOLS)
+        observation = result
+        if error is not None:
+            observation = f"Error: {error}"
+        tool_messages.append({
+            "role": "tool",
+            "content": observation,
+            "tool_call_id": call["id"],
+        })
+        steps.append({"tool": call["name"], "result": result, "error": error})
+    return {"messages": tool_messages, "steps": steps}
 
 
 def route(state: AgentState) -> str:
-    return state["next_action"]
+    if state["messages"][-1].tool_calls:
+        return "act"
+    return "finish"
 
 
-builder = StateGraph(AgentState)
-builder.add_node("think", think)
-builder.add_node("act", act)
-builder.add_node("finish_node", finish_node)
-builder.add_edge(START, "think")
-builder.add_conditional_edges(
-    "think", route, {"call_tool": "act", "finish": "finish_node"},
-)
-builder.add_edge("act", "think")
-builder.add_edge("finish_node", END)
+def build_graph():
+    builder = StateGraph(AgentState)
+    builder.add_node("think", think)
+    builder.add_node("act", act)
+    builder.add_edge(START, "think")
+    builder.add_conditional_edges(
+        "think", route, {"act": "act", "finish": END}
+    )
+    builder.add_edge("act", "think")
+    return builder.compile()
 
-graph = builder.compile()
-starting_state = {
-    "task": "What is 12 * 7?", "scratchpad": [],
-    "next_action": "", "final_answer": "",
-}
-result = graph.invoke(starting_state, config={"recursion_limit": 20})
-print(f"answer: {result['final_answer']}")
-for line in result["scratchpad"]:
-    print(f"  {line}")
+
+def run_graph(graph, task: str) -> dict:
+    start = {"messages": [{"role": "user", "content": task}], "steps": []}
+    # why: the graph's version of Doc07's max_iterations
+    return graph.invoke(start, config={"recursion_limit": RECURSION_LIMIT})
+
+
+if __name__ == "__main__":
+    graph = build_graph()
+    result = run_graph(graph, "What is 12 + 30?")
+    print(f"answer: {result['messages'][-1].content}")
+    for step in result["steps"]:
+        print(f"  step: {step['tool']} -> {step['result']}")
 ```
 **Expected output:**
 ```
-answer: 84
-  Thought: calling calculator
-  Observation: 84
-  Thought: done
+answer: 12 + 30 is 42.
+  step: add -> 42
 ```
 
-**Difference from Basic:** same graph and same result, with full type hints and a `config={"recursion_limit": 20}` called out explicitly as the graph's equivalent of Doc07's manually-counted step limit — without it, a routing bug that never reaches `"finish"` would spin forever instead of failing with a clear `GraphRecursionError`.
+**Difference from Basic:** full type hints, and the graph is built inside `build_graph()` and run by `run_graph()`, so other code (Approach 2) can reuse both. `recursion_limit` is the graph's version of Doc07's `max_iterations`: without it, a model that keeps asking for tools would loop until LangGraph's default limit of 25 steps, instead of the limit you chose.
 
 ### Approach 2 — a real equivalence check against the original loop
 
-**Story:** the README's own stated point of this exercise is that the graph reaches the *same final answers* as your original loop — that's a real equivalence claim, and a claim needs a check, not a single manual run you eyeballed once. **If not:** a routing bug that happened to produce a plausible-looking answer on one test prompt would ship, undetected, into the Build Task.
+**Story:** the exercise's own claim is that the graph behaves the *same* as your Doc07 loop — a claim needs a check, not one manual run you eyeballed. Model wording changes from run to run, so compare what doesn't: **which tools each one used**. **If not:** a routing bug that skips a tool but still writes a plausible answer would slip into the Build Task.
 
 ```python
-# agent_loop_to_graph_practice.py
-def run_original_loop(task: str) -> str:
-    """Stand-in for your actual Doc07 while-loop function — same signature,
-    same behavior, just imported from your Project 2 code in the real
-    version."""
-    decision = call_model_with_tools(task, [])
-    if not decision["wants_tool"]:
-        return decision["answer"]
-    run_tool(decision["tool_name"], task)
-    decision = call_model_with_tools(task, ["used tool"])
-    return decision["answer"]
+# agent_loop_to_graph_practice.py — add below Approach 1's code
+from agent import run_agent
 
-
-test_prompts = [
-    "What is 12 * 7?",
-    "What is 3 * 9?",
-    "Say hello.",
+TEST_PROMPTS = [
+    "What is 12 + 30?",
+    "What's the weather in Lahore?",
+    "What is the capital of France?",
 ]
 
-mismatches = []
-for prompt in test_prompts:
-    loop_answer = run_original_loop(prompt)
-    starting_state = {
-        "task": prompt, "scratchpad": [],
-        "next_action": "", "final_answer": "",
-    }
-    graph_result = graph.invoke(starting_state, config={"recursion_limit": 20})
-    graph_answer = graph_result["final_answer"]
-    matched = loop_answer.strip() == graph_answer.strip()
-    if matched:
+
+def tool_names(steps: list[dict]) -> list[str]:
+    names = []
+    for step in steps:
+        names.append(step["tool"])
+    return names
+
+
+def compare_with_loop(graph) -> None:
+    mismatches = []
+    for prompt in TEST_PROMPTS:
+        loop_tools = tool_names(run_agent(prompt, 5).steps)
+        graph_tools = tool_names(run_graph(graph, prompt)["steps"])
         status = "MATCH"
-    else:
-        status = "MISMATCH"
-    print(
-        f"[{status}] {prompt!r} -> loop={loop_answer!r} graph={graph_answer!r}"
-    )
-    if status == "MISMATCH":
-        mismatches.append(prompt)
-
-if mismatches:
-    raise AssertionError(
-        f"Graph disagreed with the original loop on: {mismatches}"
-    )
-print("All test prompts matched.")
-```
-**Expected output** (with the stub functions above — a real rebuild's output depends on your actual model and tools, but the pattern is identical):
-```
-[MATCH] 'What is 12 * 7?' -> loop='84' graph='84'
-[MATCH] 'What is 3 * 9?' -> loop='84' graph='84'
-[MATCH] 'Say hello.' -> loop='84' graph='84'
-All test prompts matched.
-```
-(The stub `call_model_with_tools` here always answers `"84"` once it's decided it's done — in your real rebuild, swap in your actual Doc07 model call, and each prompt will get its own real answer instead of all matching by coincidence.)
-
-### Approach 3 — comparing step counts too, not just final answers
-
-**Story:** a matching final answer isn't the whole story — 2 implementations can reach the same right answer while one of them does unnecessary, wasteful work getting there. **If not:** a routing bug that loops 3 extra times before finally reaching the right answer would pass Approach 2's check clean, and you'd never know it was there.
-
-```python
-# agent_loop_to_graph_practice.py
-def run_graph_with_step_count(task: str) -> tuple[str, int]:
-    starting_state = {
-        "task": task, "scratchpad": [],
-        "next_action": "", "final_answer": "",
-    }
-    result = graph.invoke(starting_state, config={"recursion_limit": 20})
-    # why: each "Thought:" entry in the scratchpad marks one think step
-    thoughts = []
-    for line in result["scratchpad"]:
-        if line.startswith("Thought:"):
-            thoughts.append(line)
-    step_count = len(thoughts)
-    return result["final_answer"], step_count
+        if loop_tools != graph_tools:
+            status = "MISMATCH"
+            mismatches.append(prompt)
+        print(f"[{status}] {prompt!r}: loop={loop_tools} graph={graph_tools}")
+    if mismatches:
+        raise AssertionError(f"graph and loop disagreed on: {mismatches}")
+    print("All test prompts matched.")
 
 
-for prompt in test_prompts:
-    answer, steps = run_graph_with_step_count(prompt)
-    print(f"{prompt!r}: answer={answer!r}, steps={steps}")
+compare_with_loop(build_graph())
 ```
 **Expected output:**
 ```
-'What is 12 * 7?': answer='84', steps=2
-'What is 3 * 9?': answer='84', steps=2
-'Say hello.': answer='84', steps=2
+[MATCH] 'What is 12 + 30?': loop=['add'] graph=['add']
+[MATCH] "What's the weather in Lahore?": loop=['get_weather']
+        graph=['get_weather']
+[MATCH] 'What is the capital of France?': loop=[] graph=[]
+All test prompts matched.
 ```
-A matching final answer isn't the whole story — if the graph took, say, 6 steps to reach an answer your original loop reached in 2, that's worth investigating even though the final answer "passed." Counting `"Thought:"` entries in the scratchpad is a cheap way to catch a routing edge that loops more than it should.
+(Long lines are wrapped here to fit the page.) `run_agent()` is Doc07's real loop, imported unchanged — the comparison is your own two implementations against each other, on the same prompts.
 
-**Difference from Approach 1:** Approach 1 proves the graph runs correctly on one prompt. Approach 2 runs the exact comparison the exercise asks for — same test prompts, both implementations, an assertion that they agree — which is the only way to actually back up "gives the same answers as my original loop" instead of assuming it from one manual run. Approach 3 adds a second signal (step count) that a matching final answer alone can hide — two implementations can reach the same right answer while one of them is doing unnecessary, wasteful work getting there.
+### Approach 3 — comparing turns too, not just tools
 
-**Which one should you actually write?** Approach 2's equivalence check, always — run it against your real Doc07 loop and your real test prompts before you trust the rebuild for anything. Add Approach 3's step-count comparison once you have more than a couple of test prompts, or once you're debugging a case where the graph's answer is technically right but something about its path there feels off — it's the fastest way to catch a conditional edge that's routing through more loops than it needs to.
+**Story:** two runs can use the same tools while one of them takes extra model turns to get there. **If not:** a conditional edge that loops back one time too many would pass Approach 2's check and quietly double the cost.
+
+```python
+# agent_loop_to_graph_practice.py — add below Approach 2's code
+def count_model_turns(messages: list) -> int:
+    turns = 0
+    for message in messages:
+        # how: user and tool messages are dicts; model replies are not
+        if not isinstance(message, dict):
+            turns = turns + 1
+    return turns
+
+
+graph = build_graph()
+for prompt in TEST_PROMPTS:
+    result = run_graph(graph, prompt)
+    turns = count_model_turns(result["messages"])
+    steps = len(result["steps"])
+    print(f"{prompt!r}: {turns} model turns, {steps} tool steps")
+```
+**Expected output:**
+```
+'What is 12 + 30?': 2 model turns, 1 tool steps
+"What's the weather in Lahore?": 2 model turns, 1 tool steps
+'What is the capital of France?': 1 model turns, 0 tool steps
+```
+A tool task should take 2 model turns (ask for the tool, then answer) and a no-tool task 1. More than that means the graph loops more than it should. `isinstance(message, dict)` tells your own dict messages apart from the model's reply objects — the same check as Doc08b's `isinstance(result, Exception)`.
+
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 proves the graph runs on one prompt. Approach 2 backs up "same behavior as my loop" with a check on several prompts — comparing tools used, because exact wording never matches twice. Approach 3 adds a second signal, model turns, that matching tools alone can hide.
+
+**Which one should you actually write?** Approach 1's `build_graph()` and step limit, always — it's what the Build Task copies. Run Approach 2's check once against your real Doc07 loop before trusting the rebuild. Add Approach 3 when something about a run's path feels off, or as soon as you have more than a few prompts — it's the cheapest way to catch an edge that loops too often.

@@ -2,9 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-search_failure) · [Hint 1](search_failure_hints.md#hint-1) · [Hint 2](search_failure_hints.md#hint-2) · [Solution](search_failure_solution.md)
 
-**Story — `search_failure_practice.py`:** a checkpointer's whole promise is that a crash doesn't erase earlier progress — this exercise proves it on purpose, before the Build Task's search node needs that guarantee for real. **If not:** the Build Task's retry loop would be built on an untested assumption about what actually survives a mid-run failure.
-
-Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
+**Story — `search_failure_practice.py`:** a checkpointer's whole promise is that a crash doesn't erase earlier progress — this exercise proves it, by making search fail on purpose. **If not:** the Build Task's first real outage would also be your first time finding out what's left after a crash.
 
 ## Basic Version
 
@@ -12,19 +10,38 @@ Read both depths — they're not "wrong, right," they're 2 real, valid ways to s
 
 ```python
 # search_failure_practice.py
+from typing import TypedDict
+
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
+
+
+class FailureState(TypedDict):
+    task: str
+    plan: str
+    sources: list
+
+
+def plan_node(state):
+    return {"plan": "search the documents for: " + state["task"]}
+
 
 def search_node(state):
     # temporary, for this test
     raise RuntimeError("simulated vector store outage")
 
-checkpointer = MemorySaver()
-graph = builder.compile(checkpointer=checkpointer)
+
+builder = StateGraph(FailureState)
+builder.add_node("plan_node", plan_node)
+builder.add_node("search_node", search_node)
+builder.add_edge(START, "plan_node")
+builder.add_edge("plan_node", "search_node")
+builder.add_edge("search_node", END)
+graph = builder.compile(checkpointer=MemorySaver())
 
 config = {"configurable": {"thread_id": "failure-test-1"}}
-
 try:
-    graph.invoke({"task": "What does the policy say about refunds?"}, config)
+    graph.invoke({"task": "How hot should the water be?"}, config)
 except RuntimeError as e:
     print("Caught expected failure:", e)
 
@@ -32,8 +49,14 @@ snapshot = graph.get_state(config)
 print("Surviving state:", snapshot.values)
 print("Was about to run:", snapshot.next)
 ```
-
-This confirms state survives the crash and prints it. It doesn't assert anything specific about that state's correctness — just prints it for a human to eyeball.
+**Expected output:**
+```
+Caught expected failure: simulated vector store outage
+Surviving state: {'task': 'How hot should the water be?', 'plan': 'search
+the documents for: How hot should the water be?'}
+Was about to run: ('search_node',)
+```
+(Wrapped to fit the page.) `plan_node` finished before the crash, so its `plan` is saved; `get_state(config).next` shows the run stopped right before `search_node` (Doc09). This prints the state for you to check by eye — it doesn't test anything yet.
 
 <hr class="page-break">
 
@@ -41,146 +64,193 @@ This confirms state survives the crash and prints it. It doesn't assert anything
 
 ## Intermediate Version
 
-### Approach 1 — real assertions, and a test that fails loudly if the crash stops happening
+### Approach 1 — real assertions, and a test that fails if the crash stops happening
 
 ```python
 # search_failure_practice.py
+from typing import TypedDict
+
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
 
 
-def search_node(state: dict) -> dict:
+class FailureState(TypedDict):
+    task: str
+    plan: str
+    sources: list[dict]
+
+
+def plan_node(state: FailureState) -> dict:
+    return {"plan": f"search the documents for: {state['task']}"}
+
+
+def broken_search_node(state: FailureState) -> dict:
     # temporary, for this test
     raise RuntimeError("simulated vector store outage")
 
 
-def test_state_survives_search_failure() -> None:
-    checkpointer = MemorySaver()
-    graph = builder.compile(checkpointer=checkpointer)
-    config = {"configurable": {"thread_id": "failure-test-1"}}
+def build_graph(search_node):
+    builder = StateGraph(FailureState)
+    builder.add_node("plan_node", plan_node)
+    builder.add_node("search_node", search_node)
+    builder.add_edge(START, "plan_node")
+    builder.add_edge("plan_node", "search_node")
+    builder.add_edge("search_node", END)
+    return builder.compile(checkpointer=MemorySaver())
 
+
+def test_state_survives_search_failure() -> None:
+    graph = build_graph(broken_search_node)
+    config = {"configurable": {"thread_id": "failure-test-1"}}
     try:
-        graph.invoke(
-            {"task": "What does the policy say about refunds?"}, config
-        )
+        graph.invoke({"task": "How hot should the water be?"}, config)
         raise AssertionError("expected the graph to raise, but it didn't")
     except RuntimeError as e:
         print(f"Caught expected failure: {e}")
 
     snapshot = graph.get_state(config)
-    assert "task" in snapshot.values, "the task should still be in state"
-    assert snapshot.next == ("search_node",), "should stop before search_node"
-    print("Confirmed: state is intact, graph knows where it stopped.")
+    assert snapshot.values["plan"].startswith("search the documents")
+    assert snapshot.next == ("search_node",)
+    print("Confirmed: plan_node's work survived, and the graph knows")
+    print("it stopped before search_node.")
 
 
-test_state_survives_search_failure()
+if __name__ == "__main__":
+    test_state_survives_search_failure()
+```
+**Expected output:**
+```
+Caught expected failure: simulated vector store outage
+Confirmed: plan_node's work survived, and the graph knows
+it stopped before search_node.
 ```
 
-**Difference from Basic:** full type hints. Wrapping the test in a function with real assertions, not just prints — this is the difference between "I looked at it and it seemed fine" and a test you can rerun automatically after any future change. The extra `raise AssertionError` if the graph *doesn't* fail is a safety check — without it, a bug that accidentally makes `search_node` stop raising would make this whole test silently pass without testing anything. This version still gives up completely on the first failure — no retry — which is what Approach 2 changes.
+**Difference from Basic:** real `assert` checks instead of prints, wrapped in a test function you can re-run. The `raise AssertionError(...)` after `invoke()` matters: without it, a change that stopped the node from failing would make this test pass without testing anything. `build_graph(search_node)` takes the search node as a parameter, so the next approaches can plug in a real one.
 
-### Approach 2 — a retry with backoff, transient errors only
+### Approach 2 — a retry with backoff, for temporary errors only
 
-**Story:** not every failure deserves the same response — a vector store down for 200ms is nothing like one down for an hour, or a malformed query that fails identically on every retry. A node that just re-raises on any exception treats all three the same way. **If not:** the Build Task's search step would fail an entire user-facing run on a single, brief network blip a simple retry could have absorbed.
+**Story:** a vector store down for 200 ms is nothing like a malformed query that fails the same way every time. **If not:** one brief network blip would fail a whole user-facing run that a simple retry would have saved.
+
+Add below Approach 1's code:
 
 ```python
 # search_failure_practice.py
-import logging
 import time
 
-logger = logging.getLogger(__name__)
+from kb import collection
+from logging_setup import get_logger
+from retriever import retrieve
 
 TRANSIENT_ERRORS = (TimeoutError, ConnectionError)
 MAX_ATTEMPTS = 3
 
 
-def search_node(state: dict) -> dict:
+def real_search(query: str) -> list[dict]:
+    return retrieve(collection, query)
+
+
+def search_with_retry(search, query: str) -> list[dict]:
+    logger = get_logger(__name__)
     for attempt in range(MAX_ATTEMPTS):
         try:
-            results = retrieve(state["task"])
-            return {"sources": results}
+            return search(query)
         except TRANSIENT_ERRORS as exc:
             if attempt == MAX_ATTEMPTS - 1:
                 raise
             wait_seconds = 2 ** attempt
             logger.warning(
-                "Search attempt %d failed (%s); retrying in %ds",
-                attempt + 1, exc, wait_seconds,
+                f"search attempt {attempt + 1} failed ({exc}); "
+                f"retrying in {wait_seconds}s"
             )
             time.sleep(wait_seconds)
-    # unreachable: the loop above always returns or raises
-    raise RuntimeError("search_node exited its retry loop unexpectedly")
-```
-A `TimeoutError` or `ConnectionError` gets up to `MAX_ATTEMPTS` tries, with a growing delay between them (1s, then 2s), so a brief network blip is absorbed automatically. Anything else — a malformed query, a programming bug — is not in `TRANSIENT_ERRORS`, so it propagates immediately on the first attempt; retrying a bug five times just wastes five times as long finding out it still doesn't work.
-
-`MAX_ATTEMPTS` is written here as a plain module constant so the retry logic is easy to follow — in a real deployment, a retry count like this is exactly the kind of value that belongs in `config.py` (loaded from `.env`, per Doc01) instead of a hardcoded literal, since how aggressively to retry is an operational tuning knob, not something tied to the code's logic.
-
-### Approach 3 — retry plus proving both outcomes with a real test
-
-**Story:** Approach 2 is the retry logic itself; this approach tests it the way `search_failure`'s own lesson demands — proving both that a transient failure recovers, and that state still survives when retries are genuinely exhausted. **If not:** a retry loop with no test could silently start retrying permanent failures, or stop retrying transient ones, without anyone noticing until it matters.
-
-```python
-# search_failure_practice.py
-import time
-from langgraph.checkpoint.memory import MemorySaver
-
-TRANSIENT_ERRORS = (TimeoutError, ConnectionError)
-MAX_ATTEMPTS = 3
+    raise RuntimeError("search_with_retry left its loop unexpectedly")
 
 
-def make_search_node(fail_times: int, permanent: bool = False):
-    """Test helper: a search_node that fails `fail_times` before succeeding."""
-    calls = {"count": 0}
-
-    def search_node(state: dict) -> dict:
-        for attempt in range(MAX_ATTEMPTS):
-            calls["count"] += 1
-            if calls["count"] <= fail_times:
-                if permanent:
-                    # not transient -- no retry
-                    raise ValueError("malformed query")
-                raise TimeoutError("simulated timeout")
-            return {"sources": ["a real result"]}
-        raise RuntimeError("exhausted retries")
-
+def make_search_node(search):
+    def search_node(state: FailureState) -> dict:
+        return {"sources": search_with_retry(search, state["task"])}
     return search_node
 
 
+graph = build_graph(make_search_node(real_search))
+config = {"configurable": {"thread_id": "retry-1"}}
+result = graph.invoke({"task": "How hot should the water be?"}, config)
+print(f"found {len(result['sources'])} sources")
+```
+**Expected output:**
+```
+found 3 sources
+```
+`TimeoutError` and `ConnectionError` get up to `MAX_ATTEMPTS` tries, waiting 1 s, then 2 s between them (Doc02's backoff). Anything else — a bug, a bad query — isn't in `TRANSIENT_ERRORS`, so it's raised on the first try; retrying a bug only wastes time. `make_search_node(search)` is Doc07's factory idea: it builds a node around whichever search function you pass in.
+
+### Approach 3 — proving every outcome with a fake, flaky search
+
+**Story:** retry logic with no test can quietly start retrying permanent errors, or stop retrying temporary ones. **If not:** you'd find out only during a real outage.
+
+`FlakySearch` is Doc07's `FlakyToolState` idea: a small class with a counter that fails a set number of times, then really searches. Add below Approach 2's code:
+
+```python
+# search_failure_practice.py
+class FlakySearch:
+    """Fails the first `fail_times` calls with `error`, then searches."""
+
+    def __init__(self, fail_times: int, error: Exception) -> None:
+        self.fail_times = fail_times
+        self.error = error
+        self.call_count = 0
+
+    def search(self, query: str) -> list[dict]:
+        self.call_count = self.call_count + 1
+        if self.call_count <= self.fail_times:
+            raise self.error
+        return real_search(query)
+
+
 def test_recovers_from_transient_failure() -> None:
-    node = make_search_node(fail_times=2)  # fails twice, then succeeds
-    result = node({"task": "test"})
-    assert result["sources"] == ["a real result"]
-    print("Recovered after 2 transient failures, as expected.")
+    flaky = FlakySearch(2, TimeoutError("simulated timeout"))
+    results = search_with_retry(flaky.search, "How hot should the water be?")
+    assert len(results) > 0
+    assert flaky.call_count == 3
+    print("Recovered after 2 timeouts, on the 3rd try.")
 
 
 def test_permanent_failure_does_not_retry() -> None:
-    node = make_search_node(fail_times=1, permanent=True)
+    flaky = FlakySearch(1, ValueError("malformed query"))
     try:
-        node({"task": "test"})
+        search_with_retry(flaky.search, "anything")
         raise AssertionError("expected a ValueError, but none was raised")
     except ValueError:
-        print("Permanent failure raised immediately, with no retry delay.")
+        assert flaky.call_count == 1
+        print("A permanent error was raised at once, with no retry.")
 
 
 def test_state_survives_when_retries_are_exhausted() -> None:
-    checkpointer = MemorySaver()
-    graph = builder.compile(checkpointer=checkpointer)
-    config = {"configurable": {"thread_id": "exhausted-retries-test"}}
-
+    flaky = FlakySearch(99, TimeoutError("still down"))
+    graph = build_graph(make_search_node(flaky.search))
+    config = {"configurable": {"thread_id": "exhausted-1"}}
     try:
-        graph.invoke({"task": "something needing search"}, config)
-        raise AssertionError("expected the graph to eventually raise")
+        graph.invoke({"task": "How hot should the water be?"}, config)
+        raise AssertionError("expected the graph to raise a TimeoutError")
     except TimeoutError:
         pass
-
     snapshot = graph.get_state(config)
-    assert "task" in snapshot.values
-    print("Even with retries exhausted, pre-failure state is still intact.")
+    assert flaky.call_count == MAX_ATTEMPTS
+    assert snapshot.next == ("search_node",)
+    print("Retries used up, and plan_node's work is still saved.")
 
 
 test_recovers_from_transient_failure()
 test_permanent_failure_does_not_retry()
 test_state_survives_when_retries_are_exhausted()
 ```
+**Expected output** (with two retry warnings logged before the first line, and two more before the last):
+```
+Recovered after 2 timeouts, on the 3rd try.
+A permanent error was raised at once, with no retry.
+Retries used up, and plan_node's work is still saved.
+```
+`call_count` is what proves the behavior: 3 calls for the recovery, exactly 1 for the permanent error, and exactly `MAX_ATTEMPTS` before giving up.
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1 proves the checkpointer's guarantee once, against a node that fails exactly once and stays failed — a correct but incomplete picture of a real deployment, where most external failures are brief. Approach 2 adds the retry logic itself: transient errors get a few chances with growing delays, permanent errors fail immediately. Approach 3 doesn't change the retry logic at all — it proves all three outcomes a reviewer would actually want confirmed: recovery after a transient blip, no wasted retries on a permanent failure, and Approach 1's original "state survives" guarantee still holding even when every retry is used up.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 proves the checkpointer's guarantee once. Approach 2 adds the retry itself. Approach 3 proves all three outcomes — recovery, no wasted retries, and saved state even when every retry fails.
 
-**Which one should you actually write?** Approach 1's plain crash-and-check test is worth keeping regardless — it's the simplest proof the checkpointing promise holds at all, and it's what `search_failure`'s Core Concepts point is really about. Add Approach 2's retry loop the moment your search backend is a real network service instead of a local file or in-memory store — a single dropped connection shouldn't fail an entire user-facing run. Approach 3's three-part test suite is worth writing once the retry logic itself is something other people (or future you) will change — a retry loop with no test can silently start retrying permanent failures, or stop retrying transient ones, without anyone noticing until it matters.
+**Which one should you actually write?** Keep Approach 1's crash test — it's the simplest proof checkpointing works at all. Add Approach 2's retry once search is a real network service. Add Approach 3's tests as soon as anyone (including future you) might change the retry logic.

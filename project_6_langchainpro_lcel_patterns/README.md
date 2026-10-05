@@ -32,7 +32,7 @@ Most real backend pipelines are this shape: a few fixed categories, a couple of 
 ## Demo
 
 ```
-$ python -m langchainpro.main
+$ python main.py
 LangChainPro — 4 tickets in the queue.
 
 Ticket from C-1001: I was charged twice for my Pro plan this month (INV-2201).
@@ -85,54 +85,53 @@ TicketRecord  (category, reply, used_fallback,
 
 ```
 <repo folder>/   (LangChainPro-Branching-...-Customer-Support-Pipeline/)
-├── README.md               the repo's front page
-├── LICENSE                 lets others reuse your code (MIT)
-├── .gitignore              keeps .env, .venv/, __pycache__/ out of git
-├── .env.example            the setting names, no real values
-├── .env                    your real key — never committed
-├── pyproject.toml          makes src/langchainpro an installable package
-├── requirements.txt        the libraries, for pip install -r
-├── src/
-│   └── langchainpro/
-│       ├── __init__.py
-│       ├── main.py             runs the ticket queue — the file you run
-│       ├── config.py           Config, load_config()
-│       ├── exceptions.py       MissingConfigError
-│       ├── schemas.py          TicketCategory, TicketRecord
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── llm.py          get_model()
-│       ├── chains/
-│       │   ├── __init__.py
-│       │   ├── classifier.py   classify_ticket() -> TicketCategory
-│       │   ├── replies.py      build_reply_chain(category)
-│       │   ├── lookups.py      build_lookup_step() (RunnableParallel)
-│       │   └── fallback.py     with_canned_reply(), with_unsure_category()
-│       ├── services/
-│       │   ├── __init__.py
-│       │   └── pipeline.py     handle_ticket() -> TicketRecord
-│       ├── prompts/
-│       │   ├── classifier.txt  the sorting rules
-│       │   ├── billing.txt     the billing reply rules
-│       │   ├── technical.txt   the technical reply rules
-│       │   └── general.txt     the general reply rules
-│       └── utils/
-│           ├── __init__.py
-│           ├── logger.py       get_logger()
-│           └── prompts.py      load_prompt(name)
-├── tests/
-│   ├── unit/
-│   │   ├── test_schemas.py     no API key needed
-│   │   ├── test_lookups.py     no API key needed
-│   │   ├── test_fallback.py    no API key needed
-│   │   └── test_review.py      no API key needed
-│   └── integration/
-│       └── test_live_pipeline.py real API calls
+├── data/
+│   └── sample/
+│       └── tickets.json       the 4 test tickets
 ├── scripts/
-│   └── time_lookups.py         one after another vs. parallel
-└── data/
-    └── sample/
-        └── tickets.json        the 4 test tickets
+│   └── time_lookups.py        one after another vs. parallel
+├── src/
+│   ├── chains/
+│   │   ├── __init__.py
+│   │   ├── classifier.py      classify_ticket() -> TicketCategory
+│   │   ├── fallback.py        with_canned_reply(), with_unsure_category()
+│   │   ├── lookups.py         build_lookup_step() (RunnableParallel)
+│   │   └── replies.py         build_reply_chain(category)
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py             get_model()
+│   ├── prompts/
+│   │   ├── billing.txt        the billing reply rules
+│   │   ├── classifier.txt     the sorting rules
+│   │   ├── general.txt        the general reply rules
+│   │   └── technical.txt      the technical reply rules
+│   ├── services/
+│   │   ├── __init__.py
+│   │   └── pipeline.py        handle_ticket() -> TicketRecord
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py          get_logger()
+│   │   └── prompts.py         load_prompt(name)
+│   ├── __init__.py
+│   ├── config.py              Config, load_config()
+│   ├── exceptions.py          MissingConfigError
+│   └── schemas.py             TicketCategory, TicketRecord
+├── tests/
+│   ├── integration/
+│   │   └── test_live_pipeline.py real API calls
+│   └── unit/
+│       ├── test_config.py     no API key needed
+│       ├── test_fallback.py   no API key needed
+│       ├── test_lookups.py    no API key needed
+│       ├── test_review.py     no API key needed
+│       └── test_schemas.py    no API key needed
+├── .env                       your real key — never committed
+├── .env.example               the setting names, no real values
+├── .gitignore                 keeps .env, .venv/, __pycache__/ out
+├── LICENSE                    lets others reuse your code (MIT)
+├── main.py                    runs the ticket queue — the file you run
+├── README.md                  the repo's front page
+└── requirements.txt           the libraries, for pip install -r
 ```
 
 ## Getting Started
@@ -147,7 +146,6 @@ Customer-Support-Pipeline
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-pip install -e .
 cp .env.example .env               # then put your key in .env
 ```
 
@@ -162,10 +160,10 @@ Other settings live in code, each in one place:
 
 | Setting | Where | Default |
 |---|---|---|
-| Chat model | `models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
-| Errors that fall back | `chains/fallback.py` → `TRANSIENT_ERRORS` | connection, rate limit, 5xx |
-| The canned reply | `chains/fallback.py` → `FALLBACK_REPLY` | "a member of our team will reply…" |
-| Fake lookup delay | `chains/lookups.py` → `LOOKUP_DELAY_SECONDS` | `1` |
+| Chat model | `src/models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
+| Errors that fall back | `src/chains/fallback.py` → `TRANSIENT_ERRORS` | connection, rate limit, 5xx |
+| The canned reply | `src/chains/fallback.py` → `FALLBACK_REPLY` | "a member of our team will reply…" |
+| Fake lookup delay | `src/chains/lookups.py` → `LOOKUP_DELAY_SECONDS` | `1` |
 | The ticket queue | `main.py` → `SAMPLES_PATH` | `data/sample/tickets.json` |
 
 **Your own tickets:** edit `data/sample/tickets.json` — each ticket needs a `customer_id`, a `ticket` and an `expected` category.
@@ -175,13 +173,13 @@ Other settings live in code, each in one place:
 Run from the repo root:
 
 ```bash
-python -m langchainpro.main     # or simply: langchainpro
+python main.py
 ```
 
 To see the parallel lookups save time (no API key needed):
 
 ```bash
-python scripts/time_lookups.py
+python -m scripts.time_lookups
 ```
 
 ## Running the Tests
@@ -190,13 +188,14 @@ Run from the repo root:
 
 ```bash
 # unit tests — no API key
-python tests/unit/test_schemas.py
-python tests/unit/test_lookups.py
-python tests/unit/test_fallback.py
-python tests/unit/test_review.py
+python -m tests.unit.test_config
+python -m tests.unit.test_schemas
+python -m tests.unit.test_lookups
+python -m tests.unit.test_fallback
+python -m tests.unit.test_review
 
 # integration tests — real API calls, needs OPENAI_API_KEY
-python tests/integration/test_live_pipeline.py
+python -m tests.integration.test_live_pipeline
 ```
 
 `test_fallback.py` forces a real outage (a model pointed at a local port where nothing listens) and checks the fallback fires — and that a working chain and a real bug don't trigger it.

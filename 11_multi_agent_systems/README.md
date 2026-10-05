@@ -577,15 +577,15 @@ _You don't need any of these to understand the Core Concepts above — use them 
 practice/
 ├── architecture_comparison_practice.py  Basic + Intermediate +
 │                                        Real-world (3 sections)
-├── supervisor_routing_practice.py       Edge cases
-└── convergence_and_cost_cutting_practice.py  Failure
+├── convergence_and_cost_cutting_practice.py  Failure
+└── supervisor_routing_practice.py       Edge cases
 ```
 
 **Why each script exists:**
 
 - `architecture_comparison_practice.py` — the same task, designed on paper then built two ways (sequential, supervisor) and measured — the comparison every later "why N agents" decision in this curriculum traces back to.
-- `supervisor_routing_practice.py` — proves a supervisor can route correctly (and recover) when two specialists genuinely overlap, not just when the order was never in question.
 - `convergence_and_cost_cutting_practice.py` — a revision loop that hits its limit cleanly, plus a real, measured cost cut — both things Project 4's reviewer loop needs.
+- `supervisor_routing_practice.py` — proves a supervisor can route correctly (and recover) when two specialists genuinely overlap, not just when the order was never in question.
 
 **How to run each exercise:** if two exercises below are really about the same thing, save them together in ONE script named after that topic — for example, if two exercises are both about `.env` config, save both in one file like `env_config_practice.py`, with each level's version as its own clearly labeled section inside it. Run each topic's file directly, for example: `python practice/env_config_practice.py`.
 
@@ -604,7 +604,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **What:** design the same task 3 ways (single agent / sequential / supervisor) on paper, guessing which wins on cost/speed/reliability, before writing any code.
 - **Why:** this document's central skill is judgment, not syntax — practicing the judgment call *before* code exists is the only way to actually test your intuition against reality afterward.
 - **When you'll hit this for real:** the start of every real multi-agent project, including Project 4's own Architecture-Before-Code step.
-- **How to practice it:** write one paragraph per design (single/sequential/supervisor) describing the flow, then a one-line prediction for cost, speed, and reliability for each. Use [The real question](#the-real-question-one-agent-or-many) and the [pattern comparison table](#every-pattern-below-what-why-when-trade-off) above to argue your prediction, not just guess it.
+- **How to code it:** in the `# Basic` section, write — as comments — one paragraph per design (single/sequential/supervisor) describing the flow, then a one-line prediction for cost, speed, and reliability for each. Use [The real question](#the-real-question-one-agent-or-many) and the [pattern comparison table](#every-pattern-below-what-why-when-trade-off) above to argue your prediction, not just guess it.
 - **Save as:** `practice/architecture_comparison_practice.py`, under a `# Basic` section (this file also holds the Intermediate and Real-world exercises below, each in its own section).
 - **Builds on:** [The real question: one agent, or many?](#the-real-question-one-agent-or-many) and the [pattern comparison table](#every-pattern-below-what-why-when-trade-off) above — you're using exactly those to make your on-paper prediction.
 - **Used later by:** the [Intermediate](#ex-sequential_measure) and [Real-world](#ex-supervisor_compare) exercises below (same file), and [Project 4](../project_4_contentforge_multi_agent/)'s own "Plan Before You Code" step.
@@ -679,26 +679,26 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 **Suggested files:**
 ```
 project_4_contentforge_multi_agent/
-├── main.py              entry point, runs the graph
-├── graph.py              wires all 5 nodes into a StateGraph
-├── state.py               the shared state shape
-├── llm.py                 the one chat model every agent imports
 ├── agents/
-│   ├── supervisor.py       routing logic, using Command
-│   ├── research_agent.py   looks things up
 │   ├── analysis_agent.py   figures out what the research means
-│   ├── writer_agent.py     drafts the piece
-│   └── reviewer_agent.py   checks the draft, can send it back
+│   ├── research_agent.py   looks things up
+│   ├── reviewer_agent.py   checks the draft, can send it back
+│   ├── supervisor.py       routing logic, using Command
+│   └── writer_agent.py     drafts the piece
+├── graph.py              wires all 5 nodes into a StateGraph
+├── llm.py                 the one chat model every agent imports
+├── main.py              entry point, runs the graph
+├── state.py               the shared state shape
 └── test_project4.py     checks the recoverable and never-agrees cases
 ```
 
 **Why each file exists:**
 
-- `main.py` — the one place a task actually gets run, so the graph-building and the running-it concerns stay separate.
+- `agents/*.py` — one file per specialist, so each agent's own logic is testable and readable on its own, separate from the routing.
 - `graph.py` — builds on the same `StateGraph`/`Command` mechanics `supervisor_compare` already practiced, now with 5 nodes instead of 2.
 - `llm.py` — one `model = ChatOpenAI(...)` line every agent imports, so switching the model for all five agents is a one-line change.
+- `main.py` — the one place a task actually gets run, so the graph-building and the running-it concerns stay separate.
 - `state.py` — one shared shape every agent reads and writes, so `research_findings`, `analysis`, `draft`, and `review_status` all mean the same thing everywhere.
-- `agents/*.py` — one file per specialist, so each agent's own logic is testable and readable on its own, separate from the routing.
 - `test_project4.py` — proves the revision loop actually recovers on rejection, and actually stops at the limit when it never agrees — the same discipline `convergence_and_cost_cutting` already trained.
 
 **Functions/Components to build:**

@@ -35,7 +35,7 @@ Things to use:
 The exact pieces:
 
 - `class GraphState(TypedDict): flag: bool; message: str` — a boolean field the routing function will branch on.
-- `def route(state: GraphState) -> str: return "path_a" if state["flag"] else "path_b"` — reads state, returns a plain string naming the chosen path.
+- `def route(state: GraphState) -> str:` with `if state["flag"]: return "path_a"`, then `return "path_b"` — reads state, returns a plain string naming the chosen path.
 - `builder.add_conditional_edges("decide", route, {"path_a": "node_a", "path_b": "node_b"})` — wires it up: after node `"decide"` runs, call `route`, then go to whichever real node the returned string maps to.
 - Both `node_a` and `node_b` still need their own `add_edge(..., END)` (or a further conditional edge) — a conditional edge only decides *where to go next*, it doesn't make either branch automatically finish the graph.
 - Invoke twice, once with `{"flag": True, ...}` and once with `{"flag": False, ...}`, and confirm each one actually reaches the node you expect.
@@ -67,7 +67,8 @@ make node_decide: takes state, returns nothing new (just a pass-through)
 make node_a: takes state, returns {"message": "went down path A"}
 make node_b: takes state, returns {"message": "went down path B"}
 
-make route(state): return "path_a" if state's flag is true, else "path_b"
+make route(state): if state's flag is true, return "path_a";
+                   otherwise return "path_b"
 
 build the graph:
     add node_decide, node_a, node_b
@@ -139,7 +140,9 @@ define:
         return {"message": "went down path B"}
 
     def route(state: GraphState) -> str:
-        return "path_a" if state["flag"] else "path_b"
+        if state["flag"]:
+            return "path_a"
+        return "path_b"
 
 build:
     builder = StateGraph(GraphState)
@@ -168,7 +171,9 @@ same graph as Intermediate, but:
 from typing import Literal
 
 def route(state: GraphState) -> Literal["path_a", "path_b"]:
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 ```
 
 Run a type checker (or just read carefully) over a *deliberately broken* version where the mapping only has `"path_a"` and `route` can still return `"path_b"` — confirm your editor or `mypy` flags the mismatch before you ever run the code. Then fix the mapping and confirm both branches still work exactly as before.

@@ -90,4 +90,19 @@ Test both failures on purpose:
 
 Neither should show a traceback.
 
+Then the two test files. Every test in this project follows one pattern, so the output is never confusing:
+
+```
+def test_something() -> None:
+    result = "OK"
+    if <the thing came out wrong>:
+        result = "WRONG"
+    print(f"case 1 (what it checks) -> {result}")
+```
+
+For an error you *expect*, flip it: start with `result = "WRONG"`, and set `"OK"` inside `except TheError:`.
+
+- `tests/unit/test_config.py` — `require_env()` with a made-up setting name: missing → `MissingConfigError`, empty → `MissingConfigError`; and `load_config()` loads once `OPENAI_API_KEY` is set in `os.environ`. No `.env` file is touched.
+- `tests/integration/test_live_agents.py` — the reply to "What's 2+2?" contains `4`; `check_api_key_at_startup()` returns `False` for `OpenAI(api_key="sk-fake-key-123")`.
+
 Full solution: [Show me the solution](step1_first_call_solution.md)

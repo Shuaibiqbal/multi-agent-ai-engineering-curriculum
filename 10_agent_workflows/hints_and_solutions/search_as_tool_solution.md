@@ -2,7 +2,19 @@
 
 > [Back to the exercise](../README.md#ex-search_as_tool) · [Hint 1](search_as_tool_hints.md#hint-1) · [Hint 2](search_as_tool_hints.md#hint-2) · [Solution](search_as_tool_solution.md)
 
-**Story — `search_tool_integration_practice.py`:** Doc08's `retrieve()` becomes a real graph tool here, unchanged — the exact wrapper the Build Task's `search_node` reuses. **If not:** the Build Task would be the first place you ever wrapped `retrieve()` as a `@tool`, with no smaller version to trust.
+**Story — `search_tool_integration_practice.py`:** Doc08's `retrieve()` becomes a real graph tool here, unchanged — the exact wrapper the Build Task's search step reuses. **If not:** the Build Task would be the first place you ever wrapped `retrieve()` as a `@tool`, with no smaller version to trust.
+
+**Before you start (once, for every Doc10 exercise):** copy Doc08's Build Task files — `chunking.py`, `config.py`, `exceptions.py`, `ingest.py`, `logging_setup.py`, `retriever.py` (Intermediate, Approach 2) — and its `docs/` folder of coffee documents into `10_agent_workflows/practice/`. Then add one small file that builds the knowledge base once, for every exercise to import:
+
+```python
+# kb.py
+# Builds Doc08's knowledge base once; every Doc10 exercise imports it.
+from ingest import build_vector_store
+
+collection = build_vector_store("docs")
+```
+
+`retrieve(collection, query, k)` returns a list of dicts — `text`, `source_file`, `chunk_index`, `score` — and `score` is a **distance**: lower means closer (Doc08).
 
 Read both depths — they're not "wrong, right," they're 2 real, valid ways to solve the same problem, with real tradeoffs between them.
 
@@ -10,30 +22,77 @@ Read both depths — they're not "wrong, right," they're 2 real, valid ways to s
 
 ### Approach 1 — the direct way
 
+The graph is Doc09's Real-world graph (`think` → `act` → `think`), with one tool: `search_docs`.
+
 ```python
 # search_tool_integration_practice.py — Basic section
+import operator
+from typing import Annotated, TypedDict
+
 from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
+
+from kb import collection
 from retriever import retrieve
+
 
 @tool
 def search_docs(query):
-    """Search the document set for relevant text."""
-    results = retrieve(query)
+    """Search the coffee documents for text relevant to the query."""
+    results = retrieve(collection, query)
     text = ""
-    for chunk in results:
-        text = text + chunk.page_content + "\n\n"
+    for result in results:
+        text = text + result["text"] + "\n\n"
     return text
 
-# wire it into the graph's model node
-model_with_tools = model.bind_tools([search_docs])
 
-# test it
-question = "What does the document say about vacation policy?"
-response = graph.invoke({"messages": [("user", question)]})
-print(response["messages"][-1])
+class ChatState(TypedDict):
+    messages: Annotated[list, operator.add]
+
+
+def think(state):
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    response = model.bind_tools([search_docs]).invoke(state["messages"])
+    return {"messages": [response]}
+
+
+def act(state):
+    tool_messages = []
+    for call in state["messages"][-1].tool_calls:
+        tool_messages.append({
+            "role": "tool",
+            "content": search_docs.invoke(call["args"]),
+            "tool_call_id": call["id"],
+        })
+    return {"messages": tool_messages}
+
+
+def route(state):
+    if state["messages"][-1].tool_calls:
+        return "act"
+    return "finish"
+
+
+builder = StateGraph(ChatState)
+builder.add_node("think", think)
+builder.add_node("act", act)
+builder.add_edge(START, "think")
+builder.add_conditional_edges("think", route, {"act": "act", "finish": END})
+builder.add_edge("act", "think")
+graph = builder.compile()
+
+question = "How hot should the water be when brewing?"
+result = graph.invoke({"messages": [{"role": "user", "content": question}]})
+print(result["messages"][-1].content)
 ```
+**Expected output** (the wording varies):
+```
+Water for brewing coffee should be between 195 and 205 degrees Fahrenheit.
+```
+The model asked for `search_docs`, `act` ran it, and the model answered from the text it got back — the same round trip as Doc06/07, now inside a graph.
 
-This works. It's missing type hints, and it builds the joined text with a loop instead of a cleaner one-liner — both fine for a first version.
+This works. It's missing type hints, it returns an empty string when nothing is found, and it has no plan for a search that fails — all fine for a first version.
 
 <hr class="page-break">
 
@@ -43,98 +102,67 @@ This works. It's missing type hints, and it builds the joined text with a loop i
 
 ### Approach 1 — type hints, a real docstring, and an explicit "no results" message
 
+Replace Basic's `search_docs` with this; the rest of the file stays the same.
+
 ```python
 # search_tool_integration_practice.py — Basic section
-from langchain_core.tools import tool
-from langgraph.graph import StateGraph
-from retriever import retrieve
-
-
 @tool
 def search_docs(query: str) -> str:
-    """Search the document set for text relevant to the query.
+    """Search the company's coffee documents for text relevant to the query.
 
-    Use this whenever the user's question could be answered by
-    looking something up in the project's own documents.
+    Use this whenever the question could be answered by looking something
+    up in the coffee documents: brewing, grind size, water, storage.
     """
-    results = retrieve(query)
+    results = retrieve(collection, query)
     if not results:
         return "No relevant documents found."
-    pieces = []
-    for chunk in results:
-        pieces.append(chunk.page_content)
+    pieces: list[str] = []
+    for result in results:
+        pieces.append(result["text"])
     return "\n\n".join(pieces)
-
-
-# wire it into the graph's model node
-model_with_tools = model.bind_tools([search_docs])
-
-
-def call_model(state: dict) -> dict:
-    response = model_with_tools.invoke(state["messages"])
-    return {"messages": [response]}
-
-
-# test it
-question = "What does the document say about vacation policy?"
-result = graph.invoke({"messages": [("user", question)]})
-print(result["messages"][-1])
 ```
 
-**Difference from Basic:** full type hints, and a more descriptive docstring that explicitly tells the model *when* to use this tool — the model relies entirely on this text to decide, so being specific here directly improves how reliably it gets called at the right time. An explicit "no results" message instead of an empty string, so the model gets a clear signal instead of silence it might misread as an error. A generator expression (`"\n\n".join(...)`) instead of a manual loop — same result, no intermediate variable to manage. This version still trusts `retrieve()` never to raise, and never to return more chunks than the model should have to read in one turn — that's what Approach 2 adds.
+**Difference from Basic:** full type hints, and a docstring that tells the model *when* to use the tool — the model decides only from this text (Doc06), so being specific makes it call the tool at the right times. An explicit "no results" message instead of an empty string gives the model a clear signal instead of silence. The pieces are collected in a list and joined once with `"\n\n".join(...)`, instead of growing one string. This version still trusts `retrieve()` never to raise, and returns everything it finds — Approach 2 changes both.
 
 ### Approach 2 — caught failures and a capped result count
 
-**Story:** a tool's return value becomes a `ToolMessage` inserted straight into the model's context — an uncaught `retrieve()` failure lands as a raw traceback there, confusing and wasteful, and an unbounded join can eat a large slice of the context window on a real document set. **If not:** the first real vector-store hiccup in a live run would crash the whole model turn instead of handing back a sentence the model can react to.
+**Story:** a tool's return value goes straight into the model's context — an uncaught `retrieve()` failure crashes the whole turn, and too many chunks eat the context window on a real document set. **If not:** the first vector-store hiccup in a live run would crash the model turn instead of handing back a sentence the model can react to.
 
 ```python
 # search_tool_integration_practice.py — Basic section
-from langchain_core.tools import tool
-from retriever import retrieve
-
-MAX_RESULTS = 5
+MAX_RESULTS = 2
 
 
 @tool
 def search_docs(query: str) -> str:
-    """Search the document set for text relevant to the query.
+    """Search the company's coffee documents for text relevant to the query.
 
-    Use this whenever the user's question could be answered by
-    looking something up in the project's own documents.
+    Use this whenever the question could be answered by looking something
+    up in the coffee documents: brewing, grind size, water, storage.
     """
     try:
-        results = retrieve(query)
+        results = retrieve(collection, query, k=MAX_RESULTS)
     except Exception as exc:
         return f"Search is temporarily unavailable: {exc}"
 
     if not results:
         return "No relevant documents found."
-
-    capped_results = results[:MAX_RESULTS]
-    pieces = []
-    for chunk in capped_results:
-        pieces.append(chunk.page_content)
+    pieces: list[str] = []
+    for result in results:
+        pieces.append(result["text"])
     return "\n\n".join(pieces)
-
-
-model_with_tools = model.bind_tools([search_docs])
-question = "What does the document say about vacation policy?"
-result = graph.invoke({"messages": [("user", question)]})
-print(result["messages"][-1])
 ```
-A failed `retrieve()` call now hands the model a short, honest sentence instead of crashing the whole turn with a traceback — the model can decide to tell the user search is down, retry with a rephrased query, or answer from what it already knows, instead of the graph run failing outright. Capping to `MAX_RESULTS` chunks keeps one tool call from consuming an outsized share of the model's context window on a larger document set. Like `MAX_ATTEMPTS` in `search_failure`, `MAX_RESULTS` is written as a plain constant here for readability — in a real deployment it's a `config.py` setting, not a hardcoded literal, since how many chunks is "too many" depends on the model's context window and changes as you swap models.
+A failed search now hands the model a short, honest sentence — it can tell the user search is down instead of the run failing. `k=MAX_RESULTS` caps how many chunks one call can add to the context. Like `MAX_ATTEMPTS` in `search_failure`, `MAX_RESULTS` is a plain constant here for readability; in a real project it belongs in `config.py`.
 
 ### Approach 3 — returning sources separately, for a later approval step
 
-**Story:** Approach 2's return value is a single joined string — good enough for the model to read, but it throws away exactly which chunks were used. `approval_pause` needs a human reviewer to see the actual sources, not a paraphrase. **If not:** the approval step downstream would only ever be able to show "the model searched something," never what it actually found.
+**Story:** Approach 2's return value is one joined string — fine for the model, but it throws away *which files* were used. `approval_pause` needs a reviewer to see the actual sources. **If not:** the approval step could only ever say "the model searched something," never what it found.
 
 ```python
 # search_tool_integration_practice.py — Basic section
 from dataclasses import dataclass
-from langchain_core.tools import tool
-from retriever import retrieve
 
-MAX_RESULTS = 5
+MAX_RESULTS = 2
 
 
 @dataclass
@@ -144,9 +172,9 @@ class SearchResult:
 
 
 def search_docs_with_sources(query: str) -> SearchResult:
-    """Search the document set and keep track of which chunks were used."""
+    """Search the documents and keep track of which files were used."""
     try:
-        results = retrieve(query)
+        results = retrieve(collection, query, k=MAX_RESULTS)
     except Exception as exc:
         message = f"Search is temporarily unavailable: {exc}"
         return SearchResult(text=message, sources=[])
@@ -154,24 +182,33 @@ def search_docs_with_sources(query: str) -> SearchResult:
     if not results:
         return SearchResult(text="No relevant documents found.", sources=[])
 
-    capped_results = results[:MAX_RESULTS]
-    pieces = []
-    for chunk in capped_results:
-        pieces.append(chunk.page_content)
-    text = "\n\n".join(pieces)
-    sources = []
-    for chunk in capped_results:
-        sources.append(chunk.metadata.get("source", "unknown"))
-    return SearchResult(text=text, sources=sources)
+    pieces: list[str] = []
+    sources: list[str] = []
+    for result in results:
+        pieces.append(result["text"])
+        sources.append(result["source_file"])
+    return SearchResult(text="\n\n".join(pieces), sources=sources)
 
 
 @tool
 def search_docs(query: str) -> str:
-    """Search the document set for text relevant to the query."""
+    """Search the company's coffee documents for text relevant to the query.
+
+    Use this whenever the question could be answered by looking something
+    up in the coffee documents: brewing, grind size, water, storage.
+    """
     return search_docs_with_sources(query).text
+
+
+found = search_docs_with_sources("How hot should the water be?")
+print("sources:", found.sources)
 ```
-`search_docs` (the `@tool`) is still what the model calls and reads — that part of the contract doesn't change. `search_docs_with_sources` is the same logic, used directly by a graph node (not through the model) when the node itself, not the model, needs to know exactly which sources were used — for example a `search_node` in the full Build Task graph, which saves `sources` into state for `approval_node` to show a human later.
+**Expected output** (first line):
+```
+sources: ['Water temperature.txt', 'French press basics.txt']
+```
+`search_docs` (the `@tool`) is still what the model calls and reads. `search_docs_with_sources` is the same logic for a graph **node** to call directly — for example a search node that saves `sources` into state for an approval step to show a human later. `@dataclass` is Doc01's typed holder.
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1's tool does real, correct work on the happy path, but an unhandled `retrieve()` failure crashes the turn, and there's no limit on how much text one call can return. Approach 2 fixes both of those directly inside the `@tool` function, with no new dependencies or structure — the smallest useful upgrade. Approach 3 solves a different problem: it keeps the *sources* (not just the joined text) available to the rest of the graph, which only matters once something downstream — like a human approval step — needs to show exactly what was searched, not just what the model was told.
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1's tool works on the happy path, but a failed search crashes the turn and there's no limit on how much text one call returns. Approach 2 fixes both inside the tool. Approach 3 solves a different problem: it keeps the *sources* available to the rest of the graph, for when something downstream — an approval step — must show what was searched.
 
-**Which one should you actually write?** Approach 2's caught-failure-plus-cap is worth adding to every tool that wraps an external lookup, in any project — it costs a few lines and prevents a whole class of confusing crashes. Approach 3's separate `sources` tracking is only worth the extra structure once something else in your graph — an approval step, a citation feature, a "show your work" UI — actually needs the sources, not just the model. For this exercise alone, Approach 2 is enough; Approach 3 is what you'll reach for once you build the full Build Task graph.
+**Which one should you actually write?** Approach 2's caught failure and cap belong in every tool that wraps an outside lookup. Approach 3's separate `sources` only once something else in your graph needs them — which the Build Task's approval step does.

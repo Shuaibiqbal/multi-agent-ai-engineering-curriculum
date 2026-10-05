@@ -310,7 +310,7 @@ A checkpointer saves the graph's state at the end of every superstep — in memo
 
 - A checkpoint is saved automatically, with no extra code in your nodes, at the end of every superstep — right after the engine merges each node's returned update into state (see [From a hidden loop to a clear graph](#from-a-hidden-loop-to-a-clear-graph)).
 - Every run needs a `thread_id`, passed as `config={"configurable": {"thread_id": "..."}}`. The checkpointer keys everything by this id — one conversation's state never leaks into another's, which is also why it can't double as long-term, cross-conversation memory (see [Long-term memory](#long-term-memory-remembering-across-separate-conversations) below).
-- `InMemorySaver()` is correct for tests and local development — and actively wrong for anything that must survive a restart, since it's exactly the Python-list-in-a-running-process problem this topic exists to fix. `SqliteSaver`/`PostgresSaver` are the production choices.
+- `InMemorySaver()` (the exercises use its other name, `MemorySaver` — the same class) is correct for tests and local development — and actively wrong for anything that must survive a restart, since it's exactly the Python-list-in-a-running-process problem this topic exists to fix. `SqliteSaver`/`PostgresSaver` are the production choices.
 - Building the graph with `compile(checkpointer=...)` once at module level, and passing a **different** `thread_id` per conversation, is what lets one process serve many users at once. Compiling per request gives every request its own fresh in-memory saver, which quietly breaks resume — the single most common cause of "my chatbot works locally but forgets everything in production."
 - A checkpoint captures the **whole state dict**, not a diff — exactly why [the State topic](#state-one-typed-object-flowing-through-the-graph) warns against putting large blobs or secrets in state: every superstep writes the whole thing again.
 - Because a checkpoint exists between every pair of nodes, LangGraph can also resume a run from an **earlier** checkpoint instead of the latest one — useful for retrying from before a bad step instead of from the very start.
@@ -564,7 +564,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ## Practice Exercises
 
-**Setup:** same venv as before — if it's not active, `cd 09_langgraph && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langgraph langchain-openai`.
+**Setup:** same venv as before — if it's not active, `cd 09_langgraph && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langgraph langchain-openai langgraph-checkpoint-sqlite` (the last one for `SqliteSaver`).
 
 **Where your code lives:** all of it under `09_langgraph/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/07/08 — so one topic's growth from basic to intermediate stays visible in one file.
 
@@ -572,19 +572,25 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 practice/
-├── first_graph_practice.py            Basic
+├── agent.py ... tools.py              Doc07's Build Task files, copied in
+│                                       (for the Real-world exercise)
+├── agent_loop_to_graph_practice.py    Real-world
+├── approval_graph.py                  Failure (Approach 3)
 ├── conditional_routing_practice.py    Intermediate + Edge cases
 │                                       (two sections)
-├── agent_loop_to_graph_practice.py    Real-world
-└── loop_limit_interrupt_practice.py   Failure
+├── first_graph_practice.py            Basic
+├── loop_limit_interrupt_practice.py   Failure
+├── pause_script.py                    Failure (Approaches 2-3)
+└── resume_script.py                   Failure (Approaches 2-3)
 ```
 
 **Why each script exists:**
 
-- `first_graph_practice.py` — the 3 real ingredients (state, nodes, edges) at their smallest — every later exercise and the Build Task assume you already have this working.
-- `conditional_routing_practice.py` — real branching, plus what happens when a routing function returns a value nothing handles.
 - `agent_loop_to_graph_practice.py` — proves a graph can do exactly what Doc07's hand-built loop did — the direct rehearsal for the Build Task.
-- `loop_limit_interrupt_practice.py` — the only place you watch an unguarded loop actually hit its limit, and a paused graph actually resume across a real process restart.
+- `approval_graph.py`, `pause_script.py`, `resume_script.py` — the pause/resume across two real processes: one module for the graph, one script that pauses, one that resumes.
+- `conditional_routing_practice.py` — real branching, plus what happens when a routing function returns a value nothing handles.
+- `first_graph_practice.py` — the 3 real ingredients (state, nodes, edges) at their smallest — every later exercise and the Build Task assume you already have this working.
+- `loop_limit_interrupt_practice.py` — the only place you watch an unguarded loop actually hit its limit, and a paused graph resume in the same process.
 
 **For this document, save your practice code as:**
 
@@ -608,7 +614,7 @@ practice/
 
 - **What:** a conditional edge that picks a path based on a field in state, tested on both paths.
 - **Why:** this is the mechanism every "should I search / should I call this agent" decision in the rest of the curriculum is built from.
-- **How to code it:** write `def route(state): return "path_a" if state["flag"] else "path_b"`, wire it with `add_conditional_edges("node", route, {"path_a": "...", "path_b": "..."})`, and invoke with both flag values.
+- **How to code it:** write a `route(state)` function that returns `"path_a"` when `state["flag"]` is true and `"path_b"` otherwise (a plain `if`/`else`), wire it with `add_conditional_edges("node", route, {"path_a": "...", "path_b": "..."})`, and invoke with both flag values.
 - **Save as:** `practice/conditional_routing_practice.py`, under an `# Intermediate` section (this file also holds the [Edge cases exercise](#ex-unhandled_routing_value) below, in its own section).
 - **Builds on:** the [Basic](#ex-first_graph) graph — same shape, now with a real decision.
 - **Used later by:** [Project 3](../project_3_documind_rag_agent/)'s "search or don't" routing, and Project 4's supervisor routing.
@@ -618,7 +624,7 @@ practice/
 
 - **What:** rebuild Project 2's agent (Doc07) as a graph with the same tools — same behavior, a new, clearer build.
 - **Why:** this is the exact translation exercise (loop → graph) this document's Build Task needs — do a first pass here, on a system you already understand completely.
-- **How to code it:** turn your Doc07 loop's think/act/observe steps into 2-3 nodes, with a conditional edge deciding "call a tool again" vs. "finish," and confirm it gives the same answers as your original loop on the same test prompts.
+- **How to code it:** copy Doc07's Build Task files into `practice/`. Turn the loop into a `think` node (the model call with `bind_tools`) and an `act` node (Doc07's `run_tool()` for every tool call), with a conditional edge deciding "act" vs. "finish". Add a `recursion_limit`, then confirm the graph uses the same tools as Doc07's `run_agent()` on the same test prompts, and count model turns.
 - **Save as:** `practice/agent_loop_to_graph_practice.py`.
 - **Builds on:** Doc07's [hand-built ReAct loop](../07_ai_agents/README.md#ex-build_react_loop) and its [`create_agent` comparison](../07_ai_agents/README.md#ex-agent_executor_comparison).
 - **Used later by:** the [Build Task](#build-task-graph-skeleton-feeds-into-project-3), and [Project 3](../project_3_documind_rag_agent/)'s Step 2, which does this exact migration for real, with a checkpointer added.
@@ -637,7 +643,7 @@ practice/
 
 - **What:** a graph with a loop that has no exit rule, run in a controlled, limited way. Then a checkpointer connected, proving state survives an `interrupt()` → resume cycle.
 - **Why:** both of these are things you need to have actually watched happen once — an endless graph loop, and a real, working pause that resumes correctly — before you trust yourself to build them safely in a real project.
-- **How to code it:** build a 2-node cycle with no conditional exit, run it with a low `recursion_limit` so it fails fast instead of hanging. Then, separately, add `checkpointer=InMemorySaver()`, call `interrupt()` in one node, invoke once (it pauses), then resume with the same `thread_id` in a **fresh Python process** and confirm it continues correctly.
+- **How to code it:** build a 2-node cycle with no conditional exit, run it with a low `recursion_limit` so it fails fast instead of hanging. Then, separately, add `checkpointer=MemorySaver()`, call `interrupt()` in one node, invoke once (it pauses), then resume with the same `thread_id` in a **fresh Python process** — with `MemorySaver` it fails, with `SqliteSaver` it works — using `graph.get_state(config)` to see what's paused first.
 - **Save as:** `practice/loop_limit_interrupt_practice.py`.
 - **Builds on:** the layered-limits idea from [Loops](#loops-on-purpose-not-by-accident), and the [Checkpointers](#checkpointers-saved-state-that-survives-a-pause)/[`interrupt()`](#interrupt-pausing-for-a-human) topics.
 - **Used later by:** the [Build Task](#build-task-graph-skeleton-feeds-into-project-3)'s `interrupt()` requirement, and [Project 3](../project_3_documind_rag_agent/)'s Approval agent, which is this exact gate for real.
@@ -660,22 +666,35 @@ practice/
 
 ```
 09_langgraph/practice/build_task/
-├── state.py           the TypedDict/Pydantic state shape
-├── nodes.py            node functions -- state in, small update out
-├── graph.py             build_graph() -> CompiledGraph
-├── tools.py               reused from 07_ai_agents's Build Task
-└── test_graph.py           proves the Test Cases below
+├── agent.py             Doc07's: AGENT_TOOLS, run_tool(), run_agent()
+├── docs_search.py       Doc07's, unchanged
+├── exceptions.py        Doc07's (+ UnhandledRouteError)
+├── graph.py             build_graph(checkpointer=None) -> compiled graph
+├── http_client.py       Doc07's, unchanged
+├── logging_setup.py     Doc07's, unchanged
+├── nodes.py             think, act, risky_action, route
+├── pause_demo.py        pauses a refund and saves it to SQLite
+├── refunds.py           issue_refund -- the placeholder risky tool
+├── resume_demo.py       a new process: finds the pause and resumes it
+├── state.py             AgentState -- the typed state shape
+├── test_graph.py        proves the Test Cases below
+└── tools.py             Doc07's, unchanged
 ```
 
+- `agent.py`, `docs_search.py`, `http_client.py`, `logging_setup.py`, `tools.py` — **What/Why:** Doc07's Build Task files, copied in unchanged — the graph reuses Doc07's tools and `run_tool()` instead of writing them again.
+- `exceptions.py` — **What/Why:** Doc07's file plus `UnhandledRouteError`, so an unexpected route value fails with a clear, named error.
+- `graph.py` — **What/Why:** `build_graph(checkpointer=None)` wires the nodes, the 3-way edge and the checkpointer — the caller chooses where checkpoints live.
+- `nodes.py` — **What/Why:** `think`/`act`/`risky_action`/`route` — Doc07's loop rebuilt as graph functions, plus the one `interrupt()` point before a risky tool runs.
+- `pause_demo.py` — **What/Why:** starts a refund task, stops at the approval question, saves to `checkpoints.sqlite`, and exits.
+- `refunds.py` — **What/Why:** `issue_refund(order_id)`, a placeholder `@tool` standing in for an action with real consequences — the thing worth pausing for.
+- `resume_demo.py` — **What/Why:** a brand-new process that finds the paused run with `get_state()` and resumes it — the "from a fresh process" Test Case.
 - `state.py` — **What/Why:** one typed shape listing everything any node can read or write — the graph's whole public surface, in one place.
-- `nodes.py` — **What/Why:** `think`/`act`/`risky_action`/`route` — Doc07's loop rebuilt as graph functions, plus the one `interrupt()` point standing in for a human check.
-- `graph.py` — **What/Why:** `build_graph()` wires nodes, edges, and the checkpointer, and returns a compiled graph Document 10 can import and build on directly.
-- `tools.py` — **What/Why:** the exact tool library from Doc07, imported unchanged — the graph reuses it rather than writing tools from scratch.
-- `test_graph.py` — **What/Why:** proves the 4 Test Cases below actually pass — including the pause/resume cycle from a genuinely separate process.
+- `test_graph.py` — **What/Why:** proves the Test Cases below, each printing `OK` or `WRONG` — including a rejected refund and a bad route value.
+- `tools.py` — **What/Why:** Doc07's tool library, imported unchanged.
 
-**Run it:** `cd practice/build_task && python test_graph.py` — from inside the folder, so `from graph import build_graph` finds the file next to it.
+**Run it:** `cd practice/build_task && python test_graph.py` — from inside the folder, so `from graph import build_graph` finds the file next to it. Then `python pause_demo.py`, and after it exits, `python resume_demo.py`.
 
-**Builds on:** the [Basic](#ex-first_graph) graph skeleton and the [Real-world](#ex-agent_loop_to_graph) loop-to-graph rebuild — **copy** both into this folder rather than starting from scratch. `tools.py` reuses [Doc07](../07_ai_agents/README.md#build-task-project-2-tool-using-agent)'s tool library unchanged.
+**Builds on:** the [Real-world](#ex-agent_loop_to_graph) loop-to-graph rebuild (state, `think`, `act`, `route`), the [Intermediate](#ex-conditional_routing) conditional edge, the [Edge cases](#ex-unhandled_routing_value) `UnhandledRouteError`, and the [Failure](#ex-loop_limit_and_interrupt_resume) exercise's `interrupt()`, `SqliteSaver` and `get_state()` — **copy** them into this folder rather than starting from scratch. The tools and `run_tool()` come from [Doc07's Build Task](../07_ai_agents/README.md#build-task-project-2-tool-using-agent), unchanged.
 
 **Used later by:** [Project 3 — DocuMind](../project_3_documind_rag_agent/)'s Step 1 and Step 2 are this skeleton's patterns, rebuilt directly into the project's own files — Step 1 is this document's Basic exercise (state, nodes, edges), Step 2 is its checkpointer + `interrupt()` cycle with `build_graph(checkpointer)` and `SqliteSaver`, later grown with a Retriever, a Reasoner, and an Approval agent.
 
@@ -691,6 +710,7 @@ practice/
 | Task with no risky action | The graph finishes without ever hitting the interrupt |
 | Task that reaches the interrupt point | The run pauses, state is saved |
 | Resume after interrupt (approved), from a fresh process | Graph continues from the saved state, correct final answer |
+| Resume after interrupt (rejected) | The risky tool never runs; the answer says it wasn't approved |
 | Conditional edge with an unexpected state value | Fails clearly and loudly, not a silent wrong path |
 
 ## Break-It / Debug Preview

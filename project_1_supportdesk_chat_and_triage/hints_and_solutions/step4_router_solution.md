@@ -74,10 +74,10 @@ def decide(client: OpenAI, message: str) -> RouteDecision:
         if reply.parsed is not None:
             decision = reply.parsed
     except ValidationError as e:
-        logger.warning("Router output did not match RouteDecision: %s", e)
+        logger.warning(f"Router output did not match RouteDecision: {e}")
 
     logger.info(
-        "routed to %s (%s): %r", decision.agent, decision.reason, message
+        f"routed to {decision.agent} ({decision.reason}): {message}"
     )
     return decision
 ```
@@ -146,7 +146,7 @@ def handle_message(client: OpenAI, history: list[dict], message: str) -> None:
             print("describe the problem again in a little more detail.")
         else:
             logger.info(
-                "ticket: %s / %s", ticket.issue_category, ticket.urgency
+                f"ticket: {ticket.issue_category} / {ticket.urgency}"
             )
             print_ticket(ticket)
     else:
@@ -209,7 +209,7 @@ def main() -> None:
             logger.warning("Rate limited after the client's retries.")
             print("We're busy right now — wait a moment and try again.")
         except openai.BadRequestError as e:
-            logger.warning("Request rejected (likely too long): %s", e)
+            logger.warning(f"Request rejected (likely too long): {e}")
             if history[-1]["role"] == "user":
                 history.pop()
             print("That message was too long to handle — please shorten it.")
@@ -255,11 +255,12 @@ if __name__ == "__main__":
 ```python
 # tests/unit/test_schemas.py
 # Checks the Pydantic schemas accept good data and reject bad data.
-# No API calls, no API key needed.
+# Each case prints OK or WRONG. No API calls, no API key needed.
 # Run from the repo root: python -m tests.unit.test_schemas
 from pydantic import ValidationError
 
 from src.schemas import RouteDecision, SupportTicket
+
 
 def test_ticket_without_a_name() -> None:
     ticket = SupportTicket(
@@ -268,9 +269,14 @@ def test_ticket_without_a_name() -> None:
         urgency="medium",
         summary="Customer can't log in after two password resets.",
     )
-    print(f"case 1 (no name allowed)     -> {ticket.customer_name}")
+    result = "OK"
+    if ticket.customer_name is not None:
+        result = "WRONG"
+    print(f"case 1 (no name allowed)  -> {result}")
+
 
 def test_ticket_rejects_unknown_urgency() -> None:
+    result = "WRONG"
     try:
         SupportTicket(
             customer_name="Sarah Khan",
@@ -279,18 +285,24 @@ def test_ticket_rejects_unknown_urgency() -> None:
             summary="Charged twice.",
         )
     except ValidationError:
-        print("case 2 (bad urgency)         -> ValidationError")
+        result = "OK"
+    print(f"case 2 (bad urgency)      -> {result}")
+
 
 # new in Step 4
 def test_route_rejects_unknown_agent() -> None:
+    result = "WRONG"
     try:
         RouteDecision(agent="billing", reason="looks like billing")
     except ValidationError:
-        print("case 3 (bad agent name)      -> ValidationError")
+        result = "OK"
+    print(f"case 3 (bad agent name)   -> {result}")
+
 
 if __name__ == "__main__":
     test_ticket_without_a_name()
     test_ticket_rejects_unknown_urgency()
+    # new in Step 4
     test_route_rejects_unknown_agent()
 ```
 
@@ -300,15 +312,9 @@ if __name__ == "__main__":
 
 ```python
 # tests/integration/test_live_agents.py
-# The project's checks against the real OpenAI API — each step adds
-# cases. Needs a valid OPENAI_API_KEY in .env.
+# Checks the app against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-#   case 1 — one message in, a real reply out
-#   case 2 — a wrong key is caught at startup, not mid-chat
-#   case 3 — turn 3 can use what was said in turn 1 (memory)
-#   case 4 — each sample complaint becomes a ticket
-#   case 5 — the complaint with no name gets no invented name
-#   case 6 — clear messages reach the expected agent
 import json
 
 from openai import OpenAI
@@ -328,13 +334,18 @@ SAMPLES_PATH = "data/sample/messages.json"
 
 def test_first_reply(client: OpenAI) -> None:
     reply = send_message(client, [], "What's 2+2?")
-    print(f"case 1 (first reply)   -> {reply}")
+    result = "OK"
+    if "4" not in reply:
+        result = "WRONG"
+    print(f"case 1 (first reply) -> {result}: {reply}")
 
 
 def test_bad_key() -> None:
     bad_client = OpenAI(api_key="sk-fake-key-123")
-    key_ok = check_api_key_at_startup(bad_client)
-    print(f"case 2 (bad key ok?)   -> {key_ok}")
+    result = "OK"
+    if check_api_key_at_startup(bad_client):
+        result = "WRONG"
+    print(f"case 2 (bad key)     -> {result}")
 
 
 def test_memory(client: OpenAI) -> None:
@@ -342,7 +353,10 @@ def test_memory(client: OpenAI) -> None:
     send_message(client, history, "My order number is 4471.")
     send_message(client, history, "Thanks, that's all for now.")
     reply = send_message(client, history, "What was my order number?")
-    print(f"case 3 (memory)        -> {reply}")
+    result = "OK"
+    if "4471" not in reply:
+        result = "WRONG"
+    print(f"case 3 (memory)      -> {result}: {reply}")
 
 
 def load_samples() -> dict:
@@ -350,16 +364,21 @@ def load_samples() -> dict:
         return json.loads(samples_file.read())
 
 
-def test_triage(client: OpenAI, samples: dict) -> None:
+def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
     for message in samples["triage"]:
         ticket = triage_agent(client, message)
-        print(f"case 4 (triage)        -> {ticket}")
+        if ticket is None:
+            print("case 4 (ticket)      -> WRONG: no ticket")
+        else:
+            print("case 4 (ticket)      -> OK:", ticket.issue_category)
 
-    second = triage_agent(client, samples["triage"][1])
-    if second is not None and second.customer_name is None:
-        print("case 5 (no name)       -> OK, customer_name is None")
-    else:
-        print("case 5 (no name)       -> WRONG, a name was invented")
+
+def test_no_invented_name(client: OpenAI, samples: dict) -> None:
+    ticket = triage_agent(client, samples["triage"][1])
+    result = "OK"
+    if ticket is None or ticket.customer_name is not None:
+        result = "WRONG"
+    print(f"case 5 (no name)     -> {result}")
 
 
 # new in Step 4
@@ -369,7 +388,7 @@ def test_routing(client: OpenAI, samples: dict) -> None:
         result = "OK"
         if decision.agent != case["expected"]:
             result = "WRONG"
-        print(f"case 6 (routing)       -> {result}: {decision.agent}")
+        print(f"case 6 (routing)     -> {result}: {decision.agent}")
 
 
 if __name__ == "__main__":
@@ -379,7 +398,8 @@ if __name__ == "__main__":
     test_first_reply(client)
     test_bad_key()
     test_memory(client)
-    test_triage(client, samples)
+    test_every_sample_gets_a_ticket(client, samples)
+    test_no_invented_name(client, samples)
     # new in Step 4
     test_routing(client, samples)
 ```
@@ -394,7 +414,18 @@ python -m tests.integration.test_live_agents
 python main.py
 ```
 
-**Expected output** of the new unit test line: `case 3 (bad agent name)      -> ValidationError`. The integration test ends with four `case 6 (routing) -> OK: ...` lines.
+**Expected output** — `test_schemas` gets one more line, and `test_live_agents` ends with four routing lines:
+
+```
+case 3 (bad agent name)   -> OK
+```
+
+```
+case 6 (routing)     -> OK: concierge
+case 6 (routing)     -> OK: concierge
+case 6 (routing)     -> OK: triage
+case 6 (routing)     -> OK: triage
+```
 
 **Expected app session** (the log lines go to the console too; the model's wording varies):
 
@@ -402,12 +433,12 @@ python main.py
 SupportDesk AI — type a message, or /quit to exit.
 You: hi! what are your support hours?
 ... src.agents.router INFO routed to concierge (The user asks
-a general question about support hours.): 'hi! what are your support
-hours?'
+a general question about support hours.): hi! what are your support
+hours?
 Concierge: We're available Monday to Friday, 9am to 6pm.
 You: can't log into my account, tried resetting password twice
 ... src.agents.router INFO routed to triage (The user cannot
-access their account.): "can't log into my account, tried ..."
+access their account.): can't log into my account, tried ...
 ... src.services.desk_service INFO ticket: account_access / medium
 Ticket created:
   customer: (not given)

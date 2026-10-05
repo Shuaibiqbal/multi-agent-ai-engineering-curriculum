@@ -12,7 +12,7 @@ After this step the project runs: it writes an article, has it reviewed, and rev
 
 **Story — `prompts/writer.txt` + `agents/writer_agent.py`:** the chain is the same; now it can be told what to fix. An empty feedback becomes the word "none", so the prompt always reads cleanly. **If not:** the Writer would redraft blindly, and could repeat the same mistake every round.
 
-`src/contentforge/prompts/writer.txt`
+`src/prompts/writer.txt`
 
 ```text
 You are the Writer on a content team. Write a short article (150-250
@@ -27,23 +27,21 @@ Reviewer feedback on your last draft (fix every point, or "none"):
 ```
 
 ```python
-# src/contentforge/agents/writer_agent.py
+# src/agents/writer_agent.py
+# The Writer agent. build_writer_chain() is the LCEL chain; run_writer()
+# turns findings (and optional feedback) into a draft.
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from contentforge.models.llm import get_model
-from contentforge.utils.prompts import load_prompt
+from src.models.llm import get_model
+from src.utils.prompts import load_prompt
 
 def build_writer_chain():
-    # why: the Writer's whole skill is one LCEL chain (Doc05) — proven
-    # alone in Step 1, and never rewritten after that
     prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
     return prompt | get_model() | StrOutputParser()
 
 # changed in Step 2: + feedback
 def run_writer(findings: str, feedback: str = "") -> str:
-    # why: feedback is what turns a one-shot chain into an agent that
-    # can improve its own work
     if feedback == "":
         feedback = "none"
     chain = build_writer_chain()
@@ -53,19 +51,19 @@ def run_writer(findings: str, feedback: str = "") -> str:
 **Story — `schemas.py`:** the verdict as a checked object: a score from 1 to 10 and the feedback text (Doc05's `with_structured_output`). **If not:** you'd parse "GOOD"/"BAD" out of free text.
 
 ```python
-# src/contentforge/schemas.py
+# src/schemas.py
+# ReviewVerdict: the Reviewer's reply as a checked object — a score (1-10)
+# the code compares to the pass mark, and the feedback text.
 from pydantic import BaseModel, Field
 
 class ReviewVerdict(BaseModel):
-    # why: a number the code can compare, not a word to search for
     score: int = Field(ge=1, le=10)
-    # why: the Writer gets this text back on a revision
     feedback: str
 ```
 
 **Story — `prompts/reviewer.txt`:** three written criteria — clarity, grounding, completeness — and "7 or more only if all three are met". **If not:** a vague Reviewer approves the first draft almost every time, and the loop never gets tested.
 
-`src/contentforge/prompts/reviewer.txt`
+`src/prompts/reviewer.txt`
 
 ```text
 You are the Reviewer on a content team. Score this draft from 1 to 10
@@ -86,20 +84,19 @@ Draft:
 **Story — `agents/reviewer_agent.py`:** the model scores; **the code** decides the pass mark (`PASS_SCORE = 7`). **If not:** "pass" would drift with the model's mood from run to run.
 
 ```python
-# src/contentforge/agents/reviewer_agent.py
+# src/agents/reviewer_agent.py
+# The Reviewer agent. PASS_SCORE is the pass mark, decided in code.
+# run_reviewer(findings, draft) returns a checked ReviewVerdict.
 from langchain_core.prompts import ChatPromptTemplate
 
-from contentforge.models.llm import get_model
-from contentforge.schemas import ReviewVerdict
-from contentforge.utils.prompts import load_prompt
+from src.models.llm import get_model
+from src.schemas import ReviewVerdict
+from src.utils.prompts import load_prompt
 
-# why: the pass mark is decided in code, not by the model's mood — so
-# the bar is the same on every run and easy to change in one place
 PASS_SCORE = 7
 
 def run_reviewer(findings: str, draft: str) -> ReviewVerdict:
     prompt = ChatPromptTemplate.from_template(load_prompt("reviewer"))
-    # how: with_structured_output returns a checked ReviewVerdict (Doc05)
     chain = prompt | get_model().with_structured_output(ReviewVerdict)
     return chain.invoke({"findings": findings, "draft": draft})
 ```
@@ -107,16 +104,18 @@ def run_reviewer(findings: str, draft: str) -> ReviewVerdict:
 **Story — `main.py`:** `write_with_review()` is the Generator → Critic loop (Doc11): write, review, pass the feedback back, stop at `MAX_REVISIONS`. It returns a dict with the **same keys the Step 5 team will use** (`draft`, `accepted`, `feedback_history`, `revision_count`), and `print_report(result)` prints it — never showing a rejected draft as finished. `print_report()` keeps its name and its input for the rest of the project. **If not:** a Writer and Reviewer that never agree would loop forever, and Step 5 would have to rewrite how results are printed.
 
 ```python
-# src/contentforge/main.py
+# main.py
+# The file you run: python main.py
+# Step 2 version: write_with_review() loops the Writer and Reviewer up to
+# MAX_REVISIONS; print_report() shows the result honestly.
 import sys
 
-from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
-from contentforge.agents.writer_agent import run_writer
-from contentforge.config import load_config
-from contentforge.exceptions import MissingConfigError
-from contentforge.utils.logger import get_logger
+from src.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from src.agents.writer_agent import run_writer
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.utils.logger import get_logger
 
-# why: the hard limit on Writer <-> Reviewer rounds — never loop forever
 MAX_REVISIONS = 3
 
 SAMPLE_FINDINGS = (
@@ -125,8 +124,6 @@ SAMPLE_FINDINGS = (
 )
 
 def write_with_review(findings: str) -> dict:
-    # why: returns a dict with the SAME keys the Step 5 team state uses,
-    # so print_report() never has to change its input
     logger = get_logger(__name__)
     result = {
         "draft": "",
@@ -138,11 +135,10 @@ def write_with_review(findings: str) -> dict:
     for round_number in range(1, MAX_REVISIONS + 1):
         result["draft"] = run_writer(findings, feedback)
         verdict = run_reviewer(findings, result["draft"])
-        logger.info("round %s: score %s", round_number, verdict.score)
+        logger.info(f"round {round_number}: score {verdict.score}")
         if verdict.score >= PASS_SCORE:
             result["accepted"] = True
             return result
-        # how: the Reviewer's feedback goes into the Writer's next round
         feedback = verdict.feedback
         result["feedback_history"].append(feedback)
         result["revision_count"] = result["revision_count"] + 1
@@ -153,7 +149,6 @@ def print_report(result: dict) -> None:
         print("\nFinal article:\n")
         print(result["draft"])
     else:
-        # why: never pass a rejected draft off as finished
         attempts = result["revision_count"]
         print(f"\nCouldn't agree after {attempts} revisions. Feedback:")
         number = 1
@@ -177,43 +172,57 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/integration/test_live_agents.py`:** the one check that matters most here — a weak draft must **fail**. **If not:** a Reviewer that passes everything looks exactly like one that works.
+**Story — `tests/integration/test_live_agents.py`:** the one check that matters most here — a weak draft must **fail** (case 2). **If not:** a Reviewer that passes everything looks exactly like one that works.
 
 ```python
 # tests/integration/test_live_agents.py
-# Runs the agents against the real OpenAI API.
-# Run from the repo root: python tests/integration/test_live_agents.py
-# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
-from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
-from contentforge.config import load_config
+# Runs the agents against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_agents
+from src.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from src.agents.writer_agent import run_writer
+from src.config import load_config
 
 FINDINGS = (
     "Range:\n- A battery gives 40 to 100 km per charge. [battery-review]\n"
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
+
+def test_writer_keeps_sources() -> None:
+    draft = run_writer(FINDINGS)
+    result = "OK"
+    if "[" not in draft:
+        result = "WRONG"
+    print(f"case 1 (writer keeps sources) -> {result}")
+
+
 def test_reviewer_rejects_weak_draft() -> None:
-    # case 1: a weak draft must fail — a Reviewer that passes everything
-    # would never make the revision loop run
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
-    passed = verdict.score >= PASS_SCORE
-    print(f"case 1 (weak draft)     -> score {verdict.score}, "
-          f"passed={passed}")
+    result = "OK"
+    if verdict.score >= PASS_SCORE:
+        result = "WRONG"
+    print(f"case 2 (weak draft fails)     -> {result}")
+
 
 if __name__ == "__main__":
     load_config()
+    test_writer_keeps_sources()
     test_reviewer_rejects_weak_draft()
 ```
 
-**Run it:**
+**Run it** (from the repo root):
 
 ```bash
-python tests/integration/test_live_agents.py
-python -m contentforge.main
+python -m tests.integration.test_live_agents
+python main.py
 ```
 
+**Expected output:**
+
 ```
-case 1 (weak draft)     -> score 2, passed=False
+case 1 (writer keeps sources) -> OK
+case 2 (weak draft fails)     -> OK
 ```
 
 To see the limit, set `PASS_SCORE = 11` for one run: you should get "Couldn't agree after 3 revisions" and the full feedback list — never an endless loop.

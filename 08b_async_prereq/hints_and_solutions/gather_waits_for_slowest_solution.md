@@ -125,7 +125,7 @@ async def main_bounded() -> None:
     print(f"whole group finished in {time.perf_counter() - start:.2f}s")
     for result in results:
         if isinstance(result, Exception):
-            print("a task timed out or failed:", result)
+            print("a task timed out or failed:", repr(result))
         else:
             print("a task succeeded:", result)
 
@@ -137,7 +137,7 @@ if __name__ == "__main__":
 ```
 whole group finished in 2.00s
 a task succeeded: fast
-a task timed out or failed: 
+a task timed out or failed: TimeoutError()
 ```
 `asyncio.wait_for(truly_slow_task(), timeout=2)` is created *before* the call to `gather` — it's what actually cancels `truly_slow_task` after 2 seconds and turns that into a `TimeoutError` sitting in `bounded_slow`'s slot, instead of `gather` waiting the full 60 seconds like it did for `slow_task` in Approach 1.
 
@@ -170,7 +170,9 @@ async def main() -> None:
     # 3 fast sources, 1 that would hang for a very long time
     sources = [(1, 0.2), (2, 0.3), (3, 0.1), (4, 120)]
     results = await fetch_all(sources, per_task_timeout=3)
-    for source_id, result in zip((s[0] for s in sources), results):
+    for i in range(len(sources)):
+        source_id = sources[i][0]
+        result = results[i]
         if isinstance(result, Exception):
             status = "timed out"
         else:
@@ -188,7 +190,7 @@ source 2: result from source 2
 source 3: result from source 3
 source 4: timed out
 ```
-This is the same pattern as Approach 1, generalized: wrap *every* task in `asyncio.wait_for(..., timeout=...)` before handing the whole list to `gather(*tasks, return_exceptions=True)`. One slow or dead source costs the group exactly `per_task_timeout` seconds, not however long that one source decides to take.
+This is the same pattern as Approach 2, generalized: wrap *every* task in `asyncio.wait_for(..., timeout=...)` before handing the whole list to `gather(*tasks, return_exceptions=True)`. One slow or dead source costs the group exactly `per_task_timeout` seconds, not however long that one source decides to take.
 
 **Difference from Approach 1, and between Approaches 2/3:** Approach 1's `slow_task` is slow but always, eventually, bounded at 5 seconds — the exercise proves `gather` waits for it, but never asks what if it didn't come back at all. Approach 2 answers that for a single task. Approach 3 shows the same fix scales cleanly to any number of tasks with one simple loop, which is the shape a real "search 4 independent sources and combine what comes back" agent step actually takes.
 

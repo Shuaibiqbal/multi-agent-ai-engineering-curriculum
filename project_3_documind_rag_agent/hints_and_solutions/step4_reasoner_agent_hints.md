@@ -53,4 +53,6 @@ Checking "it ran" isn't enough. For 3-4 questions, open the document and compare
 
 If it adds facts, make the prompt stricter. If it never cites, check that `format_sources()` puts the file name in front of each excerpt.
 
+Then turn the citation into a test: integration case 7 — the refund answer must contain `[refund_policy.md]`.
+
 Full solution: [Show me the solution](step4_reasoner_agent_solution.md)

@@ -10,7 +10,7 @@ After this step the project runs: research → analysis → write → review. Fi
 
 **Story — `prompts/analysis.txt`:** 2-4 themes, keep **every** fact and its tag, and an "Other" theme for facts that don't fit. **If not:** the article would quietly lose facts between Research and Writer.
 
-`src/contentforge/prompts/analysis.txt`
+`src/prompts/analysis.txt`
 
 ```text
 You are the Analyst on a content team. Organize the research notes below
@@ -25,15 +25,16 @@ Research notes:
 **Story — `agents/analysis_agent.py`:** a plain chain, no tool — organizing is thinking, not looking up. **If not:** you'd give it a tool it never needs.
 
 ```python
-# src/contentforge/agents/analysis_agent.py
+# src/agents/analysis_agent.py
+# The Analysis agent. run_analysis(notes) is a plain LCEL chain that groups
+# the research notes into themes while keeping every fact.
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from contentforge.models.llm import get_model
-from contentforge.utils.prompts import load_prompt
+from src.models.llm import get_model
+from src.utils.prompts import load_prompt
 
 def run_analysis(notes: str) -> str:
-    # why: a plain chain, no tool — organizing is thinking, not looking up
     prompt = ChatPromptTemplate.from_template(load_prompt("analysis"))
     chain = prompt | get_model() | StrOutputParser()
     return chain.invoke({"notes": notes})
@@ -42,23 +43,22 @@ def run_analysis(notes: str) -> str:
 **Changed from Step 3:** `main.py` runs Analysis between Research and the writing loop.
 
 ```python
-# src/contentforge/main.py
+# main.py
+# The file you run: python main.py
+# Step 4 version: topic -> research -> analysis -> write and review.
 import sys
 
-from contentforge.agents.analysis_agent import run_analysis
-from contentforge.agents.research_agent import run_research
-from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
-from contentforge.agents.writer_agent import run_writer
-from contentforge.config import load_config
-from contentforge.exceptions import MissingConfigError
-from contentforge.utils.logger import get_logger
+from src.agents.analysis_agent import run_analysis
+from src.agents.research_agent import run_research
+from src.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from src.agents.writer_agent import run_writer
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.utils.logger import get_logger
 
-# why: the hard limit on Writer <-> Reviewer rounds — never loop forever
 MAX_REVISIONS = 3
 
 def write_with_review(findings: str) -> dict:
-    # why: returns a dict with the SAME keys the Step 5 team state uses,
-    # so print_report() never has to change its input
     logger = get_logger(__name__)
     result = {
         "draft": "",
@@ -70,11 +70,10 @@ def write_with_review(findings: str) -> dict:
     for round_number in range(1, MAX_REVISIONS + 1):
         result["draft"] = run_writer(findings, feedback)
         verdict = run_reviewer(findings, result["draft"])
-        logger.info("round %s: score %s", round_number, verdict.score)
+        logger.info(f"round {round_number}: score {verdict.score}")
         if verdict.score >= PASS_SCORE:
             result["accepted"] = True
             return result
-        # how: the Reviewer's feedback goes into the Writer's next round
         feedback = verdict.feedback
         result["feedback_history"].append(feedback)
         result["revision_count"] = result["revision_count"] + 1
@@ -85,7 +84,6 @@ def print_report(result: dict) -> None:
         print("\nFinal article:\n")
         print(result["draft"])
     else:
-        # why: never pass a rejected draft off as finished
         attempts = result["revision_count"]
         print(f"\nCouldn't agree after {attempts} revisions. Feedback:")
         number = 1
@@ -117,62 +115,80 @@ if __name__ == "__main__":
     main()
 ```
 
-**Changed from Step 3:** the integration test adds case 4 — Research's **real** output goes in, and the `[source]` tags are counted before and after. Same count = no fact dropped.
+**Changed from Step 3:** the integration test adds case 5 — Research's **real** output goes in, and the `[source]` tags are counted before and after. Same count = no fact dropped.
 
 ```python
 # tests/integration/test_live_agents.py
-# Runs the agents against the real OpenAI API.
-# Run from the repo root: python tests/integration/test_live_agents.py
-# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
-from contentforge.agents.analysis_agent import run_analysis
-from contentforge.agents.research_agent import run_research
-from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
-from contentforge.config import load_config
+# Runs the agents against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_agents
+from src.agents.analysis_agent import run_analysis
+from src.agents.research_agent import run_research
+from src.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from src.agents.writer_agent import run_writer
+from src.config import load_config
 
 FINDINGS = (
     "Range:\n- A battery gives 40 to 100 km per charge. [battery-review]\n"
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
+
+def test_writer_keeps_sources() -> None:
+    draft = run_writer(FINDINGS)
+    result = "OK"
+    if "[" not in draft:
+        result = "WRONG"
+    print(f"case 1 (writer keeps sources) -> {result}")
+
+
 def test_reviewer_rejects_weak_draft() -> None:
-    # case 1: a weak draft must fail — a Reviewer that passes everything
-    # would never make the revision loop run
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
-    passed = verdict.score >= PASS_SCORE
-    print(f"case 1 (weak draft)     -> score {verdict.score}, "
-          f"passed={passed}")
+    result = "OK"
+    if verdict.score >= PASS_SCORE:
+        result = "WRONG"
+    print(f"case 2 (weak draft fails)     -> {result}")
 
-def test_research() -> None:
-    # case 2: a known topic gives notes that keep the [source] tags
+
+def test_research_keeps_sources() -> None:
     notes = run_research("electric bikes")
-    print(f"case 2 (known topic)    -> {notes.count('[')} sourced facts")
+    result = "OK"
+    if notes.count("[") < 5:
+        result = "WRONG"
+    print(f"case 3 (known topic sourced)  -> {result}")
 
-    # case 3: an unknown topic gives nothing — never invented notes
+
+def test_research_unknown_topic() -> None:
     notes = run_research("deep sea mining")
-    print(f"case 3 (unknown topic)  -> {notes!r}")
+    result = "OK"
+    if notes != "":
+        result = "WRONG"
+    print(f"case 4 (unknown topic empty)  -> {result}")
+
 
 def test_analysis_keeps_every_fact() -> None:
-    # case 4: organizing must not drop a fact — compare the [source]
-    # tags before and after, on Research's REAL output
     notes = run_research("electric bikes")
     findings = run_analysis(notes)
-    print(f"case 4 (facts kept)     -> {notes.count('[')} in, "
-          f"{findings.count('[')} out")
+    result = "OK"
+    if findings.count("[") != notes.count("["):
+        result = "WRONG"
+    print(f"case 5 (analysis keeps facts) -> {result}")
+
 
 if __name__ == "__main__":
     load_config()
+    test_writer_keeps_sources()
     test_reviewer_rejects_weak_draft()
-    test_research()
+    test_research_keeps_sources()
+    test_research_unknown_topic()
     test_analysis_keeps_every_fact()
 ```
 
-**Run it:**
+**Run it** (from the repo root):
 
 ```bash
-python tests/integration/test_live_agents.py
-python -m contentforge.main
+python -m tests.integration.test_live_agents
+python main.py
 ```
 
-```
-case 4 (facts kept)     -> 5 in, 5 out
-```
+**Expected app flow:** `Topic:` → research notes → themed findings → a reviewed article (or "nothing is known" for an unknown topic).

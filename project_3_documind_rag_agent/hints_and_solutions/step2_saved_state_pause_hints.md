@@ -67,4 +67,6 @@ Prove the state really comes from disk with **two scripts** (Doc09 showed `Memor
 
 Run them one after the other. If the second one finishes the run, your state survived a restart.
 
+Tests: give `run()` an optional `decision` (resume with it if the run paused; `None` = leave it paused), build the graph with `MemorySaver()`, and add cases 2-4 for an action task: it pauses; "yes" approves; "no" answers "Not approved".
+
 Full solution: [Show me the solution](step2_saved_state_pause_solution.md)

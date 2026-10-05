@@ -8,7 +8,7 @@ After this step the project runs from a topic: research → write → review. Fi
 
 ## The tool and its data
 
-**Story — `data/sample/facts.json` + `tools/lookup.py`:** a small local fact store with sources, behind a Doc06 `@tool`. Test the tool alone first: then, if a note looks wrong later, you already know whether it's the tool or the agent. (Also create an empty `tools/__init__.py`.) **If not:** you'd be debugging the tool and the agent's use of it at the same time.
+**Story — `data/sample/facts.json` + `tools/lookup.py`:** a small local fact store with sources, behind a Doc06 `@tool`. Test the tool alone first: then, if a note looks wrong later, you already know whether it's the tool or the agent. (Also create an empty `src/tools/__init__.py`.) **If not:** you'd be debugging the tool and the agent's use of it at the same time.
 
 `data/sample/facts.json`
 
@@ -37,7 +37,10 @@ After this step the project runs from a topic: research → write → review. Fi
 ```
 
 ```python
-# src/contentforge/tools/lookup.py
+# src/tools/lookup.py
+# The Research agent's lookup tool. load_facts() reads facts.json;
+# lookup_facts(topic) returns one fact per line for the first known topic
+# found in the text, or "" when the topic is unknown.
 import json
 
 from langchain_core.tools import tool
@@ -46,15 +49,12 @@ FACTS_PATH = "data/sample/facts.json"
 
 def load_facts() -> dict:
     with open(FACTS_PATH) as facts_file:
-        # how: read the file as text, then json.loads() it (Doc02)
         return json.loads(facts_file.read())
 
 @tool
 def lookup_facts(topic: str) -> str:
     """Look up known facts, with sources, for a topic. Returns one fact
     per line, or an empty string if the topic is not known."""
-    # why: a small, local fact store — the facts are known, so a test can
-    # check that the article really used them instead of inventing some
     facts = load_facts()
     lowered = topic.lower()
     for known_topic in facts:
@@ -74,7 +74,7 @@ def lookup_facts(topic: str) -> str:
 
 **Story — `prompts/research.txt`:** turn the looked-up facts into notes: one line per fact, keep the `[source]` tag, add nothing. **If not:** the model could "improve" the notes with extra facts nobody looked up.
 
-`src/contentforge/prompts/research.txt`
+`src/prompts/research.txt`
 
 ```text
 You are the Researcher on a content team. Turn the looked-up facts below
@@ -89,23 +89,23 @@ Looked-up facts:
 **Story — `agents/research_agent.py`:** `lookup_facts` runs first. If it returns nothing, `run_research()` returns `""` and logs a warning — no model call, no invented notes. **If not:** an unknown topic would still produce an article.
 
 ```python
-# src/contentforge/agents/research_agent.py
+# src/agents/research_agent.py
+# The Research agent. run_research(topic) looks facts up with the tool
+# FIRST; if nothing is found it returns "", otherwise an LCEL chain turns
+# the facts into notes.
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from contentforge.models.llm import get_model
-from contentforge.tools.lookup import lookup_facts
-from contentforge.utils.logger import get_logger
-from contentforge.utils.prompts import load_prompt
+from src.models.llm import get_model
+from src.tools.lookup import lookup_facts
+from src.utils.logger import get_logger
+from src.utils.prompts import load_prompt
 
 def run_research(topic: str) -> str:
     logger = get_logger(__name__)
-    # why: look things up FIRST, with a tool — the notes can only be as
-    # true as what was found
     facts = lookup_facts.invoke({"topic": topic})
     if facts == "":
-        # when: nothing known about the topic — say so, never invent
-        logger.warning("no facts found for %r", topic)
+        logger.warning(f"no facts found for {topic!r}")
         return ""
     prompt = ChatPromptTemplate.from_template(load_prompt("research"))
     chain = prompt | get_model() | StrOutputParser()
@@ -115,22 +115,22 @@ def run_research(topic: str) -> str:
 **Changed from Step 2:** `main.py` asks for a topic, runs Research, stops honestly when nothing is found, and hands the notes to the same `write_with_review()` loop.
 
 ```python
-# src/contentforge/main.py
+# main.py
+# The file you run: python main.py
+# Step 3 version: ask for a topic, run Research, stop if nothing is found,
+# then write and review from the notes.
 import sys
 
-from contentforge.agents.research_agent import run_research
-from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
-from contentforge.agents.writer_agent import run_writer
-from contentforge.config import load_config
-from contentforge.exceptions import MissingConfigError
-from contentforge.utils.logger import get_logger
+from src.agents.research_agent import run_research
+from src.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from src.agents.writer_agent import run_writer
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.utils.logger import get_logger
 
-# why: the hard limit on Writer <-> Reviewer rounds — never loop forever
 MAX_REVISIONS = 3
 
 def write_with_review(findings: str) -> dict:
-    # why: returns a dict with the SAME keys the Step 5 team state uses,
-    # so print_report() never has to change its input
     logger = get_logger(__name__)
     result = {
         "draft": "",
@@ -142,11 +142,10 @@ def write_with_review(findings: str) -> dict:
     for round_number in range(1, MAX_REVISIONS + 1):
         result["draft"] = run_writer(findings, feedback)
         verdict = run_reviewer(findings, result["draft"])
-        logger.info("round %s: score %s", round_number, verdict.score)
+        logger.info(f"round {round_number}: score {verdict.score}")
         if verdict.score >= PASS_SCORE:
             result["accepted"] = True
             return result
-        # how: the Reviewer's feedback goes into the Writer's next round
         feedback = verdict.feedback
         result["feedback_history"].append(feedback)
         result["revision_count"] = result["revision_count"] + 1
@@ -157,7 +156,6 @@ def print_report(result: dict) -> None:
         print("\nFinal article:\n")
         print(result["draft"])
     else:
-        # why: never pass a rejected draft off as finished
         attempts = result["revision_count"]
         print(f"\nCouldn't agree after {attempts} revisions. Feedback:")
         number = 1
@@ -188,78 +186,109 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/unit/test_lookup.py`:** the tool alone, no API key. **If not:** a broken topic match would look like a bad model.
+## The Step 3 tests
+
+**Story — `tests/unit/test_lookup.py`:** the tool alone, no API key — a known topic returns its facts, an unknown one returns `""`. **If not:** a broken topic match would look like a bad model.
 
 ```python
 # tests/unit/test_lookup.py
-# Checks the Research agent's lookup tool. No API key needed.
-# Run from the repo root: python tests/unit/test_lookup.py
-from contentforge.tools.lookup import lookup_facts
+# Checks the Research agent's lookup tool with no API key. Each case prints
+# OK or WRONG.
+# Run from the repo root: python -m tests.unit.test_lookup
+from src.tools.lookup import lookup_facts
+
 
 def test_known_topic() -> None:
     facts = lookup_facts.invoke({"topic": "Why Electric Bikes are popular"})
     lines = facts.strip().split("\n")
-    print(f"case 1 (known topic)    -> {len(lines)} facts")
-    print(f"                           first: {lines[0][:30]}...")
+    result = "OK"
+    if len(lines) != 5:
+        result = "WRONG"
+    print(f"case 1 (known topic -> 5 facts) -> {result}")
+
 
 def test_unknown_topic() -> None:
     facts = lookup_facts.invoke({"topic": "deep sea mining"})
-    print(f"case 2 (unknown topic)  -> {facts!r}")
+    result = "OK"
+    if facts != "":
+        result = "WRONG"
+    print(f"case 2 (unknown topic -> empty) -> {result}")
+
 
 if __name__ == "__main__":
     test_known_topic()
     test_unknown_topic()
 ```
 
-**Changed from Step 2:** the integration test adds case 2 (a known topic keeps its sources) and case 3 (an unknown topic gives `""`).
+**Changed from Step 2:** the integration test adds case 3 (a known topic keeps its sources) and case 4 (an unknown topic gives `""`).
 
 ```python
 # tests/integration/test_live_agents.py
-# Runs the agents against the real OpenAI API.
-# Run from the repo root: python tests/integration/test_live_agents.py
-# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
-from contentforge.agents.research_agent import run_research
-from contentforge.agents.reviewer_agent import PASS_SCORE, run_reviewer
-from contentforge.config import load_config
+# Runs the agents against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_agents
+from src.agents.research_agent import run_research
+from src.agents.reviewer_agent import PASS_SCORE, run_reviewer
+from src.agents.writer_agent import run_writer
+from src.config import load_config
 
 FINDINGS = (
     "Range:\n- A battery gives 40 to 100 km per charge. [battery-review]\n"
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
+
+def test_writer_keeps_sources() -> None:
+    draft = run_writer(FINDINGS)
+    result = "OK"
+    if "[" not in draft:
+        result = "WRONG"
+    print(f"case 1 (writer keeps sources) -> {result}")
+
+
 def test_reviewer_rejects_weak_draft() -> None:
-    # case 1: a weak draft must fail — a Reviewer that passes everything
-    # would never make the revision loop run
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
-    passed = verdict.score >= PASS_SCORE
-    print(f"case 1 (weak draft)     -> score {verdict.score}, "
-          f"passed={passed}")
+    result = "OK"
+    if verdict.score >= PASS_SCORE:
+        result = "WRONG"
+    print(f"case 2 (weak draft fails)     -> {result}")
 
-def test_research() -> None:
-    # case 2: a known topic gives notes that keep the [source] tags
+
+def test_research_keeps_sources() -> None:
     notes = run_research("electric bikes")
-    print(f"case 2 (known topic)    -> {notes.count('[')} sourced facts")
+    result = "OK"
+    if notes.count("[") < 5:
+        result = "WRONG"
+    print(f"case 3 (known topic sourced)  -> {result}")
 
-    # case 3: an unknown topic gives nothing — never invented notes
+
+def test_research_unknown_topic() -> None:
     notes = run_research("deep sea mining")
-    print(f"case 3 (unknown topic)  -> {notes!r}")
+    result = "OK"
+    if notes != "":
+        result = "WRONG"
+    print(f"case 4 (unknown topic empty)  -> {result}")
+
 
 if __name__ == "__main__":
     load_config()
+    test_writer_keeps_sources()
     test_reviewer_rejects_weak_draft()
-    test_research()
+    test_research_keeps_sources()
+    test_research_unknown_topic()
 ```
 
-**Run everything:**
+**Run everything** (from the repo root):
 
 ```bash
-python tests/unit/test_lookup.py
-python tests/integration/test_live_agents.py
-python -m contentforge.main
+python -m tests.unit.test_lookup
+python -m tests.integration.test_live_agents
+python main.py
 ```
 
+**Expected unit output:**
+
 ```
-case 1 (known topic)    -> 5 facts
-                           first: - Europe sold over 5 million e...
-case 2 (unknown topic)  -> ''
+case 1 (known topic -> 5 facts) -> OK
+case 2 (unknown topic -> empty) -> OK
 ```

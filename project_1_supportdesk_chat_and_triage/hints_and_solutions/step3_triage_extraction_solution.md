@@ -60,12 +60,12 @@ def triage_agent(client: OpenAI, message: str) -> SupportTicket | None:
             model=MODEL, messages=messages, response_format=SupportTicket
         )
     except ValidationError as e:
-        logger.warning("Triage output did not match SupportTicket: %s", e)
+        logger.warning(f"Triage output did not match SupportTicket: {e}")
         return None
 
     reply = completion.choices[0].message
     if reply.refusal:
-        logger.warning("Triage agent refused: %s", reply.refusal)
+        logger.warning(f"Triage agent refused: {reply.refusal}")
         return None
     return reply.parsed
 ```
@@ -165,7 +165,7 @@ def main() -> None:
             logger.warning("Rate limited after the client's retries.")
             print("We're busy right now — wait a moment and try again.")
         except openai.BadRequestError as e:
-            logger.warning("Request rejected (likely too long): %s", e)
+            logger.warning(f"Request rejected (likely too long): {e}")
             if history[-1]["role"] == "user":
                 history.pop()
             print("That message was too long to handle — please shorten it.")
@@ -230,11 +230,12 @@ if __name__ == "__main__":
 ```python
 # tests/unit/test_schemas.py
 # Checks the Pydantic schemas accept good data and reject bad data.
-# No API calls, no API key needed.
+# Each case prints OK or WRONG. No API calls, no API key needed.
 # Run from the repo root: python -m tests.unit.test_schemas
 from pydantic import ValidationError
 
 from src.schemas import SupportTicket
+
 
 def test_ticket_without_a_name() -> None:
     ticket = SupportTicket(
@@ -243,9 +244,14 @@ def test_ticket_without_a_name() -> None:
         urgency="medium",
         summary="Customer can't log in after two password resets.",
     )
-    print(f"case 1 (no name allowed)     -> {ticket.customer_name}")
+    result = "OK"
+    if ticket.customer_name is not None:
+        result = "WRONG"
+    print(f"case 1 (no name allowed)  -> {result}")
+
 
 def test_ticket_rejects_unknown_urgency() -> None:
+    result = "WRONG"
     try:
         SupportTicket(
             customer_name="Sarah Khan",
@@ -254,27 +260,24 @@ def test_ticket_rejects_unknown_urgency() -> None:
             summary="Charged twice.",
         )
     except ValidationError:
-        print("case 2 (bad urgency)         -> ValidationError")
+        result = "OK"
+    print(f"case 2 (bad urgency)      -> {result}")
+
 
 if __name__ == "__main__":
     test_ticket_without_a_name()
     test_ticket_rejects_unknown_urgency()
 ```
 
-**Changed from Step 2:** `tests/integration/test_live_agents.py` gets cases 4 and 5 — `load_samples()`, `test_triage()`, their imports, and two new lines at the bottom.
+**Changed from Step 2:** `tests/integration/test_live_agents.py` gets cases 4 and 5 — `load_samples()`, two test functions, their imports, and three new lines at the bottom.
 
 **Story — `tests/integration/test_live_agents.py`:** the Triage agent is this step's feature, so the 3 sample complaints must each become a ticket — and the one with no name must not get an invented name. **If not:** a prompt change could start inventing customer names, and nothing would notice.
 
 ```python
 # tests/integration/test_live_agents.py
-# The project's checks against the real OpenAI API — each step adds
-# cases. Needs a valid OPENAI_API_KEY in .env.
+# Checks the app against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-#   case 1 — one message in, a real reply out
-#   case 2 — a wrong key is caught at startup, not mid-chat
-#   case 3 — turn 3 can use what was said in turn 1 (memory)
-#   case 4 — each sample complaint becomes a ticket
-#   case 5 — the complaint with no name gets no invented name
 # new in Step 3
 import json
 
@@ -295,13 +298,18 @@ SAMPLES_PATH = "data/sample/messages.json"
 
 def test_first_reply(client: OpenAI) -> None:
     reply = send_message(client, [], "What's 2+2?")
-    print(f"case 1 (first reply)   -> {reply}")
+    result = "OK"
+    if "4" not in reply:
+        result = "WRONG"
+    print(f"case 1 (first reply) -> {result}: {reply}")
 
 
 def test_bad_key() -> None:
     bad_client = OpenAI(api_key="sk-fake-key-123")
-    key_ok = check_api_key_at_startup(bad_client)
-    print(f"case 2 (bad key ok?)   -> {key_ok}")
+    result = "OK"
+    if check_api_key_at_startup(bad_client):
+        result = "WRONG"
+    print(f"case 2 (bad key)     -> {result}")
 
 
 def test_memory(client: OpenAI) -> None:
@@ -309,7 +317,10 @@ def test_memory(client: OpenAI) -> None:
     send_message(client, history, "My order number is 4471.")
     send_message(client, history, "Thanks, that's all for now.")
     reply = send_message(client, history, "What was my order number?")
-    print(f"case 3 (memory)        -> {reply}")
+    result = "OK"
+    if "4471" not in reply:
+        result = "WRONG"
+    print(f"case 3 (memory)      -> {result}: {reply}")
 
 
 # new in Step 3
@@ -319,16 +330,22 @@ def load_samples() -> dict:
 
 
 # new in Step 3
-def test_triage(client: OpenAI, samples: dict) -> None:
+def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
     for message in samples["triage"]:
         ticket = triage_agent(client, message)
-        print(f"case 4 (triage)        -> {ticket}")
+        if ticket is None:
+            print("case 4 (ticket)      -> WRONG: no ticket")
+        else:
+            print("case 4 (ticket)      -> OK:", ticket.issue_category)
 
-    second = triage_agent(client, samples["triage"][1])
-    if second is not None and second.customer_name is None:
-        print("case 5 (no name)       -> OK, customer_name is None")
-    else:
-        print("case 5 (no name)       -> WRONG, a name was invented")
+
+# new in Step 3
+def test_no_invented_name(client: OpenAI, samples: dict) -> None:
+    ticket = triage_agent(client, samples["triage"][1])
+    result = "OK"
+    if ticket is None or ticket.customer_name is not None:
+        result = "WRONG"
+    print(f"case 5 (no name)     -> {result}")
 
 
 if __name__ == "__main__":
@@ -340,7 +357,8 @@ if __name__ == "__main__":
     test_bad_key()
     test_memory(client)
     # new in Step 3
-    test_triage(client, samples)
+    test_every_sample_gets_a_ticket(client, samples)
+    test_no_invented_name(client, samples)
 ```
 
 **Run everything:**
@@ -354,28 +372,23 @@ python -m scripts.triage_samples
 python main.py
 ```
 
-**Expected output** of the unit test:
+**Expected output** of `test_schemas`:
 
 ```
-case 1 (no name allowed)     -> None
-case 2 (bad urgency)         -> ValidationError
+case 1 (no name allowed)  -> OK
+case 2 (bad urgency)      -> OK
 ```
 
-**Expected output** of the integration test (tickets shown shortened — the model's wording varies):
+**Expected output** of `test_live_agents` (the model's wording varies):
 
 ```
-case 1 (first reply)   -> 2 + 2 equals 4.
-case 2 (bad key ok?)   -> False
-case 3 (memory)        -> Your order number was 4471.
-case 4 (triage)        -> customer_name='Sarah Khan' issue_category='billing'
-                          urgency='high' summary='...'
-case 4 (triage)        -> customer_name=None issue_category='account_access'
-                          urgency='medium' summary='...'
-case 4 (triage)        -> customer_name=None issue_category='other'
-                          urgency='low' summary='...'
-case 5 (no name)       -> OK, customer_name is None
+case 1 (first reply) -> OK: 2 + 2 equals 4.
+case 2 (bad key)     -> OK
+case 3 (memory)      -> OK: Your order number was 4471.
+case 4 (ticket)      -> OK: billing
+case 4 (ticket)      -> OK: account_access
+case 4 (ticket)      -> OK: other
+case 5 (no name)     -> OK
 ```
-
-(Each ticket is really one line; it's wrapped here to fit the page.)
 
 In the app, `/extract can't log into my account, tried resetting password twice` prints a ticket with `customer: (not given)`.

@@ -29,16 +29,18 @@ async def time_it(label, coro_a, coro_b):
 
 async def main():
     await time_it("two good tasks:", good_task(), good_task())
-    await time_it("good + blocking:", good_task(), blocking_task())
+    await time_it("blocking + good:", blocking_task(), good_task())
 
 asyncio.run(main())
 ```
 **Expected output** (your exact numbers will vary slightly):
 ```
 two good tasks: 3.01 ['good', 'good']
-good + blocking: 6.02 ['good', 'blocking']
+blocking + good: 6.02 ['blocking', 'good']
 ```
-"Two good tasks" finishes in ~3 seconds — they genuinely overlapped. "Good + blocking" finishes in ~6 seconds — `time.sleep(3)` inside `blocking_task` froze the entire event loop for those 3 seconds, so `good_task` couldn't make any progress either, even though it was written correctly. No error, no warning — the only symptom is the doubled time.
+"Two good tasks" finishes in ~3 seconds — they genuinely overlapped. "Blocking + good" finishes in ~6 seconds — `time.sleep(3)` inside `blocking_task` froze the entire event loop for those 3 seconds, so `good_task` couldn't make any progress either, even though it was written correctly. No error, no warning — the only symptom is the doubled time.
+
+**Why the blocking task goes first:** `gather` starts its tasks in the order you give them. If `good_task` went first, it would start its 3-second `asyncio.sleep` clock *before* `blocking_task` froze the loop — both waits would still overlap, and the total would be about 3 seconds, hiding the bug. With `blocking_task` first, the loop is frozen before `good_task` even starts, so the two waits add up to about 6 seconds.
 
 This version works correctly and demonstrates the bug clearly. It's missing type hints and an `if __name__ == "__main__":` guard — both fine for a first working version.
 
@@ -75,7 +77,7 @@ async def time_it(label: str, coro_a, coro_b) -> None:
 
 async def main() -> None:
     await time_it("two good tasks:", good_task(), good_task())
-    await time_it("good + blocking:", good_task(), blocking_task())
+    await time_it("blocking + good:", blocking_task(), good_task())
 
 
 if __name__ == "__main__":
@@ -84,7 +86,7 @@ if __name__ == "__main__":
 **Expected output:**
 ```
 two good tasks: took 3.01s -> ['good', 'good']
-good + blocking: took 6.02s -> ['good', 'blocking']
+blocking + good: took 6.02s -> ['blocking', 'good']
 ```
 
 **Difference from Basic:** full type hints document each function's contract. The `if __name__ == "__main__":` guard means this file can be imported (say, to reuse `time_it` in a later test) without the two 3-6 second demonstration runs firing automatically on import. Same two numbers either way — proving the exact same bug.
@@ -123,8 +125,8 @@ async def time_it(label: str, coro_a, coro_b) -> None:
 
 async def main() -> None:
     await time_it("two good tasks:", good_task(), good_task())
-    await time_it("good + blocking:", good_task(), blocking_task())
-    await time_it("good + fixed (to_thread):", good_task(), fixed_task())
+    await time_it("blocking + good:", blocking_task(), good_task())
+    await time_it("fixed + good (to_thread):", fixed_task(), good_task())
 
 
 if __name__ == "__main__":
@@ -133,8 +135,8 @@ if __name__ == "__main__":
 **Expected output:**
 ```
 two good tasks: took 3.01s -> ['good', 'good']
-good + blocking: took 6.02s -> ['good', 'blocking']
-good + fixed (to_thread): took 3.02s -> ['good', 'fixed']
+blocking + good: took 6.02s -> ['blocking', 'good']
+fixed + good (to_thread): took 3.02s -> ['fixed', 'good']
 ```
 `fixed_task` still calls the exact same blocking `time.sleep(3)` internally — nothing about `time.sleep` itself changed. What changed is *where* it runs: `asyncio.to_thread(time.sleep, 3)` hands that call off to a separate worker thread and gives the event loop back something it can genuinely `await`, so `good_task` gets to run concurrently again, same as if `fixed_task` had used `asyncio.sleep` natively.
 
@@ -184,11 +186,11 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
-**Expected output** (timing depends on the real network call, but `good_task`'s 1-second wait genuinely overlaps with the request instead of adding to it):
+**Expected output** (needs internet and `pip install requests`; `gather` waits for the slower task, so the total is about 1 second — `good_task`'s wait overlaps with the request instead of adding to it):
 ```
-good + fixed fetch: 0.34s -> ['good', 200]
+good + fixed fetch: 1.00s -> ['good', 200]
 ```
-This is the realistic version of the bug: nobody writes `time.sleep(3)` inside `async def` in production, but plenty of code accidentally calls a sync-only library (`requests`, a database driver without an async variant, a file-parsing library) the same way `fetch_status_blocking` does here — and it blocks the event loop exactly as badly, just without a name that gives it away. `fetch_status_fixed` fixes it the same way Approach 1 did: `asyncio.to_thread(...)` around the call, nothing else about the library or the call itself changes.
+This is the realistic version of the bug: nobody writes `time.sleep(3)` inside `async def` in production, but plenty of code accidentally calls a sync-only library (`requests`, a database driver without an async variant, a file-parsing library) the same way `fetch_status_blocking` does here — and it blocks the event loop exactly as badly, just without a name that gives it away. `fetch_status_fixed` fixes it the same way Approach 2 did: `asyncio.to_thread(...)` around the call, nothing else about the library or the call itself changes.
 
 **Difference from Approach 1, and between Approaches 2/3:** Approach 1 only diagnoses and measures the bug. Approach 2 fixes the exact same `time.sleep(3)` call from the exercise, to prove the mechanism works. Approach 3 shows the fix applied to what this bug actually looks like in real code — a synchronous library function (`requests.get`, standing in for any sync-only dependency) called from inside `async def` without protection — which is the version of this mistake you'll actually make one day, not a `time.sleep()` typo.
 

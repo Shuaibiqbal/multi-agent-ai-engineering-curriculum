@@ -33,13 +33,14 @@ Things to use:
 
 The exercise is really about one substitution — `time.sleep` in place of `await asyncio.sleep` — and what it does to a `gather` call that should otherwise run concurrently.
 
-You'll write two coroutine functions, both sleeping the same duration so the comparison is clean, run together with `asyncio.gather(good_task(), blocking_task())`, timed with `time.perf_counter()` around the whole call. If concurrency were actually happening, the total time should be roughly the max of the two (about 3 seconds). Predict, before running it, what you think the actual total will be instead.
+You'll write two coroutine functions, both sleeping the same duration so the comparison is clean, run together with `asyncio.gather(blocking_task(), good_task())` — blocking one **first**, timed with `time.perf_counter()` around the whole call. If concurrency were actually happening, the total time should be roughly the max of the two (about 3 seconds). Predict, before running it, what you think the actual total will be instead.
 
 The exact pieces:
 
 - **`time.sleep(3)` inside an `async def` function** — still syntactically legal Python; nothing raises an error. The function is still a coroutine because of `async def`, but since it never hits an `await`, the event loop has no opportunity to pause it and run something else.
 - **`await asyncio.sleep(3)`** — genuinely returns control to the event loop, which is exactly what lets a *second* coroutine run during that wait.
 - **The comparison that proves it:** two "good" coroutines run together finish in ~3 seconds (the max). One "good" and one "blocking" finish in ~6 seconds (the sum) — the blocking one froze everything else, including the good one, until it was done.
+- **Order matters:** put `blocking_task()` first. If `good_task()` goes first, its `asyncio.sleep` clock is already running when the loop freezes, the waits still overlap, and you'd see ~3 seconds — the bug hides.
 - **No error, no warning:** this is what makes the bug sneaky — the code runs, gives a correct final answer, and the only symptom is that it took twice as long as it should have.
 
 Think about where this actually happens in real code — nobody writes `time.sleep(3)` inside an `async def` function on purpose in production. It happens by accident, almost always the same way: someone reaches for a library that only ships a synchronous version — a database driver, a file-parsing library, `requests` instead of `httpx`/`aiohttp` — and calls it from inside an `async def` function without realizing that call blocks the whole event loop exactly like `time.sleep` does here, just less obviously, since it doesn't have "sleep" in its name to give it away.
@@ -75,7 +76,8 @@ time this:
     -> expect around 3 seconds (they really overlap)
 
 time this too:
-    run good_task and blocking_task together with gather
+    run blocking_task and good_task together with gather
+    (blocking_task FIRST)
     -> expect around 6 seconds
        (blocking_task froze everything, nothing overlapped)
 ```
@@ -132,7 +134,7 @@ define:
 define:
     async def main() -> None:
         await time_it("two good tasks:", good_task(), good_task())
-        await time_it("good + blocking:", good_task(), blocking_task())
+        await time_it("blocking + good:", blocking_task(), good_task())
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -165,9 +167,9 @@ async def fixed_task() -> str:
 
 
 async def main_fixed() -> None:
-    await time_it("good + fixed (to_thread):", good_task(), fixed_task())
+    await time_it("fixed + good (to_thread):", fixed_task(), good_task())
 ```
-Add this third comparison to your `main()` from the Basic version, run all 3, and confirm `"good + fixed"` comes back close to 3 seconds — not 6, like `"good + blocking"` did — then compare against the [Solution](blocking_event_loop_solution.md).
+Add this third comparison to your `main()` from the Basic version, run all 3, and confirm `"fixed + good"` comes back close to 3 seconds — not 6, like `"blocking + good"` did — then compare against the [Solution](blocking_event_loop_solution.md).
 
 **Difference between Basic and Intermediate:** Basic stops at showing the bug and measuring it. Intermediate also fixes it without touching the blocking call itself — `asyncio.to_thread(time.sleep, 3)` still calls the exact same blocking `time.sleep`, just from a separate thread the event loop doesn't have to wait on directly, which is exactly the pattern you'd reach for with a real sync-only library you can't rewrite.
 

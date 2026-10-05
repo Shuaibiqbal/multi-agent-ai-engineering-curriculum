@@ -12,7 +12,7 @@
 
 A LangGraph app with three agents in one graph: a **Retriever** (searches your documents and judges whether what it found is good enough), a **Reasoner** (answers only from what was found, citing each file), and an **Approval** agent (approves safe drafts by itself, and pauses for a human with `interrupt()` only when a check fails). This is where "an agent" becomes "a graph" — state you can see, save, pause and resume.
 
-**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Step 2](#step-2-saved-state-and-a-human-pause-before-anything-goes-out) · [Step 3](#step-3-a-retriever-agent-that-judges-its-own-search-results) · [Step 4](#step-4-a-reasoner-agent-that-only-answers-from-what-the-retriever-found) · [Step 5](#step-5-an-approval-agent-that-only-asks-a-human-when-it-really-needs-to-final-3-agents) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
+**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [How testing works](#how-testing-works-in-this-project) · [Step 1](#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Step 2](#step-2-saved-state-and-a-human-pause-before-anything-goes-out) · [Step 3](#step-3-a-retriever-agent-that-judges-its-own-search-results) · [Step 4](#step-4-a-reasoner-agent-that-only-answers-from-what-the-retriever-found) · [Step 5](#step-5-an-approval-agent-that-only-asks-a-human-when-it-really-needs-to-final-3-agents) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
 
 ## The Story — what you're actually building
 
@@ -74,7 +74,7 @@ Same rule as before: only folders with a real job. Project 3 adds `rag/` (the do
 ### Names: the repo folder vs. the Python package
 
 - **Repo folder:** `DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/` — already created, and the exact name of the GitHub repo.
-- **Python package:** `documind` (inside `src/`), imported as `from documind.graph import build_graph`.
+- **Python package:** `src/`, right next to `main.py`. It holds all the app's code, and every file imports from it the same way: `from src.graph import build_graph`.
 - **Files:** `snake_case.py`, one job each; test files start with `test_`; agent files end in `_agent.py`.
 - **Documents:** plain `.md` files in `data/docs/`, named for their topic (`refund_policy.md`) — the Reasoner cites these names.
 
@@ -82,118 +82,113 @@ Same rule as before: only folders with a real job. Project 3 adds `rag/` (the do
 
 ```
 DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/
-├── README.md               the repo's front page (copied in at the end)
-├── LICENSE                 lets others reuse your code (MIT)
-├── .gitignore              keeps .env, .venv/, checkpoints.sqlite out
-├── .env.example            the setting names, no real values
-├── .env                    your real key — never committed
-├── pyproject.toml          makes src/documind an installable package
-├── requirements.txt        the libraries, for pip install -r
-├── src/
-│   └── documind/
-│       ├── __init__.py
-│       ├── main.py             the terminal loop — the file you run
-│       ├── config.py           Config, load_config()        (Doc01)
-│       ├── exceptions.py       MissingConfigError           (Doc01)
-│       ├── state.py            DocState, start_state()      (Doc09)
-│       ├── nodes.py            clean_task, answer_node
-│       ├── graph.py            build_graph(checkpointer)    (Doc09)
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── llm.py          get_model() -> ChatOpenAI
-│       ├── rag/
-│       │   ├── __init__.py
-│       │   ├── chunking.py     chunk_by_chars/paragraph     (Doc08)
-│       │   ├── ingest.py       build_vector_store()         (Doc08)
-│       │   ├── retriever.py    retrieve() -> list[dict]     (Doc08)
-│       │   └── store.py        get_collection() — built once
-│       ├── agents/
-│       │   ├── __init__.py
-│       │   ├── retriever_agent.py route, search, judge relevance
-│       │   ├── reasoner_agent.py  grounded, cited answer
-│       │   └── approval_agent.py  checklist + interrupt()
-│       ├── prompts/
-│       │   ├── general.txt     for non-document questions
-│       │   └── reasoner.txt    "only the excerpts, cite the file"
-│       └── utils/
-│           ├── __init__.py
-│           ├── logger.py       get_logger()                 (Doc01)
-│           └── prompts.py      load_prompt(name)        (Project 1)
-├── tests/
-│   ├── unit/
-│   │   ├── test_chunking.py        no API key needed
-│   │   ├── test_routing.py         no API key needed
-│   │   └── test_approval_checks.py no API key needed
-│   └── integration/
-│       └── test_live_graph.py      real API calls
+├── data/
+│   └── docs/               the documents DocuMind answers from
+│       ├── account_security.md
+│       ├── pricing.md
+│       ├── refund_policy.md
+│       ├── shipping.md
+│       └── warranty.md
 ├── scripts/
 │   ├── pause_demo.py       part 1: start a run, stop at the pause
 │   └── resume_demo.py      part 2: a new process finishes it
-└── data/
-    └── docs/               the documents DocuMind answers from
-        ├── refund_policy.md
-        ├── shipping.md
-        ├── warranty.md
-        ├── account_security.md
-        └── pricing.md
+├── src/
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── approval_agent.py  checklist + interrupt()
+│   │   ├── reasoner_agent.py  grounded, cited answer
+│   │   └── retriever_agent.py route, search, judge relevance
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py          get_model() -> ChatOpenAI
+│   ├── prompts/
+│   │   ├── general.txt     for non-document questions
+│   │   └── reasoner.txt    "only the excerpts, cite the file"
+│   ├── rag/
+│   │   ├── __init__.py
+│   │   ├── chunking.py     chunk_by_chars/paragraph     (Doc08)
+│   │   ├── ingest.py       build_vector_store()         (Doc08)
+│   │   ├── retriever.py    retrieve() -> list[dict]     (Doc08)
+│   │   └── store.py        get_collection() — built once
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py       get_logger()                 (Doc01)
+│   │   └── prompts.py      load_prompt(name)        (Project 1)
+│   ├── __init__.py
+│   ├── config.py           Config, load_config()        (Doc01)
+│   ├── exceptions.py       MissingConfigError           (Doc01)
+│   ├── graph.py            build_graph(checkpointer)    (Doc09)
+│   ├── nodes.py            clean_task, answer_node
+│   └── state.py            DocState, start_state()      (Doc09)
+├── tests/
+│   ├── integration/
+│   │   └── test_live_graph.py      real API calls
+│   └── unit/
+│       ├── test_approval_checks.py no API key needed
+│       ├── test_chunking.py        no API key needed
+│       ├── test_config.py          no API key needed
+│       ├── test_nodes.py           no API key needed
+│       └── test_routing.py         no API key needed
+├── .env                    your real key — never committed
+├── .env.example            the setting names, no real values
+├── .gitignore              keeps .env, .venv/, checkpoints.sqlite out
+├── LICENSE                 lets others reuse your code (MIT)
+├── main.py                 the terminal loop — the file you run
+├── README.md               the repo's front page (copied in at the end)
+└── requirements.txt        the libraries, for pip install -r
 ```
 
 ### Why each folder exists
 
-- **`src/documind/`** — the package. The three graph files sit at its top level: `state.py` (what the graph carries), `nodes.py` (small non-agent nodes), `graph.py` (how they connect). **Why:** these three are what you read first to understand the app — Doc09's own file names.
-- **`models/`** — builds the chat model. **Why:** every node gets the same model and settings; changing the model is one line.
-- **`rag/`** — everything about searching documents: splitting, embedding and storing, searching. **Why:** retrieval is its own subject (Doc08) and works without the graph; keeping it apart means you can test and tune search alone.
-- **`agents/`** — one file per agent: Retriever, Reasoner, Approval. **Why:** three agents, three jobs, three files — you can point at each one.
-- **`prompts/`** — prompt text as `.txt` files. **Why:** the Reasoner's rules are the most-edited text in the project; they shouldn't be buried in code.
-- **`utils/`** — the logger and the prompt loader, used everywhere.
-- **`tests/unit/`** — routing, relevance, chunking and the approval checklist, with hand-made inputs. **Why:** fast, free, no key — run after every change.
-- **`tests/integration/`** — the whole graph against the real API, every path. **Why:** costs money, so it's run on purpose.
-- **`scripts/`** — the two-part pause/resume demo. **Why:** proving a resume from disk needs two separate processes — that's two scripts, not a test function.
 - **`data/docs/`** — your documents. **Why:** they're *data*, not code — replace them with your own and nothing else changes.
+- **`scripts/`** — the two-part pause/resume demo. **Why:** proving a resume from disk needs two separate processes — that's two scripts, not a test function.
+- **`src/`** — the package, right next to `main.py`: every other `.py` file the app is made of. The three graph files sit at its top level: `state.py` (what the graph carries), `nodes.py` (small non-agent nodes), `graph.py` (how they connect). **Why:** these three are what you read first to understand the app — Doc09's own file names.
+- **`agents/`** — one file per agent: Retriever, Reasoner, Approval. **Why:** three agents, three jobs, three files — you can point at each one.
+- **`models/`** — builds the chat model. **Why:** every node gets the same model and settings; changing the model is one line.
+- **`prompts/`** — prompt text as `.txt` files. **Why:** the Reasoner's rules are the most-edited text in the project; they shouldn't be buried in code.
+- **`rag/`** — everything about searching documents: splitting, embedding and storing, searching. **Why:** retrieval is its own subject (Doc08) and works without the graph; keeping it apart means you can test and tune search alone.
+- **`utils/`** — the logger and the prompt loader, used everywhere.
+- **`tests/integration/`** — the whole graph against the real API, every path. **Why:** costs money, so it's run on purpose.
+- **`tests/unit/`** — the config, the small nodes, chunking, routing, relevance and the approval checklist, with hand-made inputs. **Why:** fast, free, no key — run after every change.
 
 ### Why each root file exists
 
-- `README.md` — what someone sees first on GitHub.
-- `LICENSE` — lets others legally reuse your code (GitHub can add MIT).
-- `.gitignore` — also ignores `checkpoints.sqlite`, the saved graph states.
+- `.env` — your real API key; never committed.
 - `.env.example` — which settings to create, with no real values.
-- `pyproject.toml` — the package's name, libraries and the `documind` command.
+- `.gitignore` — stops `.env`, the venv, cache files and `checkpoints.sqlite` (the saved graph states) from being pushed.
+- `LICENSE` — the MIT license text, created in Setup. Without one, nobody may legally reuse your code.
+- `main.py` — the file you run: the question loop and the approval conversation.
+- `README.md` — what someone sees first on GitHub.
 - `requirements.txt` — the library list for `pip install -r requirements.txt`.
 
 ### Why each file exists (what and why)
 
 Every file you'll write, in one place — the same What/Why list the documents give after each tree. The steps below build these files one at a time; come back here whenever you forget why a file exists.
 
-- `__init__.py` (every code folder)
-    - **What:** An empty file. You create one in every folder that holds Python code — nothing goes inside it.
-    - **Why:** Python only treats a folder as a package when this file is there. Without it, an import like `from <package>.<folder> import ...` fails with `ModuleNotFoundError`.
-- `main.py`
-    - **What:** `main()` loads the config, opens `SqliteSaver.from_conn_string(DB_PATH)`, builds the graph, then loops: read a question, make a unique thread id, `graph.invoke(start_state(task), config)`, and if the result has `"__interrupt__"`, call `ask_human()` and resume with `Command(resume=decision)`. It prints the path and the answer.
-    - **Why:** One starting point that owns the pause/resume conversation with the user. The graph and agents live in other files.
-- `config.py`
-    - **What:** A `Config` dataclass with two fields (`openai_api_key`, `log_level`), a helper `require_env(key)` that raises `MissingConfigError` when a setting is empty, and `load_config()`, which calls `load_dotenv()`, reads both settings and returns a `Config`.
-    - **Why:** Every file gets its settings from one place. If the key is missing, the app stops at startup with one clear line — without this file, the missing key would show up later as a confusing API error.
-- `exceptions.py`
-    - **What:** A few small classes that inherit from `Exception` — at least `MissingConfigError`. Each one is just `class Name(Exception): pass`, with a docstring saying when it's raised.
-    - **Why:** Code can catch one specific problem (`except MissingConfigError:`). Without named errors you'd catch every `Exception`, and real bugs would be hidden along with the expected problem.
-- `utils/logger.py`
-    - **What:** One function, `get_logger(name)`. It gets the logger for that name and, only the first time (`if not logger.handlers:`), adds a console handler with a timestamp format and the level from `LOG_LEVEL`.
-    - **Why:** Every file logs in the same format with one line of code. Without the `if not logger.handlers:` guard, every log line would print twice.
-- `utils/prompts.py`
-    - **What:** One constant, `PROMPTS_DIR` (the prompts folder, from the repo root), and one function, `load_prompt(name)`, which opens `PROMPTS_DIR + "/" + name + ".txt"` and returns its text.
-    - **Why:** Prompts live in text files, so you can change how an agent behaves without editing Python — and no agent has to open files itself.
-- `state.py`
-    - **What:** A `DocState` TypedDict (`task`, `path` with `Annotated[list[str], operator.add]`, `sources`, `grounded`, `approved`, `answer`) and `start_state(task)`, which returns a dict with every field set. Each step only adds fields.
-    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
-- `nodes.py`
-    - **What:** Two node functions: `clean_task(state)` returns the stripped task and `["clean_task"]` for the path; `answer_node(state)` runs a general-knowledge chain and returns the answer, labelled as general knowledge.
-    - **Why:** One tidies the question once for every later node; the other answers questions that aren't about your documents — clearly labelled as such.
-- `graph.py`
-    - **What:** One function, `build_graph(checkpointer=None)`. It uses a `MemorySaver` if none is given, adds the six nodes, adds `START → clean_task`, two `add_conditional_edges` (search or skip; grounded or not), plain edges to `END`, and returns `compile(checkpointer=checkpointer)`.
-    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
+- `data/docs/*.md`
+    - **What:** Short Markdown files, a few paragraphs each, with no heading lines.
+    - **Why:** These are the only things DocuMind answers from — replace them with your own documents.
+- `scripts/pause_demo.py`
+    - **What:** One `main()` that opens the SQLite checkpointer, runs a task that needs approval on a fixed thread id (`demo-1`), prints the paused draft, and exits.
+    - **Why:** It is part 1 of proving that a paused run survives the program closing.
+- `scripts/resume_demo.py`
+    - **What:** One `main()` that opens the same SQLite file, reads `graph.get_state(config)`, and — if the run is still paused — asks yes/no and resumes it with `Command(resume=...)`.
+    - **Why:** It is part 2: a brand-new process finishes the run, which proves the state really came from disk.
+- `agents/approval_agent.py`
+    - **What:** The node `approval_node(state)`. From Step 2 it pauses with `interrupt({answer, failed_checks})` and approves only if the person answers "yes". Step 5 adds `ACTION_WORDS` and three check functions (`cites_a_source()`, `asks_for_an_action()`, `run_checks()`), and the node first runs `run_checks()` — if nothing failed, it approves by itself.
+    - **Why:** Safe answers go out on their own; anything risky or doubtful waits for a person — who is told exactly which check failed.
+- `agents/reasoner_agent.py`
+    - **What:** The node `reason_node(state)`, which returns the `answer`. In Step 3 it simply quotes the best excerpt with its file name; in Step 4 it keeps its name and output, and a model chain writes the answer instead, with the new helper `format_sources(sources)` putting each excerpt's file name in front of it.
+    - **Why:** Answers come only from your documents, and each fact names its file — which the Approval agent then checks.
+- `agents/retriever_agent.py`
+    - **What:** `SEARCH_KEYWORDS`, `MAX_DISTANCE`, and five functions: `route_search(state)` → "search" or "skip"; `is_relevant(sources)` compares the smallest score with `MAX_DISTANCE`; `retrieve_node(state)` searches and stores `sources` and `grounded`; `has_grounding(state)` → "reason" or "no_grounding"; `no_grounding_node(state)` returns an honest "not found" answer.
+    - **Why:** A vector store always returns something. Only a written relevance bar decides whether it's good enough — otherwise the answer would be built on nothing.
 - `models/llm.py`
     - **What:** A `MODEL_NAME` constant and one function, `get_model()`, which returns `ChatOpenAI(model=MODEL_NAME, temperature=0)`.
     - **Why:** Every chain and agent gets the same model and settings from here. To try another model you change one line, not every file.
+- `prompts/*.txt`
+    - **What:** Two text files: the general prompt (with `{task}`) and the Reasoner's rules — only the excerpts, cite the file in brackets, and an exact sentence when the documents don't cover it (with `{sources}` and `{task}`).
+    - **Why:** The Reasoner's rules change most often, so they live in a file you can edit easily.
 - `rag/chunking.py`
     - **What:** Two functions from Doc08: `chunk_by_chars(text, chunk_size)` cuts the text every N characters; `chunk_by_paragraph(text)` splits on blank lines and drops empty pieces.
     - **Why:** Search works on small pieces, so it can find the right paragraph instead of a whole file.
@@ -206,37 +201,58 @@ Every file you'll write, in one place — the same What/Why list the documents g
 - `rag/store.py`
     - **What:** A `StoreHolder` class with a `collection` field, one `store` object, and `get_collection()`, which builds the store only when `store.collection` is still `None`.
     - **Why:** The documents are embedded once per run — not for every question, and not at import time before the API key is loaded.
-- `agents/retriever_agent.py`
-    - **What:** `SEARCH_KEYWORDS`, `MAX_DISTANCE`, and five functions: `route_search(state)` → "search" or "skip"; `is_relevant(sources)` compares the smallest score with `MAX_DISTANCE`; `retrieve_node(state)` searches and stores `sources` and `grounded`; `has_grounding(state)` → "reason" or "no_grounding"; `no_grounding_node(state)` returns an honest "not found" answer.
-    - **Why:** A vector store always returns something. Only a written relevance bar decides whether it's good enough — otherwise the answer would be built on nothing.
-- `agents/reasoner_agent.py`
-    - **What:** The node `reason_node(state)`, which returns the `answer`. In Step 3 it simply quotes the best excerpt with its file name; in Step 4 it keeps its name and output, and a model chain writes the answer instead, with the new helper `format_sources(sources)` putting each excerpt's file name in front of it.
-    - **Why:** Answers come only from your documents, and each fact names its file — which the Approval agent then checks.
-- `agents/approval_agent.py`
-    - **What:** The node `approval_node(state)`. From Step 2 it pauses with `interrupt({answer, failed_checks})` and approves only if the person answers "yes". Step 5 adds `ACTION_WORDS` and three check functions (`cites_a_source()`, `asks_for_an_action()`, `run_checks()`), and the node first runs `run_checks()` — if nothing failed, it approves by itself.
-    - **Why:** Safe answers go out on their own; anything risky or doubtful waits for a person — who is told exactly which check failed.
-- `prompts/*.txt`
-    - **What:** Two text files: the general prompt (with `{task}`) and the Reasoner's rules — only the excerpts, cite the file in brackets, and an exact sentence when the documents don't cover it (with `{sources}` and `{task}`).
-    - **Why:** The Reasoner's rules change most often, so they live in a file you can edit easily.
-- `tests/unit/*.py`
-    - **What:** Three test files with hand-made inputs: the chunkers on sample text, `route_search`/`is_relevant`/`has_grounding` on fake states and score lists, and `run_checks()` on fake drafts.
-    - **Why:** Every rule is checked for free, in a second, with no API key.
+- `utils/logger.py`
+    - **What:** One function, `get_logger(name)`. It gets the logger for that name and, only the first time (`if not logger.handlers:`), adds a console handler with a timestamp format and the level from `LOG_LEVEL`.
+    - **Why:** Every file logs in the same format with one line of code. Without the `if not logger.handlers:` guard, every log line would print twice.
+- `utils/prompts.py`
+    - **What:** One constant, `PROMPTS_DIR` (the prompts folder, from the repo root), and one function, `load_prompt(name)`, which opens `PROMPTS_DIR + "/" + name + ".txt"` and returns its text.
+    - **Why:** Prompts live in text files, so you can change how an agent behaves without editing Python — and no agent has to open files itself.
+- `__init__.py` (every code folder)
+    - **What:** An empty file. You create one in every folder that holds Python code — nothing goes inside it.
+    - **Why:** Python only treats a folder as a package when this file is there. Without it, an import like `from <package>.<folder> import ...` fails with `ModuleNotFoundError`.
+- `config.py`
+    - **What:** A `Config` dataclass with two fields (`openai_api_key`, `log_level`), a helper `require_env(key)` that raises `MissingConfigError` when a setting is empty, and `load_config()`, which calls `load_dotenv()`, reads both settings and returns a `Config`.
+    - **Why:** Every file gets its settings from one place. If the key is missing, the app stops at startup with one clear line — without this file, the missing key would show up later as a confusing API error.
+- `exceptions.py`
+    - **What:** A few small classes that inherit from `Exception` — at least `MissingConfigError`. Each one is just `class Name(Exception): pass`, with a docstring saying when it's raised.
+    - **Why:** Code can catch one specific problem (`except MissingConfigError:`). Without named errors you'd catch every `Exception`, and real bugs would be hidden along with the expected problem.
+- `graph.py`
+    - **What:** One function, `build_graph(checkpointer=None)`. It uses a `MemorySaver` if none is given, adds the six nodes, adds `START → clean_task`, two `add_conditional_edges` (search or skip; grounded or not), plain edges to `END`, and returns `compile(checkpointer=checkpointer)`.
+    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
+- `nodes.py`
+    - **What:** Two node functions: `clean_task(state)` returns the stripped task and `["clean_task"]` for the path; `answer_node(state)` runs a general-knowledge chain and returns the answer, labelled as general knowledge.
+    - **Why:** One tidies the question once for every later node; the other answers questions that aren't about your documents — clearly labelled as such.
+- `state.py`
+    - **What:** A `DocState` TypedDict (`task`, `path` with `Annotated[list[str], operator.add]`, `sources`, `grounded`, `approved`, `answer`) and `start_state(task)`, which returns a dict with every field set. Each step only adds fields.
+    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
 - `tests/integration/test_live_graph.py`
-    - **What:** A `run(graph, thread_id, task)` helper and test functions that build the graph with a `MemorySaver` and run each path: grounded and auto-approved, not found, general, and an action task that pauses — resumed with "yes" in one thread and "no" in another.
-    - **Why:** It proves every path through the graph works with the real API, including both human decisions.
-- `scripts/pause_demo.py`
-    - **What:** One `main()` that opens the SQLite checkpointer, runs a task that needs approval on a fixed thread id (`demo-1`), prints the paused draft, and exits.
-    - **Why:** It is part 1 of proving that a paused run survives the program closing.
-- `scripts/resume_demo.py`
-    - **What:** One `main()` that opens the same SQLite file, reads `graph.get_state(config)`, and — if the run is still paused — asks yes/no and resumes it with `Command(resume=...)`.
-    - **Why:** It is part 2: a brand-new process finishes the run, which proves the state really came from disk.
-- `data/docs/*.md`
-    - **What:** Short Markdown files, a few paragraphs each, with no heading lines.
-    - **Why:** These are the only things DocuMind answers from — replace them with your own documents.
+    - **What:** A `run(graph, thread_id, task, decision)` helper that resumes a paused run with `decision`, and eight test functions against the real API, each printing `OK` or `WRONG`: a general question; an action task that pauses, is approved, is rejected; a grounded document answer; an unknown topic; a cited answer; and a safe answer that is auto-approved.
+    - **Why:** It proves every path through the graph works with the real model, including both human decisions.
+- `tests/unit/test_approval_checks.py`
+    - **What:** Three test functions on hand-made states, each printing `OK` or `WRONG`: a grounded, cited answer passes every check (`[]`); an answer with no citation fails `cites no source file`; a task asking for an action fails `the task asks for an action`.
+    - **Why:** A broken check would send every answer to a human, or none — this catches it in a second, with no API key.
+- `tests/unit/test_chunking.py`
+    - **What:** Two test functions, each printing `OK` or `WRONG`: 650 characters in chunks of 300 give lengths `[300, 300, 50]`, and `chunk_by_paragraph()` drops the empty pieces between blank lines.
+    - **Why:** Search quality starts with the chunks — a chunker bug would quietly make whole paragraphs unfindable.
+- `tests/unit/test_config.py`
+    - **What:** Three test functions, no API call, each printing `OK` or `WRONG`: `require_env()` raises `MissingConfigError` for a missing and for an empty setting (a made-up setting name, so your `.env` is never touched), and `load_config()` returns a `Config` when a key is set.
+    - **Why:** It proves a missing key stops the app with one clear error, with no API call — the first thing that must work.
+- `tests/unit/test_nodes.py`
+    - **What:** Two test functions with hand-made input: `clean_task()` strips the task and adds `["clean_task"]` to the path, and `start_state()` starts with an empty `path` and `answer`. Each prints `OK` or `WRONG`.
+    - **Why:** A node that forgot its path entry, or a missing starting field, would only show up as a strange run later.
+- `tests/unit/test_routing.py`
+    - **What:** Seven test functions, one per rule, on hand-made states and score lists: a document question searches, a general one skips; a best score of 0.4 counts, 1.7 doesn't, no sources at all doesn't; grounded goes to the Reasoner, not grounded to the honest "not found".
+    - **Why:** A wrong comparison (`>` instead of `<=`) would only show up as strange answers — here it shows up as `WRONG`.
+- `main.py`
+    - **What:** `main()` loads the config, opens `SqliteSaver.from_conn_string(DB_PATH)`, builds the graph, then loops: read a question, make a unique thread id, `graph.invoke(start_state(task), config)`, and if the result has `"__interrupt__"`, call `ask_human()` and resume with `Command(resume=decision)`. It prints the path and the answer.
+    - **Why:** One starting point that owns the pause/resume conversation with the user. The graph and agents live in other files.
 
 ### How imports work in this layout
 
-Exactly as in Projects 1 and 2: an empty `__init__.py` in every folder with Python files (not `prompts/` or `data/`), `pip install -e .` once, imports like `from documind.agents.retriever_agent import route_search`, and **every command run from the repo root** — `data/docs/`, the prompts folder and `checkpoints.sqlite` are all found from there.
+- Every folder with Python files gets an empty `__init__.py`. It marks the folder as a package, so `src.agents.retriever_agent` is importable. (`prompts/` holds only `.txt` files and `data/` only documents, so they don't need one.)
+- Python looks for imports in the folder you **run from**. `main.py` and `src/` sit side by side in the repo folder, so `python main.py` finds `from src.graph import build_graph` right there.
+- Tests and scripts live in sub-folders, so run them as modules from the repo folder: `python -m tests.unit.test_routing`. The `-m` tells Python to start from the folder you're in — the repo folder — so `src` is found there too.
+- Always run commands from the **repo folder**. `data/docs/`, the prompts folder and `checkpoints.sqlite` are all found from there.
 
 ### Left out on purpose (and when they come)
 
@@ -254,16 +270,16 @@ Exactly as in Projects 1 and 2: an empty `__init__.py` in every folder with Pyth
 
 | Step | New files | Changed files |
 |---|---|---|
-| Setup | root files, `src/documind/__init__.py` | — |
-| 1 | `config.py`, `exceptions.py`, `utils/logger.py`, `utils/prompts.py`, `models/llm.py`, `prompts/general.txt`, `state.py`, `nodes.py`, `graph.py`, `main.py` | — |
-| 2 | `agents/approval_agent.py`, `scripts/pause_demo.py`, `scripts/resume_demo.py` | `state.py`, `graph.py`, `main.py` |
-| 3 | `rag/` (4 files), `data/docs/`, `agents/retriever_agent.py`, `agents/reasoner_agent.py`, `tests/unit/test_chunking.py`, `tests/unit/test_routing.py`, `tests/integration/test_live_graph.py` | `state.py`, `graph.py` |
-| 4 | `prompts/reasoner.txt` | `agents/reasoner_agent.py` |
+| Setup | root files, `src/__init__.py` | — |
+| 1 | `main.py`, `config.py`, `exceptions.py`, `utils/logger.py`, `utils/prompts.py`, `models/llm.py`, `prompts/general.txt`, `state.py`, `nodes.py`, `graph.py`, `tests/unit/test_config.py`, `tests/unit/test_nodes.py`, `tests/integration/test_live_graph.py` | — |
+| 2 | `agents/approval_agent.py`, `scripts/pause_demo.py`, `scripts/resume_demo.py` | `main.py`, `state.py`, `graph.py`, `test_live_graph.py` |
+| 3 | `rag/` (4 files), `data/docs/`, `agents/retriever_agent.py`, `agents/reasoner_agent.py`, `tests/unit/test_chunking.py`, `tests/unit/test_routing.py` | `state.py`, `graph.py`, `test_live_graph.py` |
+| 4 | `prompts/reasoner.txt` | `agents/reasoner_agent.py`, `test_live_graph.py` |
 | 5 | `tests/unit/test_approval_checks.py` | `agents/approval_agent.py`, `test_live_graph.py` |
 
 ## Setup (do this once, before Step 1)
 
-**Read first:** [Doc01 — Virtual environments](../01_python_foundations/README.md#virtual-environments-keeping-projects-separate), [Doc01 — `.env` files](../01_python_foundations/README.md#env-files-keeping-secrets-out-of-your-code). The same steps as Projects 1 and 2, with a different package name and library list.
+**Read first:** [Doc01 — Virtual environments](../01_python_foundations/README.md#virtual-environments-keeping-projects-separate), [Doc01 — `.env` files](../01_python_foundations/README.md#env-files-keeping-secrets-out-of-your-code). The same steps as Projects 1 and 2, with a different library list.
 
 1. Go into the repo folder, start git, and make a venv. From the curriculum's root folder (`multi-agent-ai-engineering-curriculum/`):
 
@@ -285,8 +301,6 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 # Python's compiled cache files
 __pycache__/
 *.pyc
-# created by "pip install -e ."
-*.egg-info/
 # saved graph states (Step 2) — local only
 checkpoints.sqlite
 ```
@@ -319,48 +333,17 @@ python-dotenv>=1.0
 
 New since Project 2: `langgraph` (the graph), `langgraph-checkpoint-sqlite` (saved state on disk), `chromadb` (the local vector store from Doc08). `langchain-openai` brings `openai`.
 
-5. Create `pyproject.toml`:
-
-```toml
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "documind"
-version = "0.1.0"
-description = "A 3-agent LangGraph RAG system with a human approval gate."
-requires-python = ">=3.10"
-dependencies = [
-    "chromadb>=1.0",
-    "langchain-core>=1.0",
-    "langchain-openai>=1.0",
-    "langgraph>=1.0",
-    "langgraph-checkpoint-sqlite>=2.0",
-    "python-dotenv>=1.0",
-]
-
-[project.scripts]
-# after "pip install -e .", typing "documind" runs main()
-documind = "documind.main:main"
-
-[tool.setuptools.packages.find]
-# the package code lives under src/, not in the repo root
-where = ["src"]
-```
-
-6. Create an empty `src/documind/__init__.py`, then install:
+5. Create an empty `src/__init__.py`, then install the libraries:
 
 ```bash
 pip install -r requirements.txt
-pip install -e .
 ```
 
-**Check it worked:** `python -c "import documind; print('ok')"` prints `ok`.
+**Check it worked:** from the repo folder, `python -c "import src; print('ok')"` prints `ok`. It works because the `src/` folder sits right there — that's why every command runs from the repo folder.
 
 **Your documents:** Step 3 needs 5-10 short documents in `data/docs/` — your own notes, policies or wiki pages as `.md` files, a few paragraphs each, **no heading lines**. The solution's example set is a small company's refund, shipping, warranty, account-security and pricing policies. For a bigger public set, the Hugging Face dataset [`rag-datasets/rag-mini-wikipedia`](https://huggingface.co/datasets/rag-datasets/rag-mini-wikipedia) is small and made for practicing RAG.
 
-7. Create `LICENSE` — the MIT license, so others may reuse your code. Put the current year and your own name on the Copyright line:
+6. Create `LICENSE` — the MIT license, so others may reuse your code. Put the current year and your own name on the Copyright line:
 
 ```text
 MIT License
@@ -419,15 +402,39 @@ The project grows step by step, and **after every step it runs**: Step 1 answers
 
 Every command runs from the **repo root** with the venv active.
 
+### How testing works in this project
+
+**Story:** DocuMind's promise is "it answers only from your documents, and asks before anything risky goes out" — two promises a casual try can't confirm. So every step adds the tests for the path it adds: the general answer, the pause, the grounded answer, the honest "not found", the citation, the auto-approval. When something breaks, the newest `WRONG` points straight at the newest code. **If not:** a prompt change could quietly start answering from nothing, or approving actions, and you'd only find out from a user.
+
+- **Two kinds of test:**
+    - `tests/unit/` — code that needs no model: settings, the small nodes, the chunkers, every routing and relevance rule, the approval checklist. No API key, no cost, under a second. **When:** after every change to the file it tests — run them all the time.
+    - `tests/integration/test_live_graph.py` — the whole graph against the real API, one case per path. Real API calls (a fraction of a cent). **When:** at the end of every step, and after changing a prompt, `MAX_DISTANCE`, `SEARCH_KEYWORDS` or `ACTION_WORDS`.
+- **One pattern for every case** — so the output never needs judging:
+
+```
+def test_something() -> None:
+    result = "OK"
+    if <it came out wrong>:
+        result = "WRONG"
+    print(f"case 1 (what it checks) -> {result}")
+```
+
+- **An error you expect** (like `MissingConfigError`): start with `result = "WRONG"`, and set `result = "OK"` inside `except TheError:`.
+- **One function per case**, all called at the bottom under `if __name__ == "__main__":`. Each file numbers its own cases, and case numbers never change once written.
+- **Model answers vary**, so check one fact — a node name in `path`, a file name in brackets, `grounded` is `True` — never the exact wording.
+- **Each live case gets its own `thread_id`** (`"t1"`, `"t2"`, ...), so saved states never mix.
+- **Run from the repo root with `-m`:** `python -m tests.unit.test_routing` (dots, no `.py`). Running the file by its path fails with `No module named 'src'`, because Python then starts looking for imports in `tests/unit/`.
+- **Got a `WRONG`?** Read that one test function, then the code it calls. Fix the code — change the test only if the test itself checks the wrong thing.
+
 ### Step 1 — A 2-Node Graph With No Branching, Just to Prove the Mechanics
 
 *Project: **DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely** — Step 1 of 5*
 
 - **Where you are now:** Setup is done — nothing runs yet.
-- **What's new in this step:** the shared files (config, errors, logger, prompt loader, model), and the three graph files: `state.py`, `nodes.py` (`clean_task` → `answer_node`), `graph.py`, plus `main.py`.
+- **What's new in this step:** the shared files (config, errors, logger, prompt loader, model), and the three graph files: `state.py`, `nodes.py` (`clean_task` → `answer_node`), `graph.py`, plus `main.py`. Tests: `test_config.py`, `test_nodes.py`, and `test_live_graph.py` with case 1.
 - **Why:** every later step adds nodes and branches to this one graph. Prove state really flows from node to node before anything gets harder to read.
 - **How:** `StateGraph(DocState)` → `add_node` × 2 → `add_edge(START, ...)`, `add_edge(..., END)` → `compile()` → `graph.invoke(start_state(task))`.
-- **Working after this step:** `python -m documind.main` answers questions and prints `path: clean_task -> answer_node`.
+- **Working after this step:** `python main.py` answers questions and prints `path: clean_task -> answer_node`, and all three test files print `OK`.
 
 **Read first:** [Doc09 — first graph](../09_langgraph/README.md#ex-first_graph), [Doc09 Build Task](../09_langgraph/README.md#build-task-graph-skeleton-feeds-into-project-3).
 
@@ -435,56 +442,46 @@ Every command runs from the **repo root** with the venv active.
 
 What to do:
 
-1. Bring in the shared files: `config.py`, `exceptions.py`, `utils/logger.py`, `utils/prompts.py` (folder `src/documind/prompts`), and `models/llm.py` with a no-argument `get_model()`.
+1. Bring in the shared files: `config.py`, `exceptions.py`, `utils/logger.py`, `utils/prompts.py` (folder `src/prompts`), and `models/llm.py` with a no-argument `get_model()`.
 2. Write `state.py`: a `TypedDict` with `task`, `path: Annotated[list[str], operator.add]` and `answer`, plus `start_state(task)`.
 3. Write `nodes.py`: `clean_task` (strips the task) and `answer_node` (a Doc05 chain with `prompts/general.txt`). Each returns only the fields it changes, plus its own name in `path`.
 4. Write `graph.py` (`build_graph()`) and `main.py` (a question loop that prints `path` and `answer`).
 5. Trace the state by hand after each node, then run it and compare.
+6. Write the first tests — `tests/unit/test_config.py`, `tests/unit/test_nodes.py`, and `tests/integration/test_live_graph.py` with case 1 — and run all three with `python -m`.
 
-The root files — `.gitignore`, `.env`, `.env.example`, `requirements.txt`, `pyproject.toml` and `LICENSE` — come from [Setup](#setup-do-this-once-before-step-1); this step adds the files below.
+The root files — `.gitignore`, `.env`, `.env.example`, `requirements.txt` and `LICENSE` — come from [Setup](#setup-do-this-once-before-step-1); this step adds the files below.
 
 **Your files after Step 1:**
 
 ```
-src/documind/
-├── __init__.py
-├── main.py          (new) question loop -> graph
-├── config.py        (new)
-├── exceptions.py    (new)
-├── state.py         (new) DocState: task, path, answer
-├── nodes.py         (new) clean_task, answer_node
-├── graph.py         (new) build_graph(): 2 nodes, plain edges
-├── models/
-│   ├── __init__.py  (new)
-│   └── llm.py       (new) get_model()
-├── prompts/
-│   └── general.txt  (new)
-└── utils/
-    ├── __init__.py  (new)
-    ├── logger.py    (new)
-    └── prompts.py   (new)
+DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/
+├── src/
+│   ├── models/
+│   │   ├── __init__.py  (new)
+│   │   └── llm.py       (new) get_model()
+│   ├── prompts/
+│   │   └── general.txt  (new)
+│   ├── utils/
+│   │   ├── __init__.py  (new)
+│   │   ├── logger.py    (new)
+│   │   └── prompts.py   (new)
+│   ├── __init__.py
+│   ├── config.py        (new)
+│   ├── exceptions.py    (new)
+│   ├── graph.py         (new) build_graph(): 2 nodes, plain edges
+│   ├── nodes.py         (new) clean_task, answer_node
+│   └── state.py         (new) DocState: task, path, answer
+├── tests/
+│   ├── integration/
+│   │   └── test_live_graph.py (new) case 1
+│   └── unit/
+│       ├── test_config.py     (new) no API key needed
+│       └── test_nodes.py      (new) no API key needed
+└── main.py              (new) question loop -> graph
 ```
 
 **Why these files (what and why):**
 
-- `main.py`
-    - **What:** `main()` loads the config, opens `SqliteSaver.from_conn_string(DB_PATH)`, builds the graph, then loops: read a question, make a unique thread id, `graph.invoke(start_state(task), config)`, and if the result has `"__interrupt__"`, call `ask_human()` and resume with `Command(resume=decision)`. It prints the path and the answer.
-    - **Why:** One starting point that owns the pause/resume conversation with the user. The graph and agents live in other files.
-- `config.py`
-    - **What:** A `Config` dataclass with two fields (`openai_api_key`, `log_level`), a helper `require_env(key)` that raises `MissingConfigError` when a setting is empty, and `load_config()`, which calls `load_dotenv()`, reads both settings and returns a `Config`.
-    - **Why:** Every file gets its settings from one place. If the key is missing, the app stops at startup with one clear line — without this file, the missing key would show up later as a confusing API error.
-- `exceptions.py`
-    - **What:** A few small classes that inherit from `Exception` — at least `MissingConfigError`. Each one is just `class Name(Exception): pass`, with a docstring saying when it's raised.
-    - **Why:** Code can catch one specific problem (`except MissingConfigError:`). Without named errors you'd catch every `Exception`, and real bugs would be hidden along with the expected problem.
-- `state.py`
-    - **What:** A `DocState` TypedDict (`task`, `path` with `Annotated[list[str], operator.add]`, `sources`, `grounded`, `approved`, `answer`) and `start_state(task)`, which returns a dict with every field set. Each step only adds fields.
-    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
-- `nodes.py`
-    - **What:** Two node functions: `clean_task(state)` returns the stripped task and `["clean_task"]` for the path; `answer_node(state)` runs a general-knowledge chain and returns the answer, labelled as general knowledge.
-    - **Why:** One tidies the question once for every later node; the other answers questions that aren't about your documents — clearly labelled as such.
-- `graph.py`
-    - **What:** One function, `build_graph(checkpointer=None)`. It uses a `MemorySaver` if none is given, adds the six nodes, adds `START → clean_task`, two `add_conditional_edges` (search or skip; grounded or not), plain edges to `END`, and returns `compile(checkpointer=checkpointer)`.
-    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
 - `models/llm.py`
     - **What:** A `MODEL_NAME` constant and one function, `get_model()`, which returns `ChatOpenAI(model=MODEL_NAME, temperature=0)`.
     - **Why:** Every chain and agent gets the same model and settings from here. To try another model you change one line, not every file.
@@ -497,6 +494,66 @@ src/documind/
 - `utils/prompts.py`
     - **What:** One constant, `PROMPTS_DIR` (the prompts folder, from the repo root), and one function, `load_prompt(name)`, which opens `PROMPTS_DIR + "/" + name + ".txt"` and returns its text.
     - **Why:** Prompts live in text files, so you can change how an agent behaves without editing Python — and no agent has to open files itself.
+- `config.py`
+    - **What:** A `Config` dataclass with two fields (`openai_api_key`, `log_level`), a helper `require_env(key)` that raises `MissingConfigError` when a setting is empty, and `load_config()`, which calls `load_dotenv()`, reads both settings and returns a `Config`.
+    - **Why:** Every file gets its settings from one place. If the key is missing, the app stops at startup with one clear line — without this file, the missing key would show up later as a confusing API error.
+- `exceptions.py`
+    - **What:** A few small classes that inherit from `Exception` — at least `MissingConfigError`. Each one is just `class Name(Exception): pass`, with a docstring saying when it's raised.
+    - **Why:** Code can catch one specific problem (`except MissingConfigError:`). Without named errors you'd catch every `Exception`, and real bugs would be hidden along with the expected problem.
+- `graph.py`
+    - **What:** One function, `build_graph()`: two nodes in a straight line — `START → clean_task → answer_node → END` — compiled into a graph.
+    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
+- `nodes.py`
+    - **What:** Two node functions: `clean_task(state)` returns the stripped task and `["clean_task"]` for the path; `answer_node(state)` runs a general-knowledge chain and returns the answer, labelled as general knowledge.
+    - **Why:** One tidies the question once for every later node; the other answers questions that aren't about your documents — clearly labelled as such.
+- `state.py`
+    - **What:** A `DocState` TypedDict with `task`, `path` (`Annotated[list[str], operator.add]`, so each node adds its name) and `answer`, and `start_state(task)`, which sets every field.
+    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
+- `test_live_graph.py`
+    - **What:** A `run(graph, thread_id, task)` helper and one test function against the real API: a general question goes through both nodes and the answer mentions Paris (case 1).
+    - **Why:** It proves every path through the graph works with the real model, including both human decisions.
+- `test_config.py`
+    - **What:** Three test functions, no API call, each printing `OK` or `WRONG`: `require_env()` raises `MissingConfigError` for a missing and for an empty setting (a made-up setting name, so your `.env` is never touched), and `load_config()` returns a `Config` when a key is set.
+    - **Why:** It proves a missing key stops the app with one clear error, with no API call — the first thing that must work.
+- `test_nodes.py`
+    - **What:** Two test functions with hand-made input: `clean_task()` strips the task and adds `["clean_task"]` to the path, and `start_state()` starts with an empty `path` and `answer`. Each prints `OK` or `WRONG`.
+    - **Why:** A node that forgot its path entry, or a missing starting field, would only show up as a strange run later.
+- `main.py`
+    - **What:** One function, `main()`: it loads the config, builds the graph with `build_graph()`, then loops — read a question, `graph.invoke(start_state(task))`, print the `path` and the `answer`.
+    - **Why:** One starting point that owns the pause/resume conversation with the user. The graph and agents live in other files.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 1 (missing setting)** — `tests/unit/test_config.py`
+    - **Check:** with a made-up setting name removed from `os.environ`, `require_env()` raises `MissingConfigError`.
+    - **Why:** a missing key must stop the app at startup with one clear line.
+    - **When:** after any change to `config.py` or `exceptions.py`.
+    - **If not:** a missing key would surface later as a confusing `AuthenticationError` from OpenAI.
+- **case 2 (empty setting)** — `tests/unit/test_config.py`
+    - **Check:** the same name set to `""` also raises `MissingConfigError`.
+    - **Why:** `OPENAI_API_KEY=` with nothing after it is "set" but never usable.
+    - **When:** same as case 1.
+    - **If not:** the app would start happily and fail on the first real call.
+- **case 3 (config loads)** — `tests/unit/test_config.py`
+    - **Check:** with `OPENAI_API_KEY` set in `os.environ`, `load_config()` returns a `Config` holding that key.
+    - **Why:** cases 1–2 only prove the *error* path; this proves the values actually come back.
+    - **When:** same as case 1.
+    - **If not:** a missing `return value` in `require_env()` passes cases 1–2, and every setting silently becomes `None`.
+- **case 1 (clean_task tidies the task)** — `tests/unit/test_nodes.py`
+    - **Check:** `clean_task({"task": "  What is a refund?  "})` returns the stripped task and `["clean_task"]` for the path.
+    - **Why:** every later node — and the keyword routing in Step 3 — reads this cleaned task.
+    - **When:** after any change to `nodes.py`.
+    - **If not:** a node that forgot its `path` entry would make the printed path lie about what ran.
+- **case 2 (start_state starts empty)** — `tests/unit/test_nodes.py`
+    - **Check:** `start_state("hello")` has the task, an empty `path` and an empty `answer`.
+    - **Why:** every node can rely on every field existing from the first step.
+    - **When:** after any change to `state.py`.
+    - **If not:** a missing field would crash a node with a `KeyError` halfway through a run.
+- **case 1 (general question)** — `tests/integration/test_live_graph.py`
+    - **Check:** "What is the capital of France?" goes through `answer_node`, and the answer mentions Paris.
+    - **Why:** proves the key, the model, the prompt file, the state and the graph wiring work together.
+    - **When:** at the end of the step, and after changing `graph.py`, `nodes.py` or `prompts/general.txt`.
+    - **If not:** a broken edge or prompt variable would be found by the first user, not by you.
 
 ### Step 2 — Saved State and a Human Pause Before Anything Goes Out
 
@@ -507,7 +564,7 @@ src/documind/
 - **What stays the same:** `clean_task` and `answer_node` (they never change again), the model and the prompt.
 - **Why:** a graph can stop mid-run, save everything, and continue later — even after a restart. That's what lets a person approve an answer before it goes out.
 - **How:** `interrupt({"answer": ..., "failed_checks": [...]})` pauses and saves; the app sees `"__interrupt__"` in the result, asks yes/no, and resumes with `graph.invoke(Command(resume=decision), config)`.
-- **Working after this step:** every answer waits for your yes/no; a paused run can be finished by a different process.
+- **Working after this step:** every answer waits for your yes/no; a paused run can be finished by a different process; live cases 1-4 print `OK`.
 
 **Read first:** [Doc09 — interrupt and resume](../09_langgraph/README.md#ex-loop_limit_and_interrupt_resume), [Doc10 — approval pause](../10_agent_workflows/README.md#ex-approval_pause).
 
@@ -520,43 +577,70 @@ What to do:
 3. Change `build_graph(checkpointer=None)` to take a checkpointer (a `MemorySaver` if none is given), and add `approval_node` after `answer_node`.
 4. In `main.py`, open `SqliteSaver.from_conn_string("checkpoints.sqlite")`, make a thread id per question, and handle the pause with `ask_human()` (it prints the answer and the reasons).
 5. Write `scripts/pause_demo.py` and `scripts/resume_demo.py`, run them one after the other, and check the second one finishes the run.
+6. Give the test's `run()` an optional `decision`, build the test graph with `MemorySaver()`, and add cases 2-4: an action task pauses, "yes" approves it, "no" stops it.
 
 **Your files after Step 2:**
 
 ```
-src/documind/
-├── main.py            (changed) SqliteSaver, thread ids, ask_human()
-├── state.py           (changed) + approved
-├── graph.py           (changed) build_graph(checkpointer), + approval
-├── agents/
-│   ├── __init__.py    (new)
-│   └── approval_agent.py (new) approval_node — asks about everything
-└── (Step 1's other files, unchanged)
-scripts/
-├── pause_demo.py      (new) part 1: stop at the pause
-└── resume_demo.py     (new) part 2: a new process resumes it
+DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/
+├── scripts/
+│   ├── pause_demo.py      (new) part 1: stop at the pause
+│   └── resume_demo.py     (new) part 2: a new process resumes it
+├── src/
+│   ├── agents/
+│   │   ├── __init__.py    (new)
+│   │   └── approval_agent.py (new) approval_node — asks about everything
+│   ├── (Step 1's other files, unchanged)
+│   ├── graph.py           (changed) build_graph(checkpointer), + approval
+│   └── state.py           (changed) + approved
+├── tests/
+│   └── integration/
+│       └── test_live_graph.py (changed) + cases 2-4, run(decision)
+└── main.py                (changed) SqliteSaver, thread ids, ask_human()
 ```
 
 **Why these files (what and why):**
 
-- `main.py`
-    - **What:** `main()` loads the config, opens `SqliteSaver.from_conn_string(DB_PATH)`, builds the graph, then loops: read a question, make a unique thread id, `graph.invoke(start_state(task), config)`, and if the result has `"__interrupt__"`, call `ask_human()` and resume with `Command(resume=decision)`. It prints the path and the answer.
-    - **Why:** One starting point that owns the pause/resume conversation with the user. The graph and agents live in other files.
-- `state.py`
-    - **What:** A `DocState` TypedDict (`task`, `path` with `Annotated[list[str], operator.add]`, `sources`, `grounded`, `approved`, `answer`) and `start_state(task)`, which returns a dict with every field set. Each step only adds fields.
-    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
-- `graph.py`
-    - **What:** One function, `build_graph(checkpointer=None)`. It uses a `MemorySaver` if none is given, adds the six nodes, adds `START → clean_task`, two `add_conditional_edges` (search or skip; grounded or not), plain edges to `END`, and returns `compile(checkpointer=checkpointer)`.
-    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
-- `agents/approval_agent.py`
-    - **What:** The node `approval_node(state)`. From Step 2 it pauses with `interrupt({answer, failed_checks})` and approves only if the person answers "yes". Step 5 adds `ACTION_WORDS` and three check functions (`cites_a_source()`, `asks_for_an_action()`, `run_checks()`), and the node first runs `run_checks()` — if nothing failed, it approves by itself.
-    - **Why:** Safe answers go out on their own; anything risky or doubtful waits for a person — who is told exactly which check failed.
 - `scripts/pause_demo.py`
     - **What:** One `main()` that opens the SQLite checkpointer, runs a task that needs approval on a fixed thread id (`demo-1`), prints the paused draft, and exits.
     - **Why:** It is part 1 of proving that a paused run survives the program closing.
 - `scripts/resume_demo.py`
     - **What:** One `main()` that opens the same SQLite file, reads `graph.get_state(config)`, and — if the run is still paused — asks yes/no and resumes it with `Command(resume=...)`.
     - **Why:** It is part 2: a brand-new process finishes the run, which proves the state really came from disk.
+- `agents/approval_agent.py`
+    - **What:** One node, `approval_node(state)`: a fixed reason ("every answer is checked by a person for now"), `interrupt({answer, failed_checks})`, then `"yes"` approves and anything else replaces the answer with "Not approved — nothing was sent."
+    - **Why:** Safe answers go out on their own; anything risky or doubtful waits for a person — who is told exactly which check failed.
+- `graph.py`
+    - **What:** `build_graph(checkpointer=None)` now takes a checkpointer (a `MemorySaver` if none is given) and adds `approval_node` after `answer_node`.
+    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
+- `state.py`
+    - **What:** Step 1's `DocState` plus `approved: bool`, set to `False` in `start_state()`.
+    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
+- `test_live_graph.py`
+    - **What:** Step 1's case, plus an optional `decision` on `run()` (resume a paused run with it; `None` leaves it paused), a fresh `MemorySaver`, and cases 2-4: an action task pauses, "yes" approves it, "no" rejects it.
+    - **Why:** It proves every path through the graph works with the real model, including both human decisions.
+- `main.py`
+    - **What:** `main()` now opens `SqliteSaver.from_conn_string(DB_PATH)`, builds the graph with it, gives each question its own thread id, and when the result has `"__interrupt__"`, calls `ask_human()` and resumes with `Command(resume=decision)`.
+    - **Why:** One starting point that owns the pause/resume conversation with the user. The graph and agents live in other files.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 2 (pauses)** — `tests/integration/test_live_graph.py`
+    - **Check:** an action task ("... Send it to the customer.") run with `decision=None` returns a result with `__interrupt__`.
+    - **Why:** the pause is this step's feature — nothing may go out before a person decides.
+    - **When:** at the end of the step, and after changing `approval_agent.py` or `graph.py`.
+    - **If not:** an answer could go out with nobody checking it — the exact risk this project exists to stop.
+- **case 3 (human: yes)** — `tests/integration/test_live_graph.py`
+    - **Check:** the same task resumed with `"yes"` ends with `approved=True` and `human_approved` in the path.
+    - **Why:** approving must really let the run continue to the end.
+    - **When:** same as case 2.
+    - **If not:** a resume that never finished would leave every approved answer stuck.
+- **case 4 (human: no)** — `tests/integration/test_live_graph.py`
+    - **Check:** resumed with `"no"` (in its own thread), the answer becomes "Not approved — nothing was sent."
+    - **Why:** a rejection must stop the answer, not just log it.
+    - **When:** same as case 2.
+    - **If not:** "no" could still send the answer — the worst bug a human-approval step can have.
+Not a test: `scripts/pause_demo.py` and `scripts/resume_demo.py`. Proving a resume from disk needs two separate processes, so it's two scripts you run by hand, one after the other.
 
 ### Step 3 — A Retriever Agent That Judges Its Own Search Results
 
@@ -567,7 +651,7 @@ scripts/
 - **What stays the same:** `clean_task`, `answer_node`, `approval_node`, the checkpointer and `main.py`.
 - **Why:** a vector store always returns its closest chunks — even when none is relevant. Judging the best score against a written bar is what makes an answer "grounded".
 - **How:** `route_search` (keywords) → `retrieve_node` (search + `is_relevant`) → `has_grounding` picks `reason_node` or `no_grounding_node`; `reason_node` → `approval_node`.
-- **Working after this step:** document questions are answered with the best excerpt and its file name; off-topic ones get "not found"; general ones skip the search.
+- **Working after this step:** document questions are answered with the best excerpt and its file name; off-topic ones get "not found"; general ones skip the search; every unit case and live cases 1-6 print `OK`.
 
 **Read first:** [Doc08 Build Task](../08_rag/README.md#build-task-retriever-module), [Doc10 — conditional search](../10_agent_workflows/README.md#ex-conditional_search), [Doc10 — empty search](../10_agent_workflows/README.md#ex-empty_search), [Doc09 — conditional routing](../09_langgraph/README.md#ex-conditional_routing).
 
@@ -581,40 +665,42 @@ What to do:
 4. Write `agents/retriever_agent.py`: `route_search`, `is_relevant` (best score ≤ `MAX_DISTANCE`), `retrieve_node`, `has_grounding`, `no_grounding_node`. **Write the bar down before testing.**
 5. Write `agents/reasoner_agent.py` with `reason_node`: for now, the best excerpt plus its file name as the `answer`.
 6. Wire the two conditional edges in `graph.py` — this is the graph's final shape.
-7. Write the unit tests and the integration test; run a question the documents answer and one they don't.
+7. Write `tests/unit/test_chunking.py` and `tests/unit/test_routing.py` (one function per rule), and add integration cases 5 (a document question is grounded) and 6 (an unknown topic ends at `no_grounding_node`).
 
 **Your files after Step 3:**
 
 ```
-src/documind/
-├── state.py            (changed) + sources, grounded
-├── graph.py            (changed) 2 conditional edges — final shape
-├── rag/
-│   ├── __init__.py     (new)
-│   ├── chunking.py     (new, Doc08)
-│   ├── ingest.py       (new, Doc08)
-│   ├── retriever.py    (new, Doc08)
-│   └── store.py        (new) get_collection()
-└── agents/
-    ├── retriever_agent.py (new)
-    └── reasoner_agent.py  (new) reason_node — quotes the best excerpt
-data/docs/              (new) 5 documents
-tests/
-├── unit/
-│   ├── test_chunking.py   (new)
-│   └── test_routing.py    (new)
-└── integration/
-    └── test_live_graph.py (new)
+DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/
+├── data/
+│   └── docs/              (new) 5 documents
+├── src/
+│   ├── agents/
+│   │   ├── reasoner_agent.py  (new) reason_node — quotes the best excerpt
+│   │   └── retriever_agent.py (new)
+│   ├── rag/
+│   │   ├── __init__.py    (new)
+│   │   ├── chunking.py    (new, Doc08)
+│   │   ├── ingest.py      (new, Doc08)
+│   │   ├── retriever.py   (new, Doc08)
+│   │   └── store.py       (new) get_collection()
+│   ├── graph.py           (changed) 2 conditional edges — final shape
+│   └── state.py           (changed) + sources, grounded
+└── tests/
+    ├── integration/
+    │   └── test_live_graph.py (changed) + cases 5-6
+    └── unit/
+        ├── test_chunking.py   (new)
+        └── test_routing.py    (new)
 ```
 
 **Why these files (what and why):**
 
-- `state.py`
-    - **What:** A `DocState` TypedDict (`task`, `path` with `Annotated[list[str], operator.add]`, `sources`, `grounded`, `approved`, `answer`) and `start_state(task)`, which returns a dict with every field set. Each step only adds fields.
-    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
-- `graph.py`
-    - **What:** One function, `build_graph(checkpointer=None)`. It uses a `MemorySaver` if none is given, adds the six nodes, adds `START → clean_task`, two `add_conditional_edges` (search or skip; grounded or not), plain edges to `END`, and returns `compile(checkpointer=checkpointer)`.
-    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
+- `agents/reasoner_agent.py`
+    - **What:** One node, `reason_node(state)`: for now it answers with the best excerpt, word for word, followed by its file name in brackets.
+    - **Why:** Answers come only from your documents, and each fact names its file — which the Approval agent then checks.
+- `agents/retriever_agent.py`
+    - **What:** `SEARCH_KEYWORDS`, `MAX_DISTANCE`, and five functions: `route_search(state)` → "search" or "skip"; `is_relevant(sources)` compares the smallest score with `MAX_DISTANCE`; `retrieve_node(state)` searches and stores `sources` and `grounded`; `has_grounding(state)` → "reason" or "no_grounding"; `no_grounding_node(state)` returns an honest "not found" answer.
+    - **Why:** A vector store always returns something. Only a written relevance bar decides whether it's good enough — otherwise the answer would be built on nothing.
 - `rag/chunking.py`
     - **What:** Two functions from Doc08: `chunk_by_chars(text, chunk_size)` cuts the text every N characters; `chunk_by_paragraph(text)` splits on blank lines and drops empty pieces.
     - **Why:** Search works on small pieces, so it can find the right paragraph instead of a whole file.
@@ -627,21 +713,59 @@ tests/
 - `rag/store.py`
     - **What:** A `StoreHolder` class with a `collection` field, one `store` object, and `get_collection()`, which builds the store only when `store.collection` is still `None`.
     - **Why:** The documents are embedded once per run — not for every question, and not at import time before the API key is loaded.
-- `agents/retriever_agent.py`
-    - **What:** `SEARCH_KEYWORDS`, `MAX_DISTANCE`, and five functions: `route_search(state)` → "search" or "skip"; `is_relevant(sources)` compares the smallest score with `MAX_DISTANCE`; `retrieve_node(state)` searches and stores `sources` and `grounded`; `has_grounding(state)` → "reason" or "no_grounding"; `no_grounding_node(state)` returns an honest "not found" answer.
-    - **Why:** A vector store always returns something. Only a written relevance bar decides whether it's good enough — otherwise the answer would be built on nothing.
-- `agents/reasoner_agent.py`
-    - **What:** The node `reason_node(state)`, which returns the `answer`. In Step 3 it simply quotes the best excerpt with its file name; in Step 4 it keeps its name and output, and a model chain writes the answer instead, with the new helper `format_sources(sources)` putting each excerpt's file name in front of it.
-    - **Why:** Answers come only from your documents, and each fact names its file — which the Approval agent then checks.
-- `test_chunking.py`
-    - **What:** Three test files with hand-made inputs: the chunkers on sample text, `route_search`/`is_relevant`/`has_grounding` on fake states and score lists, and `run_checks()` on fake drafts.
-    - **Why:** Every rule is checked for free, in a second, with no API key.
-- `test_routing.py`
-    - **What:** Three test files with hand-made inputs: the chunkers on sample text, `route_search`/`is_relevant`/`has_grounding` on fake states and score lists, and `run_checks()` on fake drafts.
-    - **Why:** Every rule is checked for free, in a second, with no API key.
+- `graph.py`
+    - **What:** `build_graph(checkpointer)` in its final shape: `clean_task`, then `route_search` picks `retrieve_node` or `answer_node`; after the search, `has_grounding` picks `reason_node` (then `approval_node`) or `no_grounding_node`.
+    - **Why:** The whole flow is in one place you can draw. The app passes a SQLite checkpointer and the tests pass a `MemorySaver`, with no code change.
+- `state.py`
+    - **What:** Step 2's `DocState` plus `sources` (the found chunks) and `grounded`, both set in `start_state()`.
+    - **Why:** All nodes agree on the field names, `path` collects a log of every node that ran, and a run never fails because a field was missing.
 - `test_live_graph.py`
-    - **What:** Three test files with hand-made inputs: the chunkers on sample text, `route_search`/`is_relevant`/`has_grounding` on fake states and score lists, and `run_checks()` on fake drafts.
-    - **Why:** Every rule is checked for free, in a second, with no API key.
+    - **What:** Step 2's cases, plus case 5 (a document question is searched and grounded) and case 6 (an unknown topic ends at `no_grounding_node`).
+    - **Why:** It proves every path through the graph works with the real model, including both human decisions.
+- `test_chunking.py`
+    - **What:** Two test functions, each printing `OK` or `WRONG`: 650 characters in chunks of 300 give lengths `[300, 300, 50]`, and `chunk_by_paragraph()` drops the empty pieces between blank lines.
+    - **Why:** Search quality starts with the chunks — a chunker bug would quietly make whole paragraphs unfindable.
+- `test_routing.py`
+    - **What:** Seven test functions, one per rule, on hand-made states and score lists: a document question searches, a general one skips; a best score of 0.4 counts, 1.7 doesn't, no sources at all doesn't; grounded goes to the Reasoner, not grounded to the honest "not found".
+    - **Why:** A wrong comparison (`>` instead of `<=`) would only show up as strange answers — here it shows up as `WRONG`.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 1 (650 chars, size 300)** — `tests/unit/test_chunking.py`
+    - **Check:** `chunk_by_chars("a" * 650, chunk_size=300)` gives chunks of 300, 300 and 50 characters.
+    - **Why:** nothing may be lost or duplicated when a document is cut.
+    - **When:** after any change to `rag/chunking.py`.
+    - **If not:** the end of every document could silently disappear from the search.
+- **case 2 (empty pieces dropped)** — `tests/unit/test_chunking.py`
+    - **Check:** `chunk_by_paragraph()` on text with extra blank lines returns only the two real paragraphs.
+    - **Why:** an empty chunk would be embedded and could come back as a "match".
+    - **When:** same as case 1.
+    - **If not:** blank chunks would waste embeddings and pollute search results.
+- **cases 1-2 (search or skip)** — `tests/unit/test_routing.py`
+    - **Check:** "What is the refund policy?" → `"search"`; "What is the capital of France?" → `"skip"`.
+    - **Why:** only document questions should pay for a search.
+    - **When:** after any change to `SEARCH_KEYWORDS` or `route_search()`.
+    - **If not:** general questions would be searched — and probably answered "not found".
+- **cases 3-5 (the relevance bar)** — `tests/unit/test_routing.py`
+    - **Check:** a best score of 0.4 counts as relevant; 1.7 doesn't; no sources at all doesn't.
+    - **Why:** the score is a distance — the best match is the *smallest* — and this is the line between an answer and an honest "not found".
+    - **When:** after any change to `is_relevant()` or `MAX_DISTANCE`.
+    - **If not:** a flipped comparison (`>` instead of `<=`) would answer from unrelated text and refuse real matches.
+- **cases 6-7 (where grounding leads)** — `tests/unit/test_routing.py`
+    - **Check:** `grounded=True` → `"reason"`; `grounded=False` → `"no_grounding"`.
+    - **Why:** the edge after the search must follow the judgment, not ignore it.
+    - **When:** after any change to `has_grounding()` or the edge map in `graph.py`.
+    - **If not:** an ungrounded search could still reach the Reasoner.
+- **case 5 (grounded)** — `tests/integration/test_live_graph.py`
+    - **Check:** "What is the refund policy?" goes through `retrieve_node` and ends with `grounded=True`.
+    - **Why:** proves the real store, the real embeddings and the relevance bar work together on a question the documents answer.
+    - **When:** at the end of the step, and after changing documents, `MAX_DISTANCE` or the RAG files.
+    - **If not:** a too-strict bar would make every document question "not found".
+- **case 6 (not found)** — `tests/integration/test_live_graph.py`
+    - **Check:** "What is the policy on remote work?" ends at `no_grounding_node`.
+    - **Why:** this is the project's "never makes one up" promise, checked on every run.
+    - **When:** same as case 5.
+    - **If not:** a too-loose bar would answer from whatever chunk happened to be closest.
 
 ### Step 4 — A Reasoner Agent That Only Answers From What the Retriever Found
 
@@ -652,7 +776,7 @@ tests/
 - **What stays the same:** everything else — the graph, the state, the Retriever, `approval_node`, `main.py`.
 - **Why:** search quality and answer quality fail for different reasons. A separate Reasoner that may only use the excerpts, and must cite them, keeps the two checkable apart.
 - **How:** `format_sources()` puts each excerpt's file name in front of it → a chain with the reasoner prompt → `answer`.
-- **Working after this step:** document questions get a written answer with `[file.md]` citations, still approved by you.
+- **Working after this step:** document questions get a written answer with `[file.md]` citations, still approved by you; live case 7 prints `OK`.
 
 **Read first:** [Doc10 Build Task](../10_agent_workflows/README.md#build-task-project-3-langgraph-app) (the `reason_node`), [Doc05 — LCEL basics](../05_langchain_fundamentals/README.md#ex-lcel_chain_basics).
 
@@ -662,16 +786,21 @@ What to do:
 
 1. Write `prompts/reasoner.txt`: only the excerpts; cite each fact's file in brackets; an exact sentence for "not covered".
 2. In `agents/reasoner_agent.py`, add `format_sources()` and change the inside of `reason_node` to run the chain — keep its name and its output.
-3. Check several answers **by hand** against the documents.
+3. Add integration case 7: the refund answer must cite `[refund_policy.md]`.
+4. Check several answers **by hand** against the documents.
 
 **Your files after Step 4:**
 
 ```
-src/documind/
-├── agents/
-│   └── reasoner_agent.py (changed) + format_sources(), model answer
-└── prompts/
-    └── reasoner.txt      (new)
+DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/
+├── src/
+│   ├── agents/
+│   │   └── reasoner_agent.py (changed) + format_sources(), model answer
+│   └── prompts/
+│       └── reasoner.txt      (new)
+└── tests/
+    └── integration/
+        └── test_live_graph.py (changed) + case 7
 ```
 
 **Why these files (what and why):**
@@ -682,6 +811,18 @@ src/documind/
 - `prompts/reasoner.txt`
     - **What:** This text file holds the reasoner prompt. The code loads it with `load_prompt("reasoner")`.
     - **Why:** The Reasoner's rules change most often, so they live in a file you can edit easily.
+- `test_live_graph.py`
+    - **What:** Step 3's cases, plus case 7: the refund answer must name `[refund_policy.md]`.
+    - **Why:** It proves every path through the graph works with the real model, including both human decisions.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 7 (cites its file)** — `tests/integration/test_live_graph.py`
+    - **Check:** the answer to "What is the refund policy?" contains `[refund_policy.md]`.
+    - **Why:** citing the file is this step's promise — and Step 5's checklist relies on it.
+    - **When:** at the end of the step, and after changing `prompts/reasoner.txt` or `format_sources()`.
+    - **If not:** a prompt change that dropped citations would go unnoticed — and in Step 5 every answer would then need a human.
+Not tested on purpose: whether the written answer is *true*. That needs reading it against the documents — do it by hand, as the step says.
 
 ### Step 5 — An Approval Agent That Only Asks a Human When It Really Needs To (final: 3 agents)
 
@@ -692,7 +833,7 @@ src/documind/
 - **What stays the same:** the graph, `main.py` (it already shows the reasons), the Retriever, the Reasoner, the pause/resume scripts.
 - **Why:** a human check on every run gets skipped in practice; a gate that asks only when a specific check fails is one people keep.
 - **How:** `run_checks()` → a list of failed checks (grounded? cites a source? asks for an action?). Empty → auto-approve. Otherwise `interrupt()` with the answer and the failed checks.
-- **Working after this step:** the full project — safe answers go straight out, action requests and weak answers wait for you.
+- **Working after this step:** the full project — safe answers go straight out, action requests and weak answers wait for you; every test case prints `OK`.
 
 **Read first:** [Doc10 — approval pause](../10_agent_workflows/README.md#ex-approval_pause), and as a look ahead, [Doc11 — Patterns](../11_multi_agent_systems/README.md#every-pattern-below-what-why-when-trade-off) (the Sequential row).
 
@@ -702,17 +843,21 @@ What to do:
 
 1. In `agents/approval_agent.py`, add `ACTION_WORDS`, `cites_a_source()`, `asks_for_an_action()` and `run_checks()` — one check per function, so a log line can name the one that failed.
 2. In `approval_node`, replace the fixed `reasons` line with `reasons = run_checks(state)`, and add the auto-approve block before the pause.
-3. Write `tests/unit/test_approval_checks.py`, and update the integration test: a document question is now **auto-approved**; an action request pauses — approve it in one run, reject it in another.
+3. Write `tests/unit/test_approval_checks.py`, and add integration case 8: a safe document question is now **auto-approved**, with no pause. Cases 2-4 (the action task) still pause.
 4. Run everything, and the pause/resume scripts once more.
 
 **Your files after Step 5 (final):** the full tree in [Project Structure](#the-final-layout-after-step-5). What changed:
 
 ```
-src/documind/agents/
-└── approval_agent.py    (changed) + the checklist, auto-approve
-tests/
-├── unit/test_approval_checks.py    (new)
-└── integration/test_live_graph.py  (changed) + auto-approve, pause
+DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/
+├── src/
+│   └── agents/
+│       └── approval_agent.py (changed) + the checklist, auto-approve
+└── tests/
+    ├── integration/
+    │   └── test_live_graph.py    (changed) + case 8
+    └── unit/
+        └── test_approval_checks.py (new)
 ```
 
 **Why these files (what and why):**
@@ -720,9 +865,26 @@ tests/
 - `agents/approval_agent.py`
     - **What:** The node `approval_node(state)`. From Step 2 it pauses with `interrupt({answer, failed_checks})` and approves only if the person answers "yes". Step 5 adds `ACTION_WORDS` and three check functions (`cites_a_source()`, `asks_for_an_action()`, `run_checks()`), and the node first runs `run_checks()` — if nothing failed, it approves by itself.
     - **Why:** Safe answers go out on their own; anything risky or doubtful waits for a person — who is told exactly which check failed.
-- `integration/test_live_graph.py`
-    - **What:** A `run(graph, thread_id, task)` helper and test functions that build the graph with a `MemorySaver` and run each path: grounded and auto-approved, not found, general, and an action task that pauses — resumed with "yes" in one thread and "no" in another.
-    - **Why:** It proves every path through the graph works with the real API, including both human decisions.
+- `test_live_graph.py`
+    - **What:** Step 4's cases, plus case 8: a safe document question is auto-approved, with no pause.
+    - **Why:** It proves every path through the graph works with the real model, including both human decisions.
+- `test_approval_checks.py`
+    - **What:** Three test functions on hand-made states, each printing `OK` or `WRONG`: a grounded, cited answer passes every check (`[]`); an answer with no citation fails `cites no source file`; a task asking for an action fails `the task asks for an action`.
+    - **Why:** A broken check would send every answer to a human, or none — this catches it in a second, with no API key.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **cases 1-3 (the checklist)** — `tests/unit/test_approval_checks.py`
+    - **Check:** a grounded, cited answer fails nothing (`[]`); no citation fails `cites no source file`; an action task fails `the task asks for an action`.
+    - **Why:** each check must fail for exactly its own reason, so the log can say which one sent an answer to a human.
+    - **When:** after any change to `ACTION_WORDS` or a check function.
+    - **If not:** a broken check would send every answer to a human — or none.
+- **case 8 (auto-approved)** — `tests/integration/test_live_graph.py`
+    - **Check:** "What is the refund policy?" with `decision=None` finishes without a pause, with `auto_approved` in the path.
+    - **Why:** safe answers going straight out is this step's feature — a tool that stops on every question gets abandoned.
+    - **When:** at the end of the step, and after changing any check or the Reasoner's prompt.
+    - **If not:** everything would still wait for a person, and nobody would keep using the tool.
+Cases 2-4 keep passing unchanged: the action task still pauses, because `asks_for_an_action()` catches "send".
 
 **Final Deliverable:** **DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely** — a 3-agent LangGraph system in a proper package layout. The Retriever judges its own search. The Reasoner answers only from what was found, and cites it. The Approval agent auto-clears safe drafts and pauses for a human on the rest — and a paused run survives a restart.
 
@@ -756,14 +918,14 @@ Other settings live in code, each in one place:
 Run from the repo root:
 
 ```bash
-python -m documind.main     # or simply: documind
+python main.py
 ```
 
 To see a paused run finished by a separate process:
 
 ```bash
-python scripts/pause_demo.py     # starts a run that needs approval, exits
-python scripts/resume_demo.py    # a new process finds it and finishes it
+python -m scripts.pause_demo     # starts a run that needs approval, exits
+python -m scripts.resume_demo    # a new process finds it and finishes it
 ```
 
 ### Running the Tests
@@ -771,29 +933,32 @@ python scripts/resume_demo.py    # a new process finds it and finishes it
 Run from the repo root:
 
 ```bash
-# unit tests — no API key
-python tests/unit/test_chunking.py
-python tests/unit/test_routing.py
-python tests/unit/test_approval_checks.py
+# unit tests — no API key, no network, under a second
+python -m tests.unit.test_approval_checks
+python -m tests.unit.test_chunking
+python -m tests.unit.test_config
+python -m tests.unit.test_nodes
+python -m tests.unit.test_routing
 
 # integration tests — real API calls, needs OPENAI_API_KEY
-python tests/integration/test_live_graph.py
+python -m tests.integration.test_live_graph
 ```
 
-The integration test runs every path: a grounded answer that's auto-approved, a question the documents don't cover, a general question, and an action request that pauses — approved in one run, rejected in another.
+Every test case prints `OK` or `WRONG`. The unit tests check the config, the two small nodes, the chunkers, every routing and relevance rule, and the approval checklist. The integration test runs every path: a general question, an action request that pauses — approved in one run, rejected in another — a grounded answer, a question the documents don't cover, a cited answer, and a safe answer that is auto-approved.
 
 ## Checklist Before You Call This Done
 
 - [ ] The repo folder name matches the GitHub repo name exactly
-- [ ] Code lives in `src/documind/`, installed with `pip install -e .`; runs with `python -m documind.main`
+- [ ] `main.py` at the repo root, the code in `src/`; runs with `python main.py`
 - [ ] Every folder has one clear job, and you can say why it exists
 - [ ] A `StateGraph` with typed state and at least one real conditional edge
-- [ ] A SQLite checkpointer — a paused run is finished by a **separate** process (`pause_demo.py` → `resume_demo.py`)
+- [ ] A SQLite checkpointer — a paused run is finished by a **separate** process (`python -m scripts.pause_demo` → `python -m scripts.resume_demo`)
 - [ ] The Retriever runs only when needed, and judges the best score against a written bar
 - [ ] A question the documents don't cover takes the "not found" path
 - [ ] The Reasoner answers only from the found excerpts, and cites the file
 - [ ] The Approval agent approves safe answers by itself, and asks a human only when a check fails — both paths tested
-- [ ] `tests/unit/` pass with no API key; `tests/integration/` pass with one
+- [ ] Every test case prints `OK` — `tests/unit/` with no API key, `tests/integration/` with one
+- [ ] You wrote each step's tests yourself, and can say for each one what goes wrong without it
 - [ ] `.env` and `checkpoints.sqlite` are not in git
 - [ ] You can draw the graph from the code without running it
 

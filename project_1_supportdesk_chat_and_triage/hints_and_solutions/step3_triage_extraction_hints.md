@@ -71,7 +71,7 @@ Then the files that make the step checkable:
 
 - `data/sample/messages.json` — `{"triage": [ ...the 3 inputs... ]}`.
 - `scripts/triage_samples.py` — read the file and `json.loads()` its text (Doc02), run `triage_agent()` on each message, print each ticket.
-- `tests/unit/test_schemas.py` — a ticket with `customer_name=None` is accepted; `urgency="urgent"` raises `ValidationError`.
-- `tests/integration/test_live_agents.py` — memory, the bad-key check, the 3 tickets, and "input 2 has no name".
+- `tests/unit/test_schemas.py` — a ticket with `customer_name=None` is accepted; `urgency="urgent"` raises `ValidationError`. Each case prints `OK` or `WRONG`.
+- `tests/integration/test_live_agents.py` — two new test functions: every sample becomes a ticket (case 4), and input 2 gets `customer_name=None` (case 5).
 
 Full solution: [Show me the solution](step3_triage_extraction_solution.md)

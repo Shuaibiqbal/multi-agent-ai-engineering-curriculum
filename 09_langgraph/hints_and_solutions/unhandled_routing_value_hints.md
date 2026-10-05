@@ -34,7 +34,7 @@ Things to use:
 
 The exact pieces:
 
-- Change `route` so it returns `"path_c"` under some condition your test input can trigger — e.g. `return "path_c" if state["flag"] is None else ("path_a" if state["flag"] else "path_b")`.
+- Change `route` so it returns `"path_c"` under some condition your test input can trigger — e.g. `if state["flag"] is None: return "path_c"` before the normal `if`/`else`.
 - `try: graph.invoke({"flag": None, ...}) except Exception as e: print(type(e), e)` — catch broadly first, so you can see exactly what LangGraph actually raises, rather than assuming.
 - Confirm it fails **at invoke time**, not at `compile()` time — compiling a graph doesn't run any routing function, so a bad mapping only shows up once you actually execute the branch that hits it.
 
@@ -126,7 +126,9 @@ same graph as the Intermediate exercise (conditional_routing), but:
 def route(state: GraphState) -> str:
     if state["flag"] is None:
         return "path_c"   # not in the mapping on purpose
-    return "path_a" if state["flag"] else "path_b"
+    if state["flag"]:
+        return "path_a"
+    return "path_b"
 
 confirm:
     graph.invoke({"flag": True, ...})   -> works fine, unchanged
@@ -162,8 +164,10 @@ class UnhandledRouteError(Exception): ...
 def route(state) -> str:
     if state["flag"] is None:
         result = "path_c"
+    elif state["flag"]:
+        result = "path_a"
     else:
-        result = "path_a" if state["flag"] else "path_b"
+        result = "path_b"
     valid_paths = {"path_a", "path_b"}
     if result not in valid_paths:
         message = (

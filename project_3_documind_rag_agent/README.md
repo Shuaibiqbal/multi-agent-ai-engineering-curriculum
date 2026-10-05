@@ -27,7 +27,7 @@ A model answering from its training data can sound certain about your policies a
 ## Demo
 
 ```
-$ python -m documind.main
+$ python main.py
 DocuMind — ask a question, or /quit to exit.
 You: What is the refund policy?
   path: clean_task -> retrieve_node -> reason_node -> auto_approved
@@ -80,60 +80,60 @@ approval_node -> END
 
 ```
 DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely/
-├── README.md               the repo's front page
-├── LICENSE                 lets others reuse your code (MIT)
-├── .gitignore              keeps .env, .venv/, checkpoints.sqlite out
-├── .env.example            the setting names, no real values
-├── .env                    your real key — never committed
-├── pyproject.toml          makes src/documind an installable package
-├── requirements.txt        the libraries, for pip install -r
-├── src/
-│   └── documind/
-│       ├── __init__.py
-│       ├── main.py             the terminal loop — the file you run
-│       ├── config.py           Config, load_config()
-│       ├── exceptions.py       MissingConfigError
-│       ├── state.py            DocState, start_state()
-│       ├── nodes.py            clean_task, answer_node
-│       ├── graph.py            build_graph(checkpointer)
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── llm.py          get_model() -> ChatOpenAI
-│       ├── rag/
-│       │   ├── __init__.py
-│       │   ├── chunking.py     chunk_by_chars/paragraph
-│       │   ├── ingest.py       build_vector_store()
-│       │   ├── retriever.py    retrieve() -> list[dict]
-│       │   └── store.py        get_collection() — built once
-│       ├── agents/
-│       │   ├── __init__.py
-│       │   ├── retriever_agent.py route, search, judge relevance
-│       │   ├── reasoner_agent.py  grounded, cited answer
-│       │   └── approval_agent.py  checklist + interrupt()
-│       ├── prompts/
-│       │   ├── general.txt     for non-document questions
-│       │   └── reasoner.txt    "only the excerpts, cite the file"
-│       └── utils/
-│           ├── __init__.py
-│           ├── logger.py       get_logger()
-│           └── prompts.py      load_prompt(name)
-├── tests/
-│   ├── unit/
-│   │   ├── test_chunking.py        no API key needed
-│   │   ├── test_routing.py         no API key needed
-│   │   └── test_approval_checks.py no API key needed
-│   └── integration/
-│       └── test_live_graph.py      real API calls
+├── data/
+│   └── docs/               the documents DocuMind answers from
+│       ├── account_security.md
+│       ├── pricing.md
+│       ├── refund_policy.md
+│       ├── shipping.md
+│       └── warranty.md
 ├── scripts/
 │   ├── pause_demo.py       part 1: start a run, stop at the pause
 │   └── resume_demo.py      part 2: a new process finishes it
-└── data/
-    └── docs/               the documents DocuMind answers from
-        ├── refund_policy.md
-        ├── shipping.md
-        ├── warranty.md
-        ├── account_security.md
-        └── pricing.md
+├── src/
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── approval_agent.py  checklist + interrupt()
+│   │   ├── reasoner_agent.py  grounded, cited answer
+│   │   └── retriever_agent.py route, search, judge relevance
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py          get_model() -> ChatOpenAI
+│   ├── prompts/
+│   │   ├── general.txt     for non-document questions
+│   │   └── reasoner.txt    "only the excerpts, cite the file"
+│   ├── rag/
+│   │   ├── __init__.py
+│   │   ├── chunking.py     chunk_by_chars/paragraph
+│   │   ├── ingest.py       build_vector_store()
+│   │   ├── retriever.py    retrieve() -> list[dict]
+│   │   └── store.py        get_collection() — built once
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py       get_logger()
+│   │   └── prompts.py      load_prompt(name)
+│   ├── __init__.py
+│   ├── config.py           Config, load_config()
+│   ├── exceptions.py       MissingConfigError
+│   ├── graph.py            build_graph(checkpointer)
+│   ├── nodes.py            clean_task, answer_node
+│   └── state.py            DocState, start_state()
+├── tests/
+│   ├── integration/
+│   │   └── test_live_graph.py      real API calls
+│   └── unit/
+│       ├── test_approval_checks.py no API key needed
+│       ├── test_chunking.py        no API key needed
+│       ├── test_config.py          no API key needed
+│       ├── test_nodes.py           no API key needed
+│       └── test_routing.py         no API key needed
+├── .env                    your real key — never committed
+├── .env.example            the setting names, no real values
+├── .gitignore              keeps .env, .venv/, checkpoints.sqlite out
+├── LICENSE                 lets others reuse your code (MIT)
+├── main.py                 the terminal loop — the file you run
+├── README.md               the repo's front page
+└── requirements.txt        the libraries, for pip install -r
 ```
 
 ## Getting Started
@@ -146,7 +146,6 @@ cd DocuMind-Smart-Document-Agent-Ask-Your-Documents-Anything-Safely
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-pip install -e .
 cp .env.example .env               # then put your key in .env
 ```
 
@@ -174,14 +173,14 @@ Other settings live in code, each in one place:
 Run from the repo root:
 
 ```bash
-python -m documind.main     # or simply: documind
+python main.py
 ```
 
 To see a paused run finished by a separate process:
 
 ```bash
-python scripts/pause_demo.py     # starts a run that needs approval, exits
-python scripts/resume_demo.py    # a new process finds it and finishes it
+python -m scripts.pause_demo     # starts a run that needs approval, exits
+python -m scripts.resume_demo    # a new process finds it and finishes it
 ```
 
 ## Running the Tests
@@ -189,16 +188,18 @@ python scripts/resume_demo.py    # a new process finds it and finishes it
 Run from the repo root:
 
 ```bash
-# unit tests — no API key
-python tests/unit/test_chunking.py
-python tests/unit/test_routing.py
-python tests/unit/test_approval_checks.py
+# unit tests — no API key, no network, under a second
+python -m tests.unit.test_approval_checks
+python -m tests.unit.test_chunking
+python -m tests.unit.test_config
+python -m tests.unit.test_nodes
+python -m tests.unit.test_routing
 
 # integration tests — real API calls, needs OPENAI_API_KEY
-python tests/integration/test_live_graph.py
+python -m tests.integration.test_live_graph
 ```
 
-The integration test runs every path: a grounded answer that's auto-approved, a question the documents don't cover, a general question, and an action request that pauses — approved in one run, rejected in another.
+Every test case prints `OK` or `WRONG`. The unit tests check the config, the two small nodes, the chunkers, every routing and relevance rule, and the approval checklist. The integration test runs every path: a general question, an action request that pauses — approved in one run, rejected in another — a grounded answer, a question the documents don't cover, a cited answer, and a safe answer that is auto-approved.
 
 ## Error Handling
 

@@ -12,7 +12,7 @@
 
 A terminal app with two agents working together: Concierge (talks to the user) and Triage (turns a complaint into structured data). A router sends each message to the right one. No agent framework yet — just the raw OpenAI SDK. This project proves two things with real code: (1) you can call an LLM correctly, and (2) you understand what "multi-agent" really means, at its simplest. It also proves a third, quieter thing: you can lay out a Python project the way a real team would.
 
-**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-script-that-sends-one-message-and-prints-the-reply) · [Step 2](#step-2-a-real-terminal-chat-with-memory-and-live-streaming) · [Step 3](#step-3-a-triage-agent-that-extracts-a-structured-ticket-from-free-text) · [Step 4](#step-4-a-router-that-sends-each-message-to-the-right-agent-automatically-final-2-agents) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
+**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [How testing works](#how-testing-works-in-this-project) · [Step 1](#step-1-a-script-that-sends-one-message-and-prints-the-reply) · [Step 2](#step-2-a-real-terminal-chat-with-memory-and-live-streaming) · [Step 3](#step-3-a-triage-agent-that-extracts-a-structured-ticket-from-free-text) · [Step 4](#step-4-a-router-that-sends-each-message-to-the-right-agent-automatically-final-2-agents) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
 
 ## The Story — what you're actually building
 
@@ -210,16 +210,16 @@ Every file you'll write, in one place — the same What/Why list the documents g
     - **What:** Two Pydantic classes: `SupportTicket` (`customer_name: str | None`, `issue_category` and `urgency` as `Literal[...]`, `summary`) and `RouteDecision` (`agent: Literal["concierge", "triage"]`, `reason`).
     - **Why:** The model's answers come back as checked objects. Without them you'd pull fields out of free text by hand, and a made-up name or a misspelled category would slip through.
 - `tests/integration/test_live_agents.py`
-    - **What:** Test functions that call the real API, added step by step: a first reply, the key check with a fake key, a 3-turn memory test, the sample tickets (with no invented name), and the routing cases. Each prints one `case` line.
+    - **What:** Test functions that call the real API, added step by step: a first reply, the key check with a fake key, a 3-turn memory test, the sample tickets, no invented name, and the routing cases. Each prints `OK` or `WRONG`.
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `tests/unit/test_config.py`
-    - **What:** Doc01's `test_config.py` with the imports changed. It moves your real `.env` aside, writes three test versions (none, no key, a full one), checks that `load_config()` raises `MissingConfigError` or loads, then puts your `.env` back.
+    - **What:** Three test functions, no API call, each printing `OK` or `WRONG`: `require_env()` raises `MissingConfigError` for a missing and for an empty setting (a made-up setting name, so your `.env` is never touched), and `load_config()` returns a `Config` when a key is set.
     - **Why:** It proves a missing key stops the app with one clear error, with no API call — the first thing that must work.
 - `tests/unit/test_history.py`
-    - **What:** Three small `test_...()` functions that build a history by hand, call `estimate_tokens()` or `trim_history()`, and print the result next to the expected one.
+    - **What:** Three small `test_...()` functions that build a history by hand, call `estimate_tokens()` or `trim_history()`, and print `OK` or `WRONG`: 40 characters count as 10 tokens, a short chat is not trimmed, and a long chat keeps the system prompt and the newest turn.
     - **Why:** It proves the system prompt and the newest message are never deleted — in a second, with no API key and no cost.
 - `tests/unit/test_schemas.py`
-    - **What:** Small test functions that create `SupportTicket` and `RouteDecision` objects by hand: one valid (a ticket with no name), and some invalid ones inside `try`/`except ValidationError`.
+    - **What:** Small test functions that create `SupportTicket` and `RouteDecision` objects by hand: one valid (a ticket with no name), and some invalid ones inside `try`/`except ValidationError`. Each prints `OK` or `WRONG`.
     - **Why:** If someone loosens a schema by mistake, this test catches it before the model starts inventing names or agent names.
 - `main.py`
     - **What:** One function, `main()`. It loads the config, builds the client, checks the key, creates the chat history, then loops: read a line, stop on `/quit`, call `handle_message()` inside `try`, and turn each OpenAI error (bad key, rate limit, too long) into one clear message.
@@ -394,6 +394,29 @@ The project grows step by step, and **after every step it runs**: Step 1 answers
 
 Every command in the steps runs from the **repo root** (`SupportDesk-AI-Chat-And-Auto-Triage-Any-Customer-Complaint/`) with the venv active.
 
+### How testing works in this project
+
+**Story:** you check SupportDesk the way a support lead checks a new team member — a small check on each skill as soon as it's learned, not one big exam at the end. Every step adds the tests for the feature it adds. So when something breaks, the newest `WRONG` points straight at the newest code. **If not:** every check would be you typing into the app by hand, and a change in Step 4 could quietly break Step 2's memory without anyone noticing.
+
+- **Two kinds of test:**
+    - `tests/unit/` — code that needs no model: settings, history trimming, schemas. No API key, no cost, under a second. **When:** after every change to the file it tests — run them all the time.
+    - `tests/integration/test_live_agents.py` — the parts that need the real model: replies, memory, tickets, routing. Real API calls (a fraction of a cent). **When:** at the end of every step, and after changing a prompt, `MODEL` or `models/llm.py`.
+- **One pattern for every case** — so the output never needs judging:
+
+```
+def test_something() -> None:
+    result = "OK"
+    if <it came out wrong>:
+        result = "WRONG"
+    print(f"case 1 (what it checks) -> {result}")
+```
+
+- **An error you expect** (like `MissingConfigError`): start with `result = "WRONG"`, and set `result = "OK"` inside `except TheError:`.
+- **One function per case**, all called at the bottom under `if __name__ == "__main__":`. Each file numbers its own cases, and case numbers never change once written.
+- **Model answers vary**, so check one fact (the reply contains `4`, the ticket is not `None`), never the exact wording.
+- **Run from the repo root with `-m`:** `python -m tests.unit.test_config` (dots, no `.py`). Running the file by its path fails with `No module named 'src'`, because Python then starts looking for imports in `tests/unit/`.
+- **Got a `WRONG`?** Read that one test function, then the code it calls. Fix the code — change the test only if the test itself checks the wrong thing.
+
 ### Step 1 — A Script That Sends One Message and Prints the Reply
 
 *Project: **SupportDesk-AI-Chat-And-Auto-Triage-Any-Customer-Complaint** — Step 1 of 4*
@@ -416,7 +439,7 @@ What to do:
 2. In `models/llm.py`, write `create_client(config)`, `check_api_key_at_startup(client)` (one 1-token call; `False` on `AuthenticationError`) and Doc04's `send_message(client, history, user_input)`.
 3. In `main.py`, write `main()`: load config, get a logger, build the client, check the key, send `"What's 2+2?"`, print the reply.
 4. Run `python main.py`. Then put a fake key in `.env` and check you get one clear line, not a traceback.
-5. Write `tests/unit/test_config.py` (Doc01's, imports changed) and `tests/integration/test_live_agents.py` with cases 1-2 (a real reply; a bad key caught at startup). Run both with `python -m`.
+5. Write `tests/unit/test_config.py` (Doc01's three config checks, each printing `OK` or `WRONG`) and `tests/integration/test_live_agents.py` with cases 1-2 (a real reply; a bad key caught at startup). Run both with `python -m`.
 
 **Your files after Step 1:**
 
@@ -459,14 +482,42 @@ SupportDesk-AI-Chat-And-Auto-Triage-Any-Customer-Complaint/
     - **What:** A few small classes that inherit from `Exception` — at least `MissingConfigError`. Each one is just `class Name(Exception): pass`, with a docstring saying when it's raised.
     - **Why:** Code can catch one specific problem (`except MissingConfigError:`). Without named errors you'd catch every `Exception`, and real bugs would be hidden along with the expected problem.
 - `tests/integration/test_live_agents.py`
-    - **What:** Two test functions that call the real API: `test_first_reply()` sends one message and prints the reply, and `test_bad_key()` checks that a fake key is caught by `check_api_key_at_startup()`.
+    - **What:** Two test functions that call the real API, each printing `OK` or `WRONG`: `test_first_reply()` checks the reply to "What's 2+2?" contains 4, and `test_bad_key()` checks that `check_api_key_at_startup()` rejects a fake key.
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `tests/unit/test_config.py`
-    - **What:** Doc01's `test_config.py` with the imports changed. It moves your real `.env` aside, writes three test versions (none, no key, a full one), checks that `load_config()` raises `MissingConfigError` or loads, then puts your `.env` back.
+    - **What:** Three test functions, no API call, each printing `OK` or `WRONG`: `require_env()` raises `MissingConfigError` for a missing and for an empty setting (a made-up setting name, so your `.env` is never touched), and `load_config()` returns a `Config` when a key is set.
     - **Why:** It proves a missing key stops the app with one clear error, with no API call — the first thing that must work.
 - `main.py`
     - **What:** One function, `main()`. It loads the config (and stops with one clear line on `MissingConfigError`), gets a logger, builds the client, checks the key, sends "What's 2+2?" with `send_message()`, and prints the reply.
     - **Why:** The app needs one starting point that owns the keyboard and the error messages. All the real work is in other files, so this one stays short.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 1 (missing setting)** — `tests/unit/test_config.py`
+    - **Check:** with a made-up setting name removed from `os.environ`, `require_env()` raises `MissingConfigError`.
+    - **Why:** a missing key must stop the app at startup with one clear line.
+    - **When:** after any change to `config.py` or `exceptions.py`.
+    - **If not:** a missing key would surface minutes later as a confusing `AuthenticationError` from OpenAI.
+- **case 2 (empty setting)** — `tests/unit/test_config.py`
+    - **Check:** the same name set to `""` also raises `MissingConfigError`.
+    - **Why:** `OPENAI_API_KEY=` with nothing after it is "set" but never usable.
+    - **When:** same as case 1.
+    - **If not:** the app would start happily and fail on the first real call.
+- **case 3 (config loads)** — `tests/unit/test_config.py`
+    - **Check:** with `OPENAI_API_KEY` set in `os.environ`, `load_config()` returns a `Config` holding that key.
+    - **Why:** cases 1–2 only prove the *error* path; this proves the values actually come back.
+    - **When:** same as case 1.
+    - **If not:** a missing `return value` in `require_env()` passes cases 1–2, and every setting silently becomes `None`.
+- **case 1 (first reply)** — `tests/integration/test_live_agents.py`
+    - **Check:** `send_message()` with "What's 2+2?" returns a reply that contains `4`.
+    - **Why:** proves the key, the model name and `send_message()` work together, end to end.
+    - **When:** at the end of the step, and after changing `MODEL` or `models/llm.py`.
+    - **If not:** a typo in the model name would be found by the first user, not by you.
+- **case 2 (bad key)** — `tests/integration/test_live_agents.py`
+    - **Check:** `check_api_key_at_startup()` returns `False` for `OpenAI(api_key="sk-fake-key-123")`.
+    - **Why:** the startup check is what turns a bad key into one clear line instead of a traceback mid-chat.
+    - **When:** same as case 1.
+    - **If not:** if the check stopped catching `AuthenticationError`, a bad key would crash the app on the user's first message.
 
 ### Step 2 — A Real Terminal Chat With Memory and Live Streaming
 
@@ -534,14 +585,37 @@ SupportDesk-AI-Chat-And-Auto-Triage-Any-Customer-Complaint/
     - **What:** One constant, `PROMPTS_DIR` (the prompts folder, from the repo root), and one function, `load_prompt(name)`, which opens `PROMPTS_DIR + "/" + name + ".txt"` and returns its text.
     - **Why:** Prompts live in text files, so you can change how an agent behaves without editing Python — and no agent has to open files itself.
 - `tests/integration/test_live_agents.py`
-    - **What:** Step 1's two cases plus `test_memory()`: three turns with `send_message()`, where turn 3 must use what was said in turn 1.
+    - **What:** Step 1's two cases plus `test_memory()`: three turns with `send_message()`, and `OK` only if turn 3's reply contains the order number from turn 1.
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `tests/unit/test_history.py`
-    - **What:** Three small `test_...()` functions that build a history by hand, call `estimate_tokens()` or `trim_history()`, and print the result next to the expected one.
+    - **What:** Three small `test_...()` functions that build a history by hand, call `estimate_tokens()` or `trim_history()`, and print `OK` or `WRONG`: 40 characters count as 10 tokens, a short chat is not trimmed, and a long chat keeps the system prompt and the newest turn.
     - **Why:** It proves the system prompt and the newest message are never deleted — in a second, with no API key and no cost.
 - `main.py`
     - **What:** One function, `main()`: Step 1's startup, then a loop — read a line, skip empty ones, stop on `/quit`, trim the history with `trim_history()`, and stream the reply with `stream_message()`.
     - **Why:** The app needs one starting point that owns the keyboard and the error messages. All the real work is in other files, so this one stays short.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 1 (40 characters = 10 tokens)** — `tests/unit/test_history.py`
+    - **Check:** two messages of 20 characters each give `estimate_tokens()` = 10.
+    - **Why:** every trimming decision is based on this number.
+    - **When:** after any change to `utils/history.py`.
+    - **If not:** a wrong divisor would trim far too much, or never trim at all.
+- **case 2 (short chat not trimmed)** — `tests/unit/test_history.py`
+    - **Check:** a 2-message history under the budget still has 2 messages after `trim_history()`.
+    - **Why:** trimming must only happen when it's needed.
+    - **When:** same as case 1.
+    - **If not:** the assistant would forget the conversation for no reason.
+- **case 3 (long chat trimmed)** — `tests/unit/test_history.py`
+    - **Check:** 5 turns of 400 characters with a budget of 250: the system prompt is still first and turn 5 is still last.
+    - **Why:** those are the two messages trimming must never delete.
+    - **When:** same as case 1.
+    - **If not:** a long chat would lose the assistant's personality (the system prompt) or the question just asked.
+- **case 3 (memory)** — `tests/integration/test_live_agents.py`
+    - **Check:** three turns with one `history` list; the turn-3 reply to "What was my order number?" contains `4471`.
+    - **Why:** memory is this step's feature — it proves the whole history is resent every turn.
+    - **When:** at the end of the step, and after changing `send_message()`, `stream_message()` or the loop in `main.py`.
+    - **If not:** a bug that sends a fresh list each turn would only show up when a user complained.
 
 ### Step 3 — A Triage Agent That Extracts a Structured Ticket From Free Text
 
@@ -630,14 +704,38 @@ SupportDesk-AI-Chat-And-Auto-Triage-Any-Customer-Complaint/
     - **What:** One Pydantic class, `SupportTicket`: `customer_name: str | None`, `issue_category` and `urgency` as `Literal[...]`, and `summary`.
     - **Why:** The model's answers come back as checked objects. Without them you'd pull fields out of free text by hand, and a made-up name or a misspelled category would slip through.
 - `test_live_agents.py`
-    - **What:** Step 2's cases plus `load_samples()` and `test_triage()`: every sample complaint in `messages.json` becomes a ticket, and the one with no name gets no invented name.
+    - **What:** Step 2's cases plus `load_samples()` and two test functions: `test_every_sample_gets_a_ticket()` (each complaint in `messages.json` becomes a ticket) and `test_no_invented_name()` (the complaint with no name gets `customer_name=None`).
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `test_schemas.py`
-    - **What:** Two small test functions that build `SupportTicket` objects by hand: one with `customer_name=None` (must be allowed), and one with `urgency="urgent"` (must raise `ValidationError`). Each prints one `case` line.
+    - **What:** Two small test functions that build `SupportTicket` objects by hand: one with `customer_name=None` (must be allowed), and one with `urgency="urgent"` (must raise `ValidationError`). Each prints `OK` or `WRONG`.
     - **Why:** If someone loosens a schema by mistake, this test catches it before the model starts inventing names or agent names.
 - `main.py`
     - **What:** One function, `main()`: Step 2's loop, plus `/extract <text>`, which calls `triage_agent()` and `print_ticket()`, and one `except` per OpenAI error — bad key (exit), rate limit (ask to wait), too long (drop the message).
     - **Why:** The app needs one starting point that owns the keyboard and the error messages. All the real work is in other files, so this one stays short.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 1 (no name allowed)** — `tests/unit/test_schemas.py`
+    - **Check:** `SupportTicket(customer_name=None, ...)` builds without an error.
+    - **Why:** "the customer gave no name" must be a real, allowed answer.
+    - **When:** after any change to `schemas.py`.
+    - **If not:** if someone changed the field to plain `str`, the model would be forced to invent names.
+- **case 2 (bad urgency)** — `tests/unit/test_schemas.py`
+    - **Check:** `urgency="urgent"` raises `ValidationError`.
+    - **Why:** `Literal` limits urgency to `low`, `medium`, `high` — the values the rest of the code compares against.
+    - **When:** same as case 1.
+    - **If not:** "urgent" would slip through and break any `if urgency == "high"`.
+- **case 4 (ticket)** — `tests/integration/test_live_agents.py`
+    - **Check:** every message in `data/sample/messages.json` → `triage_agent()` returns a ticket, not `None`.
+    - **Why:** the Triage agent is this step's feature.
+    - **When:** at the end of the step, and after changing `prompts/triage.txt` or `SupportTicket`.
+    - **If not:** a prompt change that breaks extraction would be found by the support team, not by you.
+- **case 5 (no name)** — `tests/integration/test_live_agents.py`
+    - **Check:** sample 2 (no name in it) gives a ticket with `customer_name=None`.
+    - **Why:** this is the project's "no invented data" promise, checked on every run.
+    - **When:** same as case 4.
+    - **If not:** a reworded prompt could start inventing names, and fake names would reach real tickets.
+Not a test: `scripts/triage_samples.py` prints every ticket for **you** to read. A test can check that a ticket exists; only a person can judge whether its summary is good.
 
 ### Step 4 — A Router That Sends Each Message to the Right Agent Automatically (final: 2 agents)
 
@@ -710,14 +808,28 @@ SupportDesk-AI-Chat-And-Auto-Triage-Any-Customer-Complaint/
     - **What:** Two Pydantic classes: `SupportTicket` (`customer_name: str | None`, `issue_category` and `urgency` as `Literal[...]`, `summary`) and `RouteDecision` (`agent: Literal["concierge", "triage"]`, `reason`).
     - **Why:** The model's answers come back as checked objects. Without them you'd pull fields out of free text by hand, and a made-up name or a misspelled category would slip through.
 - `test_live_agents.py`
-    - **What:** Test functions that call the real API, added step by step: a first reply, the key check with a fake key, a 3-turn memory test, the sample tickets (with no invented name), and the routing cases. Each prints one `case` line.
+    - **What:** Test functions that call the real API, added step by step: a first reply, the key check with a fake key, a 3-turn memory test, the sample tickets, no invented name, and the routing cases. Each prints `OK` or `WRONG`.
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `test_schemas.py`
-    - **What:** Small test functions that create `SupportTicket` and `RouteDecision` objects by hand: one valid (a ticket with no name), and some invalid ones inside `try`/`except ValidationError`.
+    - **What:** Small test functions that create `SupportTicket` and `RouteDecision` objects by hand: one valid (a ticket with no name), and some invalid ones inside `try`/`except ValidationError`. Each prints `OK` or `WRONG`.
     - **Why:** If someone loosens a schema by mistake, this test catches it before the model starts inventing names or agent names.
 - `main.py`
     - **What:** One function, `main()`. It loads the config, builds the client, checks the key, creates the chat history, then loops: read a line, stop on `/quit`, call `handle_message()` inside `try`, and turn each OpenAI error (bad key, rate limit, too long) into one clear message.
     - **Why:** The app needs one starting point that owns the keyboard and the error messages. All the real work is in other files, so this one stays short.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 3 (bad agent name)** — `tests/unit/test_schemas.py`
+    - **Check:** `RouteDecision(agent="billing", ...)` raises `ValidationError`.
+    - **Why:** `handle_message()` only knows two agents, `concierge` and `triage`.
+    - **When:** after any change to `schemas.py`.
+    - **If not:** if the `Literal` were widened by mistake, the router could pick an agent that doesn't exist.
+- **case 6 (routing)** — `tests/integration/test_live_agents.py`
+    - **Check:** every `"routing"` sample in `messages.json` → `decide()` picks its `expected` agent.
+    - **Why:** routing is this step's feature — clear complaints must become tickets, clear small talk must not.
+    - **When:** at the end of the step, and after changing `prompts/router.txt`.
+    - **If not:** a small prompt change could quietly send complaints to the Concierge, and no ticket would ever be filed.
+Not tested on purpose: unclear messages ("what's your refund policy, no rush"). Either agent is a fair answer — read the logged **reason** instead.
 
 **Final Deliverable:** **SupportDesk-AI-Chat-And-Auto-Triage-Any-Customer-Complaint** — a 2-agent terminal app in a proper package layout. A Concierge holds real multi-turn conversations. A Triage agent turns any complaint into a checked `SupportTicket`. A router decides which agent handles each message, and logs why.
 
@@ -766,7 +878,7 @@ python -m tests.unit.test_schemas
 python -m tests.integration.test_live_agents
 ```
 
-The unit tests check the config, history trimming and the schemas. The integration tests check a first reply, the startup key check, conversation memory, ticket extraction (including that no customer name is invented), and routing on clear messages.
+Every test case prints `OK` or `WRONG`. The unit tests check the config, history trimming and the schemas. The integration tests check a first reply, the startup key check, conversation memory, ticket extraction (including that no customer name is invented), and routing on clear messages.
 
 ## Checklist Before You Call This Done
 
@@ -779,7 +891,8 @@ The unit tests check the config, history trimming and the schemas. The integrati
 - [ ] The router picks the agent automatically — no `/extract` left
 - [ ] Every routing decision is logged, with the agent and the reason
 - [ ] Survives: bad key, rate limit, too-long message, bad structured output
-- [ ] `tests/unit/` pass with no API key; `tests/integration/` pass with one
+- [ ] Every test case prints `OK` — `tests/unit/` with no API key, `tests/integration/` with one
+- [ ] You wrote each step's tests yourself, and can say for each one what goes wrong without it
 - [ ] `.env` is not in git (`git status` doesn't show it)
 - [ ] You can explain every line of your own code, without help
 

@@ -384,24 +384,24 @@ This document has no new library or tool content — it's a practiced, well-know
 
 ```
 practice/
-├── python_debugging_practice.py       Python — 4 rounds
 ├── api_debugging_practice.py          API — 4 rounds
-├── openai_debugging_practice.py       OpenAI — 4 rounds
 ├── langchain_debugging_practice.py    LangChain — 4 rounds
-├── rag_debugging_practice.py          RAG — 4 rounds
 ├── langgraph_debugging_practice.py    LangGraph — 4 rounds
-└── multi_agent_debugging_practice.py  Multi-agent — 4 rounds
+├── multi_agent_debugging_practice.py  Multi-agent — 4 rounds
+├── openai_debugging_practice.py       OpenAI — 4 rounds
+├── python_debugging_practice.py       Python — 4 rounds
+└── rag_debugging_practice.py          RAG — 4 rounds
 ```
 
 **Why each script exists:**
 
-- `python_debugging_practice.py` — plain Python gotchas (a missing `return`, a shared default list) that look like bigger system bugs.
 - `api_debugging_practice.py` — bugs in a copy of Doc02's retry wrapper, each tested with no network at all.
-- `openai_debugging_practice.py` — mistakes in how the OpenAI API is used: the prompt, the schema, the size of what you send.
 - `langchain_debugging_practice.py` — what goes *into* a prompt template, checked on the prompt alone, before any model call.
-- `rag_debugging_practice.py` — quiet retrieval bugs (chunking, embeddings, lost sources) that look like model mistakes.
 - `langgraph_debugging_practice.py` — wiring bugs (route names, state merging, loops with one exit), tested on tiny real graphs.
 - `multi_agent_debugging_practice.py` — bugs *between* agents, tested at the hand-off, not inside one agent.
+- `openai_debugging_practice.py` — mistakes in how the OpenAI API is used: the prompt, the schema, the size of what you send.
+- `python_debugging_practice.py` — plain Python gotchas (a missing `return`, a shared default list) that look like bigger system bugs.
+- `rag_debugging_practice.py` — quiet retrieval bugs (chunking, embeddings, lost sources) that look like model mistakes.
 
 For each planted bug, you get: broken requirements, symptoms, error/log output, what should happen vs. what's actually happening. Then: **"What do you think is wrong?"** — you look into it and answer, before I tell you if you're right.
 

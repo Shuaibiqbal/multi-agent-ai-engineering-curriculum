@@ -159,7 +159,7 @@ Plain RAG (Doc08) is a fixed pipeline: always search, then always answer from wh
 - **When to reach for it:** only once plain RAG's single straight path genuinely isn't enough — when results are often weak or missing, when an action downstream needs human review, or when a question sometimes needs a second, better-informed search. Reaching for it before that point is complexity with no payoff; see the comparison table below.
 - **Why this wasn't possible back in Doc08:** it needs Doc09's conditional edges and typed state. Written as plain functions, "if the result is weak, rewrite the query and try again, but at most 3 times, and if still nothing, say 'I don't know'" turns into nested `if`/`while` code that is hard to read, test, or pause. In a graph, each of those choices is one small, named, testable edge.
 - **The grade step is the genuinely new idea**, and it itself has two real implementations, cheapest to most reliable:
-  - **A similarity-score threshold.** **What:** compare the vector store's own returned similarity scores (Doc08's [Vector stores](../08_rag/README.md#vector-stores-and-searching-for-the-top-matches) topic) against a fixed cutoff. **Why:** free — no extra model call, uses a number you already have. **When:** your embedding model's scores are well-calibrated for your documents and you've actually checked the cutoff against real "good" and "bad" examples, not guessed one.
+  - **A score threshold.** **What:** compare the best match's score — Doc08's distance, where lower means closer — (Doc08's [Vector stores](../08_rag/README.md#vector-stores-and-searching-for-the-top-matches) topic) against a fixed cutoff. **Why:** free — no extra model call, uses a number you already have. **When:** your embedding model's scores are well-calibrated for your documents and you've actually checked the cutoff against real "good" and "bad" examples, not guessed one.
   - **A small model call as judge.** **What:** ask a cheap model "do these chunks actually answer this question, yes or no?" with structured output. **Why:** a similarity score measures *closeness in meaning space*, not *whether the text actually answers the question* — a chunk can be the closest thing in the store and still miss the point. **When:** similarity scores keep passing chunks that don't actually help, or the cost of one small judge call is worth the extra reliability.
 - The loop needs a real stopping rule, or it is just Doc07's [step-limit discipline](../07_ai_agents/README.md#setting-a-limit-on-the-number-of-steps) rebuilt with worse code. `MAX_SEARCHES` in state, checked by the router *before* looping, not after — the same "layer real limits, don't trust judgment alone" rule.
 - `found_chunks` accumulates across every search attempt in the loop, not just the last one — the answer often needs facts the first hop found *and* facts the second, more specific hop found. Replacing instead of appending silently throws away real, useful, already-paid-for context.
@@ -184,15 +184,16 @@ START → route ─┬─→ retrieve → grade ─┬─→ answer → END
 ```
 
 ```python
-# Approach 1 — grade with the vector store's own similarity scores (cheap)
-def grade_by_score(chunks: list[dict], threshold: float = 0.75) -> bool:
+# Approach 1 — grade with the vector store's own scores (cheap)
+# Doc08's score is a DISTANCE: the best match has the SMALLEST score
+def grade_by_score(chunks: list[dict], max_distance: float = 1.2) -> bool:
     if not chunks:
         return False
-    best_score = chunks[0]["score"]
+    best = chunks[0]["score"]
     for c in chunks:
-        if c["score"] > best_score:
-            best_score = c["score"]
-    return best_score >= threshold
+        if c["score"] < best:
+            best = c["score"]
+    return best <= max_distance
 
 # Approach 2 — grade with a small model call (more reliable, costs a call)
 class ResultsGrade(BaseModel):
@@ -231,7 +232,7 @@ builder.add_conditional_edges("grade", route_after_grade,
 **Common mistakes:**
 
 - *Mistake:* building agentic RAG with no "can't answer" path — every route after `retrieve` eventually reaches `answer`. → *Symptom:* the graph searches, finds weak results, and the answer node answers anyway — a confident, made-up answer that's worse than plain RAG because it *looks* checked. → *Fix:* draw the graph with `graph.get_graph().draw_mermaid()` (Doc09's [debugging-a-graph-visually](../09_langgraph/README.md#debugging-a-graph-visually) topic); if every path ends in `answer`, add the missing exit.
-- *Mistake:* grading with a similarity-score cutoff picked by guessing, never checked against real examples. → *Symptom:* the grader passes chunks that don't actually answer the question, or rejects chunks that do, and nobody can explain why the threshold is `0.75` and not `0.6`. → *Fix:* collect real "good" and "bad" examples first and pick the threshold from them, or switch to a small model-call grader if scores keep disagreeing with what a person would judge.
+- *Mistake:* grading with a score cutoff picked by guessing, never checked against real examples. → *Symptom:* the grader passes chunks that don't actually answer the question, or rejects chunks that do, and nobody can explain why the threshold is `0.75` and not `0.6`. → *Fix:* collect real "good" and "bad" examples first and pick the threshold from them, or switch to a small model-call grader if scores keep disagreeing with what a person would judge.
 
 **Where you'll meet it:** this document's Edge-case exercise (`empty_search`) is the `cannot_answer` path in miniature. [Project 3](../project_3_documind_rag_agent/) is a full agentic RAG graph, built directly on Doc09's [state](../09_langgraph/README.md#state-one-typed-object-flowing-through-the-graph), [conditional edges](../09_langgraph/README.md#nodes-and-edges-including-conditional-edges), and [loop](../09_langgraph/README.md#loops-on-purpose-not-by-accident) mechanics. In [Doc11](../11_multi_agent_systems/) and [Project 4](../project_4_contentforge_multi_agent/), a "research agent" is often this whole graph wrapped as one node — a subgraph, exactly [Doc09's Subgraphs topic](../09_langgraph/README.md#subgraphs-a-graph-as-one-node-in-a-bigger-graph) — inside a bigger multi-agent graph. [Project 12](../project_12_mcpresearch_agentic_mcp_tool/) shows the same idea behind an MCP tool. [Doc13](../13_testing_evaluation_observability/README.md#the-testing-layers-and-what-each-one-actually-checks) tests each of these paths separately.
 
@@ -239,7 +240,7 @@ builder.add_conditional_edges("grade", route_after_grade,
 
 - Plain RAG is a straight line; agentic RAG is a graph with choices and loops — the same control-flow tools Doc09 already gave you.
 - The new pieces are: the router, the grader, the rewrite loop, and the "can't answer" exit.
-- Grade with a similarity-score cutoff (cheap) or a small model judge (more reliable) — pick based on how well your scores are actually calibrated.
+- Grade with a score cutoff (cheap) or a small model judge (more reliable) — pick based on how well your scores are actually calibrated.
 - Every loop needs a hard limit (`MAX_SEARCHES` in state), checked before looping, the same discipline as Doc07's step limit.
 - Use plain RAG when it's good enough — it's cheaper and easier to test. Test every path, not just the happy one.
 
@@ -326,7 +327,7 @@ This document's basic exercises use one search-then-answer flow: decide if searc
 - **What it is:** instead of a straight line from search to answer, the routing function after search checks whether the results are good enough. If not, it sends the graph to a `refine_query` node and back to `retrieve` — Doc09's ["loop on purpose"](../09_langgraph/README.md#loops-on-purpose-not-by-accident) pattern, with a real stopping rule.
 - **Why it exists:** some real questions are two hops, and no amount of clever single-shot phrasing fixes that — the second query genuinely needs a fact (a name, a code, a date) that only exists inside the first result.
 - **When to reach for it:** only when you've actually seen questions like this in real use — "the X mentioned in Y" shaped questions, or first-attempt searches that reliably come back close-but-not-quite. Adding this loop to a system where every question is single-hop is pure overhead with nothing to show for it.
-- **Two ways to decide "good enough," the same two options as the grading step above, reused here on purpose because it's the same judgment call:** a similarity-score cutoff (cheap, needs a calibrated threshold) or a small model-judge call (`good_enough(chunks, task)`, more reliable, costs one more call per loop). Whichever you pick for the grading topic above, use consistently here too — two different graders answering the same question differently is confusing to debug.
+- **Two ways to decide "good enough," the same two options as the grading step above, reused here on purpose because it's the same judgment call:** a score cutoff (cheap, needs a calibrated threshold) or a small model-judge call (`good_enough(chunks, task)`, more reliable, costs one more call per loop). Whichever you pick for the grading topic above, use consistently here too — two different graders answering the same question differently is confusing to debug.
 - `found_chunks` must accumulate across *every* search in the loop, not just the last one — the final answer often needs a fact from the first hop and a fact from the second hop together. Replacing the list on each retrieve silently throws away the first hop's finding the moment the second hop runs.
 - `search_count` is checked **before** looping, inside the routing function, not inside the node doing the search — the stopping rule has to live in the edge that decides whether to loop again, the same place Doc09's [Loops topic](../09_langgraph/README.md#loops-on-purpose-not-by-accident) puts it.
 - A refine step that keeps writing nearly the same query each time ("delay reason March", "March delay reason") burns the whole search budget and lands on `cannot_answer` having learned nothing new. Give the refine prompt what was already found *and* what's still missing, not just the original question again.
@@ -354,7 +355,7 @@ def refine_query_node(state: AgentState) -> dict:
     return {"query": new_query, "path_log": [f"refined:{new_query}"]}
 
 def retrieve_node(state: AgentState) -> dict:
-    chunks = retrieve(state["query"], k=4)
+    chunks = retrieve(collection, state["query"], k=4)
     earlier = state.get("found_chunks", [])          # keep earlier findings too
     return {
         "found_chunks": earlier + chunks,
@@ -416,12 +417,12 @@ def search_documents(query: str) -> str:
     """Search the company knowledge base (policies, manuals, FAQs).
     Use this for questions about company rules or products.
     Do NOT use it for order status — use check_order_status for that."""
-    chunks = retrieve(query, k=3)
+    chunks = retrieve(collection, query, k=3)
     if not chunks:
         return "NO_RESULTS: nothing in the knowledge base matched this query."
     pieces = []
     for c in chunks:
-        pieces.append(f"[{c['source']}] {c['text']}")
+        pieces.append(f"[{c['source_file']}] {c['text']}")
     return "\n\n".join(pieces)
 
 @tool
@@ -485,12 +486,13 @@ def retrieve_node(state: AgentState) -> dict:
     key = normalize(state["query"])
     cache = state.get("search_cache", {})
     if key in cache:
-        logger.info("search cache hit: %s", key)
+        logger.info(f"search cache hit: {key}")
         return {"found_chunks": cache[key], "path_log": ["search:cache_hit"]}
 
-    chunks = retrieve(state["query"], k=4)
+    chunks = retrieve(collection, state["query"], k=4)
     # a NEW dict, don't mutate the old one
-    new_cache = {**cache, key: chunks}
+    new_cache = dict(cache)
+    new_cache[key] = chunks
     return {
         "found_chunks": chunks,
         "search_cache": new_cache,
@@ -504,7 +506,7 @@ def make_search_tool(cache: dict):
         """Search the company knowledge base."""
         key = normalize(query)
         if key not in cache:
-            cache[key] = format_chunks(retrieve(query, k=3))
+            cache[key] = format_chunks(retrieve(collection, query, k=3))
         return cache[key]
     return search_documents
 
@@ -620,7 +622,9 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ## Practice Exercises
 
-**Setup:** same venv as before — if it's not active, `cd 10_agent_workflows && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langgraph langchain-openai chromadb`.
+**Setup:** same venv as before — if it's not active, `cd 10_agent_workflows && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). Packages for this document: `pip install langgraph langchain-openai chromadb` (all already installed if you did Doc08 and Doc09).
+
+**One-time setup for every exercise:** copy Doc08's Build Task files — `chunking.py`, `config.py`, `exceptions.py`, `ingest.py`, `logging_setup.py`, `retriever.py` — and its `docs/` folder into `practice/`, and add a two-line `kb.py` that builds the knowledge base once: `from ingest import build_vector_store` and `collection = build_vector_store("docs")`. Every exercise then searches with `retrieve(collection, query)`.
 
 **Where your code lives:** all of it under `10_agent_workflows/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/07/09 — so one topic's growth from basic to intermediate stays visible in one file.
 
@@ -628,19 +632,23 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 practice/
-├── search_tool_integration_practice.py  Basic + Intermediate
-│                                        (two sections)
+├── docs/                                Doc08's coffee documents
+├── chunking.py ... retriever.py         Doc08's Build Task files
 ├── approval_pause_practice.py           Real-world
 ├── empty_search_practice.py             Edge cases
-└── search_failure_practice.py           Failure
+├── kb.py                                builds the knowledge base once
+├── search_failure_practice.py           Failure
+└── search_tool_integration_practice.py  Basic + Intermediate
+                                         (two sections)
 ```
 
 **Why each script exists:**
 
-- `search_tool_integration_practice.py` — search wired in as a plain tool, then routed conditionally — the two building blocks every later exercise assumes already work.
 - `approval_pause_practice.py` — the exact `interrupt()` pattern the Build Task's approval gate needs, grounded in what was actually found, not just the question.
 - `empty_search_practice.py` — the "can't ground this" path, so a missing answer never turns into a made-up one.
+- `kb.py` — builds Doc08's knowledge base once, so every exercise searches the same documents.
 - `search_failure_practice.py` — proves a mid-run search crash doesn't erase whatever the graph had already done.
+- `search_tool_integration_practice.py` — search wired in as a plain tool, then routed conditionally — the two building blocks every later exercise assumes already work.
 
 Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to intermediate, side by side.
 
@@ -651,7 +659,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **What:** add the Doc08 search tool as a plain tool your Doc09 graph can call, not yet conditionally routed.
 - **Why:** connect the pieces one at a time — search-as-a-tool working, before search-as-conditionally-routed. Two problems at once is harder to debug than one.
 - **When you'll hit this for real:** the very first step of wiring RAG into any agent graph.
-- **How to code it:** wrap `08_rag`'s `retrieve()` as a `@tool`, register it on your Doc09 graph's model-calling node, and confirm the graph can call it when asked a question about your document set.
+- **How to code it:** wrap Doc08's `retrieve(collection, query)` as a `@tool` that returns the found text, give it to Doc09's Real-world graph (`bind_tools` in `think`, `.invoke()` in `act`), and ask a coffee question. Then add a clear "nothing found" message, a caught failure, a result cap, and a version that keeps the source files separately.
 - **Save as:** `practice/search_tool_integration_practice.py`, under a `# Basic` section (this file also holds the [Intermediate exercise](#ex-conditional_search) below, in its own `# Intermediate` section).
 - **Builds on:** Doc09's [Real-world exercise](../09_langgraph/README.md#ex-agent_loop_to_graph) (Project 2 rebuilt as a graph) and Doc08's `retrieve()` — same graph, same retriever, now connected.
 - **Used later by:** the [Intermediate exercise](#ex-conditional_search) right below, which adds routing on top of this exact tool.
@@ -662,7 +670,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **What:** a conditional edge that only routes to search when the task actually needs it, skipping it otherwise — proven on both paths.
 - **Why:** this is the exact mechanism that keeps your graph from wasting a search call (and its cost) on tasks that don't need grounding.
 - **When you'll hit this for real:** this document's own Build Task, and any real agent handling a mix of "needs my documents" and "doesn't" questions.
-- **How to code it:** write a routing function checking whether the task looks like it needs the knowledge base, wire it with `add_conditional_edges`, and run one test question that should search and one that shouldn't — confirm both paths.
+- **How to code it:** write a routing function that returns `"search"` or `"skip"`, wire it as the graph's first edge with `add_conditional_edges(START, ...)` (or the `set_conditional_entry_point` shortcut), and run one question that should search and one that shouldn't. Then try a model-call router, a hybrid of both, and log every decision.
 - **Save as:** `practice/search_tool_integration_practice.py`, under an `# Intermediate` section (this file also holds the [Basic exercise](#ex-search_as_tool) above, in its own `# Basic` section).
 - **Builds on:** the [Basic](#ex-search_as_tool) tool wiring in this same file, and Doc09's [conditional-edge exercise](../09_langgraph/README.md#ex-conditional_routing) — the same mechanism, now deciding whether to search.
 - **Used later by:** [Project 3](../project_3_documind_rag_agent/)'s Retriever step (Step 3), which is this router for real.
@@ -673,7 +681,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **What:** a human-checking pause before the graph acts on found information (like "I found X, should I go ahead?").
 - **Why:** this is the actual production pattern Project 3 needs — grounding an approval step in what was *found*, not just the original question.
 - **When you'll hit this for real:** Project 3's own Approval agent (Step 5), and any real agent taking a consequential action based on retrieved data.
-- **How to code it:** after your reasoning node produces a draft, call `interrupt()` with the draft and its source chunks attached, then resume with a simulated "approved" input and confirm the graph continues correctly.
+- **How to code it:** after a draft node searches and writes a draft, call `interrupt()` with the draft and its source files, then resume with `Command(resume="approved")` — and again with `"rejected"`, in its own thread. Then resume with a who-and-when dict, and refuse a draft that waited too long (saving the draft time in the draft node, not the approval node).
 - **Save as:** `practice/approval_pause_practice.py`.
 - **Builds on:** Doc09's [Failure exercise](../09_langgraph/README.md#ex-loop_limit_and_interrupt_resume) (a real `interrupt()`/resume cycle) and this document's [State must carry what was found](#state-must-carry-what-was-found-not-just-what-was-asked) topic — the pause must show the person the actual found text, not just the question.
 - **Used later by:** [Project 3](../project_3_documind_rag_agent/)'s Approval agent (Step 5) is this exact gate, for real.
@@ -684,7 +692,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **What:** a task where search finds nothing useful — check whether the graph carries on anyway, or follows a "can't answer" path.
 - **Why:** this is the exact failure mode that turns into a hallucinated answer if you don't design for it — you need to see your own graph handle it correctly, or catch it not doing so.
 - **When you'll hit this for real:** any question genuinely outside your knowledge base's coverage.
-- **How to code it:** ask a question with no relevant documents in your set, and confirm your graph routes to an explicit "I don't have grounding for this" response instead of generating an ungrounded answer.
+- **How to code it:** add a conditional edge after the search node that routes an empty result to an explicit "I don't have grounding for this" node — test it with an empty store. Then add a distance threshold (the best match is the *smallest* score) and a "partial" path for a match that only covers part of the question.
 - **Save as:** `practice/empty_search_practice.py`.
 - **Builds on:** the grading step from [Why "agentic RAG" is really a graph problem](#why-agentic-rag-is-really-a-graph-problem-not-a-search-problem) — the `cannot_answer` exit, tested for real.
 - **Used later by:** [Project 3](../project_3_documind_rag_agent/)'s Step 3, which requires this exact "can't ground this" path.
@@ -695,7 +703,7 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **What:** make the search call fail or time out in the middle of a run, and check the graph handles it without losing saved state.
 - **Why:** an external search failure (a down vector store, a network blip) shouldn't corrupt or lose everything the graph had already done — this is a real production requirement, not a nice-to-have.
 - **When you'll hit this for real:** any real deployment where your vector store is a separate service that can be briefly unavailable.
-- **How to code it:** temporarily make your retrieval node raise an exception on purpose, run the graph, and confirm the checkpointed state from before the failure is still intact and inspectable afterward.
+- **How to code it:** make the search node raise on purpose, run the graph, and check with `get_state()` that the earlier node's work is still saved. Then add a retry with backoff for temporary errors only, and test every outcome with a small `FlakySearch` class that fails on demand.
 - **Save as:** `practice/search_failure_practice.py`.
 - **Builds on:** Doc09's [Checkpointers topic](../09_langgraph/README.md#checkpointers-saved-state-that-survives-a-pause) and Doc02's [timeout/retry discipline](../02_apis_http_json/README.md#retrying-with-exponential-backoff-and-jitter) — a search call is still just an outbound call that needs the same failure handling.
 - **Used later by:** the Build Task's requirement that a search failure never loses saved state.
@@ -724,29 +732,33 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 **Builds on:** [Doc09](../09_langgraph/README.md#build-task-graph-skeleton-feeds-into-project-3)'s graph skeleton (`state.py`/`nodes.py`/`graph.py`) and [Doc07](../07_ai_agents/README.md#build-task-project-2-tool-using-agent)'s tool-calling agent (Project 2) — copy both straight in rather than starting from scratch, then grow them with the Retriever/Reasoner/Approval nodes this document adds.
 
-**Suggested files:**
+**Suggested files** (the Solution's small version; Project 3 grows the same graph in its own `src/` layout):
 ```
-project_3_documind_rag_agent/
-├── main.py             entry point, runs the graph
-├── graph.py            builds on 09_langgraph/graph.py
+10_agent_workflows/practice/build_task/
+├── docs/                the coffee documents (Doc08)
+├── chunking.py ... retriever.py   Doc08's Build Task files, unchanged
+├── graph.py             build_graph() -- the entry decision, the
+│                        grounding check, and the approval pause
+├── kb.py                builds the knowledge base once
+├── main.py              runs a question, shows each step, asks for approval
+├── nodes.py             the search / reason / approval nodes
 ├── state.py             the shared state shape
-├── nodes.py             retrieve/reason/approval nodes
-├── retriever.py         reused from 08_rag
-└── test_project3.py     tests both outcomes, not just approved
+└── test_project3.py     the 5 Test Cases, approved AND rejected
 ```
 
 **Why each file exists:**
 
-- `main.py` — the one place a task actually gets run, so nothing about wiring the graph together lives buried inside a node.
-- `graph.py` — grows Doc09's own graph skeleton rather than starting a new one, so the checkpointer/conditional-edge patterns stay identical to what was already taught.
-- `state.py` — one shared shape for what every node reads and writes, so `retrieve_node`, `reason_node`, and `approval_node` all agree on field names.
-- `nodes.py` — the actual search → reason → approve logic, kept separate from graph wiring so each node is testable on its own.
-- `retriever.py` — pulled straight from Doc08 instead of rewritten, so the retrieval code stays in the exact style it was originally taught in.
+- `docs/` and Doc08's files — the retrieval code stays exactly as Doc08 taught it, reused instead of rewritten.
+- `graph.py` — grows Doc09's skeleton (conditional edges, a checkpointer, `interrupt()`) instead of starting a new one.
+- `kb.py` — the exercises' file: one knowledge base, built once, for every node to search.
+- `main.py` — the one place a question gets run, with every step printed and the approval asked in the terminal.
+- `nodes.py` — the actual search → reason → approve logic, kept apart from the wiring so each node is testable alone.
+- `state.py` — one shared shape for what every node reads and writes, so all nodes agree on field names.
 - `test_project3.py` — proves the approval gate handles rejection correctly too, not just the happy "approved" path.
 
 **Functions/Components to build:**
 
-- `nodes.py` → a `retrieve_node`, a `reason_node`, an `approval_node`
+- `nodes.py` → `route_search`, `search_node`, `has_grounding`, `reason_node`, `no_grounding_node`, `approval_node`, `finish_node`
 - `graph.py` → a conditional edge function deciding when to route through search
 - `main.py` → runs the graph, handles the pause/resume experience in the terminal
 

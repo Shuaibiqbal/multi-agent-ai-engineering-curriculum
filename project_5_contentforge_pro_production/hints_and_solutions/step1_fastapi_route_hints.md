@@ -22,7 +22,7 @@ The pieces:
 - `POST /run-task`: build the graph, `graph.invoke(start_state(topic))`, return the draft and whether it was accepted.
 - `load_config()` before the app is built — it reads `.env`, so the agents can find the key.
 
-Run it with `uvicorn contentforge.api.main:app --reload` and try it at `http://localhost:8000/docs`.
+Run it with `uvicorn src.api.main:app --reload` and try it at `http://localhost:8000/docs`.
 
 Split it the way Doc12's Build Task does, plus one extra file:
 

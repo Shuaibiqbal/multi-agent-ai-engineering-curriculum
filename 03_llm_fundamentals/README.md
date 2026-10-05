@@ -312,6 +312,7 @@ practice/
 - **Why:** you need your own gut feeling for tokens before Doc04, because every cost and context-limit decision from here on depends on it.
 - **When you'll hit this for real:** every time you write a system prompt and wonder "is this going to be expensive," before you've written a single line of code to check.
 - **How to practice it:** open [platform.openai.com/tokenizer](https://platform.openai.com/tokenizer), write down your guess for each sentence *before* pasting it in, then compare.
+- **How to code it:** for each sentence, guess with words × 1.3 (and characters ÷ 4), write the guess down, then paste the sentence into OpenAI's tokenizer page and note the real count and how far off you were.
 - **Save as:** `practice/token_count_guessing_notes.md` — your 5 guesses, the real counts, and how far off you were.
 - **Used later by:** the token-budget gut feeling built here is exactly what the [Intermediate](#ex-temperature_cost) exercise's cost math depends on, what the [Real-world](#ex-context_window_capacity) exercise scales up to a whole conversation, and what [Doc08](../08_rag/)'s chunk-size decisions and [Doc04](../04_openai_api/)'s context-limit exercise assume you already have.
 - **Stuck?** [Hint 1](hints_and_solutions/token_count_guessing_hints.md#hint-1) · [Hint 2](hints_and_solutions/token_count_guessing_hints.md#hint-2) · [Show me the solution](hints_and_solutions/token_count_guessing_solution.md)
@@ -322,6 +323,7 @@ practice/
 - **Why:** seeing the actual variation (or lack of it) at each temperature setting is more convincing than reading about it — and cost math you've done by hand once, you'll estimate correctly forever after.
 - **When you'll hit this for real:** choosing a temperature setting for a real feature (Project 1's Triage agent needs `temperature=0`; a creative-writing feature wouldn't).
 - **How to practice it:** once you have Doc04's client, loop 3 calls at each temperature and print all 6 answers side by side. For cost: look up OpenAI's current per-token prices and multiply by hand.
+- **How to code it:** send the same prompt 3 times at `temperature=0` and 3 times at `temperature=1` (in the OpenAI Playground, or a few lines with Doc04's `client.chat.completions.create(..., temperature=...)` once you've done it), and paste the 6 answers side by side. Then cost = input tokens ÷ 1,000,000 × the input price + output tokens ÷ 1,000,000 × the output price.
 - **Save as:** `practice/temperature_cost_notes.md` — the 6 answers side by side, and your cost calculation.
 - **Builds on:** the [Basic](#ex-token_count_guessing) exercise's token-guessing — the cost half of this exercise is that same guess, converted to dollars with the formula from the Cost topic above.
 - **Used later by:** Doc04's own temperature choices for its exercises reuse this same reasoning — pick `temperature=0` where the answer must repeat, higher where it shouldn't.
@@ -333,6 +335,7 @@ practice/
 - **Why:** this is the exact question behind Project 1's "conversation silently exceeds the context window" failure — you're building the intuition that predicts it before it happens.
 - **When you'll hit this for real:** designing any chat feature — you need to know roughly when to start trimming history, before a user's long conversation breaks silently.
 - **How to practice it:** pick an average message length (e.g. 50 tokens), pick a context window size (e.g. 128k), and do the division — then sanity-check against a real long conversation if you have one.
+- **How to code it:** pick an average message length, turn it into tokens (characters ÷ 4), double it for one question plus one answer, then divide the context window — minus the system prompt and room for the reply — by that number.
 - **Save as:** `practice/context_window_capacity_notes.md` — your numbers and the division.
 - **Builds on:** the [Basic](#ex-token_count_guessing) exercise's per-message token estimate — same arithmetic, scaled up to a whole conversation's worth of turns.
 - **Used later by:** this is exactly the intuition behind [Doc04](../04_openai_api/)'s edge-case exercise on what happens when you go over the limit, and behind Project 1's planned context-window failure.
@@ -344,6 +347,7 @@ practice/
 - **Why:** the "1 token ≈ ¾ of a word" rule of thumb quietly stops working outside plain English — you need to know that *before* it costs you real money on a multilingual or code-heavy feature.
 - **When you'll hit this for real:** any project with non-English users, or one where you're sending code (not prose) to the model — both tokenize far less efficiently than English text.
 - **How to practice it:** take one prompt in Urdu (or another non-English language) and one snippet of Python code, guess both token counts, then check both against the tokenizer tool. Note how far off you were, for each.
+- **How to code it:** guess the tokens with the characters ÷ 4 rule, check the real count in the tokenizer, and compare the gap with the English sentences from the Basic exercise.
 - **Save as:** `practice/token_rule_exceptions_notes.md` — both guesses, both real counts, and the gap.
 - **Builds on:** the [Basic](#ex-token_count_guessing) exercise's tokenizer-checking habit, now applied where the rule of thumb is known to break.
 - **Used later by:** [Doc08](../08_rag/)'s chunk-size math needs this same awareness for non-English or code-heavy source documents, or chunks come out far larger than planned.
@@ -355,6 +359,7 @@ practice/
 - **Why:** doing this once, deliberately, is what turns "the model hallucinated" from a mysterious, alarming event into an expected, structural failure mode you can explain to someone else.
 - **When you'll hit this for real:** the first time a user reports a wrong answer from your app, and you need to explain *why* it happened, not just apologize.
 - **How to practice it:** ask about a very specific, obscure fact (an exact statistic, a niche detail) the model likely wasn't trained on well. Write one paragraph explaining, in your own words, why it happened — without using the word "mistake."
+- **How to code it:** ask about something that sounds real but doesn't exist — a made-up research paper, a library function that was never written — save the confident answer, check the facts yourself, and explain in one paragraph why the model filled the gap instead of saying it didn't know.
 - **Save as:** `practice/induced_hallucination_notes.md` — the prompt, the false answer, and your one-paragraph explanation.
 - **Used later by:** [Doc08](../08_rag/)'s evals and [Doc13](../13_testing_evaluation_observability/)'s "answers not backed by a source" checks rely on you being able to recognize this failure mode by feel, before you have code that measures it for you.
 - **Stuck?** [Hint 1](hints_and_solutions/induced_hallucination_hints.md#hint-1) · [Hint 2](hints_and_solutions/induced_hallucination_hints.md#hint-2) · [Show me the solution](hints_and_solutions/induced_hallucination_solution.md)

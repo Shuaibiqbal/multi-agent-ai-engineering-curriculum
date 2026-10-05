@@ -46,9 +46,9 @@ Also check the failure: `docker run` with no key should stop at once with a clea
 Dockerfile:
     FROM python:3.11-slim / WORKDIR /app
     COPY requirements.txt .  ->  RUN pip install -r ...
-    COPY . .                 ->  RUN pip install -e .
+    COPY . .                 ->  (main.py + src/ copied in)
     EXPOSE 8000
-    CMD uvicorn contentforge.api.main:app --host 0.0.0.0 --port 8000
+    CMD uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 
 .dockerignore: .env, .git, .venv/, __pycache__/, runs.db, ...
 ```

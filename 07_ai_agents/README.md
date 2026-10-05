@@ -658,6 +658,7 @@ practice/
 
 - **What:** trace a 3-step ReAct loop by hand on paper (prompt → thought → action → result → thought → final answer) before writing any code.
 - **Why:** if you can't trace it on paper, you can't debug it in code — the cheapest possible way to catch a wrong mental model.
+- **How to code it:** pick a task that needs two tools (weather, then a conversion), and write each round as comments in the `# Basic` section: `thought:`, `action: tool(args)`, `observation:`. The last round has a thought and a `final answer:` but no action — that's the loop's exit.
 - **Save as:** `practice/react_loop_practice.py`, under a `# Basic` section (this file also holds the [Intermediate exercise](#ex-build_react_loop), in its own section).
 - **Builds on:** Doc06's [round-trip topic](../06_tools_function_calling/README.md#seeing-the-whole-thing-three-ways-analogy-trace-and-code-side-by-side) — the same five steps, now traced by hand instead of run in code.
 - **Used later by:** the [Intermediate exercise](#ex-build_react_loop) right below, which turns this exact trace into real code.

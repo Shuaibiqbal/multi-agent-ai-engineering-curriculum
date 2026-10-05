@@ -52,7 +52,7 @@ Rewrite `prompts/worker.txt`: which questions need which tool (weather, conversi
 
 Tests:
 
-- `test_tools.py` — add the weather params for a known and an unknown city, and the fail-then-work search (set `search_state.call_count = 0` first).
+- `test_tools.py` — add 3 cases: the weather params for a known city, for an unknown city, and the fail-then-work search (set `search_state.call_count = 0` first).
 - `test_live_agents.py` — add a weather question that must use `get_weather`, and the refund question, where the step log must show one failed and one successful search.
 
 Full solution: [Show me the solution](step3_multi_tool_limits_solution.md)

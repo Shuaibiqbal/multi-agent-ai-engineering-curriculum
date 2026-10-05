@@ -13,14 +13,15 @@ After this step the project is complete. Only `agents/approval_agent.py` and the
 **Story — `agents/approval_agent.py`:** each check is its own small function, and `run_checks()` returns the list of checks that **failed**. An empty list means auto-approve. Otherwise `interrupt()` pauses with the answer and the failed checks, so the person knows *why* they're being asked. **If not:** one vague "is this okay?" model call couldn't tell you which rule a wrongly-approved answer slipped past.
 
 ```python
-# src/documind/agents/approval_agent.py
+# src/agents/approval_agent.py
+# The Approval agent: approval_node() pauses with interrupt() and waits for
+# a person's yes or no. On resume, the node runs again from its first line,
+# so nothing above interrupt() may do a real action.
 from langgraph.types import interrupt
 
-from documind.state import DocState
-from documind.utils.logger import get_logger
+from src.state import DocState
+from src.utils.logger import get_logger
 
-# why: tasks asking the system to DO something are always checked by a
-# person — a wrong answer is bad, a wrong action is worse
 # new in Step 5: the checklist, one small function per check
 ACTION_WORDS = ["send", "cancel", "delete", "refund my", "change my"]
 
@@ -38,8 +39,6 @@ def asks_for_an_action(task: str) -> bool:
     return False
 
 def run_checks(state: DocState) -> list[str]:
-    # why: an explicit checklist, one item at a time — so a log line can
-    # say exactly WHICH check sent an answer to a human
     failed = []
     if not state["grounded"]:
         failed.append("not grounded in the documents")
@@ -56,16 +55,10 @@ def approval_node(state: DocState) -> dict:
 
     # new in Step 5: nothing failed -> approve without asking
     if not reasons:
-        # when: every check passed — approve without bothering a person
         logger.info("auto-approved")
         return {"approved": True, "path": ["auto_approved"]}
 
-    logger.info("asking a human, failed checks: %s", reasons)
-    # how: interrupt() pauses the graph here and saves the state; the
-    # value passed to Command(resume=...) comes back as `decision`
-    # when: on resume, this node runs again from its first line — so the
-    # log line above prints twice, and nothing above interrupt() may do a
-    # real action (like sending an email)
+    logger.info(f"asking a human, failed checks: {reasons}")
     decision = interrupt({"answer": state["answer"], "failed_checks": reasons})
     if decision == "yes":
         return {"approved": True, "path": ["human_approved"]}
@@ -76,34 +69,56 @@ def approval_node(state: DocState) -> dict:
 
 `main.py` doesn't change: since Step 2, `ask_human()` already prints the answer and the reasons it receives.
 
-**Story — `tests/unit/test_approval_checks.py`:** each checklist item, on hand-made states. **If not:** a broken check (say, citations never matching) would send every answer to a human, or none.
+**Story — `tests/unit/test_approval_checks.py`:** each checklist item, on hand-made states, one function per case printing `OK` or `WRONG`. **If not:** a broken check (say, citations never matching) would send every answer to a human, or none.
 
 ```python
 # tests/unit/test_approval_checks.py
 # Checks the Approval agent's checklist with hand-made states.
-# No API key needed.
-# Run from the repo root: python tests/unit/test_approval_checks.py
-from documind.agents.approval_agent import run_checks
+# Each case prints OK or WRONG. No API calls, no API key needed.
+# Run from the repo root: python -m tests.unit.test_approval_checks
+from src.agents.approval_agent import run_checks
 
 SOURCES = [{"source_file": "refund_policy.md"}]
 
+
 def make_state(task: str, answer: str, grounded: bool) -> dict:
-    return {"task": task, "answer": answer, "grounded": grounded,
-            "sources": SOURCES}
+    return {
+        "task": task,
+        "answer": answer,
+        "grounded": grounded,
+        "sources": SOURCES,
+    }
+
+
+def show(case: str, failed: list[str], expected: list[str]) -> None:
+    result = "OK"
+    if failed != expected:
+        result = "WRONG"
+    print(f"{case} -> {result}: {failed}")
+
 
 def test_all_checks_pass() -> None:
-    state = make_state("What is the refund policy?",
-                       "30 days [refund_policy.md]", True)
-    print(f"case 1 (grounded, cited)   -> {run_checks(state)}")
+    state = make_state(
+        "What is the refund policy?", "30 days [refund_policy.md]", True
+    )
+    show("case 1 (grounded, cited)", run_checks(state), [])
+
 
 def test_no_citation() -> None:
     state = make_state("What is the refund policy?", "30 days", True)
-    print(f"case 2 (no citation)       -> {run_checks(state)}")
+    show("case 2 (no citation)    ", run_checks(state),
+         ["cites no source file"])
+
 
 def test_action_request() -> None:
-    state = make_state("Send the refund policy to the customer",
-                       "30 days [refund_policy.md]", True)
-    print(f"case 3 (asks for action)   -> {run_checks(state)}")
+    state = make_state(
+        "Send the refund policy to the customer",
+        "30 days [refund_policy.md]",
+        True,
+    )
+    show("case 3 (asks an action) ", run_checks(state),
+         ["the task asks for an action"])
+
 
 if __name__ == "__main__":
     test_all_checks_pass()
@@ -111,86 +126,138 @@ if __name__ == "__main__":
     test_action_request()
 ```
 
-**Changed from Step 4:** the integration test now expects case 1 to be **auto-approved**, and adds case 4 and case 5 — an action request that pauses, approved in one run and rejected in another.
+**Changed from Step 4:** the integration test adds case 8 — a safe document answer must now be **auto-approved**, without any pause. Cases 1-7 stay the same: the action task (cases 2-4) still pauses, because it asks for an action.
 
 ```python
 # tests/integration/test_live_graph.py
-# Runs the whole graph against the real OpenAI API.
-# Run from the repo root: python tests/integration/test_live_graph.py
-# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
+# Runs the whole graph against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_graph
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
-from documind.config import load_config
-from documind.graph import build_graph
-from documind.state import start_state
+from src.config import load_config
+from src.graph import build_graph
+from src.state import start_state
 
-def run(graph, thread_id: str, task: str) -> dict:
+ACTION_TASK = "What is the refund policy? Send it to the customer."
+
+
+def run(
+    graph, thread_id: str, task: str, decision: str | None = "yes"
+) -> dict:
     config = {"configurable": {"thread_id": thread_id}}
-    return graph.invoke(start_state(task), config)
+    outcome = graph.invoke(start_state(task), config)
+    if decision is not None and "__interrupt__" in outcome:
+        outcome = graph.invoke(Command(resume=decision), config)
+    return outcome
 
-def test_grounded_answer(graph) -> None:
-    # case 1: a document question — searched, answered, auto-approved
-    result = run(graph, "t1", "What is the refund policy?")
-    print(f"case 1 (grounded)     -> {result['path']}")
-    print(f"                         {result['answer']}")
 
-def test_not_in_documents(graph) -> None:
-    # case 2: searched, but nothing relevant — must not make one up
-    result = run(graph, "t2", "What is the policy on remote work?")
-    print(f"case 2 (not found)    -> {result['path']}")
+def show(case: str, passed: bool, outcome: dict) -> None:
+    result = "OK"
+    if not passed:
+        result = "WRONG"
+    print(f"{case} -> {result}: {outcome.get('path')}")
+
 
 def test_general_question(graph) -> None:
-    # case 3: not about the documents — no search at all
-    result = run(graph, "t3", "What is the capital of France?")
-    print(f"case 3 (general)      -> {result['path']}")
+    outcome = run(graph, "t1", "What is the capital of France?")
+    passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
+    show("case 1 (general question)", passed, outcome)
+
 
 def test_action_pauses(graph) -> None:
-    # case 4: asks for an action — must pause for a human, both answers
-    task = "What is the refund policy? Send it to the customer."
-    paused = run(graph, "t4", task)
-    print(f"case 4 (paused?)      -> {'__interrupt__' in paused}")
-    config = {"configurable": {"thread_id": "t4"}}
-    approved = graph.invoke(Command(resume="yes"), config)
-    print(f"case 4 (human: yes)   -> approved={approved['approved']}")
+    outcome = run(graph, "t2", ACTION_TASK, decision=None)
+    show("case 2 (pauses)          ", "__interrupt__" in outcome, outcome)
 
-    run(graph, "t5", task)
-    config = {"configurable": {"thread_id": "t5"}}
-    rejected = graph.invoke(Command(resume="no"), config)
-    print(f"case 5 (human: no)    -> {rejected['answer']}")
+
+def test_human_says_yes(graph) -> None:
+    outcome = run(graph, "t3", ACTION_TASK, "yes")
+    passed = outcome["approved"] and "human_approved" in outcome["path"]
+    show("case 3 (human: yes)      ", passed, outcome)
+
+
+def test_human_says_no(graph) -> None:
+    outcome = run(graph, "t4", ACTION_TASK, "no")
+    passed = outcome["answer"].startswith("Not approved")
+    show("case 4 (human: no)       ", passed, outcome)
+
+
+def test_grounded_answer(graph) -> None:
+    outcome = run(graph, "t5", "What is the refund policy?")
+    passed = outcome["grounded"] and "retrieve_node" in outcome["path"]
+    show("case 5 (grounded)        ", passed, outcome)
+
+
+def test_not_in_documents(graph) -> None:
+    outcome = run(graph, "t6", "What is the policy on remote work?")
+    passed = outcome["path"][-1] == "no_grounding_node"
+    show("case 6 (not found)       ", passed, outcome)
+
+
+def test_answer_cites_its_file(graph) -> None:
+    outcome = run(graph, "t7", "What is the refund policy?")
+    passed = "[refund_policy.md]" in outcome["answer"]
+    show("case 7 (cites its file)  ", passed, outcome)
+
+
+# new in Step 5
+def test_safe_answer_auto_approved(graph) -> None:
+    outcome = run(graph, "t8", "What is the refund policy?", decision=None)
+    passed = "__interrupt__" not in outcome
+    passed = passed and "auto_approved" in outcome["path"]
+    show("case 8 (auto-approved)   ", passed, outcome)
+
 
 if __name__ == "__main__":
     load_config()
-    # how: tests use a fresh MemorySaver — nothing is written to disk
     graph = build_graph(MemorySaver())
-    test_grounded_answer(graph)
-    test_not_in_documents(graph)
     test_general_question(graph)
     test_action_pauses(graph)
+    test_human_says_yes(graph)
+    test_human_says_no(graph)
+    test_grounded_answer(graph)
+    test_not_in_documents(graph)
+    test_answer_cites_its_file(graph)
+    # new in Step 5
+    test_safe_answer_auto_approved(graph)
 ```
 
 **Run everything:**
 
 ```bash
-python tests/unit/test_chunking.py
-python tests/unit/test_routing.py
-python tests/unit/test_approval_checks.py
-python tests/integration/test_live_graph.py
-python scripts/pause_demo.py
-python scripts/resume_demo.py
-python -m documind.main
+python -m tests.unit.test_config
+python -m tests.unit.test_nodes
+python -m tests.unit.test_chunking
+python -m tests.unit.test_routing
+python -m tests.unit.test_approval_checks
+python -m tests.integration.test_live_graph
+python -m scripts.pause_demo
+python -m scripts.resume_demo
+python main.py
 ```
 
-**Expected integration output:**
+**Expected output** of the new unit test:
 
 ```
-case 1 (grounded)     -> ['clean_task', 'retrieve_node', 'reason_node',
-                          'auto_approved']
-case 2 (not found)    -> ['clean_task', 'retrieve_node', 'no_grounding_node']
-case 3 (general)      -> ['clean_task', 'answer_node']
-case 4 (paused?)      -> True
-case 4 (human: yes)   -> approved=True
-case 5 (human: no)    -> Not approved — nothing was sent.
+case 1 (grounded, cited) -> OK: []
+case 2 (no citation)     -> OK: ['cites no source file']
+case 3 (asks an action)  -> OK: ['the task asks for an action']
+```
+
+**Expected output** of the integration test (wrapped to fit the page):
+
+```
+case 1 (general question) -> OK: ['clean_task', 'answer_node']
+case 2 (pauses)           -> OK: ['clean_task', 'retrieve_node',
+'reason_node']
+case 3 (human: yes)       -> OK: [... 'reason_node', 'human_approved']
+case 4 (human: no)        -> OK: [... 'reason_node', 'human_rejected']
+case 5 (grounded)         -> OK: [... 'reason_node', 'auto_approved']
+case 6 (not found)        -> OK: ['clean_task', 'retrieve_node',
+'no_grounding_node']
+case 7 (cites its file)   -> OK: [... 'reason_node', 'auto_approved']
+case 8 (auto-approved)    -> OK: [... 'reason_node', 'auto_approved']
 ```
 
 **Expected app session** (log lines left out; wording varies):

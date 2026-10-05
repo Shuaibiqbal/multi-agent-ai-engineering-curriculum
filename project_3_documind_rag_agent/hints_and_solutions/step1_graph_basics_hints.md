@@ -58,4 +58,10 @@ loop:
 
 Before running it, write down what the state looks like after each node. Then run it and compare with the printed `path`.
 
+Then the first tests. Every case follows one pattern — start with `result = "OK"`, set `"WRONG"` if the check fails, and print `case N (what) -> {result}`:
+
+- `tests/unit/test_config.py` — `require_env()` with a made-up setting name: missing and empty both raise `MissingConfigError`; `load_config()` loads once `OPENAI_API_KEY` is set.
+- `tests/unit/test_nodes.py` — `clean_task({"task": "  hi  "})` gives `"hi"` and `["clean_task"]`; `start_state()` starts with an empty `path` and `answer`.
+- `tests/integration/test_live_graph.py` — a `run(graph, thread_id, task)` helper, and case 1: a general question reaches `answer_node` and the answer mentions Paris.
+
 Full solution: [Show me the solution](step1_graph_basics_solution.md)

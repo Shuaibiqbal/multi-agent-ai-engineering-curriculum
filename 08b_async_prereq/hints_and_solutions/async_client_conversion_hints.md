@@ -179,6 +179,12 @@ async def main() -> None:
 ```
 Fill in the `if __name__ == "__main__":` block yourself, then compare your finished versions against the [Solution](async_client_conversion_solution.md).
 
+Two more async keywords, and LangChain's async methods:
+
+- `async with AsyncOpenAI(timeout=30.0) as client:` — opens the client and closes its connections when the block ends (`client.is_closed()` is then `True`).
+- `stream=True`, then `async for chunk in stream:` — a loop where each next chunk is awaited; print `chunk.choices[0].delta.content` when it isn't empty.
+- On a Doc05 chain: `await chain.ainvoke({...})`, `async for piece in chain.astream({...}):`, and `await asyncio.gather(chain.ainvoke(...), chain.ainvoke(...))` to run several at once.
+
 **Difference between Basic and Intermediate:** Basic creates `AsyncOpenAI()` with no timeout at all, trusting every call to come back quickly. Intermediate sets `timeout=30.0` once, at the client level, so every call made through that client is bounded by default — and catches the SDK's specific `APITimeoutError` instead of a bare `except Exception:`, so a genuine bug elsewhere in the function doesn't get silently mistaken for a slow API call.
 
 <hr class="page-break">

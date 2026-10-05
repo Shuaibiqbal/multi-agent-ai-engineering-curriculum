@@ -59,6 +59,6 @@ regression_check.py (Doc13):
 
 `tests/integration/test_judge.py` — a calibration set with `TITLE_RULE` and `SOURCE_RULE`: a titled article with a tag → `PASS`; `"I like pizza."` → `FAIL`; the same article **without** its tag → `FAIL`.
 
-Then run the layers on purpose: the unit scripts and `pytest tests/api` (free) on every change; `python tests/integration/test_live_agents.py`, `pytest tests/integration/test_judge.py` and `run_eval` before a prompt change.
+Then run the layers on purpose: the unit scripts and `pytest tests/api` (free) on every change; `python -m tests.integration.test_live_agents`, `pytest tests/integration/test_judge.py` and `run_eval` before a prompt change.
 
 Full solution: [Show me the solution](step4_eval_suite_solution.md)

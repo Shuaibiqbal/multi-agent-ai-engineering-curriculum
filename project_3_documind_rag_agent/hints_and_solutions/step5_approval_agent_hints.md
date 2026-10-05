@@ -52,7 +52,7 @@ One LangGraph rule to know here: when a paused node is resumed, it runs **again 
 Tests:
 
 - `test_approval_checks.py` — hand-made states: all pass → `[]`; no citation → `["cites no source file"]`; an action task → `["the task asks for an action"]`.
-- The integration test: a document question is now **auto-approved**; an action request pauses — resume `"yes"` in one thread and `"no"` in another.
+- The integration test: case 8 — a safe document question is **auto-approved**, with no pause. Cases 2-4 (the action task) still pause.
 
 Then run `pause_demo.py` and `resume_demo.py` once more: the resume still comes from disk.
 

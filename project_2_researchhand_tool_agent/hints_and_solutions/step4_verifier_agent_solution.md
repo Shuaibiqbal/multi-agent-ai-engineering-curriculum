@@ -193,70 +193,108 @@ if __name__ == "__main__":
     main()
 ```
 
-**Changed from Step 3:** `test_agents.py` adds case 3 for `collect_evidence()`.
+**Changed from Step 3:** `test_agents.py` adds cases 6 and 7 for `collect_evidence()` — a failed step is left out of the evidence, and no steps gives `(no tools were used)`.
 
 ```python
 # tests/unit/test_agents.py
 # Checks the Worker's and Verifier's helper functions with hand-made
-# tool calls and steps. No API calls, no API key needed.
+# tool calls and steps. Each case prints OK or WRONG.
+# No API calls, no API key needed.
 # Run from the repo root: python -m tests.unit.test_agents
+# new in Step 4
 from src.agents.verifier import collect_evidence
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-def test_find_tool() -> None:
-    found = find_tool(ALL_TOOLS, "celsius_to_fahrenheit")
-    missing = find_tool(ALL_TOOLS, "send_email")
-    print(f"case 1 (known tool)          -> {found.name}")
-    print(f"case 1 (unknown tool)        -> {missing}")
 
-def test_run_tool() -> None:
-    good = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
-    unknown = {"name": "send_email", "args": {}}
-    bad_args = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
-    print(f"case 2 (good call)           -> {run_tool(good, ALL_TOOLS)}")
-    print(f"case 2 (unknown tool)        -> {run_tool(unknown, ALL_TOOLS)}")
-    result, error = run_tool(bad_args, ALL_TOOLS)
-    print(f"case 2 (bad arguments)       -> result={result}, error set: "
-          f"{error is not None}")
+def test_find_known_tool() -> None:
+    result = "OK"
+    if find_tool(ALL_TOOLS, "celsius_to_fahrenheit") is None:
+        result = "WRONG"
+    print(f"case 1 (known tool found)          -> {result}")
 
-def test_collect_evidence() -> None:
+
+def test_find_unknown_tool() -> None:
+    result = "OK"
+    if find_tool(ALL_TOOLS, "send_email") is not None:
+        result = "WRONG"
+    print(f"case 2 (unknown tool gives None)   -> {result}")
+
+
+def test_run_good_call() -> None:
+    call = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
+    output, error = run_tool(call, ALL_TOOLS)
+    result = "OK"
+    if output != "32.0" or error is not None:
+        result = "WRONG"
+    print(f"case 3 (good call gives 32.0)      -> {result}")
+
+
+def test_run_unknown_tool() -> None:
+    call = {"name": "send_email", "args": {}}
+    output, error = run_tool(call, ALL_TOOLS)
+    result = "OK"
+    if output is not None or error is None:
+        result = "WRONG"
+    print(f"case 4 (unknown tool gives error)  -> {result}")
+
+
+def test_run_bad_arguments() -> None:
+    call = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
+    output, error = run_tool(call, ALL_TOOLS)
+    result = "OK"
+    if output is not None or error is None:
+        result = "WRONG"
+    print(f"case 5 (bad arguments give error)  -> {result}")
+
+
+# new in Step 4
+def test_evidence_skips_failed_steps() -> None:
     steps = [
         {"tool": "search_docs", "result": None, "error": "index down"},
         {"tool": "search_docs", "result": "Refunds within 30 days.",
          "error": None},
     ]
-    print("case 3 (failed step skipped) ->")
-    print(collect_evidence(steps), end="")
-    print(f"case 3 (no steps)            -> {collect_evidence([])}")
+    evidence = collect_evidence(steps)
+    result = "OK"
+    if "index down" in evidence or "30 days" not in evidence:
+        result = "WRONG"
+    print(f"case 6 (failed step left out)      -> {result}")
+
+
+# new in Step 4
+def test_evidence_with_no_steps() -> None:
+    result = "OK"
+    if collect_evidence([]) != "(no tools were used)":
+        result = "WRONG"
+    print(f"case 7 (no steps)                  -> {result}")
+
 
 if __name__ == "__main__":
-    test_find_tool()
-    test_run_tool()
-    test_collect_evidence()
+    test_find_known_tool()
+    test_find_unknown_tool()
+    test_run_good_call()
+    test_run_unknown_tool()
+    test_run_bad_arguments()
+    # new in Step 4
+    test_evidence_skips_failed_steps()
+    test_evidence_with_no_steps()
 ```
 
 **Changed from Step 3:** the integration test adds cases 7 and 8. Case 7 matters most: a Verifier that has never rejected anything hasn't been tested.
 
-**Story — cases 7 and 8:** a hand-made `AgentResult` whose tools said 64.4°F but whose answer says 90°F must be **rejected**; the same evidence with the right answer must be **approved**. **If not:** a Verifier that approves everything would look exactly like one that works.
+**Story — cases 7 and 8:** a hand-made `AgentResult` whose tools said 64.4°F but whose answer says 90°F must be **rejected**; the same evidence (`lahore_steps()`) with the right answer must be **approved**. Each is its own test function. **If not:** a Verifier that approves everything would look exactly like one that works.
 
 ```python
 # tests/integration/test_live_agents.py
-# The project's checks against the real OpenAI API (and Open-Meteo) —
-# each step adds cases. Needs a valid OPENAI_API_KEY in .env.
+# Checks the app against the real OpenAI API (and Open-Meteo) — each step
+# adds cases. Each case prints OK or WRONG.
+# Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-#   case 1 — the no-tools chain answers a question from memory
-#   case 2 — a conversion uses the converter tool
-#   case 3 — general knowledge needs no tool at all
-#   case 4 — 1 round can't finish a tool task: MaxIterationsExceeded
-#   case 5 — a live-data question uses get_weather
-#   case 6 — search_docs fails once, and the Worker recovers
-#   case 7 — the Verifier rejects an answer the evidence contradicts
-#   case 8 — the same evidence with the right answer is approved
 from langchain_openai import ChatOpenAI
 
-from src.agents.worker import AgentResult, run_worker
 # new in Step 4
 from src.agents.verifier import build_verifier_chain, verify
+from src.agents.worker import AgentResult, run_worker
 from src.chains.direct_answer import build_direct_chain
 from src.config import load_config
 from src.exceptions import MaxIterationsExceeded
@@ -267,75 +305,103 @@ from src.tools.docs_search import search_state
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
-    print(f"case 1 (direct answer)  -> {answer}")
+    result = "OK"
+    if "Paris" not in answer:
+        result = "WRONG"
+    print(f"case 1 (direct answer)  -> {result}: {answer}")
 
 
-def tools_used(result: AgentResult) -> list[str]:
+def tools_used(outcome: AgentResult) -> list[str]:
     names = []
-    for step in result.steps:
+    for step in outcome.steps:
         names.append(step["tool"])
     return names
 
 
 def test_conversion_uses_tool(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
-    result = run_worker(model, task, 5)
-    print(f"case 2 (conversion)     -> tools: {tools_used(result)}")
+    used = tools_used(run_worker(model, task, 5))
+    result = "OK"
+    if "celsius_to_fahrenheit" not in used:
+        result = "WRONG"
+    print(f"case 2 (conversion)     -> {result}: {used}")
 
 
 def test_no_tool_needed(model: ChatOpenAI) -> None:
-    result = run_worker(model, "What is the capital of France?", 5)
-    print(f"case 3 (no tool needed) -> {len(result.steps)} steps: "
-          f"{result.final_answer}")
+    outcome = run_worker(model, "What is the capital of France?", 5)
+    result = "OK"
+    if len(outcome.steps) != 0:
+        result = "WRONG"
+    print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
 
 
 def test_step_limit(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
+    result = "WRONG"
     try:
         run_worker(model, task, 1)
-        print("case 4 (step limit)     -> WRONG, no error was raised")
-    except MaxIterationsExceeded as e:
-        print(f"case 4 (step limit)     -> raised, {len(e.steps)} step(s) "
-              f"in the partial log")
+    except MaxIterationsExceeded:
+        result = "OK"
+    print(f"case 4 (step limit)     -> {result}")
 
 
 def test_weather_uses_tool(model: ChatOpenAI) -> None:
-    result = run_worker(model, "What's the weather in Lahore right now?", 5)
-    print(f"case 5 (weather task)   -> tools: {tools_used(result)}")
+    task = "What's the weather in Lahore right now?"
+    used = tools_used(run_worker(model, task, 5))
+    result = "OK"
+    if "get_weather" not in used:
+        result = "WRONG"
+    print(f"case 5 (weather task)   -> {result}: {used}")
 
 
 def test_tool_failure_recovery(model: ChatOpenAI) -> None:
     search_state.call_count = 0
-    result = run_worker(model, "What is your refund policy?", 5)
+    outcome = run_worker(model, "What is your refund policy?", 5)
     failed = 0
     succeeded = 0
-    for step in result.steps:
+    for step in outcome.steps:
         if step["error"] is None:
             succeeded = succeeded + 1
         else:
             failed = failed + 1
-    print(f"case 6 (recovery)       -> failed={failed}, "
-          f"succeeded={succeeded}")
-    print(f"                           {result.final_answer}")
+    result = "OK"
+    if failed == 0 or succeeded == 0:
+        result = "WRONG"
+    print(f"case 6 (recovery)       -> {result}: {failed} failed, "
+          f"{succeeded} succeeded")
 
 
 # new in Step 4
-def test_verifier_rejects_wrong_answer(verifier_chain) -> None:
-    steps = [
+def lahore_steps() -> list[dict]:
+    return [
         {"tool": "get_weather", "result": "Currently 18°C in Lahore",
          "error": None},
         {"tool": "celsius_to_fahrenheit", "result": "64.4", "error": None},
     ]
-    wrong = AgentResult(final_answer="It is 90°F in Lahore.", steps=steps)
-    verdict = verify(verifier_chain, "Weather in Lahore in °F?", wrong)
-    if verdict.approved:
-        print("case 7 (wrong answer)   -> WRONG, it was approved")
-    else:
-        print(f"case 7 (wrong answer)   -> OK, rejected: {verdict.reason}")
 
-    right = AgentResult(final_answer="It is 64.4°F in Lahore.", steps=steps)
+
+# new in Step 4
+def test_verifier_rejects_wrong_answer(verifier_chain) -> None:
+    wrong = AgentResult(
+        final_answer="It is 90°F in Lahore.", steps=lahore_steps()
+    )
+    verdict = verify(verifier_chain, "Weather in Lahore in °F?", wrong)
+    result = "OK"
+    if verdict.approved:
+        result = "WRONG"
+    print(f"case 7 (wrong answer)   -> {result}: {verdict.reason}")
+
+
+# new in Step 4
+def test_verifier_approves_right_answer(verifier_chain) -> None:
+    right = AgentResult(
+        final_answer="It is 64.4°F in Lahore.", steps=lahore_steps()
+    )
     verdict = verify(verifier_chain, "Weather in Lahore in °F?", right)
-    print(f"case 8 (right answer)   -> approved={verdict.approved}")
+    result = "OK"
+    if not verdict.approved:
+        result = "WRONG"
+    print(f"case 8 (right answer)   -> {result}")
 
 
 if __name__ == "__main__":
@@ -351,6 +417,7 @@ if __name__ == "__main__":
     test_tool_failure_recovery(model)
     # new in Step 4
     test_verifier_rejects_wrong_answer(verifier_chain)
+    test_verifier_approves_right_answer(verifier_chain)
 ```
 
 **Story — `data/sample/tasks.json` + `scripts/compare_with_tools.py`:** asks each sample task two ways — Step 1's from-memory chain, and the Worker + Verifier — and prints both side by side. It's for *you* to read, which is why it's a script, not a test. **If not:** the project's whole claim ("verified answers, not guesses") would never be shown in one place.
@@ -414,12 +481,17 @@ python -m scripts.compare_with_tools
 python main.py
 ```
 
-**Expected output** of the new integration lines:
+**Expected output** of the new unit and integration lines (the reason's wording varies; wrapped to fit the page):
 
 ```
-case 7 (wrong answer)   -> OK, rejected: The answer says 90°F, but the
-                           tools returned 64.4°F.
-case 8 (right answer)   -> approved=True
+case 6 (failed step left out)      -> OK
+case 7 (no steps)                  -> OK
+```
+
+```
+case 7 (wrong answer)   -> OK: The answer says 90°F, but the tools
+                           returned 64.4°F.
+case 8 (right answer)   -> OK
 ```
 
 **Expected app session** (the log lines are left out; wording varies):

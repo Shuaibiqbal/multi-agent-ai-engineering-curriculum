@@ -26,7 +26,7 @@ Two functions in `agents/writer_agent.py`:
 
 `run_writer()` is the one door the rest of the project will use; nothing else should touch the chain.
 
-Bring in the shared files first: config, errors, logger, prompt loader (folder `src/contentforge/prompts`), and `get_model()` from Project 3.
+Bring in the shared files first: config, errors, logger, prompt loader (folder `src/prompts`), and `get_model()` from Project 3.
 
 <hr class="page-break">
 

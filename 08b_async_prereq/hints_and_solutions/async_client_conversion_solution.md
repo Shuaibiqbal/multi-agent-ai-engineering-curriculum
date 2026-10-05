@@ -149,6 +149,100 @@ async def handle_question_request(question: str) -> dict:
 ```
 Notice `ask()` itself is completely unchanged from Approach 1 — only the caller changed. `handle_question_request` never calls `asyncio.run()` because, in real Doc12 code, FastAPI already started and owns the event loop before your route function is ever called; it just `await`s `ask()` directly and turns a timeout into a clean error response instead of a crashed request.
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1's `ask()` has no timeout and is only ever called from a script's own `asyncio.run()`. Approach 2 adds the timeout and shows what a caller does with it in that same script-style setup. Approach 3 keeps the exact same `ask()` function, unmodified, and shows the *other* real shape it'll be called in — from inside a framework's already-running event loop, where `asyncio.run()` would be the wrong (and broken) thing to write.
+### Approach 4 — `async with` for the client, `async for` for a streamed reply
 
-**Which one should you actually use?** Ship Approach 2's client-level timeout on every `AsyncOpenAI()` (or `OpenAI()`) client you create — it's one keyword argument, set once, that protects every call made through that client for the rest of the program's life. Approach 3's shape — `ask()` staying a plain, reusable coroutine with no `asyncio.run()` inside it — is exactly what this conversion needs to already look like before Doc12, since that's the literal function you'll import into a FastAPI route; writing it that way now means Doc12 is a five-minute wiring job instead of a second conversion.
+**Story:** Doc04 streamed replies with a plain `for chunk in stream:`. With `AsyncOpenAI`, each next chunk arrives over the network, so getting it needs an `await` — that's what `async for` does. And a client holds open network connections, which should be closed when you're done — `async with` does that, the async twin of Doc04's `with open(...)`. **If not:** every MCP project (Projects 7, 8, 11, 12) opens its server connection with `async with ... as session:`, and Doc09 streams graphs with `async for ... in graph.astream(...)` — both would be new syntax with no smaller example behind them.
+
+```python
+# async_client_conversion_practice.py
+import asyncio
+
+from openai import AsyncOpenAI
+
+
+async def ask_streaming(client: AsyncOpenAI, question: str) -> str:
+    stream = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": question}],
+        stream=True,
+    )
+    full_reply = ""
+    async for chunk in stream:
+        piece = chunk.choices[0].delta.content
+        if piece:
+            print(piece, end="", flush=True)
+            full_reply = full_reply + piece
+    print()
+    return full_reply
+
+
+async def main() -> None:
+    async with AsyncOpenAI(timeout=30.0) as client:
+        await ask_streaming(client, "What is 2 + 2?")
+    print("client closed:", client.is_closed())
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+**Expected output** (the reply appears piece by piece):
+```
+2 + 2 equals 4.
+client closed: True
+```
+- `async with X as name:` runs X's async "open" step, gives you `name`, and runs its async "close" step when the block ends — even if an error happens inside.
+- `async for item in stream:` is a `for` loop where fetching each next item is awaited, so other tasks can run while a chunk is on its way.
+- Both only work inside `async def`, like `await`.
+
+### Approach 5 — LangChain's async methods: `ainvoke`, `astream`, and `gather`
+
+**Story:** Doc05 listed `.ainvoke()` as one of every chain's methods. It's the same chain, awaited: `ainvoke` for `invoke`, `astream` for `stream`. Because they're awaitable, `asyncio.gather` can run several chain calls at once. **If not:** an async LangChain call in later docs would look like a different library, instead of the same chain with an `a` in front.
+
+```python
+# async_client_conversion_practice.py
+import asyncio
+import time
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "Answer in one short sentence."),
+    ("user", "{question}"),
+])
+chain = prompt | ChatOpenAI(model="gpt-4o-mini") | StrOutputParser()
+
+
+async def main() -> None:
+    answer = await chain.ainvoke({"question": "What is 2 + 2?"})
+    print(answer)
+
+    async for piece in chain.astream({"question": "Name a primary colour."}):
+        print(piece, end="", flush=True)
+    print()
+
+    start = time.perf_counter()
+    answers = await asyncio.gather(
+        chain.ainvoke({"question": "What is 2 + 2?"}),
+        chain.ainvoke({"question": "What is the capital of France?"}),
+        chain.ainvoke({"question": "Name a primary colour."}),
+    )
+    elapsed = time.perf_counter() - start
+    print(f"{len(answers)} answers in {elapsed:.2f}s")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+**Expected output** (wording and time vary):
+```
+2 + 2 equals 4.
+Red is a primary colour.
+3 answers in 0.71s
+```
+The 3 `ainvoke` calls run at the same time, so they take about as long as the slowest one — not the sum of all three, exactly like `gather_speed`.
+
+**Difference from Approach 1, and between Approaches 2–5:** Approach 1's `ask()` has no timeout and is only ever called from a script's own `asyncio.run()`. Approach 2 adds the timeout and shows what a caller does with it in that same script-style setup. Approach 3 keeps the exact same `ask()` function, unmodified, and shows the *other* real shape it'll be called in — from inside a framework's already-running event loop, where `asyncio.run()` would be the wrong (and broken) thing to write. Approach 4 adds the two other async keywords — `async with` to open and close the client, `async for` to read a streamed reply. Approach 5 shows the same ideas on a LangChain chain: `ainvoke`, `astream`, and `gather` over several chain calls.
+
+**Which one should you actually use?** Ship Approach 2's client-level timeout on every `AsyncOpenAI()` (or `OpenAI()`) client you create — it's one keyword argument, set once, that protects every call made through that client for the rest of the program's life. Approach 3's shape — `ask()` staying a plain, reusable coroutine with no `asyncio.run()` inside it — is exactly what this conversion needs to already look like before Doc12, since that's the literal function you'll import into a FastAPI route; writing it that way now means Doc12 is a five-minute wiring job instead of a second conversion. Use `async with` for any client or connection you open and want closed (Approach 4) — the MCP projects open every server session this way — and a chain's `ainvoke`/`astream` (Approach 5) whenever your code is already async.

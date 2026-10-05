@@ -12,7 +12,7 @@
 
 Project 4, made production-ready: served over FastAPI, every run saved to SQLite, packaged with Docker, rate-limited, and covered by tests at every layer — API tests with the team faked, and an eval suite that scores the real articles. **No new agents are built here** — Project 4's code is copied in unchanged. This project is about running those agents safely for other people.
 
-**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-contentforge-reachable-over-http-for-the-first-time) · [Step 2](#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Step 3](#step-3-containerized-and-rate-limited-runs-the-same-everywhere-survives-abuse) · [Step 4](#step-4-a-test-suite-that-catches-a-bad-change-before-it-ships-final) · [Run, test, configure](#run-test-and-configure-the-final-project) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
+**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [How testing works](#how-testing-works-in-this-project) · [Step 1](#step-1-contentforge-reachable-over-http-for-the-first-time) · [Step 2](#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Step 3](#step-3-containerized-and-rate-limited-runs-the-same-everywhere-survives-abuse) · [Step 4](#step-4-a-test-suite-that-catches-a-bad-change-before-it-ships-final) · [Run, test, configure](#run-test-and-configure-the-final-project) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
 
 ## The Story — what you're actually building
 
@@ -73,178 +73,115 @@ Same rule as before: only folders with a real job. New here: `api/` (the web lay
 ### Names: the repo folder vs. the Python package
 
 - **Repo folder:** `ContentForge-Pro-Production-Ready-Content-Pipeline-With-API-Database-And-Docker/` — already created, and the exact GitHub repo name.
-- **Python package:** still `contentforge` (inside `src/`). **Why keep the name:** Project 4's files come in unchanged — every `from contentforge...` import keeps working, and the new code sits beside it (`from contentforge.api.routes import router`).
-- **Files:** `snake_case.py`; test files start with `test_`; the app uvicorn starts is `api/main.py` — the terminal app stays `main.py`.
+- **Python package:** `src/`, right next to `main.py` — the same as Project 4. Project 4's files come in unchanged: every `from src...` import keeps working, and the new code sits beside it (`from src.api.routes import router`).
+- **Files:** `snake_case.py`; test files start with `test_`; the app uvicorn starts is `api/main.py` — the terminal app stays `main.py` at the repo root.
 
 ### The final layout (after Step 4)
 
 ```
 <repo folder>/   (ContentForge-Pro-...-API-Database-And-Docker/)
-├── README.md               the repo's front page (copied in at the end)
-├── LICENSE                 lets others reuse your code (MIT)
-├── .gitignore              keeps .env, .venv/, runs.db out of git
-├── .env.example            the setting names, no real values
-├── .env                    your real key — never committed
-├── pyproject.toml          makes src/contentforge an installable package
-├── requirements.txt        the libraries, for pip install -r
-├── Dockerfile              builds the API's container image
-├── .dockerignore           keeps .env and runs.db out of the image
+├── data/
+│   └── sample/
+│       └── facts.json          the facts Research can look up
 ├── src/
-│   └── contentforge/
-│       ├── __init__.py
-│       ├── main.py             asks for a topic, prints the report
-│       ├── config.py           Config, load_config()        (Doc01)
-│       ├── exceptions.py       MissingConfigError           (Doc01)
-│       ├── schemas.py          ReviewVerdict (score, feedback)
-│       ├── state.py            TeamState, start_state()
-│       ├── graph.py            build_graph(): 5 nodes, 1 edge
-│       ├── pipeline.py         run_pipeline(): the one door in
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── llm.py          get_model()              (Project 3)
-│       ├── agents/
-│       │   ├── __init__.py
-│       │   ├── supervisor.py      decide_next(), supervisor()
-│       │   ├── research_agent.py  run_research(), research_node
-│       │   ├── analysis_agent.py  run_analysis(), analysis_node
-│       │   ├── writer_agent.py    run_writer(), writer_node
-│       │   └── reviewer_agent.py  run_reviewer(), reviewer_node
-│       ├── tools/
-│       │   ├── __init__.py
-│       │   └── lookup.py       lookup_facts (@tool)
-│       ├── prompts/
-│       │   ├── research.txt
-│       │   ├── analysis.txt
-│       │   ├── writer.txt
-│       │   └── reviewer.txt
-│       ├── utils/
-│       │   ├── __init__.py
-│       │   ├── logger.py       get_logger()                 (Doc01)
-│       │   └── prompts.py      load_prompt(name)        (Project 1)
-│       ├── api/
-│       │   ├── __init__.py
-│       │   ├── main.py         the app uvicorn starts       (Doc12)
-│       │   ├── routes.py       /health, /run-task, /runs/{run_id}
-│       │   └── schemas.py      TaskRequest, TaskResponse    (Doc12)
-│       ├── db/
-│       │   ├── __init__.py
-│       │   ├── database.py     save and fetch runs (SQLite) (Doc12)
-│       │   └── models.py       Run: one saved run's shape   (Doc12)
-│       └── evals/
-│           ├── __init__.py
-│           ├── tasks.py        10 fixed topics and checks   (Doc13)
-│           ├── judge.py        score_with_judge()           (Doc13)
-│           ├── run_eval.py     runs the suite, saves report.json
-│           └── regression_check.py  breaks a prompt, checks the drop
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── analysis_agent.py   run_analysis(), analysis_node
+│   │   ├── research_agent.py   run_research(), research_node
+│   │   ├── reviewer_agent.py   run_reviewer(), reviewer_node
+│   │   ├── supervisor.py       decide_next(), supervisor()
+│   │   └── writer_agent.py     run_writer(), writer_node
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── main.py             the app uvicorn starts       (Doc12)
+│   │   ├── routes.py           /health, /run-task, /runs/{id}
+│   │   └── schemas.py          TaskRequest, TaskResponse    (Doc12)
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── database.py         save and fetch runs (SQLite) (Doc12)
+│   │   └── models.py           Run: one saved run's shape   (Doc12)
+│   ├── evals/
+│   │   ├── __init__.py
+│   │   ├── judge.py            score_with_judge()           (Doc13)
+│   │   ├── regression_check.py breaks a prompt, checks drop
+│   │   ├── run_eval.py         runs the suite, saves report
+│   │   └── tasks.py            10 fixed topics and checks   (Doc13)
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py              get_model()              (Project 3)
+│   ├── prompts/
+│   │   ├── analysis.txt
+│   │   ├── research.txt
+│   │   ├── reviewer.txt
+│   │   └── writer.txt
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   └── lookup.py           lookup_facts (@tool)
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py           get_logger()                 (Doc01)
+│   │   └── prompts.py          load_prompt(name)        (Project 1)
+│   ├── __init__.py
+│   ├── config.py               Config, load_config()        (Doc01)
+│   ├── exceptions.py           MissingConfigError           (Doc01)
+│   ├── graph.py                build_graph(): 5 nodes, 1 edge
+│   ├── pipeline.py             run_pipeline(): the one door in
+│   ├── schemas.py              ReviewVerdict (score, feedback)
+│   └── state.py                TeamState, start_state()
 ├── tests/
-│   ├── unit/
-│   │   ├── test_lookup.py      no API key needed
-│   │   └── test_supervisor.py  no API key needed
 │   ├── api/
 │   │   └── test_routes.py      the API, with the team faked
-│   └── integration/
-│       ├── test_live_agents.py real API calls
-│       └── test_judge.py       real API calls
-└── data/
-    └── sample/
-        └── facts.json          the facts Research can look up
+│   ├── integration/
+│   │   ├── test_judge.py       real API calls
+│   │   └── test_live_agents.py real API calls
+│   └── unit/
+│       ├── test_config.py      no API key needed
+│       ├── test_lookup.py      no API key needed
+│       └── test_supervisor.py  no API key needed
+├── .dockerignore               keeps .env and runs.db out of image
+├── .env                        your real key — never committed
+├── .env.example                the setting names, no real values
+├── .gitignore                  keeps .env, .venv/, runs.db out of git
+├── Dockerfile                  builds the API's container image
+├── LICENSE                     lets others reuse your code (MIT)
+├── main.py                     the terminal app (from Project 4)
+├── README.md                   the repo's front page (copied in at end)
+└── requirements.txt            the libraries, for pip install -r
 ```
 
 Files the app makes as it runs — `runs.db` (Step 2) and `report.json` (Step 4) — are in `.gitignore` and `.dockerignore`.
 
 ### Why each folder exists
 
-- **`src/contentforge/`** — Project 4's package, unchanged, plus `pipeline.py`: the one function the API and the evals call to run the team. **Why:** a test swaps one function for a fake, and nothing outside the package touches the graph's state.
+- **`data/sample/`** — Project 4's fact store, unchanged.
+- **`src/`** — Project 4's package, unchanged, plus `pipeline.py`: the one function the API and the evals call to run the team. **Why:** a test swaps one function for a fake, and nothing outside the package touches the graph's state.
+- **`agents/`, `tools/`, `prompts/`, `models/`, `utils/`** — Project 4's, unchanged.
 - **`api/`** — the web layer: the app, the routes, and the request/reply shapes. **Why:** the HTTP rules (status codes, rate limit, request IDs) live apart from the agents.
 - **`db/`** — every SQL statement behind small functions, plus a saved run's shape. **Why:** the routes read like a story, and the SQL is in one place.
 - **`evals/`** — the fixed topics, the judge, the runner and the regression check. **Why:** article quality is measured with the real model, on purpose — not on every save.
-- **`agents/`, `tools/`, `prompts/`, `models/`, `utils/`** — Project 4's, unchanged.
-- **`tests/unit/`** — the lookup tool and the routing rules. No key, no cost.
 - **`tests/api/`** — every route and status code, with the team faked by `monkeypatch`. No model calls, no cost.
 - **`tests/integration/`** — the real team and the real judge. Costs money, so it's run on purpose.
-- **`data/sample/`** — Project 4's fact store, unchanged.
+- **`tests/unit/`** — the config, the lookup tool and the routing rules. No key, no cost.
 
 ### Why each root file exists
 
-- `README.md` — the repo's front page on GitHub.
-- `LICENSE` — lets others legally reuse your code (GitHub can add MIT).
-- `.gitignore` — keeps secrets, the venv, `runs.db` and `report.json` out of git.
+- `.dockerignore` — keeps `.env` and local data out of the image.
+- `.env` — your real API key; never committed.
 - `.env.example` — which settings to create, with no real values.
-- `pyproject.toml` — the package's name, libraries and the `contentforge` command.
-- `requirements.txt` — the libraries, plus the test tools, for `pip install -r`.
+- `.gitignore` — keeps secrets, the venv, `runs.db` and `report.json` out of git.
 - `Dockerfile` — the recipe that builds the API's image.
-- `.dockerignore` — keeps `.env` and local data out of that image.
+- `LICENSE` — the MIT license text, created in Setup. Without one, nobody may legally reuse your code.
+- `main.py` — Project 4's terminal app, still runnable with `python main.py`.
+- `README.md` — the repo's front page on GitHub.
+- `requirements.txt` — the libraries, plus the test tools, for `pip install -r`.
 
 ### Why each file exists (what and why)
 
-Every file you'll write, in one place — the same What/Why list the documents give after each tree. The steps below build these files one at a time; come back here whenever you forget why a file exists.
+Every file you'll write, in one place — the same What/Why list the documents give after each tree. Project 4's files are listed in its own README; here are the ones Project 5 adds, plus the shared entry points.
 
-- `__init__.py` (every code folder)
-    - **What:** An empty file. You create one in every folder that holds Python code — nothing goes inside it.
-    - **Why:** Python only treats a folder as a package when this file is there. Without it, an import like `from <package>.<folder> import ...` fails with `ModuleNotFoundError`.
-- `main.py`
-    - **What:** `main()` loads the config, builds the graph, reads a topic, runs `graph.invoke(start_state(topic))`, and passes the result to `print_report(result)`. `print_report()` (written in Step 2, extended in Step 5) prints the routing log and then the article, the "couldn't agree" report, or "nothing is known".
-    - **Why:** One starting point that reads the topic and prints the result. The team and its routing live in other files.
-- `config.py`
-    - **What:** A `Config` dataclass with two fields (`openai_api_key`, `log_level`), a helper `require_env(key)` that raises `MissingConfigError` when a setting is empty, and `load_config()`, which calls `load_dotenv()`, reads both settings and returns a `Config`.
-    - **Why:** Every file gets its settings from one place. If the key is missing, the app stops at startup with one clear line — without this file, the missing key would show up later as a confusing API error.
-- `exceptions.py`
-    - **What:** A few small classes that inherit from `Exception` — at least `MissingConfigError`. Each one is just `class Name(Exception): pass`, with a docstring saying when it's raised.
-    - **Why:** Code can catch one specific problem (`except MissingConfigError:`). Without named errors you'd catch every `Exception`, and real bugs would be hidden along with the expected problem.
-- `utils/logger.py`
-    - **What:** One function, `get_logger(name)`. It gets the logger for that name and, only the first time (`if not logger.handlers:`), adds a console handler with a timestamp format and the level from `LOG_LEVEL`.
-    - **Why:** Every file logs in the same format with one line of code. Without the `if not logger.handlers:` guard, every log line would print twice.
-- `utils/prompts.py`
-    - **What:** One constant, `PROMPTS_DIR` (the prompts folder, from the repo root), and one function, `load_prompt(name)`, which opens `PROMPTS_DIR + "/" + name + ".txt"` and returns its text.
-    - **Why:** Prompts live in text files, so you can change how an agent behaves without editing Python — and no agent has to open files itself.
-- `schemas.py`
-    - **What:** One Pydantic class, `ReviewVerdict`, with `score: int = Field(ge=1, le=10)` and `feedback: str`.
-    - **Why:** The Reviewer's score is a checked number the code compares with the pass mark — not a word to search for.
-- `state.py`
-    - **What:** A `TeamState` TypedDict (`topic`, `research_notes`, `research_done`, `findings`, `draft`, `feedback_history`, `accepted`, `revision_count`, `routing_log`) with a comment naming each field's single writer, and `start_state(topic)`.
-    - **Why:** Each field has exactly one writer, so no agent can overwrite another agent's work.
-- `graph.py`
-    - **What:** One function, `build_graph()`: add the five nodes, add one edge `START → "supervisor"`, and `compile()`.
-    - **Why:** Every other move is a `Command` returned by a node, so the Supervisor decides the route while the program runs.
-- `models/llm.py`
-    - **What:** A `MODEL_NAME` constant and one function, `get_model()`, which returns `ChatOpenAI(model=MODEL_NAME, temperature=0)`.
-    - **Why:** Every chain and agent gets the same model and settings from here. To try another model you change one line, not every file.
-- `agents/supervisor.py`
-    - **What:** `MAX_REVISIONS`, `decide_next(state)` — a chain of `if` checks in a fixed order that returns `(next_step, reason)` — and `supervisor(state)`, which adds `{step, reason}` to the routing log and returns `Command(goto=...)` (or `goto=END`).
-    - **Why:** The routing rules are a plain function you can test with a hand-made dict, and every move is logged with its reason.
-- `agents/research_agent.py`
-    - **What:** `run_research(topic)`: call `lookup_facts.invoke({"topic": topic})`; if it returns `""`, log a warning and return `""`; otherwise run the research prompt chain and return the notes. Plus `research_node(state)`, which calls it and returns `Command(update={notes, research_done: True}, goto="supervisor")`.
-    - **Why:** The article starts from looked-up facts, not the model's memory, and an unknown topic stops the team instead of producing invented facts.
-- `agents/analysis_agent.py`
-    - **What:** `run_analysis(notes)`: run the analysis prompt chain and return the themed findings. Plus `analysis_node(state)`, which returns `Command(update={findings}, goto="supervisor")`.
-    - **Why:** The Writer gets a clear structure, and the "keep every fact" rule means nothing is lost on the way.
-- `agents/writer_agent.py`
-    - **What:** `build_writer_chain()`, `run_writer(findings, feedback="")` (turns empty feedback into "none" and invokes the chain), and `writer_node(state)`, which passes the newest feedback from `feedback_history` and returns the draft.
-    - **Why:** It writes the article, and it can improve the draft when the Reviewer asks — using the Reviewer's exact feedback.
-- `agents/reviewer_agent.py`
-    - **What:** `PASS_SCORE`, `run_reviewer(findings, draft)` (a chain with `with_structured_output(ReviewVerdict)`), and `reviewer_node(state)`: on a pass, set `accepted`; on a fail, add 1 to `revision_count`, add the feedback to the history, and clear the draft if revisions are left.
-    - **Why:** A second opinion with written criteria stops weak drafts. Clearing the draft is the signal that sends the work back to the Writer.
-- `tools/lookup.py`
-    - **What:** `load_facts()` reads `facts.json` with `json.loads()`, and a `@tool` function `lookup_facts(topic)` returns the facts of the first known topic found in the text, one per line — or `""`.
-    - **Why:** Research's tool can be tested without any model, so a wrong note can be pinned on the tool or on the agent.
-- `prompts/*.txt`
-    - **What:** Four text files, one per specialist: research (one note per fact, keep the tag), analysis (themes, keep every fact), writer (only the findings, with a feedback section), reviewer (three written criteria and the scoring rule).
-    - **Why:** Each agent's narrow job is written down in its own prompt — the reason for splitting the work in the first place.
-- `tests/unit/test_lookup.py`
-    - **What:** Two test functions that call `lookup_facts.invoke(...)` with a known and an unknown topic and print the results.
-    - **Why:** A wrong topic match shows up here, with no model and no cost.
-- `tests/unit/test_supervisor.py`
-    - **What:** A `show(label, state)` helper and test functions that build states by hand with `start_state()`, change a few fields, and print what `decide_next()` returns — every step in order and every way to stop.
-    - **Why:** Routing mistakes are found without running the team or paying for model calls.
-- `tests/integration/test_live_agents.py`
-    - **What:** Test functions with the real API: `run_reviewer()` must fail a weak draft, a known topic must go through all four specialists, and an unknown topic must end with "research found no facts".
-    - **Why:** It proves the team works from start to finish — and that the Reviewer really rejects bad work.
 - `data/sample/facts.json`
-    - **What:** A JSON object mapping each topic to a list of short facts, each ending with a `[source]` tag.
+    - **What:** A JSON object mapping each topic to a list of short facts, each ending with a `[source]` tag. (Project 4's, unchanged.)
     - **Why:** You know these facts, so an invented fact in the article is easy to spot.
-- `pipeline.py`
-    - **What:** `steps_from_log(routing_log)` returns just the step names, and `run_pipeline(topic)` builds the graph, runs it with `start_state(topic)`, and returns a small dict: `article`, `accepted`, `reason`, `steps`.
-    - **Why:** The API and the evals both call this one function. Without it, each would build and read the graph in its own way.
 - `api/main.py`
     - **What:** Creates `app = FastAPI(...)`, calls `load_config()` at startup, includes the router, and adds `add_request_id`, a middleware that makes a short request ID, puts it on `request.state`, and returns it in the `X-Request-ID` header.
     - **Why:** uvicorn needs one app object to run. A missing key stops the server at startup, and every log line of a request can be found by its ID.
@@ -252,42 +189,55 @@ Every file you'll write, in one place — the same What/Why list the documents g
     - **What:** An `APIRouter` with three routes: `GET /health`; `POST /run-task`, which checks the rate limit, rejects a blank topic with 400, saves a "started" run, calls `run_pipeline()`, and on success saves the result — on a crash it marks the run failed, logs with `logger.exception`, and returns a plain 500; and `GET /runs/{run_id}`, which returns the run or a 404. Plus `check_rate_limit(caller_key)`, which raises 429.
     - **Why:** These are the addresses other programs call. Each failure gets the right HTTP status instead of a crash or a leaked traceback.
 - `api/schemas.py`
-    - **What:** Two Pydantic classes: `TaskRequest` (`topic: str` with a min and max length) and `TaskResponse` (`run_id`, `status`, `accepted`, `reason`).
+    - **What:** Two Pydantic classes: `TaskRequest` (`topic: str` with a min and max length) and `TaskResponse` (`run_id`, `status`, `accepted`, `reason`, `article`).
     - **Why:** FastAPI checks every request against these shapes, so bad input gets a clear 422 instead of reaching the agents.
 - `db/database.py`
     - **What:** `DB_PATH`, the `CREATE TABLE` SQL, and five functions: `get_connection()`, `insert_started_run(conn, topic)` (returns the new id from `lastrowid`), `finish_run()`, `fail_run()`, and `fetch_run(conn, run_id)` (returns a dict or `None`).
     - **Why:** Every run is saved with its status, so you can look it up later — even after a restart — and see which runs failed.
 - `db/models.py`
-    - **What:** One Pydantic class, `Run`: the fields of one saved run (`id`, `input`, `log`, `status`, `created_at`).
+    - **What:** One Pydantic class, `Run`: the fields of one saved run (`id`, `input`, `output`, `log`, `status`, `created_at`).
     - **Why:** The database code and the `GET /runs/{id}` response agree on the same fields.
-- `evals/tasks.py`
-    - **What:** Rule constants and a `TASKS` list of 10 dicts: each has an `id`, a `topic`, and either an `expected` text, `expect_no_article`, or judge `rules`.
-    - **Why:** The same fixed test set every time, so two versions of the system can be compared fairly.
 - `evals/judge.py`
     - **What:** A `JudgeResult` dataclass (`verdict`, `reason`), `call_model(prompt)`, `build_judge_prompt(task_input, output, rules)`, and `score_with_judge(...)`, which reads PASS or FAIL from the first line of the reply.
     - **Why:** Some qualities, like clarity, can't be checked with exact code. A judge model with written rules can score them.
-- `evals/run_eval.py`
-    - **What:** `run_one_task(task)` runs the pipeline and checks the article one of three ways (no article expected, an expected text, or the judge), and `run_eval_suite()` runs all tasks, prints the pass count and saves `report.json`.
-    - **Why:** It gives one score for the whole system, so you know whether a change made it better or worse.
 - `evals/regression_check.py`
     - **What:** `PASS_BAR`, a `SABOTAGE` text, `score(passed_by_id)`, `find_newly_failed(baseline, after)`, and `run_regression_check()`: run the suite, break one prompt on purpose, run it again, and report the drop.
     - **Why:** It proves the eval suite really catches a bad change. An eval that can never fail proves nothing.
-- `Dockerfile`
-    - **What:** Instructions to build the image: start `FROM python:3.11-slim`, copy and `pip install` the requirements, copy the code, `pip install -e .`, `EXPOSE 8000`, and start uvicorn with `CMD`.
-    - **Why:** The API then runs the same way on any machine, and the key is only passed in when the container starts.
-- `.dockerignore`
-    - **What:** A list of paths to leave out of the image: `.env`, `.git`, `.venv/`, cache folders, `runs.db` and `report.json`.
-    - **Why:** Your secret key and your local data never end up inside the image.
+- `evals/run_eval.py`
+    - **What:** `run_one_task(task)` runs the pipeline and checks the article one of three ways (no article expected, an expected text, or the judge), and `run_eval_suite()` runs all tasks, prints the pass count and saves `report.json`.
+    - **Why:** It gives one score for the whole system, so you know whether a change made it better or worse.
+- `evals/tasks.py`
+    - **What:** Rule constants and a `TASKS` list of 10 dicts: each has an `id`, a `topic`, and either an `expected` text, `expect_no_article`, or judge `rules`.
+    - **Why:** The same fixed test set every time, so two versions of the system can be compared fairly.
+- `pipeline.py`
+    - **What:** `steps_from_log(routing_log)` returns just the step names, and `run_pipeline(topic)` builds the graph, runs it with `start_state(topic)`, and returns a small dict: `article`, `accepted`, `reason`, `steps`.
+    - **Why:** The API and the evals both call this one function. Without it, each would build and read the graph in its own way.
+- `__init__.py` (every code folder)
+    - **What:** An empty file. You create one in every folder that holds Python code — nothing goes inside it. (The new `api/`, `db/` and `evals/` need one too.)
+    - **Why:** Python only treats a folder as a package when this file is there. Without it, an import like `from src.<folder> import ...` fails with `ModuleNotFoundError`.
+- `main.py`
+    - **What:** Project 4's terminal app: `main()` loads the config, builds the graph, reads a topic and prints the report. Copied in during Setup, unchanged.
+    - **Why:** The terminal app still works; the API is a second way in, not a replacement.
 - `tests/api/test_routes.py`
     - **What:** pytest test functions that use `TestClient(app)` and `monkeypatch` to swap `routes.run_pipeline` for a fake, then `assert` the status code and body for each case (each step adds asserts or tests; names never change): health, a normal run that gets saved, a bad body (422), a blank topic (400), a crash (500), a missing run (404), the request ID header, and the rate limit (429).
     - **Why:** The API's behavior is tested quickly and for free, without any model calls.
 - `tests/integration/test_judge.py`
-    - **What:** Test functions that give the judge a known-good and a known-bad article and `assert` it passes the first and fails the second.
+    - **What:** A pytest test that gives the judge a known-good and two known-bad articles and `assert`s it passes the first and fails the others.
     - **Why:** You can only trust the judge's scores after checking it on examples where you already know the answer.
+- `tests/integration/test_live_agents.py`
+    - **What:** Project 4's plain OK/WRONG script against the real API — the Writer, Reviewer, Research, Analysis and the whole team. (Copied in during Setup, unchanged.)
+    - **Why:** It proves the agents still work end to end in their new home.
+- `tests/unit/test_config.py`, `test_lookup.py`, `test_supervisor.py`
+    - **What:** Project 4's plain OK/WRONG unit scripts — the settings, the lookup tool and every routing rule. (Copied in during Setup, unchanged.)
+    - **Why:** Fast, free checks you run after every change, with no API key.
 
 ### How imports work in this layout
 
-As in Projects 1-4: an empty `__init__.py` in every folder with Python files (the new `api/`, `db/` and `evals/` too), `pip install -e .` once, imports like `from contentforge.db.database import fetch_run`, and every command run from the **repo root** — the prompts, `data/sample/facts.json` and `runs.db` are all found from there. uvicorn gets the app by its import path: `contentforge.api.main:app`. pytest finds the package because it is installed.
+- Every folder with Python files gets an empty `__init__.py` (the new `api/`, `db/` and `evals/` too). It marks the folder as a package, so `src.db.database` is importable.
+- Python looks for imports in the folder you **run from**. `main.py` and `src/` sit side by side in the repo folder, so imports like `from src.api.routes import router` are found there.
+- uvicorn gets the app by its import path from the repo root: `uvicorn src.api.main:app`.
+- Tests live in sub-folders: run the plain scripts as modules (`python -m tests.unit.test_config`) and point pytest at a folder (`pytest tests/api`). Both are run from the repo root, so `src` is found.
+- Always run commands from the **repo root** — the prompts, `data/sample/facts.json` and `runs.db` are all found from there.
 
 ### Left out on purpose (and when they come)
 
@@ -306,7 +256,7 @@ As in Projects 1-4: an empty `__init__.py` in every folder with Python files (th
 
 | Step | New files | Changed files |
 |---|---|---|
-| Setup | root files; Project 4's `src/`, `data/`, `tests/` copied in | — |
+| Setup | root files; Project 4's `src/`, `data/`, `tests/` and `main.py` copied in | — |
 | 1 | `pipeline.py`, `api/` (`__init__.py`, `main.py`, `routes.py`, `schemas.py`), `tests/api/test_routes.py` | — |
 | 2 | `db/` (`__init__.py`, `database.py`, `models.py`) | `api/schemas.py`, `api/routes.py`, `api/main.py`, `test_routes.py` |
 | 3 | `Dockerfile`, `.dockerignore` | `api/routes.py`, `test_routes.py` |
@@ -328,14 +278,14 @@ python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 ```
 
-2. Copy your finished Project 4 in — its `src/`, `data/` and `tests/` folders, unchanged:
+2. Copy your finished Project 4 in — its `src/`, `data/`, `tests/` folders and `main.py`, unchanged:
 
 ```bash
 # the \ joins the three lines into one path
 P4=../../project_4_contentforge_multi_agent/\
 ContentForge-Research-Write-Review-Team-Turns-Any-Topic-\
 Into-A-Publish-Ready-Article
-cp -r "$P4/src" "$P4/data" "$P4/tests" .
+cp -r "$P4/src" "$P4/data" "$P4/tests" "$P4/main.py" .
 ```
 
 3. Create `.gitignore` **before** your first commit:
@@ -348,8 +298,6 @@ cp -r "$P4/src" "$P4/data" "$P4/tests" .
 # Python's compiled cache files
 __pycache__/
 *.pyc
-# created by "pip install -e ."
-*.egg-info/
 # pytest's own cache folder
 .pytest_cache/
 # the run history (Step 2) — local data, not code
@@ -390,48 +338,16 @@ pytest>=8.0
 
 New since Project 4: `fastapi` (the API), `uvicorn` (the web server that runs it), `httpx` (what `TestClient` runs on) and `pytest`. SQLite needs nothing — `sqlite3` comes with Python. You'll also need [Docker](https://docs.docker.com/get-started/) installed for Step 3 — a program on your computer, not a pip package.
 
-6. Create `pyproject.toml` — Project 4's, with the new libraries and version `0.2.0`:
-
-```toml
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "contentforge"
-version = "0.2.0"
-description = "ContentForge's 5-agent team, served as a production API."
-requires-python = ">=3.10"
-dependencies = [
-    "fastapi>=0.110",
-    "langchain-core>=1.0",
-    "langchain-openai>=1.0",
-    "langgraph>=1.0",
-    "pydantic>=2.0",
-    "python-dotenv>=1.0",
-    "uvicorn[standard]>=0.29",
-]
-
-[project.scripts]
-# after "pip install -e .", typing "contentforge" runs main()
-contentforge = "contentforge.main:main"
-
-[tool.setuptools.packages.find]
-# the package code lives under src/, not in the repo root
-where = ["src"]
-```
-
-7. Install, and check that Project 4 still runs in its new home:
+6. Install, and check that Project 4 still runs in its new home:
 
 ```bash
 pip install -r requirements.txt
-pip install -e .
-python -m contentforge.main           # Project 4's terminal app
+python main.py           # Project 4's terminal app
 ```
 
-**Check it worked:** `python -c "import contentforge; print('ok')"` prints `ok`, and `python -m contentforge.main` writes an article, exactly as in Project 4.
+**Check it worked:** from the repo folder, `python -c "import src; print('ok')"` prints `ok`, and `python main.py` writes an article, exactly as in Project 4.
 
-8. Create `LICENSE` — the MIT license, so others may reuse your code. Put the current year and your own name on the Copyright line:
+7. Create `LICENSE` — the MIT license, so others may reuse your code. Put the current year and your own name on the Copyright line:
 
 ```text
 MIT License
@@ -491,6 +407,20 @@ The project grows step by step, and **after every step it runs**: Step 1 answers
 
 Every command runs from the **repo root** with the venv active.
 
+### How testing works in this project
+
+**Story:** ContentForge Pro has two kinds of promise — the *service* behaves (right status codes, saved runs, a rate limit) and the *articles* stay good. They need two kinds of test, so every step adds the ones for the layer it builds. **If not:** a prompt edit that drops the `[source]` tags would pass every API test and ship.
+
+- **Three layers of test:**
+    - `tests/unit/` — Project 4's plain OK/WRONG scripts (the settings, the lookup tool, the routing rules). No key, no cost. **When:** after any change to the file they test.
+    - `tests/api/test_routes.py` — pytest + `TestClient`, with the team **faked** by `monkeypatch`. Every route and status code, no model calls. **When:** after any change to `api/`.
+    - `tests/integration/` and `evals/` — the **real** team and the real judge. Real API calls. **When:** at the end of a step, and before a prompt change.
+- **Two test styles, on purpose:** Project 4's tests are plain scripts that print `OK`/`WRONG` — carried in unchanged, still run with `python -m tests.unit.test_config`. The **new** tests this project adds use pytest and `assert`, the style Doc12 and Doc13 teach, run with `pytest tests/api`. Never rewrite Project 4's tests into pytest.
+- **Fake the team for API tests:** `monkeypatch.setattr(routes, "run_pipeline", fake)` swaps the one door into the team for a fixed answer — so the API's own behavior is tested with no model calls and the same result every run.
+- **Calibrate the judge before trusting it:** `tests/integration/test_judge.py` gives the judge answers whose verdict you already know; a judge that approves everything is caught there.
+- **Run from the repo root.** Plain scripts: `python -m tests.unit.test_config`. pytest: `pytest tests/api -v`.
+- **Got a failure?** Read that one test, then the code it calls. Fix the code — change the test only if the test checks the wrong thing.
+
 ### Step 1 — ContentForge, Reachable Over HTTP for the First Time
 
 *Project: **ContentForge-Pro-Production-Ready-Content-Pipeline-With-API-Database-And-Docker** — Step 1 of 4*
@@ -500,7 +430,7 @@ Every command runs from the **repo root** with the venv active.
 - **What stays the same:** every Project 4 file.
 - **Why:** everything later builds on the HTTP layer. Prove it alone — no database, no Docker — so a later bug can't hide in it.
 - **How:** `POST /run-task` → our own 400 for a blank topic → `run_pipeline(topic)` → a checked `TaskResponse`; any crash → `logger.exception()` + a plain 500. Tests: `TestClient` + `monkeypatch`.
-- **Working after this step:** `uvicorn contentforge.api.main:app --reload` answers `POST /run-task`; `pytest tests/api` passes with no model calls.
+- **Working after this step:** `uvicorn src.api.main:app --reload` answers `POST /run-task`; `pytest tests/api` passes with no model calls.
 
 **Read first:** [Doc12 — health route](../12_production_engineering/README.md#ex-health_route), [Doc12 — chat route](../12_production_engineering/README.md#ex-chat_route), [Doc13 — testing layers](../13_testing_evaluation_observability/README.md#the-testing-layers-and-what-each-one-actually-checks), [Doc13 — test a tool without the LLM](../13_testing_evaluation_observability/README.md#ex-tool_test_no_llm) (`monkeypatch`).
 
@@ -515,39 +445,69 @@ What to do:
 5. Write `tests/api/test_routes.py`: one pytest test per case, with `monkeypatch` swapping `routes.run_pipeline` for a fake.
 6. Run `pytest tests/api -v`, then start uvicorn and send one **real** topic from `/docs`.
 
-The root files — `.gitignore`, `.env`, `.env.example`, `requirements.txt`, `pyproject.toml` and `LICENSE` — come from [Setup](#setup-do-this-once-before-step-1); this step adds the files below.
+The root files — `.gitignore`, `.env`, `.env.example`, `requirements.txt` and `LICENSE` — come from [Setup](#setup-do-this-once-before-step-1); this step adds the files below.
 
 **Your files after Step 1:**
 
 ```
-src/contentforge/
-├── pipeline.py         (new) run_pipeline(): the one door in
-└── api/
-    ├── __init__.py     (new)
-    ├── main.py         (new) load_config(), the app
-    ├── routes.py       (new) /health, /run-task
-    └── schemas.py      (new) TaskRequest, TaskResponse
-tests/api/
-└── test_routes.py      (new) 5 tests, team faked
+<repo folder>/
+├── src/
+│   ├── api/
+│   │   ├── __init__.py     (new)
+│   │   ├── main.py         (new) load_config(), the app
+│   │   ├── routes.py       (new) /health, /run-task
+│   │   └── schemas.py      (new) TaskRequest, TaskResponse
+│   └── pipeline.py         (new) run_pipeline(): the one door in
+└── tests/
+    └── api/
+        └── test_routes.py  (new) 5 tests, team faked
 ```
 
 **Why these files (what and why):**
 
-- `pipeline.py`
-    - **What:** `steps_from_log(routing_log)` returns just the step names, and `run_pipeline(topic)` builds the graph, runs it with `start_state(topic)`, and returns a small dict: `article`, `accepted`, `reason`, `steps`.
-    - **Why:** The API and the evals both call this one function. Without it, each would build and read the graph in its own way.
-- `main.py`
-    - **What:** `main()` loads the config, builds the graph, reads a topic, runs `graph.invoke(start_state(topic))`, and passes the result to `print_report(result)`. `print_report()` (written in Step 2, extended in Step 5) prints the routing log and then the article, the "couldn't agree" report, or "nothing is known".
-    - **Why:** One starting point that reads the topic and prints the result. The team and its routing live in other files.
+- `api/main.py`
+    - **What:** Creates `app = FastAPI(...)`, calls `load_config()` at startup, and includes the router.
+    - **Why:** uvicorn needs one app object; a missing key stops the server at startup, not on the first request.
 - `api/routes.py`
-    - **What:** An `APIRouter` with three routes: `GET /health`; `POST /run-task`, which checks the rate limit, rejects a blank topic with 400, saves a "started" run, calls `run_pipeline()`, and on success saves the result — on a crash it marks the run failed, logs with `logger.exception`, and returns a plain 500; and `GET /runs/{run_id}`, which returns the run or a 404. Plus `check_rate_limit(caller_key)`, which raises 429.
-    - **Why:** These are the addresses other programs call. Each failure gets the right HTTP status instead of a crash or a leaked traceback.
-- `schemas.py`
-    - **What:** One Pydantic class, `ReviewVerdict`, with `score: int = Field(ge=1, le=10)` and `feedback: str`.
-    - **Why:** The Reviewer's score is a checked number the code compares with the pass mark — not a word to search for.
-- `test_routes.py`
-    - **What:** pytest test functions that use `TestClient(app)` and `monkeypatch` to swap `routes.run_pipeline` for a fake, then `assert` the status code and body for each case (each step adds asserts or tests; names never change): health, a normal run that gets saved, a bad body (422), a blank topic (400), a crash (500), a missing run (404), the request ID header, and the rate limit (429).
-    - **Why:** The API's behavior is tested quickly and for free, without any model calls.
+    - **What:** An `APIRouter` with `GET /health` and `POST /run-task`: a 400 for a blank topic, a plain 500 for a crash (the traceback stays in the server log).
+    - **Why:** These are the addresses other programs call; each failure gets the right HTTP status, not a leaked traceback.
+- `api/schemas.py`
+    - **What:** `TaskRequest` (`topic` with a min and max length) and `TaskResponse` (`accepted`, `reason`, `article`).
+    - **Why:** FastAPI checks every request, so bad input gets a 422 before it reaches the agents.
+- `pipeline.py`
+    - **What:** `steps_from_log(routing_log)` and `run_pipeline(topic)` — builds the graph, runs it, and returns `article`, `accepted`, `reason`, `steps`.
+    - **Why:** The API and the evals both call this one function, so a test can swap it for a fake in one place.
+- `tests/api/test_routes.py`
+    - **What:** pytest tests with `TestClient` and `monkeypatch`: health, a normal run, a bad body (422), a blank topic (400), a crash (500) — the team faked.
+    - **Why:** The API's behavior is tested quickly and for free, without model calls.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **test_health** — `tests/api/test_routes.py`
+    - **Check:** `GET /health` returns 200 and `{"status": "ok"}`.
+    - **Why:** the simplest proof the app starts and routes at all.
+    - **When:** after any change to `api/main.py` or `api/routes.py`.
+    - **If not:** a broken app object would fail every other test with no clear cause.
+- **test_valid_request_is_answered** — `tests/api/test_routes.py`
+    - **Check:** with the team faked, `POST /run-task` returns 200 and the fake article.
+    - **Why:** proves the request shape, the route and the reply shape line up.
+    - **When:** after changing the route or the schemas.
+    - **If not:** a wrong field name would only be found by a real client.
+- **test_bad_body_is_422** — `tests/api/test_routes.py`
+    - **Check:** a body with no `topic` returns 422.
+    - **Why:** bad input must be refused before it reaches the agents.
+    - **When:** after changing `TaskRequest`.
+    - **If not:** a malformed request would crash deep inside the team.
+- **test_blank_topic_is_400** — `tests/api/test_routes.py`
+    - **Check:** `{"topic": "   "}` returns 400 with `topic cannot be empty`.
+    - **Why:** `"   "` passes Pydantic's length check but is still empty — our own guard.
+    - **When:** after changing the blank-topic check.
+    - **If not:** the team would run on an all-whitespace topic.
+- **test_internal_error_is_a_plain_500** — `tests/api/test_routes.py`
+    - **Check:** with a crashing fake, the route returns a plain 500, never the traceback.
+    - **Why:** a client must never see file paths or `RuntimeError`.
+    - **When:** after changing the `try/except` in the route.
+    - **If not:** a crash would leak server internals to the caller.
 
 ### Step 2 — Every Run Saved to a Database and Findable by ID
 
@@ -576,38 +536,69 @@ What to do:
 **Your files after Step 2:**
 
 ```
-src/contentforge/
-├── api/
-│   ├── main.py         (changed) + request-ID middleware
-│   ├── routes.py       (changed) saves runs, + /runs/{run_id}
-│   └── schemas.py      (changed) + run_id, status
-└── db/
-    ├── __init__.py     (new)
-    ├── database.py     (new) insert/finish/fail/fetch a run
-    └── models.py       (new) Run
-tests/api/test_routes.py (changed) + saved-row checks, 404
+<repo folder>/
+├── src/
+│   ├── api/
+│   │   ├── main.py         (changed) + request-ID middleware
+│   │   ├── routes.py       (changed) saves runs, + /runs/{run_id}
+│   │   └── schemas.py      (changed) + run_id, status
+│   └── db/
+│       ├── __init__.py     (new)
+│       ├── database.py     (new) insert/finish/fail/fetch a run
+│       └── models.py       (new) Run
+└── tests/
+    └── api/
+        └── test_routes.py  (changed) + saved-row checks, 404
 ```
 
 **Why these files (what and why):**
 
-- `main.py`
-    - **What:** `main()` loads the config, builds the graph, reads a topic, runs `graph.invoke(start_state(topic))`, and passes the result to `print_report(result)`. `print_report()` (written in Step 2, extended in Step 5) prints the routing log and then the article, the "couldn't agree" report, or "nothing is known".
-    - **Why:** One starting point that reads the topic and prints the result. The team and its routing live in other files.
+- `api/main.py`
+    - **What:** Adds the `add_request_id` middleware — a short ID per request, on `request.state` and in the `X-Request-ID` header.
+    - **Why:** every log line of one request can be found by its ID.
 - `api/routes.py`
-    - **What:** An `APIRouter` with three routes: `GET /health`; `POST /run-task`, which checks the rate limit, rejects a blank topic with 400, saves a "started" run, calls `run_pipeline()`, and on success saves the result — on a crash it marks the run failed, logs with `logger.exception`, and returns a plain 500; and `GET /runs/{run_id}`, which returns the run or a 404. Plus `check_rate_limit(caller_key)`, which raises 429.
-    - **Why:** These are the addresses other programs call. Each failure gets the right HTTP status instead of a crash or a leaked traceback.
-- `schemas.py`
-    - **What:** One Pydantic class, `ReviewVerdict`, with `score: int = Field(ge=1, le=10)` and `feedback: str`.
-    - **Why:** The Reviewer's score is a checked number the code compares with the pass mark — not a word to search for.
+    - **What:** Now saves a `"started"` run before the team, `"completed"`/`"failed"` after, and adds `GET /runs/{run_id}` with a 404.
+    - **Why:** every run leaves an honest record, even a crashed one.
+- `api/schemas.py`
+    - **What:** `TaskResponse` gains `run_id` and `status`.
+    - **Why:** the client gets the saved run's ID to look it up later.
 - `db/database.py`
-    - **What:** `DB_PATH`, the `CREATE TABLE` SQL, and five functions: `get_connection()`, `insert_started_run(conn, topic)` (returns the new id from `lastrowid`), `finish_run()`, `fail_run()`, and `fetch_run(conn, run_id)` (returns a dict or `None`).
-    - **Why:** Every run is saved with its status, so you can look it up later — even after a restart — and see which runs failed.
+    - **What:** `DB_PATH`, the table SQL, and `get_connection`, `insert_started_run`, `finish_run`, `fail_run`, `fetch_run`.
+    - **Why:** every run is saved with its status, findable after a restart.
 - `db/models.py`
-    - **What:** One Pydantic class, `Run`: the fields of one saved run (`id`, `input`, `log`, `status`, `created_at`).
-    - **Why:** The database code and the `GET /runs/{id}` response agree on the same fields.
+    - **What:** `Run`, one saved run's shape (`id`, `input`, `output`, `log`, `status`, `created_at`).
+    - **Why:** the database and the `GET /runs/{id}` reply agree on the same fields.
 - `tests/api/test_routes.py`
-    - **What:** pytest test functions that use `TestClient(app)` and `monkeypatch` to swap `routes.run_pipeline` for a fake, then `assert` the status code and body for each case (each step adds asserts or tests; names never change): health, a normal run that gets saved, a bad body (422), a blank topic (400), a crash (500), a missing run (404), the request ID header, and the rate limit (429).
-    - **Why:** The API's behavior is tested quickly and for free, without any model calls.
+    - **What:** the same tests, now also checking the saved rows, the 404, and the `X-Request-ID` header.
+    - **Why:** persistence is part of the API's behavior, so it's tested the same way.
+
+**Tests for this step — write them yourself:**
+
+- **test_valid_request_is_answered (saved row)** — `tests/api/test_routes.py`
+    - **Check:** after a run, `GET /runs/{run_id}` shows the input, the log and `status == "completed"`.
+    - **Why:** proves the run was actually saved, not just returned.
+    - **When:** after changing the save logic or `db/database.py`.
+    - **If not:** a run that was never saved would still pass Step 1's test.
+- **test_bad_body_is_422 (nothing saved)** — `tests/api/test_routes.py`
+    - **Check:** a 422 leaves the row count unchanged.
+    - **Why:** a rejected request must not create a database row.
+    - **When:** after changing where the save happens in the route.
+    - **If not:** half-formed "started" rows would pile up from bad requests.
+- **test_internal_error_is_a_plain_500 (saved as failed)** — `tests/api/test_routes.py`
+    - **Check:** a crash leaves one more `"failed"` row.
+    - **Why:** a crashed run must leave an honest record, not vanish.
+    - **When:** after changing the `except` branch.
+    - **If not:** failures would be invisible after the fact.
+- **test_unknown_run_is_404** — `tests/api/test_routes.py`
+    - **Check:** `GET /runs/999999` returns 404.
+    - **Why:** an unknown ID is a clean "not found", not a 500.
+    - **When:** after changing `get_run` or `fetch_run`.
+    - **If not:** a missing run could crash the route.
+- **test_every_reply_has_a_request_id** — `tests/api/test_routes.py`
+    - **Check:** every reply carries an 8-character `X-Request-ID`.
+    - **Why:** a caller can quote it when reporting a problem.
+    - **When:** after changing the middleware.
+    - **If not:** interleaved request logs would be impossible to separate.
 
 ### Step 3 — Containerized and Rate-Limited: Runs the Same Everywhere, Survives Abuse
 
@@ -617,7 +608,7 @@ tests/api/test_routes.py (changed) + saved-row checks, 404
 - **What's new in this step:** a per-caller rolling-window rate limit (`429`), a `Dockerfile`, a `.dockerignore`, and a test for the 429.
 - **What stays the same:** the routes' other rules, the database, the team.
 - **Why:** each run costs five agents' worth of model calls — one script in a loop could empty your budget. And "it works on my machine" isn't something you can hand to anyone.
-- **How:** `check_rate_limit(http_request.client.host)` first in `POST /run-task`; the image installs the requirements, then the package, and starts uvicorn on `0.0.0.0`; the key arrives only with `docker run --env-file .env`.
+- **How:** `check_rate_limit(http_request.client.host)` first in `POST /run-task`; the image installs the requirements, copies the code, and starts uvicorn on `0.0.0.0`; the key arrives only with `docker run --env-file .env`.
 - **Working after this step:** the API runs from a container; the sixth quick request from one caller gets a 429; `docker run` without a key stops at once with a clear error.
 
 **Read first:** [Doc12 — dead connection and container](../12_production_engineering/README.md#ex-db_failure_and_docker), [Doc12 Build Task](../12_production_engineering/README.md#build-task-project-4-as-an-api) (the rate limiter).
@@ -635,27 +626,44 @@ What to do:
 **Your files after Step 3:**
 
 ```
-src/contentforge/api/
-└── routes.py           (changed) + check_rate_limit(), 429
-tests/api/test_routes.py (changed) + the 429 test
-Dockerfile              (new) the API's image
-.dockerignore           (new) no .env, no runs.db in the image
+<repo folder>/
+├── src/
+│   └── api/
+│       └── routes.py       (changed) + check_rate_limit(), 429
+├── tests/
+│   └── api/
+│       └── test_routes.py  (changed) + the 429 test
+├── .dockerignore           (new) no .env, no runs.db in the image
+└── Dockerfile              (new) the API's image
 ```
 
 **Why these files (what and why):**
 
 - `api/routes.py`
-    - **What:** An `APIRouter` with three routes: `GET /health`; `POST /run-task`, which checks the rate limit, rejects a blank topic with 400, saves a "started" run, calls `run_pipeline()`, and on success saves the result — on a crash it marks the run failed, logs with `logger.exception`, and returns a plain 500; and `GET /runs/{run_id}`, which returns the run or a 404. Plus `check_rate_limit(caller_key)`, which raises 429.
-    - **Why:** These are the addresses other programs call. Each failure gets the right HTTP status instead of a crash or a leaked traceback.
+    - **What:** Adds `RATE_LIMIT`, `RATE_WINDOW_SECONDS`, `request_times` and `check_rate_limit(caller_key)`, called first in `POST /run-task`.
+    - **Why:** a caller over the limit gets a 429 before any paid model call.
 - `tests/api/test_routes.py`
-    - **What:** pytest test functions that use `TestClient(app)` and `monkeypatch` to swap `routes.run_pipeline` for a fake, then `assert` the status code and body for each case (each step adds asserts or tests; names never change): health, a normal run that gets saved, a bad body (422), a blank topic (400), a crash (500), a missing run (404), the request ID header, and the rate limit (429).
-    - **Why:** The API's behavior is tested quickly and for free, without any model calls.
-- `Dockerfile`
-    - **What:** Instructions to build the image: start `FROM python:3.11-slim`, copy and `pip install` the requirements, copy the code, `pip install -e .`, `EXPOSE 8000`, and start uvicorn with `CMD`.
-    - **Why:** The API then runs the same way on any machine, and the key is only passed in when the container starts.
+    - **What:** resets the limiter in `use_fake_team()` and adds a 429 test.
+    - **Why:** the rate limit is part of the route's behavior, tested for free.
 - `.dockerignore`
-    - **What:** A list of paths to leave out of the image: `.env`, `.git`, `.venv/`, cache folders, `runs.db` and `report.json`.
-    - **Why:** Your secret key and your local data never end up inside the image.
+    - **What:** leaves `.env`, `.git`, the venv, caches, `runs.db` and `report.json` out of the image.
+    - **Why:** your key and local data never end up inside the image.
+- `Dockerfile`
+    - **What:** `FROM python:3.11-slim`, install the requirements, copy the code, `EXPOSE 8000`, and start uvicorn on `0.0.0.0`.
+    - **Why:** the API runs the same on any machine, with the key passed in only at run time.
+
+**Tests for this step — write them yourself:**
+
+- **test_over_the_rate_limit_is_429** — `tests/api/test_routes.py`
+    - **Check:** with `RATE_LIMIT` set to 2, three quick calls return `[200, 200, 429]`.
+    - **Why:** the limiter must actually block the call over the limit.
+    - **When:** after changing `check_rate_limit` or the window.
+    - **If not:** a loop of requests could run up the model bill unchecked.
+- **reset `request_times` per test** — `tests/api/test_routes.py`
+    - **Check:** `use_fake_team()` clears `routes.request_times`, so earlier tests don't count against a later one.
+    - **Why:** shared limiter memory would make tests fail at random.
+    - **When:** whenever you add a test that sends several requests.
+    - **If not:** test order would change the results.
 
 ### Step 4 — A Test Suite That Catches a Bad Change Before It Ships (final)
 
@@ -680,36 +688,52 @@ What to do:
 4. Write `tests/integration/test_judge.py`: the judge must PASS a good article and FAIL two bad ones.
 5. Write `evals/regression_check.py`, run it, and delete the words it asks for from `research.txt` when it pauses. Put them back afterwards.
 
-**Your files after Step 4 (final):** the full tree in [Project Structure](#the-final-layout-after-step-4). What changed:
+**Your files after Step 4 (final):** the full tree is in [Project Structure](#the-final-layout-after-step-4). What changed:
 
 ```
-src/contentforge/evals/
-├── __init__.py          (new)
-├── tasks.py             (new) 10 topics, checks written first
-├── judge.py             (new) score_with_judge()
-├── run_eval.py          (new) the score, report.json
-└── regression_check.py  (new) sabotage, prove the drop
-tests/integration/
-└── test_judge.py        (new) calibration set
+<repo folder>/
+├── src/
+│   └── evals/
+│       ├── __init__.py          (new)
+│       ├── judge.py             (new) score_with_judge()
+│       ├── regression_check.py  (new) sabotage, prove the drop
+│       ├── run_eval.py          (new) the score, report.json
+│       └── tasks.py             (new) 10 topics, checks first
+└── tests/
+    └── integration/
+        └── test_judge.py        (new) calibration set
 ```
 
 **Why these files (what and why):**
 
-- `evals/tasks.py`
-    - **What:** Rule constants and a `TASKS` list of 10 dicts: each has an `id`, a `topic`, and either an `expected` text, `expect_no_article`, or judge `rules`.
-    - **Why:** The same fixed test set every time, so two versions of the system can be compared fairly.
 - `evals/judge.py`
-    - **What:** A `JudgeResult` dataclass (`verdict`, `reason`), `call_model(prompt)`, `build_judge_prompt(task_input, output, rules)`, and `score_with_judge(...)`, which reads PASS or FAIL from the first line of the reply.
-    - **Why:** Some qualities, like clarity, can't be checked with exact code. A judge model with written rules can score them.
-- `evals/run_eval.py`
-    - **What:** `run_one_task(task)` runs the pipeline and checks the article one of three ways (no article expected, an expected text, or the judge), and `run_eval_suite()` runs all tasks, prints the pass count and saves `report.json`.
-    - **Why:** It gives one score for the whole system, so you know whether a change made it better or worse.
+    - **What:** `JudgeResult`, `call_model()`, `build_judge_prompt()`, and `score_with_judge()` — PASS/FAIL from the first line.
+    - **Why:** qualities like clarity can't be checked by exact code; a judge with written rules can.
 - `evals/regression_check.py`
-    - **What:** `PASS_BAR`, a `SABOTAGE` text, `score(passed_by_id)`, `find_newly_failed(baseline, after)`, and `run_regression_check()`: run the suite, break one prompt on purpose, run it again, and report the drop.
-    - **Why:** It proves the eval suite really catches a bad change. An eval that can never fail proves nothing.
-- `test_judge.py`
-    - **What:** Test functions that give the judge a known-good and a known-bad article and `assert` it passes the first and fails the second.
-    - **Why:** You can only trust the judge's scores after checking it on examples where you already know the answer.
+    - **What:** `PASS_BAR`, a `SABOTAGE` text, `score()`, `find_newly_failed()`, and `run_regression_check()`.
+    - **Why:** it proves the eval suite really catches a bad change.
+- `evals/run_eval.py`
+    - **What:** `run_one_task()` and `run_eval_suite()` — run all tasks, print the score, save `report.json`.
+    - **Why:** one score for the whole system, to compare two versions.
+- `evals/tasks.py`
+    - **What:** rule constants and a `TASKS` list of 10 dicts (exact text, judge rules, or no-article).
+    - **Why:** the same fixed test set every time, for a fair comparison.
+- `tests/integration/test_judge.py`
+    - **What:** a pytest calibration test — the judge must PASS a good article and FAIL two bad ones.
+    - **Why:** you can only trust the judge after checking it on known answers.
+
+**Tests for this step — write them yourself:**
+
+- **test_judge_calibration** — `tests/integration/test_judge.py`
+    - **Check:** the judge PASSes a titled, tagged article and FAILs an off-topic one and one with no tags.
+    - **Why:** a judge that approves everything would make every eval run look perfect.
+    - **When:** whenever `judge.py`'s prompt changes.
+    - **If not:** every later score would be meaningless.
+- **the regression check** — `src/evals/regression_check.py`
+    - **Check:** the score is ≥ `PASS_BAR` before the sabotage and below it after.
+    - **Why:** an eval that can never fail proves nothing.
+    - **When:** after changing the tasks or the rules.
+    - **If not:** a loose rule would let a real regression ship unnoticed.
 
 **Final Deliverable:** **ContentForge-Pro-Production-Ready-Content-Pipeline-With-API-Database-And-Docker** — Project 4's five agents behind a FastAPI service: typed requests, safe errors, every run saved and findable by ID, request-ID logs, a per-caller rate limit, a Docker image with no secrets inside, API tests with the team faked, and an eval suite proven to catch a bad prompt change.
 
@@ -726,13 +750,13 @@ The same commands and settings as the repo's [README.md](README.md) — once Ste
 
 | Setting | Where | Default |
 |---|---|---|
-| Chat model | `models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
-| Pass mark | `agents/reviewer_agent.py` → `PASS_SCORE` | `7` (out of 10) |
-| Revision limit | `agents/supervisor.py` → `MAX_REVISIONS` | `3` |
-| Topic length | `api/schemas.py` → `TaskRequest` | 1-200 characters |
-| Rate limit | `api/routes.py` → `RATE_LIMIT`, `RATE_WINDOW_SECONDS` | 5 requests per 60 s, per caller |
-| Database file | `db/database.py` → `DB_PATH` | `runs.db` |
-| Eval pass bar | `evals/regression_check.py` → `PASS_BAR` | `0.8` |
+| Chat model | `src/models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
+| Pass mark | `src/agents/reviewer_agent.py` → `PASS_SCORE` | `7` (out of 10) |
+| Revision limit | `src/agents/supervisor.py` → `MAX_REVISIONS` | `3` |
+| Topic length | `src/api/schemas.py` → `TaskRequest` | 1-200 characters |
+| Rate limit | `src/api/routes.py` → `RATE_LIMIT`, `RATE_WINDOW_SECONDS` | 5 per 60 s, per caller |
+| Database file | `src/db/database.py` → `DB_PATH` | `runs.db` |
+| Eval pass bar | `src/evals/regression_check.py` → `PASS_BAR` | `0.8` |
 | Known facts | `data/sample/facts.json` | electric bikes, remote work, solar panels |
 
 ### Usage
@@ -740,8 +764,8 @@ The same commands and settings as the repo's [README.md](README.md) — once Ste
 Run from the repo root:
 
 ```bash
-uvicorn contentforge.api.main:app --reload     # the API on port 8000
-python -m contentforge.main                    # the terminal app
+uvicorn src.api.main:app --reload     # the API on port 8000
+python main.py                        # the terminal app
 ```
 
 Open `http://localhost:8000/docs` to try every route in the browser.
@@ -766,22 +790,23 @@ Run from the repo root:
 
 ```bash
 # free — no model calls
-python tests/unit/test_lookup.py
-python tests/unit/test_supervisor.py
+python -m tests.unit.test_config
+python -m tests.unit.test_lookup
+python -m tests.unit.test_supervisor
 pytest tests/api -v
 
 # real API calls — needs a valid OPENAI_API_KEY
-python tests/integration/test_live_agents.py
+python -m tests.integration.test_live_agents
 pytest tests/integration/test_judge.py -v
 ```
 
-The unit tests (plain scripts, the same as in the original team project) check the lookup tool and every routing rule. The API tests check every route and status code — 200, 400, 404, 422, 429 and a plain 500 — and the saved rows, with the team replaced by a fake. The integration tests run the real team and check the judge on answers with a known verdict.
+The unit tests (Project 4's plain OK/WRONG scripts) check the settings, the lookup tool and every routing rule. The API tests check every route and status code — 200, 400, 404, 422, 429 and a plain 500 — and the saved rows, with the team replaced by a fake. The integration tests run the real team and check the judge on answers with a known verdict.
 
 **Article quality** (real API calls):
 
 ```bash
-python -m contentforge.evals.run_eval           # score + report.json
-python -m contentforge.evals.regression_check   # prove a bad change drops it
+python -m src.evals.run_eval           # score + report.json
+python -m src.evals.regression_check   # prove a bad change drops it
 ```
 
 `run_eval` runs 10 fixed topics — exact `[source]` checks, judge rules and unknown topics — and prints the score. `regression_check` runs it, pauses while you remove the `[source]` rule from Research's prompt, runs it again, and reports whether the score fell below the bar.
@@ -790,12 +815,13 @@ python -m contentforge.evals.regression_check   # prove a bad change drops it
 
 - [ ] The repo folder name matches the GitHub repo name exactly
 - [ ] Project 4's files are unchanged; the API calls the team only through `run_pipeline()`
+- [ ] Code lives in `src/`, `main.py` at the repo root; the API starts with `uvicorn src.api.main:app`
 - [ ] `POST /run-task` has typed shapes: 422 for a bad body, 400 for a blank topic, a plain 500 for a crash (the traceback only in the server log)
 - [ ] Every run is saved (`"started"` → `"completed"` / `"failed"`) and found with `GET /runs/{run_id}`; a wrong ID is a 404
 - [ ] Every log line for a request starts with the same request ID, also sent back as `X-Request-ID`
 - [ ] A per-caller rate limit returns 429, and its limitation is written in the code
 - [ ] `docker run` works with the key passed at run time; `docker history` shows no key; no key → a clear startup error
-- [ ] The unit tests and `pytest tests/api` pass with no model calls
+- [ ] The unit scripts and `pytest tests/api` pass with no model calls
 - [ ] The eval suite scores the real articles, and the regression check proves a sabotaged prompt drops the score
 - [ ] The judge passes its own calibration test
 - [ ] `.env`, `runs.db` and `report.json` are not in git

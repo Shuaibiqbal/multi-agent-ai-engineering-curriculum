@@ -159,6 +159,8 @@ if __name__ == "__main__":
 ```
 Notice `asyncio.run()` now only appears once, at the very bottom, wrapping `main()` — exactly the Hint 1 point about keeping it at the true entry point. Try lowering `timeout=5` to `timeout=0.5` yourself (shorter than the 1-second sleep) to see the `except` branch actually trigger, then compare your finished versions against the [Solution](first_coroutine_solution.md).
 
+One more tool: `asyncio.create_task(coro)` starts a coroutine running in the background straight away. Keep the task in a variable, do other awaited work, then `await task` to collect its result.
+
 **Difference between Basic and Intermediate:** Basic just runs `wait_and_return()` and trusts it to finish. Intermediate wraps the same coroutine in `asyncio.wait_for(..., timeout=...)`, which is what a real caller should almost always do around anything that waits on the outside world — without it, one hung network call can freeze your whole program indefinitely, with no way to recover short of killing the process.
 
 <hr class="page-break">

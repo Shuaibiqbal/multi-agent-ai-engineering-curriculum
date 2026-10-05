@@ -383,24 +383,24 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 practice/
-├── logging_setup.py                copied from Doc01, unchanged
-├── health_route_practice.py        Basic
-├── health_routes.py                  its APIRouter (Approach 3)
 ├── chat_route_practice.py          Intermediate
 ├── chat_schemas.py                   its request/reply models
-├── sqlite_persistence_practice.py  Real-world + Edge cases
-│                                     (2 sections)
+├── db_failure_and_docker_practice.py  Failure (+ Dockerfile,
+│                                     .dockerignore, requirements.txt)
+├── health_route_practice.py        Basic
+├── health_routes.py                  its APIRouter (Approach 3)
+├── logging_setup.py                copied from Doc01, unchanged
 ├── runs_db.py                        its SQL helper functions
-└── db_failure_and_docker_practice.py  Failure
-    (+ Dockerfile, .dockerignore, requirements.txt)
+└── sqlite_persistence_practice.py  Real-world + Edge cases
+                                     (2 sections)
 ```
 
 **Why each script exists:**
 
-- `health_route_practice.py` — the smallest possible FastAPI app, so the app/decorator/uvicorn setup is learned before any real logic sits behind it.
 - `chat_route_practice.py` — real logic behind a typed route, with 400 vs 500, server-only error logs, and a request ID per request — the exact shape of the Build Task's `POST /run-task`.
-- `sqlite_persistence_practice.py` — saves every run and reads one back by ID (with a 404), then proves bad input never writes a row and a two-write request can't leave half a row.
 - `db_failure_and_docker_practice.py` — breaks the database on purpose to prove the 500 path, then ships the app in a container with secrets only passed in at run time.
+- `health_route_practice.py` — the smallest possible FastAPI app, so the app/decorator/uvicorn setup is learned before any real logic sits behind it.
+- `sqlite_persistence_practice.py` — saves every run and reads one back by ID (with a 404), then proves bad input never writes a row and a two-write request can't leave half a row.
 - `health_routes.py`, `chat_schemas.py`, `runs_db.py` — the small helper files some Intermediate approaches split out, the same split the Build Task's `routes.py`, `schemas.py` and `db/database.py` use.
 
 **How to run each exercise:** if two exercises below are really about the same thing, save them together in ONE script named after that topic, with each level's version as its own clearly labeled section inside it. Run each topic's file from inside `practice/`, for example: `python health_route_practice.py`, or `uvicorn health_route_practice:app --reload` for the server.
@@ -492,10 +492,10 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 ├── db/
 │   ├── database.py    connect, insert/finish/fail/fetch a run
 │   └── models.py      Run (one saved row's shape)
+├── .dockerignore
+├── Dockerfile
 ├── logging_setup.py   copied from Doc01, unchanged
 ├── requirements.txt
-├── Dockerfile
-├── .dockerignore
 └── test_api.py        one check per Test Cases row
 ```
 
@@ -506,8 +506,8 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - `api/schemas.py` — the API's request/reply contract in one place, like `chat_schemas.py`.
 - `db/database.py` — every SQL statement behind small named functions, like `runs_db.py`, using `validation_422`'s `INSERT` → `lastrowid` → `UPDATE` pieces.
 - `db/models.py` — the checked shape of a saved run, like `RunRecord`.
+- `.dockerignore`, `Dockerfile` — `db_failure_and_docker`'s, pointed at `api.main:app`.
 - `logging_setup.py` — Doc01's `get_logger()`, so logging works the same as in every earlier document.
-- `Dockerfile`, `.dockerignore` — `db_failure_and_docker`'s, pointed at `api.main:app`.
 - `test_api.py` — proves every row of the Test Cases table below in one command, using `TestClient` like `health_route` Approach 2.
 
 **Functions/Components to build:**

@@ -216,55 +216,92 @@ if __name__ == "__main__":
 
 ```python
 # tests/unit/test_tools.py
-# Checks the tools. No API calls, no API key, no network needed.
+# Checks the tools. Each case prints OK or WRONG.
+# No API calls, no API key, no network needed.
 # Run from the repo root: python -m tests.unit.test_tools
 from pydantic import ValidationError
 
 from src.tools.converter import celsius_to_fahrenheit
 
+
 def test_converter() -> None:
-    result = celsius_to_fahrenheit.invoke({"celsius": 18})
-    print(f"case 1 (18°C in °F)          -> {result}")
+    result = "OK"
+    if celsius_to_fahrenheit.invoke({"celsius": 18}) != 64.4:
+        result = "WRONG"
+    print(f"case 1 (18°C is 64.4°F)           -> {result}")
+
 
 def test_converter_rejects_bad_arguments() -> None:
+    result = "WRONG"
     try:
         celsius_to_fahrenheit.invoke({"celsius": "hot"})
     except ValidationError:
-        print("case 2 (celsius='hot')       -> ValidationError")
+        result = "OK"
+    print(f"case 2 (celsius='hot' refused)    -> {result}")
+
 
 if __name__ == "__main__":
     test_converter()
     test_converter_rejects_bad_arguments()
 ```
 
-**Story — `tests/unit/test_agents.py`:** checks `find_tool()` and `run_tool()` with hand-made tool calls — no model needed. **If not:** a bug in how failures are turned into observations would only appear during a real, paid run.
+**Story — `tests/unit/test_agents.py`:** checks `find_tool()` and `run_tool()` with hand-made tool calls — no model needed. One function per case: a known tool, an unknown tool, a good call, a call to an unknown tool, and bad arguments. **If not:** a bug in how failures are turned into observations would only appear during a real, paid run.
 
 ```python
 # tests/unit/test_agents.py
-# Checks the Worker's helper functions with hand-made
-# tool calls and steps. No API calls, no API key needed.
+# Checks the Worker's helper functions with hand-made tool calls.
+# Each case prints OK or WRONG. No API calls, no API key needed.
 # Run from the repo root: python -m tests.unit.test_agents
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-def test_find_tool() -> None:
-    found = find_tool(ALL_TOOLS, "celsius_to_fahrenheit")
-    missing = find_tool(ALL_TOOLS, "send_email")
-    print(f"case 1 (known tool)          -> {found.name}")
-    print(f"case 1 (unknown tool)        -> {missing}")
 
-def test_run_tool() -> None:
-    good = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
-    unknown = {"name": "send_email", "args": {}}
-    bad_args = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
-    print(f"case 2 (good call)           -> {run_tool(good, ALL_TOOLS)}")
-    print(f"case 2 (unknown tool)        -> {run_tool(unknown, ALL_TOOLS)}")
-    result, error = run_tool(bad_args, ALL_TOOLS)
-    print(f"case 2 (bad arguments)       -> result={result}, error set: "
-          f"{error is not None}")
+def test_find_known_tool() -> None:
+    result = "OK"
+    if find_tool(ALL_TOOLS, "celsius_to_fahrenheit") is None:
+        result = "WRONG"
+    print(f"case 1 (known tool found)          -> {result}")
+
+
+def test_find_unknown_tool() -> None:
+    result = "OK"
+    if find_tool(ALL_TOOLS, "send_email") is not None:
+        result = "WRONG"
+    print(f"case 2 (unknown tool gives None)   -> {result}")
+
+
+def test_run_good_call() -> None:
+    call = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
+    output, error = run_tool(call, ALL_TOOLS)
+    result = "OK"
+    if output != "32.0" or error is not None:
+        result = "WRONG"
+    print(f"case 3 (good call gives 32.0)      -> {result}")
+
+
+def test_run_unknown_tool() -> None:
+    call = {"name": "send_email", "args": {}}
+    output, error = run_tool(call, ALL_TOOLS)
+    result = "OK"
+    if output is not None or error is None:
+        result = "WRONG"
+    print(f"case 4 (unknown tool gives error)  -> {result}")
+
+
+def test_run_bad_arguments() -> None:
+    call = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
+    output, error = run_tool(call, ALL_TOOLS)
+    result = "OK"
+    if output is not None or error is None:
+        result = "WRONG"
+    print(f"case 5 (bad arguments give error)  -> {result}")
+
 
 if __name__ == "__main__":
-    test_find_tool()
-    test_run_tool()
+    test_find_known_tool()
+    test_find_unknown_tool()
+    test_run_good_call()
+    test_run_unknown_tool()
+    test_run_bad_arguments()
 ```
 
 **Changed from Step 1:** `tests/integration/test_live_agents.py` gets cases 2-4 — `tools_used()`, three test functions, their imports, and three calls at the bottom.
@@ -273,13 +310,10 @@ if __name__ == "__main__":
 
 ```python
 # tests/integration/test_live_agents.py
-# The project's checks against the real OpenAI API (and Open-Meteo) —
-# each step adds cases. Needs a valid OPENAI_API_KEY in .env.
+# Checks the app against the real OpenAI API (and Open-Meteo) — each step
+# adds cases. Each case prints OK or WRONG.
+# Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-#   case 1 — the no-tools chain answers a question from memory
-#   case 2 — a conversion uses the converter tool
-#   case 3 — general knowledge needs no tool at all
-#   case 4 — 1 round can't finish a tool task: MaxIterationsExceeded
 from langchain_openai import ChatOpenAI
 
 # new in Step 2
@@ -294,13 +328,16 @@ from src.models.llm import get_model
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
-    print(f"case 1 (direct answer)  -> {answer}")
+    result = "OK"
+    if "Paris" not in answer:
+        result = "WRONG"
+    print(f"case 1 (direct answer)  -> {result}: {answer}")
 
 
 # new in Step 2
-def tools_used(result: AgentResult) -> list[str]:
+def tools_used(outcome: AgentResult) -> list[str]:
     names = []
-    for step in result.steps:
+    for step in outcome.steps:
         names.append(step["tool"])
     return names
 
@@ -308,26 +345,31 @@ def tools_used(result: AgentResult) -> list[str]:
 # new in Step 2
 def test_conversion_uses_tool(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
-    result = run_worker(model, task, 5)
-    print(f"case 2 (conversion)     -> tools: {tools_used(result)}")
+    used = tools_used(run_worker(model, task, 5))
+    result = "OK"
+    if "celsius_to_fahrenheit" not in used:
+        result = "WRONG"
+    print(f"case 2 (conversion)     -> {result}: {used}")
 
 
 # new in Step 2
 def test_no_tool_needed(model: ChatOpenAI) -> None:
-    result = run_worker(model, "What is the capital of France?", 5)
-    print(f"case 3 (no tool needed) -> {len(result.steps)} steps: "
-          f"{result.final_answer}")
+    outcome = run_worker(model, "What is the capital of France?", 5)
+    result = "OK"
+    if len(outcome.steps) != 0:
+        result = "WRONG"
+    print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
 
 
 # new in Step 2
 def test_step_limit(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
+    result = "WRONG"
     try:
         run_worker(model, task, 1)
-        print("case 4 (step limit)     -> WRONG, no error was raised")
-    except MaxIterationsExceeded as e:
-        print(f"case 4 (step limit)     -> raised, {len(e.steps)} step(s) "
-              f"in the partial log")
+    except MaxIterationsExceeded:
+        result = "OK"
+    print(f"case 4 (step limit)     -> {result}")
 
 
 if __name__ == "__main__":
@@ -348,6 +390,30 @@ python -m tests.unit.test_tools
 python -m tests.unit.test_agents
 python -m tests.integration.test_live_agents
 python main.py
+```
+
+**Expected output** of the two new unit tests:
+
+```
+case 1 (18°C is 64.4°F)           -> OK
+case 2 (celsius='hot' refused)    -> OK
+```
+
+```
+case 1 (known tool found)          -> OK
+case 2 (unknown tool gives None)   -> OK
+case 3 (good call gives 32.0)      -> OK
+case 4 (unknown tool gives error)  -> OK
+case 5 (bad arguments give error)  -> OK
+```
+
+**Expected output** of `test_live_agents` (the model's wording varies):
+
+```
+case 1 (direct answer)  -> OK: The capital of France is Paris.
+case 2 (conversion)     -> OK: ['celsius_to_fahrenheit']
+case 3 (no tool needed) -> OK: The capital of France is Paris.
+case 4 (step limit)     -> OK
 ```
 
 **Expected app session** (log lines left out; wording varies):

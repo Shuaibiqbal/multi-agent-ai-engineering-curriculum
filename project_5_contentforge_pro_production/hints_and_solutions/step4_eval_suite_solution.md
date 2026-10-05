@@ -2,11 +2,11 @@
 
 > [Back to this step](../READING_README.md#step-4-a-test-suite-that-catches-a-bad-change-before-it-ships-final) · [Hint 1](step4_eval_suite_hints.md#hint-1) · [Hint 2](step4_eval_suite_hints.md#hint-2) · [Solution](step4_eval_suite_solution.md)
 
-**Story — Step 4:** the API tests prove the **service** works. They say nothing about whether the **articles** are still good — the team is faked there on purpose. This step adds Doc13's eval suite: 10 fixed topics, each with a check written **before** anything runs, a judge for the parts code can't check, and a regression check that makes a prompt worse on purpose and proves the score drops. Project 4's print-style tests become real pytest tests. **If not:** a prompt edit that quietly drops the `[source]` tags would pass every test and ship.
+**Story — Step 4:** the API tests prove the **service** works. They say nothing about whether the **articles** are still good — the team is faked there on purpose. This step adds Doc13's eval suite: 10 fixed topics, each with a check written **before** anything runs, a judge for the parts code can't check, and a regression check that makes a prompt worse on purpose and proves the score drops. **If not:** a prompt edit that quietly drops the `[source]` tags would pass every test and ship.
 
 After this step the project is complete. Files not shown here don't change.
 
-Project 4's three test files stay exactly as they were — this step only **adds** tests.
+Project 4's test files stay exactly as they were — plain OK/WRONG scripts; this step only **adds** tests, which use pytest (Doc13's style).
 
 <hr class="page-break">
 
@@ -17,9 +17,9 @@ Project 4's three test files stay exactly as they were — this step only **adds
 **Story — `evals/tasks.py`:** the fixed test set, written **before** anything runs (Doc13). Source tags are exact, so they get a free code check; "says how long panels take to pay back" needs the judge; unknown topics must produce **no** article. (Also create an empty `evals/__init__.py`.) **If not:** you'd write the rules after reading the output, and they'd describe whatever the team wrote.
 
 ```python
-# src/contentforge/evals/tasks.py
-# why: written BEFORE running anything against the team, so the rules
-# describe a good article, not whatever the team happened to write
+# src/evals/tasks.py
+# The fixed eval set, written BEFORE running anything: 10 topics, each with
+# an exact-text check, judge rules, or "expect no article".
 TITLE_RULE = "starts with a short title on its own line"
 SOURCE_RULE = "every fact in the article ends with a [source] tag"
 
@@ -56,15 +56,16 @@ TASKS = [
 **Story — `evals/judge.py`:** Doc13's judge, unchanged except two lines: the model name comes from `models/llm.py`, and the OpenAI client is made inside `call_model()`. Typed result, versioned prompt, `temperature=0`. **If not:** creating the client at import time would crash before `load_config()` had read `.env`.
 
 ```python
-# src/contentforge/evals/judge.py
+# src/evals/judge.py
+# The LLM judge. score_with_judge() scores an article against written rules
+# and reads PASS/FAIL from the first line; the client is made inside
+# call_model(), not at import time.
 from dataclasses import dataclass
 
 from openai import OpenAI
 
-from contentforge.models.llm import MODEL_NAME
+from src.models.llm import MODEL_NAME
 
-# why: every score is tied to one exact judge prompt — change the
-# prompt, change this name
 JUDGE_PROMPT_VERSION = "v1"
 
 @dataclass
@@ -73,10 +74,7 @@ class JudgeResult:
     reason: str
 
 def call_model(prompt: str) -> str:
-    # how: the client is made here, not at import time — so importing
-    # this file never needs the key before load_config() has run
     client = OpenAI()
-    # how: temperature=0 — a judge should be steady, not creative
     response = client.chat.completions.create(
         model=MODEL_NAME,
         temperature=0,
@@ -110,28 +108,26 @@ def score_with_judge(task_input: str, output: str, rules: list):
 **Story — `evals/run_eval.py`:** Doc13's runner, pointed at `run_pipeline()` — the same door the API uses, so the suite tests exactly what ships. The cheapest check that works for each task; a reason for every failure; a saved `report.json`. **If not:** a run's result would live only in your terminal, with no reason for a failure.
 
 ```python
-# src/contentforge/evals/run_eval.py
+# src/evals/run_eval.py
+# Runs the eval suite against run_pipeline() (the same door the API uses),
+# checks each task the cheapest way that works, prints the score and saves
+# report.json.
 import json
 
-from contentforge.config import load_config
-from contentforge.evals.judge import JUDGE_PROMPT_VERSION, score_with_judge
-from contentforge.evals.tasks import TASKS
-from contentforge.pipeline import run_pipeline
+from src.config import load_config
+from src.evals.judge import JUDGE_PROMPT_VERSION, score_with_judge
+from src.evals.tasks import TASKS
+from src.pipeline import run_pipeline
 
 def run_one_task(task: dict) -> dict:
-    # how: the same door the API uses — the suite tests what ships
     outcome = run_pipeline(task["topic"])
     article = outcome["article"]
-    # when: an unknown topic — the team must stop, not write; a free
-    # code check, no judge call
     if "expect_no_article" in task:
         passed = article == ""
         reason = "expected no article, got " + str(len(article)) + " chars"
-    # when: a task with "expected" gets a free code check too
     elif "expected" in task:
         passed = task["expected"].lower() in article.lower()
         reason = "looked for: " + task["expected"]
-    # when: only tasks with "rules" cost a judge call
     else:
         judged = score_with_judge(task["topic"], article, task["rules"])
         passed = judged.verdict == "PASS"
@@ -152,8 +148,6 @@ def run_eval_suite() -> dict:
             passed_count = passed_count + 1
     overall_score = passed_count / len(results)
 
-    # why: a saved record of this run, with the judge version,
-    # so a score can be checked later without re-running anything
     report = {
         "judge_prompt_version": JUDGE_PROMPT_VERSION,
         "overall_score": overall_score,
@@ -177,7 +171,7 @@ if __name__ == "__main__":
     run_eval_suite()
 ```
 
-**Run it:** `python -m contentforge.evals.run_eval`
+**Run it:** `python -m src.evals.run_eval`
 
 ```
 Passed 10/10 (score: 1.00)
@@ -191,17 +185,17 @@ Passed 10/10 (score: 1.00)
 # tests/integration/test_judge.py
 # Calls the real judge — run it whenever judge.py's prompt changes.
 # Run from the repo root: pytest tests/integration/test_judge.py -v
-from contentforge.config import load_config
-from contentforge.evals.judge import score_with_judge
-from contentforge.evals.tasks import SOURCE_RULE, TITLE_RULE
+from src.config import load_config
+from src.evals.judge import score_with_judge
+from src.evals.tasks import SOURCE_RULE, TITLE_RULE
 
 load_config()
 
 TOPIC = "electric bikes"
 RULES = [TITLE_RULE, SOURCE_RULE]
 
-# why: answers where YOU already know the right verdict — a judge
-# that approves everything is caught here, before it grades anything
+# answers where YOU already know the right verdict — a judge that approves
+# everything is caught here, before it grades anything
 CALIBRATION_SET = [
     {"output": "E-Bikes Explained\n\nA battery gives 40 to 100 km "
                "per charge. [battery-review]",
@@ -222,16 +216,17 @@ def test_judge_calibration():
 **Story — `evals/regression_check.py`:** Doc13's pass bar and per-task list, run against the real suite. The sabotage is in **Research's** prompt: without "each ending with its [source] tag", the notes lose their sources, and nothing later in the team can put them back. **If not:** "the suite would catch a bad change" would stay a belief, never a result.
 
 ```python
-# src/contentforge/evals/regression_check.py
-from contentforge.config import load_config
-from contentforge.evals.run_eval import run_eval_suite
+# src/evals/regression_check.py
+# Proves the eval suite catches a bad change: run it, pause while you break
+# Research's prompt on purpose, run it again, and report the score drop.
+from src.config import load_config
+from src.evals.run_eval import run_eval_suite
 
-# why: decided BEFORE sabotaging, so the result can't be
-# explained away afterwards
+# decided BEFORE sabotaging, so the result can't be explained away after
 PASS_BAR = 0.8
 
 SABOTAGE = (
-    'In src/contentforge/prompts/research.txt, delete the words\n'
+    'In src/prompts/research.txt, delete the words\n'
     '", each ending with its [source] tag". Save, then press Enter...'
 )
 
@@ -270,16 +265,17 @@ if __name__ == "__main__":
     run_regression_check()
 ```
 
-**Run everything:**
+**Run everything** (from the repo root):
 
 ```bash
-python tests/unit/test_lookup.py     # free — Project 4's own tests
-python tests/unit/test_supervisor.py
-pytest tests/api -v                  # free — the API, team faked
-python tests/integration/test_live_agents.py      # real API calls
+python -m tests.unit.test_config       # free — Project 4's own tests
+python -m tests.unit.test_lookup
+python -m tests.unit.test_supervisor
+pytest tests/api -v                    # free — the API, team faked
+python -m tests.integration.test_live_agents      # real API calls
 pytest tests/integration/test_judge.py -v         # real API calls
-python -m contentforge.evals.run_eval
-python -m contentforge.evals.regression_check
+python -m src.evals.run_eval
+python -m src.evals.regression_check
 ```
 
 **Expected output of the regression check** (the second run's `FAILED` lines shortened):
@@ -287,7 +283,7 @@ python -m contentforge.evals.regression_check
 ```
 --- baseline run ---
 Passed 10/10 (score: 1.00)
-In src/contentforge/prompts/research.txt, delete the words
+In src/prompts/research.txt, delete the words
 ", each ending with its [source] tag". Save, then press Enter...
 --- after sabotage ---
 Passed 2/10 (score: 0.20)

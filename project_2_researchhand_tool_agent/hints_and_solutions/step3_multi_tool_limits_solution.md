@@ -294,49 +294,76 @@ def run_worker(
     raise MaxIterationsExceeded(message, steps)
 ```
 
-**Changed from Step 2:** `tests/unit/test_tools.py` adds cases 3 and 4.
+**Changed from Step 2:** `tests/unit/test_tools.py` adds cases 3, 4 and 5 — three new functions and their imports.
 
-**Story — `tests/unit/test_tools.py`:** case 3 checks the weather tool's coordinate lookup without the network; case 4 proves the search tool fails once and then works. **If not:** a broken tool would only show up as a strange agent answer.
+**Story — `tests/unit/test_tools.py`:** cases 3 and 4 check the weather tool's coordinate lookup without the network (a known city, and an unknown one); case 5 proves the search tool fails once and then works. **If not:** a broken tool would only show up as a strange agent answer.
 
 ```python
 # tests/unit/test_tools.py
-# Checks the 3 tools. No API calls, no API key, no network needed.
+# Checks the tools. Each case prints OK or WRONG.
+# No API calls, no API key, no network needed.
 # Run from the repo root: python -m tests.unit.test_tools
 from pydantic import ValidationError
 
 from src.tools.converter import celsius_to_fahrenheit
+# new in Step 3
 from src.tools.docs_search import search_docs, search_state
 from src.tools.weather import build_weather_params
 
+
 def test_converter() -> None:
-    result = celsius_to_fahrenheit.invoke({"celsius": 18})
-    print(f"case 1 (18°C in °F)          -> {result}")
+    result = "OK"
+    if celsius_to_fahrenheit.invoke({"celsius": 18}) != 64.4:
+        result = "WRONG"
+    print(f"case 1 (18°C is 64.4°F)           -> {result}")
+
 
 def test_converter_rejects_bad_arguments() -> None:
+    result = "WRONG"
     try:
         celsius_to_fahrenheit.invoke({"celsius": "hot"})
     except ValidationError:
-        print("case 2 (celsius='hot')       -> ValidationError")
+        result = "OK"
+    print(f"case 2 (celsius='hot' refused)    -> {result}")
 
-def test_weather_params() -> None:
-    known = build_weather_params("Lahore")
-    unknown = build_weather_params("Atlantis")
-    print(f"case 3 (Lahore latitude)     -> {known['latitude']}")
-    print(f"case 3 (unknown city)        -> {unknown}")
 
+# new in Step 3
+def test_weather_params_known_city() -> None:
+    params = build_weather_params("Lahore")
+    result = "OK"
+    if params is None or params["latitude"] != 31.55:
+        result = "WRONG"
+    print(f"case 3 (Lahore coordinates)       -> {result}")
+
+
+# new in Step 3
+def test_weather_params_unknown_city() -> None:
+    result = "OK"
+    if build_weather_params("Atlantis") is not None:
+        result = "WRONG"
+    print(f"case 4 (unknown city gives None)  -> {result}")
+
+
+# new in Step 3
 def test_search_fails_then_recovers() -> None:
     search_state.call_count = 0
+    result = "WRONG"
     try:
         search_docs.invoke({"query": "refund policy"})
-    except ConnectionError as e:
-        print(f"case 4 (first search)        -> ConnectionError: {e}")
+    except ConnectionError:
+        result = "OK"
     second = search_docs.invoke({"query": "refund policy"})
-    print(f"case 4 (second search)       -> {second}")
+    if "30 days" not in second:
+        result = "WRONG"
+    print(f"case 5 (fails once, then works)   -> {result}")
+
 
 if __name__ == "__main__":
     test_converter()
     test_converter_rejects_bad_arguments()
-    test_weather_params()
+    # new in Step 3
+    test_weather_params_known_city()
+    test_weather_params_unknown_city()
     test_search_fails_then_recovers()
 ```
 
@@ -344,15 +371,10 @@ if __name__ == "__main__":
 
 ```python
 # tests/integration/test_live_agents.py
-# The project's checks against the real OpenAI API (and Open-Meteo) —
-# each step adds cases. Needs a valid OPENAI_API_KEY in .env.
+# Checks the app against the real OpenAI API (and Open-Meteo) — each step
+# adds cases. Each case prints OK or WRONG.
+# Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-#   case 1 — the no-tools chain answers a question from memory
-#   case 2 — a conversion uses the converter tool
-#   case 3 — general knowledge needs no tool at all
-#   case 4 — 1 round can't finish a tool task: MaxIterationsExceeded
-#   case 5 — a live-data question uses get_weather
-#   case 6 — search_docs fails once, and the Worker recovers
 from langchain_openai import ChatOpenAI
 
 from src.agents.worker import AgentResult, run_worker
@@ -367,58 +389,72 @@ from src.tools.docs_search import search_state
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
-    print(f"case 1 (direct answer)  -> {answer}")
+    result = "OK"
+    if "Paris" not in answer:
+        result = "WRONG"
+    print(f"case 1 (direct answer)  -> {result}: {answer}")
 
 
-def tools_used(result: AgentResult) -> list[str]:
+def tools_used(outcome: AgentResult) -> list[str]:
     names = []
-    for step in result.steps:
+    for step in outcome.steps:
         names.append(step["tool"])
     return names
 
 
 def test_conversion_uses_tool(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
-    result = run_worker(model, task, 5)
-    print(f"case 2 (conversion)     -> tools: {tools_used(result)}")
+    used = tools_used(run_worker(model, task, 5))
+    result = "OK"
+    if "celsius_to_fahrenheit" not in used:
+        result = "WRONG"
+    print(f"case 2 (conversion)     -> {result}: {used}")
 
 
 def test_no_tool_needed(model: ChatOpenAI) -> None:
-    result = run_worker(model, "What is the capital of France?", 5)
-    print(f"case 3 (no tool needed) -> {len(result.steps)} steps: "
-          f"{result.final_answer}")
+    outcome = run_worker(model, "What is the capital of France?", 5)
+    result = "OK"
+    if len(outcome.steps) != 0:
+        result = "WRONG"
+    print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
 
 
 def test_step_limit(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
+    result = "WRONG"
     try:
         run_worker(model, task, 1)
-        print("case 4 (step limit)     -> WRONG, no error was raised")
-    except MaxIterationsExceeded as e:
-        print(f"case 4 (step limit)     -> raised, {len(e.steps)} step(s) "
-              f"in the partial log")
+    except MaxIterationsExceeded:
+        result = "OK"
+    print(f"case 4 (step limit)     -> {result}")
 
 
 # new in Step 3
 def test_weather_uses_tool(model: ChatOpenAI) -> None:
-    result = run_worker(model, "What's the weather in Lahore right now?", 5)
-    print(f"case 5 (weather task)   -> tools: {tools_used(result)}")
+    task = "What's the weather in Lahore right now?"
+    used = tools_used(run_worker(model, task, 5))
+    result = "OK"
+    if "get_weather" not in used:
+        result = "WRONG"
+    print(f"case 5 (weather task)   -> {result}: {used}")
 
 
 # new in Step 3
 def test_tool_failure_recovery(model: ChatOpenAI) -> None:
     search_state.call_count = 0
-    result = run_worker(model, "What is your refund policy?", 5)
+    outcome = run_worker(model, "What is your refund policy?", 5)
     failed = 0
     succeeded = 0
-    for step in result.steps:
+    for step in outcome.steps:
         if step["error"] is None:
             succeeded = succeeded + 1
         else:
             failed = failed + 1
-    print(f"case 6 (recovery)       -> failed={failed}, "
-          f"succeeded={succeeded}")
-    print(f"                           {result.final_answer}")
+    result = "OK"
+    if failed == 0 or succeeded == 0:
+        result = "WRONG"
+    print(f"case 6 (recovery)       -> {result}: {failed} failed, "
+          f"{succeeded} succeeded")
 
 
 if __name__ == "__main__":
@@ -443,6 +479,21 @@ python -m tests.unit.test_tools
 python -m tests.unit.test_agents
 python -m tests.integration.test_live_agents
 python main.py
+```
+
+**Expected output** of the new `test_tools` cases:
+
+```
+case 3 (Lahore coordinates)       -> OK
+case 4 (unknown city gives None)  -> OK
+case 5 (fails once, then works)   -> OK
+```
+
+**Expected output** of `test_live_agents` — the Step 2 cases, then (one `WARNING` log line appears for the failed search):
+
+```
+case 5 (weather task)   -> OK: ['get_weather']
+case 6 (recovery)       -> OK: 1 failed, 1 succeeded
 ```
 
 **Expected app session:**

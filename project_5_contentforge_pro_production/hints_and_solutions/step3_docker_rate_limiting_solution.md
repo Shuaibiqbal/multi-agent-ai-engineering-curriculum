@@ -11,21 +11,22 @@ After this step the project runs in a container: `docker build`, then `docker ru
 **Changed from Step 2:** `routes.py` gets Doc12's Build Task rate limiter, per caller (`http_request.client.host`), with its honest limitation written next to it, and checks it first in `POST /run-task`.
 
 ```python
-# src/contentforge/api/routes.py
-# new in Step 3
-import time
+# src/api/routes.py
+# The API routes. POST /run-task now checks a per-caller rate limit first
+# (429 before any model call); the limiter is in-memory, so its limitation
+# is written next to it.
+import time                                                        # new
 
 from fastapi import APIRouter, HTTPException, Request
 
-from contentforge.api.schemas import TaskRequest, TaskResponse
-from contentforge.db.database import get_connection, insert_started_run
-from contentforge.db.database import finish_run, fail_run, fetch_run
-from contentforge.db.models import Run
-from contentforge.pipeline import run_pipeline
-from contentforge.utils.logger import get_logger
+from src.api.schemas import TaskRequest, TaskResponse
+from src.db.database import get_connection, insert_started_run
+from src.db.database import finish_run, fail_run, fetch_run
+from src.db.models import Run
+from src.pipeline import run_pipeline
+from src.utils.logger import get_logger
 
 router = APIRouter()
-# why: one connection, opened once when the app starts (Doc12)
 conn = get_connection()
 
 # new in Step 3: the rate limiter
@@ -36,7 +37,6 @@ RATE_WINDOW_SECONDS = 60   # ...inside this many seconds
 # really allow 3 x RATE_LIMIT. A shared store (like Redis) fixes that.
 request_times = {}         # caller -> list of request timestamps
 
-# why: the one message a client ever sees for a server-side failure
 INTERNAL_ERROR = "Internal error. Please try again later."
 
 # new in Step 3
@@ -45,7 +45,6 @@ def check_rate_limit(caller_key: str) -> None:
     old_times = request_times.get(caller_key, [])
     recent = []
     for t in old_times:
-        # how: keep only the timestamps still inside the window
         if now - t < RATE_WINDOW_SECONDS:
             recent.append(t)
     if len(recent) >= RATE_LIMIT:
@@ -57,33 +56,26 @@ def check_rate_limit(caller_key: str) -> None:
 def health() -> dict:
     return {"status": "ok"}
 
-# how: a plain def route — the team's model calls block, so FastAPI
-# runs this in its thread pool and other requests keep moving
 @router.post("/run-task", response_model=TaskResponse)
 def run_task(request: TaskRequest, http_request: Request) -> TaskResponse:
     logger = get_logger(__name__)
     request_id = http_request.state.request_id
-    # why: checked first — a caller over the limit costs nothing
-    # new in Step 3
-    check_rate_limit(http_request.client.host)
-    # why: "   " passes Pydantic (it IS 3 characters) — our own 400
+    check_rate_limit(http_request.client.host)   # new in Step 3: checked first
     if not request.topic.strip():
         raise HTTPException(status_code=400, detail="topic cannot be empty")
 
     run_id = insert_started_run(conn, request.topic)
-    logger.info("[%s] run %s started", request_id, run_id)
+    logger.info(f"[{request_id}] run {run_id} started")
     try:
         outcome = run_pipeline(request.topic)
     except Exception:
         fail_run(conn, run_id)
-        # how: the full traceback goes to the server log only
-        logger.exception("[%s] run %s failed", request_id, run_id)
+        logger.exception(f"[{request_id}] run {run_id} failed")
         raise HTTPException(status_code=500, detail=INTERNAL_ERROR)
 
     log_text = "\n".join(outcome["steps"])
     finish_run(conn, run_id, outcome["article"], log_text)
-    logger.info("[%s] run %s completed: %s",
-                request_id, run_id, outcome["reason"])
+    logger.info(f"[{request_id}] run {run_id} completed: {outcome['reason']}")
     return TaskResponse(
         run_id=run_id,
         status="completed",
@@ -100,23 +92,21 @@ def get_run(run_id: int):
     return run
 ```
 
-**Story — `Dockerfile`:** Doc12's, pointed at `contentforge.api.main:app`. `requirements.txt` is installed **before** `COPY . .`, so a code change doesn't redo the slow install; `pip install -e .` then installs the package itself; `--host 0.0.0.0` makes it reachable from outside the container. **If not:** every build would reinstall everything, and `curl` would get "connection refused".
+**Story — `Dockerfile`:** Doc12's, pointed at `src.api.main:app`. `requirements.txt` is installed **before** `COPY . .`, so a code change doesn't redo the slow install; `--host 0.0.0.0` makes it reachable from outside the container. **If not:** every build would reinstall everything, and `curl` would get "connection refused".
 
 `Dockerfile`
 
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
-# why: requirements first — Docker reuses this slow layer when only
-# your code changed
+# requirements first — Docker reuses this slow layer when only code changed
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# brings main.py, src/ and data/ into the image
 COPY . .
-# how: installs the contentforge package itself (deps already there)
-RUN pip install --no-cache-dir -e .
 EXPOSE 8000
-# how: --host 0.0.0.0, or nothing outside the container can reach it
-CMD ["uvicorn", "contentforge.api.main:app", \
+# --host 0.0.0.0, or nothing outside the container can reach it
+CMD ["uvicorn", "src.api.main:app", \
      "--host", "0.0.0.0", "--port", "8000"]
 ```
 
@@ -125,13 +115,12 @@ CMD ["uvicorn", "contentforge.api.main:app", \
 `.dockerignore`
 
 ```text
-# why: a second safety net — even "COPY . ." can't copy your key
+# a second safety net — even "COPY . ." can't copy your key
 .env
 .git
 .venv/
 __pycache__/
 *.pyc
-*.egg-info/
 .pytest_cache/
 # the local run history and eval report stay on your computer
 runs.db
@@ -149,13 +138,12 @@ report.json
 # works here, because no real model is ever called.
 from fastapi.testclient import TestClient
 
-from contentforge.api import routes
-from contentforge.api.main import app
+from src.api import routes
+from src.api.main import app
 
 client = TestClient(app)
 
 def fake_run_pipeline(topic: str) -> dict:
-    # why: a fixed answer instead of the team's real model calls
     return {
         "article": "E-Bikes Explained\n\nUp to 100 km. [battery-review]",
         "accepted": True,
@@ -167,15 +155,11 @@ def fake_run_pipeline(topic: str) -> dict:
     }
 
 def broken_run_pipeline(topic: str) -> dict:
-    # why: a crash on command, to test the 500 path
     raise RuntimeError("simulated internal failure")
 
 def use_fake_team(monkeypatch, fake) -> None:
-    # how: swaps routes.run_pipeline for the fake, for this test only
     monkeypatch.setattr(routes, "run_pipeline", fake)
-    # why: a fresh rate-limit memory per test, so requests from
-    # earlier tests never count against this one
-    # new in Step 3: a fresh rate-limit memory
+    # new in Step 3: a fresh rate-limit memory per test
     monkeypatch.setattr(routes, "request_times", {})
 
 def row_count() -> int:
@@ -223,10 +207,8 @@ def test_internal_error_is_a_plain_500(monkeypatch):
     before = failed_count()
     response = client.post("/run-task", json={"topic": "electric bikes"})
     assert response.status_code == 500
-    # why: the client never sees "RuntimeError" or a traceback
     expected = {"detail": "Internal error. Please try again later."}
     assert response.json() == expected
-    # how: the crashed run is still saved, honestly, as "failed"
     assert failed_count() == before + 1
 
 def test_unknown_run_is_404():
@@ -240,7 +222,7 @@ def test_every_reply_has_a_request_id():
 # new in Step 3
 def test_over_the_rate_limit_is_429(monkeypatch):
     use_fake_team(monkeypatch, fake_run_pipeline)
-    # how: a limit of 2 for this test only — quicker than sending 6
+    # a limit of 2 for this test only — quicker than sending 6
     monkeypatch.setattr(routes, "RATE_LIMIT", 2)
     statuses = []
     for i in range(3):
@@ -249,7 +231,7 @@ def test_over_the_rate_limit_is_429(monkeypatch):
     assert statuses == [200, 200, 429]
 ```
 
-**Run it:**
+**Run it** (from the repo root):
 
 ```bash
 pytest tests/api -v
@@ -271,7 +253,7 @@ $ docker history --no-trunc contentforge-pro | grep "sk-"
 (no output — the key is in no layer of the image)
 $ docker run contentforge-pro
 ...
-contentforge.exceptions.MissingConfigError: Required environment
+src.exceptions.MissingConfigError: Required environment
 variable is missing: OPENAI_API_KEY
 ```
 

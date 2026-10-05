@@ -55,6 +55,6 @@ This is the graph's final shape — Steps 4 and 5 won't touch `graph.py`.
 
 Documents: 5 short `.md` files in `data/docs/`, plain paragraphs, **no heading lines** — a lone heading becomes its own chunk and matches random questions.
 
-Tests: `test_routing.py` with hand-made states and score lists (`is_relevant([{"score": 0.4}])` → `True`); `test_chunking.py`; and an integration test for the three paths. To tune `MAX_DISTANCE`, read the `found ... (score ...)` log lines for good and bad questions.
+Tests, one function per rule, each printing `OK` or `WRONG`: `test_routing.py` with hand-made states and score lists (`is_relevant([{"score": 0.4}])` → `True`); `test_chunking.py`; and integration cases 5 (a document question is grounded) and 6 (an unknown topic ends at `no_grounding_node`). To tune `MAX_DISTANCE`, read the `found ... (score ...)` log lines for good and bad questions.
 
 Full solution: [Show me the solution](step3_retriever_agent_solution.md)

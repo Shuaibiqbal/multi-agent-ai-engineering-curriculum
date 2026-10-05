@@ -72,7 +72,7 @@ history = [{"role": "system", "content": load_prompt("concierge")}]
     stream_message(client, history, message)
 ```
 
-Then write `tests/unit/test_history.py` in Doc04's test style — small `test_...()` functions that `print` a result, all called under `if __name__ == "__main__":`. Three cases are enough:
+Then write `tests/unit/test_history.py` with Step 1's test pattern — small `test_...()` functions that print `OK` or `WRONG`, all called under `if __name__ == "__main__":`. Three cases are enough:
 
 - a known history → the right estimate (40 characters → 10);
 - a short history → nothing removed;

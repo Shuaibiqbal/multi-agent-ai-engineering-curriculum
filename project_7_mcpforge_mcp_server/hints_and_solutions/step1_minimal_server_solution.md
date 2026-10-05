@@ -1,165 +1,229 @@
 # Step 1 — A Minimal Server With One Tool — Solution
 
-> [Back to this step](../README.md#step-1-a-minimal-server-with-one-tool) · [Hint 1](step1_minimal_server_hints.md#hint-1) · [Hint 2](step1_minimal_server_hints.md#hint-2) · [Solution](step1_minimal_server_solution.md)
+> [Back to this step](../READING_README.md#step-1-a-minimal-server-with-one-tool) · [Hint 1](step1_minimal_server_hints.md#hint-1) · [Hint 2](step1_minimal_server_hints.md#hint-2) · [Solution](step1_minimal_server_solution.md)
 
-## Basic Version
+**Story — Step 1:** every later layer (real storage, a Resource, a Prompt, a client) is worthless if the protocol handshake itself doesn't work. Prove that first, with the smallest possible server: one Tool, an in-memory list, nothing else. **If not:** when Step 3's Resource misbehaves, you won't know whether the bug is the Resource or the connection under it.
 
-### Approach 1 — the direct way
+After this step the server runs: `mcp dev server.py` opens the Inspector and `add_note` responds, and the test files print `OK`.
+
+## The shared files
+
+Doc01's config and logger, in the `src/` package. This server calls no LLM, so there's no API key — only `LOG_LEVEL` and `NOTES_DB_PATH`, both optional.
+
+**Story — `exceptions.py`, `config.py`, `utils/logger.py`:** settings load from one place; logging goes to **stderr**, not stdout. **If not:** on the stdio transport stdout *is* the protocol channel, so one stray log line to stdout would corrupt every message the client reads.
 
 ```python
-# server.py
-from mcp.server.mcpserver import MCPServer
-
-mcp = MCPServer("notes-server")
-notes = []
-
-
-@mcp.tool()
-def add_note(text):
-    notes.append(text)
-    return f"Note added. There are now {len(notes)} note(s)."
-
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
+# src/exceptions.py
+# The project's named errors. MissingConfigError: a required setting is
+# missing. (EmptyNoteError is added in Step 2.)
+class MissingConfigError(Exception):
+    """Raised when a required setting is missing from the environment."""
+    pass
 ```
 
-This works. It's missing type hints, a real docstring, config/logging, and any thought about stdout discipline — all fine for a first pass that just proves the connection works, but worth adding once you know the Inspector can actually call it.
+```python
+# src/config.py
+# Loads settings from .env into a checked Config. This server calls no LLM,
+# so there is no API key — only LOG_LEVEL and NOTES_DB_PATH, both optional.
+import os
+from dataclasses import dataclass
+from dotenv import load_dotenv
+from src.exceptions import MissingConfigError
+
+@dataclass
+class Config:
+    log_level: str
+    notes_db_path: str
+
+def require_env(key: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
+
+def load_config() -> Config:
+    load_dotenv()
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    notes_db_path = os.getenv("NOTES_DB_PATH", "notes.db")
+    return Config(log_level=log_level, notes_db_path=notes_db_path)
+```
+
+```python
+# src/utils/logger.py
+# get_logger(name): one logging setup for every file. It logs to STDERR on
+# purpose — on the stdio transport, stdout IS the MCP protocol channel.
+import logging
+import os
+import sys
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        level = getattr(logging, level_name.upper(), logging.INFO)
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(level)
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        handler.setFormatter(logging.Formatter(log_format))
+        logger.addHandler(handler)
+        logger.setLevel(level)
+    return logger
+```
+
+Also create empty `__init__.py` files in `src/` and `src/utils/`.
 
 <hr class="page-break">
 
-> [Back to this step](../README.md#step-1-a-minimal-server-with-one-tool) · [Hint 1](step1_minimal_server_hints.md#hint-1) · [Hint 2](step1_minimal_server_hints.md#hint-2) · [Solution](step1_minimal_server_solution.md)
+> [Back to this step](../READING_README.md#step-1-a-minimal-server-with-one-tool) · [Hint 1](step1_minimal_server_hints.md#hint-1) · [Hint 2](step1_minimal_server_hints.md#hint-2) · [Solution](step1_minimal_server_solution.md)
 
-## Intermediate Version
+## Solution — one tool, an in-memory list, over stdio
 
-### Approach 1 — typed, with a real description
-
-```python
-# server.py
-from mcp.server.mcpserver import MCPServer
-
-mcp = MCPServer("notes-server")
-notes: list[str] = []
-
-
-@mcp.tool()
-def add_note(text: str) -> str:
-    """Add a new note to the local notes store. Returns a short confirmation."""
-    notes.append(text)
-    return f"Note added. There are now {len(notes)} note(s)."
-
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
-```
-
-**Expected behavior:** `mcp dev server.py` opens the Inspector; calling `add_note` with `{"text": "Buy milk"}` returns `"Note added. There are now 1 note(s)."`. Calling it a second time in the same session returns `"...now 2 note(s)."`. Closing and reopening the connection (a fresh process) resets the count to 0 — this version really is only in-memory.
-
-### Approach 2 — config and logging wired in from the start
+**Story — `server.py`:** the smallest real MCP server — a `MCPServer` instance, one `@mcp.tool()`, and `mcp.run(transport="stdio")`. The note goes in a plain in-memory list; it forgets everything when the process stops, which is exactly the problem Step 2 fixes. The docstring is the tool's description, which an MCP client shows the model — Doc06's "a tool's description is really a prompt" idea. **If not:** without `mcp.run()` the server never starts listening, and without the stderr logger a `print()` would break the protocol.
 
 ```python
 # server.py
+# The MCPForge MCP server, Step 1: one Tool (add_note) over stdio, backed by
+# an in-memory list. Run with `mcp dev server.py`. NEVER print() here or in
+# anything it imports — on stdio, stdout is the protocol channel; all logging
+# goes to stderr via get_logger.
 from mcp.server.mcpserver import MCPServer
-from config import load_config
-from logging_setup import get_logger
+
+from src.config import load_config
+from src.utils.logger import get_logger
 
 config = load_config()
 logger = get_logger(__name__)
 
 mcp = MCPServer("notes-server")
-notes: list[str] = []
-
-
-@mcp.tool()
-def add_note(text: str) -> str:
-    """Add a new note to the local notes store. Returns a short confirmation."""
-    notes.append(text)
-    logger.info("Note added (in-memory, count=%d)", len(notes))
-    return f"Note added. There are now {len(notes)} note(s)."
-
-
-if __name__ == "__main__":
-    logger.info("Starting notes-server over stdio")
-    mcp.run(transport="stdio")
-```
-
-**Difference from Basic:** full type hints on `add_note`, a docstring that reads like a real tool description (Doc06's "a tool's description is really a prompt" idea, applied here even though there's only one tool and no ambiguity yet), and Approach 2 wires in the same config/logger pattern every project in this curriculum starts with — `logger.info(...)` instead of a `print()`, which matters more here than usual, since stdout is the protocol channel on the stdio transport.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-a-minimal-server-with-one-tool) · [Hint 1](step1_minimal_server_hints.md#hint-1) · [Hint 2](step1_minimal_server_hints.md#hint-2) · [Solution](step1_minimal_server_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a minimal client script, instead of the Inspector
-
-```python
-# client_step1_check.py -- a throwaway script, just to prove the connection
-# without relying on the Inspector's UI. Not part of the final project files.
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-
-async def main():
-    server_params = StdioServerParameters(command="python", args=["server.py"])
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools = await session.list_tools()
-            print("Tools this server offers:", [t.name for t in tools.tools])
-
-            result = await session.call_tool("add_note", {"text": "Buy milk"})
-            print("Result:", result)
-
-
-asyncio.run(main())
-```
-
-**Expected output:**
-```
-Tools this server offers: ['add_note']
-Result: <CallToolResult with the confirmation text inside it>
-```
-
-This is the exact shape Step 4 grows into a full client — worth running once here, even briefly, so the Inspector doesn't stay a black box.
-
-### Approach 2 — hardened against a stray `print()` breaking the protocol
-
-```python
-# server.py
-from mcp.server.mcpserver import MCPServer
-from config import load_config
-from logging_setup import get_logger
-
-config = load_config()
-logger = get_logger(__name__)
-
-# NEVER call print() anywhere in this file or any module it imports --
-# on the stdio transport, stdout IS the protocol channel. A stray print()
-# here corrupts every message the client tries to read after it.
-
-mcp = MCPServer("notes-server")
-notes: list[str] = []
-
+notes: list = []
 
 @mcp.tool()
 def add_note(text: str) -> str:
     """Add a new note to the local notes store. Use this whenever the user
-    wants to save, remember, or jot down a piece of text. Returns a short
+    wants to save or jot down a piece of text. Returns a short
     confirmation once the note is stored."""
     notes.append(text)
-    logger.info("Note added (in-memory, count=%d)", len(notes))
+    logger.info(f"Note added (in-memory, count={len(notes)})")
     return f"Note added. There are now {len(notes)} note(s)."
-
 
 if __name__ == "__main__":
     logger.info("Starting notes-server over stdio")
     mcp.run(transport="stdio")
 ```
 
-**Expected behavior:** identical to Intermediate Approach 2 from the client's point of view. The difference only shows up when something goes wrong elsewhere in the codebase — a teammate (or future-you) adding a debug `print()` to `db.py` in Step 2 would silently break the whole server's connection, in a way that's confusing to diagnose unless you already know stdout is off-limits. Writing that constraint down as a comment, right where the server starts, is cheap insurance against exactly that bug.
+**Run it:** `mcp dev server.py` opens the MCP Inspector; call `add_note` with `{"text": "Buy milk"}` and you get `"Note added. There are now 1 note(s)."`. Call it again in the same session → `"...now 2 note(s)."`. Close and reopen (a fresh process) and the count resets to 0 — this version really is only in memory.
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate proves the server works, tested by hand through the Inspector. Approach 1 proves the same thing with real client code instead of a UI — the actual mechanism Step 4 builds on. Approach 2 doesn't change behavior at all; it documents, in the one file every future change to this project touches, the one constraint (no `print()`, ever) that's easy to violate by accident and expensive to debug once violated.
+## The Step 1 tests
 
-**Which one should you actually write?** Intermediate Approach 2 is what belongs in `server.py` for the rest of this project — it's small, correct, and already has config/logging wired in. Do run Advanced Approach 1's client script once, by hand, even though it's not one of this project's final files — seeing a real `ClientSession` work, this early, makes Step 4 feel like "the thing I already did once, now for real" instead of new material.
+**Story — `tests/unit/test_config.py`:** the settings code, checked with no server and a made-up setting name so your `.env` is never touched. **If not:** a broken config would surface as a confusing error deep inside the server at startup.
+
+```python
+# tests/unit/test_config.py
+# Checks the settings code with no server. Each case prints OK or WRONG.
+# It only changes settings inside this test run — your .env is never touched.
+# Run from the repo root: python -m tests.unit.test_config
+import os
+
+from src.config import load_config, require_env
+from src.exceptions import MissingConfigError
+
+TEST_SETTING = "MCPFORGE_TEST_SETTING"
+
+
+def test_missing_setting() -> None:
+    os.environ.pop(TEST_SETTING, None)
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 1 (missing setting) -> {result}")
+
+
+def test_present_setting() -> None:
+    os.environ[TEST_SETTING] = "hello"
+    result = "OK"
+    if require_env(TEST_SETTING) != "hello":
+        result = "WRONG"
+    print(f"case 2 (present setting)  -> {result}")
+
+
+def test_config_loads_defaults() -> None:
+    os.environ.pop("NOTES_DB_PATH", None)
+    config = load_config()
+    result = "OK"
+    if config.notes_db_path != "notes.db":
+        result = "WRONG"
+    print(f"case 3 (config defaults)  -> {result}")
+
+
+if __name__ == "__main__":
+    test_missing_setting()
+    test_present_setting()
+    test_config_loads_defaults()
+```
+
+**Story — `tests/integration/test_server.py`:** an MCP server can only be exercised through a client, so this test *is* a tiny client — it launches `server.py` over stdio, lists the tools, and calls `add_note`. Later steps add cases to this same file. **If not:** "the server works" would mean "the Inspector showed something once". This proves the exact code path a real client uses.
+
+```python
+# tests/integration/test_server.py
+# Launches server.py over stdio with a real MCP client and exercises what it
+# exposes. Each case prints OK or WRONG. Needs the mcp SDK; no API key (this
+# server calls no model). Run from the repo root:
+#   python -m tests.integration.test_server
+import asyncio
+
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+
+def show(case: str, passed: bool) -> None:
+    result = "OK"
+    if not passed:
+        result = "WRONG"
+    print(f"{case} -> {result}")
+
+
+async def main() -> None:
+    server_params = StdioServerParameters(command="python", args=["server.py"])
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+
+            tools = await session.list_tools()
+            names = []
+            for t in tools.tools:
+                names.append(t.name)
+            show("case 1 (tools listed)", "add_note" in names)
+
+            added = await session.call_tool("add_note", {"text": "Buy milk"})
+            show("case 2 (add_note works)", "1 note" in added.content[0].text)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+Create the empty folders `tests/unit/` and `tests/integration/` too — tests run as modules from the repo root, so they need no `__init__.py`.
+
+**Run the tests** (from the repo root):
+
+```bash
+python -m tests.unit.test_config
+python -m tests.integration.test_server
+```
+
+**Expected output:**
+
+```
+case 1 (missing setting) -> OK
+case 2 (present setting)  -> OK
+case 3 (config defaults)  -> OK
+```
+
+```
+case 1 (tools listed) -> OK
+case 2 (add_note works) -> OK
+```

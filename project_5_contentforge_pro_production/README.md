@@ -86,74 +86,73 @@ evals/  10 fixed topics ──► run_pipeline ──► code check or judge ─
 
 ```
 <repo folder>/   (ContentForge-Pro-...-API-Database-And-Docker/)
-├── README.md               the repo's front page
-├── LICENSE                 lets others reuse your code (MIT)
-├── .gitignore              keeps .env, .venv/, runs.db out of git
-├── .env.example            the setting names, no real values
-├── .env                    your real key — never committed
-├── pyproject.toml          makes src/contentforge an installable package
-├── requirements.txt        the libraries, for pip install -r
-├── Dockerfile              builds the API's container image
-├── .dockerignore           keeps .env and runs.db out of the image
+├── data/
+│   └── sample/
+│       └── facts.json          the facts Research can look up
 ├── src/
-│   └── contentforge/
-│       ├── __init__.py
-│       ├── main.py             asks for a topic, prints the report
-│       ├── config.py           Config, load_config()
-│       ├── exceptions.py       MissingConfigError
-│       ├── schemas.py          ReviewVerdict (score, feedback)
-│       ├── state.py            TeamState, start_state()
-│       ├── graph.py            build_graph(): 5 nodes, 1 edge
-│       ├── pipeline.py         run_pipeline(): the one door in
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── llm.py          get_model()
-│       ├── agents/
-│       │   ├── __init__.py
-│       │   ├── supervisor.py      decide_next(), supervisor()
-│       │   ├── research_agent.py  run_research(), research_node
-│       │   ├── analysis_agent.py  run_analysis(), analysis_node
-│       │   ├── writer_agent.py    run_writer(), writer_node
-│       │   └── reviewer_agent.py  run_reviewer(), reviewer_node
-│       ├── tools/
-│       │   ├── __init__.py
-│       │   └── lookup.py       lookup_facts (@tool)
-│       ├── prompts/
-│       │   ├── research.txt
-│       │   ├── analysis.txt
-│       │   ├── writer.txt
-│       │   └── reviewer.txt
-│       ├── utils/
-│       │   ├── __init__.py
-│       │   ├── logger.py       get_logger()
-│       │   └── prompts.py      load_prompt(name)
-│       ├── api/
-│       │   ├── __init__.py
-│       │   ├── main.py         the app uvicorn starts
-│       │   ├── routes.py       /health, /run-task, /runs/{run_id}
-│       │   └── schemas.py      TaskRequest, TaskResponse
-│       ├── db/
-│       │   ├── __init__.py
-│       │   ├── database.py     save and fetch runs (SQLite)
-│       │   └── models.py       Run: one saved run's shape
-│       └── evals/
-│           ├── __init__.py
-│           ├── tasks.py        10 fixed topics and checks
-│           ├── judge.py        score_with_judge()
-│           ├── run_eval.py     runs the suite, saves report.json
-│           └── regression_check.py  breaks a prompt, checks the drop
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── analysis_agent.py   run_analysis(), analysis_node
+│   │   ├── research_agent.py   run_research(), research_node
+│   │   ├── reviewer_agent.py   run_reviewer(), reviewer_node
+│   │   ├── supervisor.py       decide_next(), supervisor()
+│   │   └── writer_agent.py     run_writer(), writer_node
+│   ├── api/
+│   │   ├── __init__.py
+│   │   ├── main.py             the app uvicorn starts
+│   │   ├── routes.py           /health, /run-task, /runs/{id}
+│   │   └── schemas.py          TaskRequest, TaskResponse
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── database.py         save and fetch runs (SQLite)
+│   │   └── models.py           Run: one saved run's shape
+│   ├── evals/
+│   │   ├── __init__.py
+│   │   ├── judge.py            score_with_judge()
+│   │   ├── regression_check.py breaks a prompt, checks drop
+│   │   ├── run_eval.py         runs the suite, saves report
+│   │   └── tasks.py            10 fixed topics and checks
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py              get_model()
+│   ├── prompts/
+│   │   ├── analysis.txt
+│   │   ├── research.txt
+│   │   ├── reviewer.txt
+│   │   └── writer.txt
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   └── lookup.py           lookup_facts (@tool)
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py           get_logger()
+│   │   └── prompts.py          load_prompt(name)
+│   ├── __init__.py
+│   ├── config.py               Config, load_config()
+│   ├── exceptions.py           MissingConfigError
+│   ├── graph.py                build_graph(): 5 nodes, 1 edge
+│   ├── pipeline.py             run_pipeline(): the one door in
+│   ├── schemas.py              ReviewVerdict (score, feedback)
+│   └── state.py                TeamState, start_state()
 ├── tests/
-│   ├── unit/
-│   │   ├── test_lookup.py      no API key needed
-│   │   └── test_supervisor.py  no API key needed
 │   ├── api/
 │   │   └── test_routes.py      the API, with the team faked
-│   └── integration/
-│       ├── test_live_agents.py real API calls
-│       └── test_judge.py       real API calls
-└── data/
-    └── sample/
-        └── facts.json          the facts Research can look up
+│   ├── integration/
+│   │   ├── test_judge.py       real API calls
+│   │   └── test_live_agents.py real API calls
+│   └── unit/
+│       ├── test_config.py      no API key needed
+│       ├── test_lookup.py      no API key needed
+│       └── test_supervisor.py  no API key needed
+├── .dockerignore               keeps .env and runs.db out of image
+├── .env                        your real key — never committed
+├── .env.example                the setting names, no real values
+├── .gitignore                  keeps .env, .venv/, runs.db out of git
+├── Dockerfile                  builds the API's container image
+├── LICENSE                     lets others reuse your code (MIT)
+├── main.py                     the terminal app (from Project 4)
+├── README.md                   the repo's front page
+└── requirements.txt            the libraries, for pip install -r
 ```
 
 ## Getting Started
@@ -168,7 +167,6 @@ Database-And-Docker
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-pip install -e .
 cp .env.example .env               # then put your key in .env
 ```
 
@@ -181,13 +179,13 @@ cp .env.example .env               # then put your key in .env
 
 | Setting | Where | Default |
 |---|---|---|
-| Chat model | `models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
-| Pass mark | `agents/reviewer_agent.py` → `PASS_SCORE` | `7` (out of 10) |
-| Revision limit | `agents/supervisor.py` → `MAX_REVISIONS` | `3` |
-| Topic length | `api/schemas.py` → `TaskRequest` | 1-200 characters |
-| Rate limit | `api/routes.py` → `RATE_LIMIT`, `RATE_WINDOW_SECONDS` | 5 requests per 60 s, per caller |
-| Database file | `db/database.py` → `DB_PATH` | `runs.db` |
-| Eval pass bar | `evals/regression_check.py` → `PASS_BAR` | `0.8` |
+| Chat model | `src/models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
+| Pass mark | `src/agents/reviewer_agent.py` → `PASS_SCORE` | `7` (out of 10) |
+| Revision limit | `src/agents/supervisor.py` → `MAX_REVISIONS` | `3` |
+| Topic length | `src/api/schemas.py` → `TaskRequest` | 1-200 characters |
+| Rate limit | `src/api/routes.py` → `RATE_LIMIT`, `RATE_WINDOW_SECONDS` | 5 per 60 s, per caller |
+| Database file | `src/db/database.py` → `DB_PATH` | `runs.db` |
+| Eval pass bar | `src/evals/regression_check.py` → `PASS_BAR` | `0.8` |
 | Known facts | `data/sample/facts.json` | electric bikes, remote work, solar panels |
 
 ## Usage
@@ -195,8 +193,8 @@ cp .env.example .env               # then put your key in .env
 Run from the repo root:
 
 ```bash
-uvicorn contentforge.api.main:app --reload     # the API on port 8000
-python -m contentforge.main                    # the terminal app
+uvicorn src.api.main:app --reload     # the API on port 8000
+python main.py                        # the terminal app
 ```
 
 Open `http://localhost:8000/docs` to try every route in the browser.
@@ -221,22 +219,23 @@ Run from the repo root:
 
 ```bash
 # free — no model calls
-python tests/unit/test_lookup.py
-python tests/unit/test_supervisor.py
+python -m tests.unit.test_config
+python -m tests.unit.test_lookup
+python -m tests.unit.test_supervisor
 pytest tests/api -v
 
 # real API calls — needs a valid OPENAI_API_KEY
-python tests/integration/test_live_agents.py
+python -m tests.integration.test_live_agents
 pytest tests/integration/test_judge.py -v
 ```
 
-The unit tests (plain scripts, the same as in the original team project) check the lookup tool and every routing rule. The API tests check every route and status code — 200, 400, 404, 422, 429 and a plain 500 — and the saved rows, with the team replaced by a fake. The integration tests run the real team and check the judge on answers with a known verdict.
+The unit tests (plain OK/WRONG scripts, the same as in the original team project) check the settings, the lookup tool and every routing rule. The API tests check every route and status code — 200, 400, 404, 422, 429 and a plain 500 — and the saved rows, with the team replaced by a fake. The integration tests run the real team and check the judge on answers with a known verdict.
 
 **Article quality** (real API calls):
 
 ```bash
-python -m contentforge.evals.run_eval           # score + report.json
-python -m contentforge.evals.regression_check   # prove a bad change drops it
+python -m src.evals.run_eval           # score + report.json
+python -m src.evals.regression_check   # prove a bad change drops it
 ```
 
 `run_eval` runs 10 fixed topics — exact `[source]` checks, judge rules and unknown topics — and prints the score. `regression_check` runs it, pauses while you remove the `[source]` rule from Research's prompt, runs it again, and reports whether the score fell below the bar.

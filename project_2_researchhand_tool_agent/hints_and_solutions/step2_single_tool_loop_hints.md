@@ -60,8 +60,10 @@ In `main.py`: `MAX_ITERATIONS = 5`, a `print_steps()` helper, and `except MaxIte
 
 Tests:
 
+Every case prints `OK` or `WRONG` (the Step 1 pattern), one function per case:
+
 - `test_tools.py` — `celsius_to_fahrenheit.invoke({"celsius": 18})` → `64.4`; `{"celsius": "hot"}` → `ValidationError`.
-- `test_agents.py` — `find_tool()` and `run_tool()` with hand-made call dicts: a good call, an unknown tool, bad arguments.
+- `test_agents.py` — `find_tool()` with a known and an unknown name, and `run_tool()` with hand-made call dicts: a good call, an unknown tool, bad arguments (5 cases).
 - `test_live_agents.py` — a conversion uses the tool, a general question uses none, `max_iterations=1` raises.
 
 Full solution: [Show me the solution](step2_single_tool_loop_solution.md)

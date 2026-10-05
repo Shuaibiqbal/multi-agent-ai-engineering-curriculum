@@ -241,10 +241,10 @@ if __name__ == "__main__":
 climate change
   sequential:        306t 2.75s
   supervisor (if):   306t 2.81s
-  supervisor (llm):  341t 3.62s
+  supervisor (llm):  417t 3.95s
     routed: ['research', 'write']
 ```
-The LLM-based supervisor calls the model 3 times total (route, route, route-to-done) — roughly 35 extra tokens and 0.8 extra seconds here, entirely from routing decisions that produce zero user-visible work. That's the real, honest cost `paper_design`'s prediction was estimating — an `if`-based router hides it completely.
+The LLM-based supervisor calls the model 3 times total (route, route, route-to-done) — roughly 110 extra tokens (about 37 per routing call — each one resends the task and the instructions) and about 1.2 extra seconds here, entirely from routing decisions that produce zero user-visible work. That's the real, honest cost `paper_design`'s prediction was estimating — an `if`-based router hides it completely.
 
 ### Approach 3 — a written comparison table across all 3 designs
 
@@ -274,12 +274,12 @@ if __name__ == "__main__":
 **Expected output** (exact numbers vary by run):
 ```
 topic                    sequential                 if                llm
-climate change            306t/2.8s          306t/2.8s          341t/3.6s
-inflation                 286t/2.6s          286t/2.7s          319t/3.4s
-sleep quality             325t/2.9s          325t/3.0s          362t/3.8s
+climate change            306t/2.8s          306t/2.8s          417t/4.0s
+inflation                 286t/2.6s          286t/2.7s          397t/3.8s
+sleep quality             325t/2.9s          325t/3.0s          436t/4.2s
 ```
 
-**Real result, versus the `paper_design` guess:** sequential and the `if`-based supervisor are nearly identical on tokens (routing there was free) and very close on speed (a few extra node hops, no extra model calls). The LLM-based supervisor is the one that actually matches `paper_design`'s prediction — roughly 10-15% more tokens and 25-30% more wall-clock time than sequential, entirely from a routing decision that, for this fixed two-step task, never had a real choice to make. `paper_design`'s verdict holds: for a task whose order never changes, a supervisor buys nothing except its own overhead.
+**Real result, versus the `paper_design` guess:** sequential and the `if`-based supervisor are nearly identical on tokens (routing there was free) and very close on speed (a few extra node hops, no extra model calls). The LLM-based supervisor is the one that actually matches `paper_design`'s prediction — roughly a third more tokens and about 40% more wall-clock time than sequential, entirely from a routing decision that, for this fixed two-step task, never had a real choice to make. `paper_design`'s verdict holds: for a task whose order never changes, a supervisor buys nothing except its own overhead.
 
 **Difference between Approach 1 and Approaches 2/3:** Approach 1's comparison only shows sequential against a free-routing supervisor, which understates the pattern's real cost — a production supervisor calls the model to route, it doesn't use `if` checks. Approach 2 adds that missing, honest routing cost by building a second supervisor variant that actually pays for its decision. Approach 3 doesn't add new measurement — it lines up all 3 designs' numbers in one table across multiple topics, which is what turns "the LLM supervisor seemed to cost more" into a specific, repeatable percentage you could put in front of the tough senior engineer this document's "How to Practice" step asks you to defend against.
 

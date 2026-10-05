@@ -209,7 +209,7 @@ This is 2 separate scripts, run one after the other, with the process exiting co
 
 **`pause_script.py`:**
 ```python
-# loop_limit_interrupt_practice.py
+# pause_script.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -245,7 +245,7 @@ print(result)
 
 **`resume_script.py`** (run as a brand-new `python resume_script.py`, after `pause_script.py` has already exited):
 ```python
-# loop_limit_interrupt_practice.py
+# resume_script.py
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -279,21 +279,23 @@ print(resumed_state)
 ```
 Traceback (most recent call last):
   ...
-langgraph.errors.EmptyInputError: ... (or an equivalent error /
-empty-state result, depending on version)
+    decision = interrupt({"question": f"Approve running: {state['task']}?"})
+KeyError: 'task'
 ```
-This is the point, not a mistake to fix: `MemorySaver` really does keep its data only in the Python process that created it. A genuinely separate process has a genuinely empty checkpointer, so there's nothing to resume — proving hands-on that `MemorySaver` is a development/testing tool, not something that survives an actual restart.
+This is the point, not a mistake to fix: `MemorySaver` really does keep its data only in the Python process that created it. A genuinely separate process has a genuinely empty checkpointer: there is no saved pause for `run-1`, so LangGraph starts the graph from the beginning with an **empty** state — and `do_task` crashes reading `state['task']`. Nothing was resumed — proving hands-on that `MemorySaver` is a development/testing tool, not something that survives an actual restart.
 
 ### Approach 3 — a checkpointer that actually persists, using SQLite
 
-**Story:** the one substitution that fixes Approach 2's failure — `SqliteSaver` instead of `MemorySaver` — is the exact seam the Build Task needs, so `graph.py` can swap checkpointers at the call site without touching the graph itself. **If not:** the Build Task's skeleton would hard-code `MemorySaver()`, and the day Document 10 needs a real persisted checkpointer, that would mean editing the graph's own code instead of just the caller.
+**Story:** the one substitution that fixes Approach 2's failure — `SqliteSaver` instead of `MemorySaver` — is the exact seam the Build Task needs, so `graph.py` can swap checkpointers at the call site without touching the graph itself. **If not:** the Build Task's skeleton would hard-code `MemorySaver()`, and the day Project 3 needs a checkpointer that survives a restart, that would mean editing the graph's own code instead of just the caller.
+
+Three files this time: the graph lives in one module, and the two scripts import it — so both processes build exactly the same graph. `SqliteSaver` needs `pip install langgraph-checkpoint-sqlite`.
 
 ```python
-# loop_limit_interrupt_practice.py
+# approval_graph.py
 from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.types import interrupt, Command
+
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt
 
 
 class ApprovalState(TypedDict):
@@ -306,31 +308,62 @@ def do_task(state: ApprovalState) -> dict:
     return {"approved": decision}
 
 
-builder = StateGraph(ApprovalState)
-builder.add_node("do_task", do_task)
-builder.add_edge(START, "do_task")
-builder.add_edge("do_task", END)
+def build_approval_graph(checkpointer):
+    builder = StateGraph(ApprovalState)
+    builder.add_node("do_task", do_task)
+    builder.add_edge(START, "do_task")
+    builder.add_edge("do_task", END)
+    return builder.compile(checkpointer=checkpointer)
+```
 
-config = {"configurable": {"thread_id": "run-1"}}
+```python
+# pause_script.py — run first; it pauses, saves to disk, and exits
+from langgraph.checkpoint.sqlite import SqliteSaver
 
-# pause_script.py
+from approval_graph import build_approval_graph
+
+CONFIG = {"configurable": {"thread_id": "run-1"}}
+
 with SqliteSaver.from_conn_string("checkpoints.sqlite") as checkpointer:
-    graph = builder.compile(checkpointer=checkpointer)
-    graph.invoke({"task": "send an email", "approved": False}, config=config)
+    graph = build_approval_graph(checkpointer)
+    graph.invoke({"task": "send an email", "approved": False}, config=CONFIG)
     print("Paused, saved to checkpoints.sqlite. Safe to exit now.")
+```
 
-# resume_script.py -- a genuinely separate process, run later
+```python
+# resume_script.py — run second, as a brand-new process
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.types import Command
+
+from approval_graph import build_approval_graph
+
+CONFIG = {"configurable": {"thread_id": "run-1"}}
+
 with SqliteSaver.from_conn_string("checkpoints.sqlite") as checkpointer:
-    graph = builder.compile(checkpointer=checkpointer)
-    resumed_state = graph.invoke(Command(resume=True), config=config)
-    print(resumed_state)
+    graph = build_approval_graph(checkpointer)
+    snapshot = graph.get_state(CONFIG)
+    print(f"waiting at: {snapshot.next}")
+    print(f"saved state: {snapshot.values}")
+    resumed_state = graph.invoke(Command(resume=True), config=CONFIG)
+    print(f"after resume: {resumed_state}")
 ```
-**Expected output** (from the second, genuinely separate process, run any time after the first one exited):
-```
-{'task': 'send an email', 'approved': True}
-```
-Same graph, same interrupt, same `Command(resume=True)` call — the only change is swapping `MemorySaver()` for `SqliteSaver.from_conn_string("checkpoints.sqlite")`, which writes each checkpoint to an actual file on disk. That one substitution is the entire difference between "survives a second function call in the same script" and "survives the process exiting, the computer rebooting, or a completely different program resuming it hours later."
 
-**Difference from Approach 1, and between Approaches 2/3:** Approach 1 proves pause/resume works within one running script, using `MemorySaver`. Approach 2 deliberately tries the same thing across 2 truly separate processes and shows it fails — the checkpointer's data was only ever in that first process's RAM. Approach 3 fixes the actual problem Approach 2 exposes, by swapping in `SqliteSaver`, a checkpointer backed by a real file — proving the exact same graph and interrupt code now genuinely survives a restart, with no other changes needed.
+**Run them one after the other** — the first process exits completely before the second starts:
+```bash
+python pause_script.py
+python resume_script.py
+```
+**Expected output:**
+```
+Paused, saved to checkpoints.sqlite. Safe to exit now.
+```
+```
+waiting at: ('do_task',)
+saved state: {'task': 'send an email', 'approved': False}
+after resume: {'task': 'send an email', 'approved': True}
+```
+Same graph, same interrupt, same `Command(resume=True)` call — the only change is `SqliteSaver.from_conn_string("checkpoints.sqlite")`, which writes each checkpoint to a file on disk. `graph.get_state(config)` reads that saved checkpoint without running anything: `.next` is the node waiting to run (an empty tuple `()` when nothing is paused), and `.values` is the saved state. That's how a second process knows there's something to resume before it resumes it.
+
+**Difference from Approach 1, and between Approaches 2/3:** Approach 1 proves pause/resume works within one running script, using `MemorySaver`. Approach 2 deliberately tries the same thing across 2 truly separate processes and shows it fails — the checkpointer's data was only ever in that first process's RAM. Approach 3 fixes the actual problem Approach 2 exposes, by swapping in `SqliteSaver`, a checkpointer backed by a real file — proving, with two real scripts, that the exact same graph and interrupt code now survives a restart — and `get_state()` shows what's waiting before you resume it.
 
 **Which one should you actually use?** `MemorySaver` for local development and this document's exercises — it's fast, needs no setup, and is exactly right for testing a graph's logic. The moment a pause needs to survive past the current process — a real human approval workflow, a server that might restart, anything actually going to production — swap to a real persisted checkpointer (`SqliteSaver` for something simple and local, `PostgresSaver` for a real deployed service). Approach 2's failure is worth actually watching once, the same way the endless loop in Part 1 is — so "why didn't my resume work" never becomes a confusing surprise in a real project.

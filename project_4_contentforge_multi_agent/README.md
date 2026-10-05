@@ -28,7 +28,7 @@ One prompt asked to research, organize, write and critique at once blurs all fou
 ## Demo
 
 ```
-$ python -m contentforge.main
+$ python main.py
 Topic: electric bikes
 Routing log:
   research_agent: no research yet
@@ -75,53 +75,52 @@ Europe sold over 5 million e-bikes in 2022 [market-report] ...
 
 ```
 <repo folder>/   (ContentForge-Research-...-Publish-Ready-Article/)
-├── README.md               the repo's front page
-├── LICENSE                 lets others reuse your code (MIT)
-├── .gitignore              keeps .env, .venv/, __pycache__/ out of git
-├── .env.example            the setting names, no real values
-├── .env                    your real key — never committed
-├── pyproject.toml          makes src/contentforge an installable package
-├── requirements.txt        the libraries, for pip install -r
+├── data/
+│   └── sample/
+│       └── facts.json          the facts Research can look up
 ├── src/
-│   └── contentforge/
-│       ├── __init__.py
-│       ├── main.py             asks for a topic, prints the report
-│       ├── config.py           Config, load_config()
-│       ├── exceptions.py       MissingConfigError
-│       ├── schemas.py          ReviewVerdict (score, feedback)
-│       ├── state.py            TeamState, start_state()
-│       ├── graph.py            build_graph(): 5 nodes, 1 edge
-│       ├── models/
-│       │   ├── __init__.py
-│       │   └── llm.py          get_model()
-│       ├── agents/
-│       │   ├── __init__.py
-│       │   ├── supervisor.py      decide_next(), supervisor()
-│       │   ├── research_agent.py  run_research(), research_node
-│       │   ├── analysis_agent.py  run_analysis(), analysis_node
-│       │   ├── writer_agent.py    run_writer(), writer_node
-│       │   └── reviewer_agent.py  run_reviewer(), reviewer_node
-│       ├── tools/
-│       │   ├── __init__.py
-│       │   └── lookup.py       lookup_facts (@tool)
-│       ├── prompts/
-│       │   ├── research.txt
-│       │   ├── analysis.txt
-│       │   ├── writer.txt
-│       │   └── reviewer.txt
-│       └── utils/
-│           ├── __init__.py
-│           ├── logger.py       get_logger()
-│           └── prompts.py      load_prompt(name)
+│   ├── agents/
+│   │   ├── __init__.py
+│   │   ├── analysis_agent.py   run_analysis(), analysis_node
+│   │   ├── research_agent.py   run_research(), research_node
+│   │   ├── reviewer_agent.py   run_reviewer(), reviewer_node
+│   │   ├── supervisor.py       decide_next(), supervisor()
+│   │   └── writer_agent.py     run_writer(), writer_node
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py              get_model()
+│   ├── prompts/
+│   │   ├── analysis.txt
+│   │   ├── research.txt
+│   │   ├── reviewer.txt
+│   │   └── writer.txt
+│   ├── tools/
+│   │   ├── __init__.py
+│   │   └── lookup.py           lookup_facts (@tool)
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py           get_logger()
+│   │   └── prompts.py          load_prompt(name)
+│   ├── __init__.py
+│   ├── config.py               Config, load_config()
+│   ├── exceptions.py           MissingConfigError
+│   ├── graph.py                build_graph(): 5 nodes, 1 edge
+│   ├── schemas.py              ReviewVerdict (score, feedback)
+│   └── state.py                TeamState, start_state()
 ├── tests/
-│   ├── unit/
-│   │   ├── test_lookup.py      no API key needed
-│   │   └── test_supervisor.py  no API key needed
-│   └── integration/
-│       └── test_live_agents.py real API calls
-└── data/
-    └── sample/
-        └── facts.json          the facts Research can look up
+│   ├── integration/
+│   │   └── test_live_agents.py real API calls
+│   └── unit/
+│       ├── test_config.py      no API key needed
+│       ├── test_lookup.py      no API key needed
+│       └── test_supervisor.py  no API key needed
+├── .env                        your real key — never committed
+├── .env.example                the setting names, no real values
+├── .gitignore                  keeps .env, .venv/, __pycache__/ out
+├── LICENSE                     lets others reuse your code (MIT)
+├── main.py                     asks for a topic, prints the report
+├── README.md                   the repo's front page
+└── requirements.txt            the libraries, for pip install -r
 ```
 
 ## Getting Started
@@ -136,7 +135,6 @@ Into-A-Publish-Ready-Article
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-pip install -e .
 cp .env.example .env               # then put your key in .env
 ```
 
@@ -149,9 +147,9 @@ cp .env.example .env               # then put your key in .env
 
 | Setting | Where | Default |
 |---|---|---|
-| Chat model | `models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
-| Pass mark | `agents/reviewer_agent.py` → `PASS_SCORE` | `7` (out of 10) |
-| Revision limit | `agents/supervisor.py` → `MAX_REVISIONS` | `3` |
+| Chat model | `src/models/llm.py` → `MODEL_NAME` | `gpt-4o-mini` |
+| Pass mark | `src/agents/reviewer_agent.py` → `PASS_SCORE` | `7` (out of 10) |
+| Revision limit | `src/agents/supervisor.py` → `MAX_REVISIONS` | `3` |
 | Known facts | `data/sample/facts.json` | electric bikes, remote work, solar panels |
 
 To support a new topic, add it with its facts and `[source]` tags to `facts.json`.
@@ -161,7 +159,7 @@ To support a new topic, add it with its facts and `[source]` tags to `facts.json
 Run from the repo root:
 
 ```bash
-python -m contentforge.main     # or simply: contentforge
+python main.py
 ```
 
 Enter a topic. You get the routing log and either the final article, a "couldn't agree" report with every round's feedback, or "nothing is known about this topic yet".
@@ -170,14 +168,15 @@ Enter a topic. You get the routing log and either the final article, a "couldn't
 
 ```bash
 # unit tests — no API key
-python tests/unit/test_lookup.py
-python tests/unit/test_supervisor.py
+python -m tests.unit.test_config
+python -m tests.unit.test_lookup
+python -m tests.unit.test_supervisor
 
 # integration tests — real API calls, needs OPENAI_API_KEY
-python tests/integration/test_live_agents.py
+python -m tests.integration.test_live_agents
 ```
 
-The unit tests check the lookup tool and every routing rule on hand-made states. The integration test checks that the Reviewer fails a weak draft, that a known topic goes through all four specialists, and that an unknown topic stops the run.
+The unit tests check the settings, the lookup tool and every routing rule on hand-made states. The integration test checks that the Writer keeps its sources, the Reviewer fails a weak draft, Research grounds and stops honestly, Analysis keeps every fact, and the whole team runs end to end.
 
 ## Error Handling
 

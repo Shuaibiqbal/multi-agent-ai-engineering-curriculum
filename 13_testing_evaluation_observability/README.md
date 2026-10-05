@@ -451,19 +451,19 @@ _You don't need any of these to understand the Core Concepts above — use them 
 practice/
 ├── chunking.py, tools.py, ...        copied in, unchanged
 ├── chunking_unit_test_practice.py   Basic
-├── tool_test_no_llm_practice.py     Intermediate
 ├── llm_output_testing_practice.py   Real-world + Edge cases
 │                                      (2 sections)
+├── regression_catch_practice.py     Failure
 ├── support_prompt.txt                 the prompt Failure breaks
-└── regression_catch_practice.py     Failure
+└── tool_test_no_llm_practice.py     Intermediate
 ```
 
 **Why each script exists:**
 
 - `chunking_unit_test_practice.py` — learns pytest on code with no model inside, where an exact `==` is right.
-- `tool_test_no_llm_practice.py` — tests Doc06's tools directly, success and failure, with no model, no key, no network.
 - `llm_output_testing_practice.py` — a judge with rules written first, a check that the judge itself can be trusted, and an exact-match test rewritten into a property check.
 - `regression_catch_practice.py` — makes `support_prompt.txt` worse on purpose and proves the suite's score drops, naming the tasks that caught it.
+- `tool_test_no_llm_practice.py` — tests Doc06's tools directly, success and failure, with no model, no key, no network.
 
 **How to run each exercise:** if two exercises below are really about the same thing, save them together in ONE script named after that topic, with each level's version as its own clearly labeled section inside it. Run everything from inside `practice/`: test files with `pytest <file> -v`, and `regression_catch_practice.py` with `python`.
 
@@ -545,26 +545,26 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 **Suggested files:**
 ```
 13_testing_evaluation_observability/practice/build_task/
-├── writer_prompt.txt    the prompt the regression check breaks
-├── tasks.py             10 fixed tasks: "expected" or "rules"
-├── pipeline.py          run_project_4() — the one door into Project 4
 ├── judge.py             score_with_judge(), versioned judge prompt
-├── run_eval.py          runs every task, prints, saves report.json
+├── pipeline.py          run_project_4() — the one door into Project 4
 ├── regression_check.py  sabotage the prompt, prove the score drops
+├── run_eval.py          runs every task, prints, saves report.json
+├── tasks.py             10 fixed tasks: "expected" or "rules"
+├── test_judge.py        the judge must fail obviously bad answers
 ├── test_unit_layer.py   chunker + tools, no model
-└── test_judge.py        the judge must fail obviously bad answers
+└── writer_prompt.txt    the prompt the regression check breaks
 ```
 
 **Why each file exists:**
 
-- `writer_prompt.txt` — the writer's prompt in a file, read fresh on every call, so the regression check can edit it mid-run (`regression_catch`).
-- `tasks.py` — the fixed test set, written before anything runs; facts get a free code check, meaning gets judge rules.
-- `pipeline.py` — one place that calls Project 4, so swapping the stand-in for your real graph touches one file.
 - `judge.py` — `llm_judge_scoring`'s judge, unchanged: typed result, versioned prompt, `temperature=0`.
-- `run_eval.py` — the runner: cheapest check per task, a reason for each failure, and a saved `report.json`.
+- `pipeline.py` — one place that calls Project 4, so swapping the stand-in for your real graph touches one file.
 - `regression_check.py` — `regression_catch`'s pass bar and per-task list, run against the real suite.
-- `test_unit_layer.py` — the fast, free layer from `chunking_unit_test` and `tool_test_no_llm`; a broken function fails exactly one test.
+- `run_eval.py` — the runner: cheapest check per task, a reason for each failure, and a saved `report.json`.
+- `tasks.py` — the fixed test set, written before anything runs; facts get a free code check, meaning gets judge rules.
 - `test_judge.py` — `llm_judge_scoring`'s calibration set, so a judge that approves everything is caught.
+- `test_unit_layer.py` — the fast, free layer from `chunking_unit_test` and `tool_test_no_llm`; a broken function fails exactly one test.
+- `writer_prompt.txt` — the writer's prompt in a file, read fresh on every call, so the regression check can edit it mid-run (`regression_catch`).
 
 **Functions/Components to build:**
 

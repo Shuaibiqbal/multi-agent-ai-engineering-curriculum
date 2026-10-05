@@ -270,6 +270,7 @@ practice/
 
 - **What:** `def set_age(age: int) -> None:` with full hints, raising your own `InvalidAgeError` when `age < 0`.
 - **Why:** a signature that already tells the reader what can go wrong is the habit most beginner code is missing.
+- **How to code it:** write `class InvalidAgeError(Exception): pass`, then in `set_age()` add `if age < 0: raise InvalidAgeError(f"...{age}")`. Call it inside `try` / `except InvalidAgeError as e:` and print the message. Then add a docstring and a guard clause that returns early.
 - **Save as:** `practice/custom_errors_practice.py`, under a `# Basic` section (this file also holds the [Failure handling exercise](#ex-failure_handling), in its own section).
 - **Used later by:** the [Real-world wiring exercise](#ex-config_logging_wiring) and the [Build Task](#build-task-config-logging-foundation) — you **re-write** this `class SomeError(Exception)` pattern into their `exceptions.py` as `MissingConfigError`, rather than importing this file.
 - **Stuck?** [Hint 1](hints_and_solutions/basic1_hints.md#hint-1) · [Hint 2](hints_and_solutions/basic1_hints.md#hint-2) · [Show me the solution](hints_and_solutions/basic1_solution.md)
@@ -278,6 +279,7 @@ practice/
 
 - **What:** the full cycle by hand — `venv` → `activate` → `pip install requests` → `pip freeze > requirements.txt` → confirm `requests` is listed with a version.
 - **Why:** this is the first thing you do on every project from here on; get it into muscle memory now.
+- **How to code it:** run `python -m venv .venv`, then `source .venv/bin/activate` (Windows: `.venv\Scripts\activate`), `pip install requests` and `pip freeze > requirements.txt`. Check each step before the next one — `ls`, `which python`, `pip show requests`, `wc -l requirements.txt` — and paste every command with its output into your notes.
 - **Save as:** `practice/venv_setup_practice.md` — notes, not a script, since it is all shell commands: paste each command and its output as your own record. (Keep `.venv/` out of git.)
 - **Stuck?** [Hint 1](hints_and_solutions/venv_setup_hints.md#hint-1) · [Hint 2](hints_and_solutions/venv_setup_hints.md#hint-2) · [Show me the solution](hints_and_solutions/venv_setup_solution.md)
 
@@ -285,6 +287,7 @@ practice/
 
 - **What:** parse a `.env` file's `KEY=value` lines yourself, then rewrite it in two lines with `load_dotenv()` + `os.getenv()` and say which you would ship.
 - **Why:** doing it once by hand shows what the library saves you from — quoting, blanks, comments, missing files.
+- **How to code it:** open the `.env` with `with open(path) as env_file:`, loop over the lines, skip blank lines and `#` comments, split each with `key, value = line.strip().split("=", 1)` and store it in a dict. Then do the same job with `load_dotenv()` and `os.getenv("KEY")`, and compare.
 - **Save as:** `practice/env_config_practice.py`, under an `# Intermediate` section (this file also holds the [Edge cases exercise](#ex-env_edge_cases), in its own section).
 - **Used later by:** the [Build Task](#build-task-config-logging-foundation)'s `load_config()`, which ships the two-line `load_dotenv()` version **re-written** into `practice/build_task/config.py`, because that one also returns a typed `Config`.
 - **Stuck?** [Hint 1](hints_and_solutions/env_parsing_hints.md#hint-1) · [Hint 2](hints_and_solutions/env_parsing_hints.md#hint-2) · [Show me the solution](hints_and_solutions/env_parsing_solution.md)
@@ -293,6 +296,7 @@ practice/
 
 - **What:** a `get_logger(name: str) -> logging.Logger` with a `StreamHandler` at `INFO` and a `FileHandler` at `DEBUG`, then one message at each level.
 - **Why:** this is the setup you want in production — quiet in the terminal, detailed in the file you read after something breaks.
+- **How to code it:** `logger = logging.getLogger(name)`, then add a `StreamHandler` with `setLevel(logging.INFO)` and a `FileHandler("app.log")` with `setLevel(logging.DEBUG)`, both with the same `Formatter`, and set the logger itself to `DEBUG`. Log one `debug`, `info`, `warning` and `error` line, and compare the console with `app.log`.
 - **Save as:** `practice/logging_practice.py`.
 - **Used later by:** the [Real-world wiring exercise](#ex-config_logging_wiring), which **copies** this `get_logger()` into `practice/config_logging_wiring/logging_setup.py`; the [Build Task](#build-task-config-logging-foundation)'s version adds a duplicate-handler guard. Keep the name `get_logger` exactly — every later document calls it by that name.
 - **Stuck?** [Hint 1](hints_and_solutions/logger_levels_hints.md#hint-1) · [Hint 2](hints_and_solutions/logger_levels_hints.md#hint-2) · [Show me the solution](hints_and_solutions/logger_levels_solution.md)
@@ -301,6 +305,7 @@ practice/
 
 - **What:** a mini project whose `main.py` calls `load_config()`, then `get_logger(__name__)`, then logs one line using a value from config.
 - **Why:** config and logging are almost always used together, and this is the first three lines of every script you write from here on.
+- **How to code it:** in `main.py`: `config = load_config()`, then `logger = get_logger(__name__)`, then `logger.info(f"... {config.log_level}")`. Then wrap `load_config()` in `try` / `except MissingConfigError` so a missing key prints one clear line and stops, instead of a traceback.
 - **Save as:** its own folder `practice/config_logging_wiring/`, with four files:
   ```
   exceptions.py       MissingConfigError
@@ -321,6 +326,7 @@ practice/
 
 - **What:** two tricky `.env` states — a file that exists but is empty, and a key present with an empty string as its value. Test your loader against both.
 - **Why:** getting this wrong silently is how a genuinely missing secret sails through as if it were fine.
+- **How to code it:** make two `.env` files — one completely empty, one with `OPENAI_API_KEY=` and nothing after it — and run your loader on each. Decide what an empty string means: the strict check is `if value is None or value == "": raise ...`; the lenient one only checks `None`.
 - **Save as:** `practice/env_config_practice.py`, under an `# Edge cases` section (this file also holds the [Intermediate exercise](#ex-env_parsing), in its own section).
 - **Builds on:** the `load_config()` / `require_env()` you wrote in the [Intermediate](#ex-env_parsing) section of this same file — keep both sections side by side.
 - **Stuck?** [Hint 1](hints_and_solutions/env_edge_cases_hints.md#hint-1) · [Hint 2](hints_and_solutions/env_edge_cases_hints.md#hint-2) · [Show me the solution](hints_and_solutions/env_edge_cases_solution.md)
@@ -329,6 +335,7 @@ practice/
 
 - **What:** three small custom error classes, one function that raises a different one depending on its input, and three separate `except` blocks — not one catch-all.
 - **Why:** a blanket `except Exception` treats a typo'd input the same as a real system failure.
+- **How to code it:** write three classes (`class OutOfStockError(Exception): pass` and two more), one function that raises a different one depending on its input, and a `try` with three separate `except` blocks that each react differently. Then give the three a shared base class, for the one case where the handling really is the same.
 - **Save as:** `practice/custom_errors_practice.py`, under a `# Failure handling` section (this file also holds the [Basic exercise](#ex-basic1), in its own section).
 - **Builds on:** the [Basic](#ex-basic1) section of this same file — same habit, three errors instead of one. Nothing to copy: scroll up in the file you already have.
 - **Stuck?** [Hint 1](hints_and_solutions/failure_handling_hints.md#hint-1) · [Hint 2](hints_and_solutions/failure_handling_hints.md#hint-2) · [Show me the solution](hints_and_solutions/failure_handling_solution.md)

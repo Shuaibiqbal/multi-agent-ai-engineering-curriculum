@@ -13,37 +13,26 @@ After this step the project is complete: every reply streams live, and every tic
 **Story — `schemas.py`:** `needs_human_review` is the flag a ticketing system routes on; `review_reasons` says **which** rule fired. **If not:** a person would see `True` and have to guess why.
 
 ```python
-# src/langchainpro/schemas.py
+# src/schemas.py
+# The pipeline's checked shapes. TicketRecord now also carries the human
+# review flag and the reasons; the defaults keep earlier code working.
 from typing import Literal
 
 from pydantic import BaseModel
 
 class TicketCategory(BaseModel):
-    # why: the classifier's answer as a checked object, not free text —
-    # only these 3 values can ever come back (Doc04's Literal)
     category: Literal["billing", "technical", "general"]
-    # why: one short sentence, logged, so a wrong route can be explained
     reason: str
-    # why: False when the ticket could fit more than one category — a
-    # guess the rest of the pipeline should know about
     sure: bool
 
 class TicketRecord(BaseModel):
-    # why: one checked record per ticket — what a ticketing system would
-    # store, count and route on (a machine reads this, not a person)
     customer_id: str
     ticket: str
     category: str
     reply: str
-    # how: every field added in a later step has a default, so code
-    # (and tests) written in an earlier step keep working unchanged
     used_fallback: bool = False
-    # new in Step 4
-    needs_human_review: bool = False
-    # why: not just "yes, review it" — which rule fired, so a person
-    # knows what to check first
-    # new in Step 4
-    review_reasons: list[str] = []
+    needs_human_review: bool = False        # new in Step 4
+    review_reasons: list[str] = []          # new in Step 4
 ```
 
 **Changed from Step 3:** `handle_ticket()` now streams the reply and fills the two new fields. Its name, inputs and return type stay the same.
@@ -51,21 +40,19 @@ class TicketRecord(BaseModel):
 **Story — `services/pipeline.py`:** `stream_reply()` prints each piece and returns the full text; `review_reasons()` holds the rules as plain code (fallback used, or not sure); `handle_ticket()` builds the record from the **same** streamed reply the customer saw. **If not:** a second model call for the record could quietly say something different from the reply.
 
 ```python
-# src/langchainpro/services/pipeline.py
-# new in Step 4
-from langchain_core.runnables import Runnable
+# src/services/pipeline.py
+# handle_ticket(): classify, reply (streamed live), build the record. New
+# here: stream_reply() prints the reply as it arrives, and review_reasons()
+# decides when a human should look at the ticket.
+from langchain_core.runnables import Runnable     # new in Step 4
 
-from langchainpro.chains.classifier import classify_ticket
-from langchainpro.chains.fallback import FALLBACK_REPLY
-from langchainpro.chains.replies import build_reply_chain
-from langchainpro.schemas import TicketCategory, TicketRecord
+from src.chains.classifier import classify_ticket
+from src.chains.fallback import FALLBACK_REPLY
+from src.chains.replies import build_reply_chain
+from src.schemas import TicketCategory, TicketRecord
 
 # new in Step 4
 def stream_reply(chain: Runnable, inputs: dict) -> str:
-    # why: a support agent watching the screen sees the reply as it is
-    # written, instead of staring at nothing for several seconds
-    # how: .stream() gives the reply in small pieces (Doc04's streaming,
-    # through LCEL); print each piece, and keep them all for the record
     print("Reply: ", end="", flush=True)
     reply = ""
     for chunk in chain.stream(inputs):
@@ -75,9 +62,7 @@ def stream_reply(chain: Runnable, inputs: dict) -> str:
     return reply
 
 # new in Step 4
-def review_reasons(category: TicketCategory, used_fallback: bool) -> list[str]:
-    # why: plain rules in plain code — easy to test, and a person can
-    # see exactly which rule sent a ticket to them
+def review_reasons(category: TicketCategory, used_fallback: bool) -> list:
     reasons = []
     if used_fallback:
         reasons.append("the fallback reply was sent")
@@ -86,34 +71,22 @@ def review_reasons(category: TicketCategory, used_fallback: bool) -> list[str]:
     return reasons
 
 def handle_ticket(ticket: str, customer_id: str) -> TicketRecord:
-    # how: classify -> pick the reply chain -> get the reply -> build
-    # the record
     category = classify_ticket(ticket)
     chain = build_reply_chain(category.category)
-    # how: every reply chain gets the same input dict; a prompt simply
-    # ignores keys it doesn't use (Doc05's template edge cases)
     inputs = {"ticket": ticket, "customer_id": customer_id}
-    # changed in Step 4: .stream(), not .invoke()
-    reply = stream_reply(chain, inputs)
+    reply = stream_reply(chain, inputs)     # changed in Step 4: .stream()
 
-    # why: the fallback always returns exactly FALLBACK_REPLY, so an
-    # equal reply means the fallback ran
     used_fallback = reply == FALLBACK_REPLY
-    # new in Step 4
-    reasons = review_reasons(category, used_fallback)
+    reasons = review_reasons(category, used_fallback)     # new in Step 4
 
-    # why: the record is built from the reply the customer actually saw
-    # — never from a second model call that could say something else
     return TicketRecord(
         customer_id=customer_id,
         ticket=ticket,
         category=category.category,
         reply=reply,
         used_fallback=used_fallback,
-        # new in Step 4
-        needs_human_review=len(reasons) > 0,
-        # new in Step 4
-        review_reasons=reasons,
+        needs_human_review=len(reasons) > 0,     # new in Step 4
+        review_reasons=reasons,                  # new in Step 4
     )
 ```
 
@@ -122,39 +95,35 @@ def handle_ticket(ticket: str, customer_id: str) -> TicketRecord:
 **Story — `main.py`:** the loop only shows results; the review reasons are listed under each ticket. **If not:** a flagged ticket would look the same as a clean one.
 
 ```python
-# src/langchainpro/main.py
+# main.py
+# The file you run: python main.py
+# Loads the config, reads the sample tickets, runs handle_ticket() on each,
+# and prints each result with print_record().
 import json
 import sys
 
 import openai
 
-from langchainpro.config import load_config
-from langchainpro.exceptions import MissingConfigError
-from langchainpro.schemas import TicketRecord
-from langchainpro.services.pipeline import handle_ticket
-from langchainpro.utils.logger import get_logger
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.schemas import TicketRecord
+from src.services.pipeline import handle_ticket
+from src.utils.logger import get_logger
 
-# how: a path from the repo root — run every command from there
 SAMPLES_PATH = "data/sample/tickets.json"
 
 def load_samples() -> list[dict]:
-    # why: the same 4 tickets every run, shared with the tests (Doc02
-    # taught reading JSON)
     with open(SAMPLES_PATH) as samples_file:
-        # how: read the file as text, then json.loads() it (Doc02)
         return json.loads(samples_file.read())
 
 def print_record(record: TicketRecord) -> None:
     print(f"  category:      {record.category}")
     print(f"  used fallback: {record.used_fallback}")
-    # new in Step 4
-    print(f"  human review:  {record.needs_human_review}")
-    # new in Step 4
-    for reason in record.review_reasons:
+    print(f"  human review:  {record.needs_human_review}")     # new in Step 4
+    for reason in record.review_reasons:                       # new in Step 4
         print(f"    - {reason}")
 
 def main() -> None:
-    # why: config first — a missing OPENAI_API_KEY stops the app here
     try:
         load_config()
     except MissingConfigError as e:
@@ -171,7 +140,6 @@ def main() -> None:
         try:
             record = handle_ticket(sample["ticket"], sample["customer_id"])
         except openai.AuthenticationError:
-            # why: a bad key is permanent — no retry fixes it, so exit
             logger.error("Authentication failed — check OPENAI_API_KEY.")
             print("Login failed — check OPENAI_API_KEY in your .env file.")
             sys.exit(1)
@@ -185,26 +153,40 @@ if __name__ == "__main__":
 
 ```python
 # tests/unit/test_review.py
-# Checks the "needs human review" rules with hand-made inputs.
-# No API key needed. Run from the repo root:
-#   python tests/unit/test_review.py
-from langchainpro.schemas import TicketCategory
-from langchainpro.services.pipeline import review_reasons
+# Checks the "needs human review" rules with hand-made inputs. Each case
+# prints OK or WRONG. No API key needed.
+# Run from the repo root: python -m tests.unit.test_review
+from src.schemas import TicketCategory
+from src.services.pipeline import review_reasons
+
 
 def make_category(sure: bool) -> TicketCategory:
     return TicketCategory(category="billing", reason="test", sure=sure)
 
+
 def test_clear_ticket() -> None:
     reasons = review_reasons(make_category(True), False)
-    print(f"case 1 (sure, no fallback) -> {reasons}")
+    ok = "OK"
+    if reasons != []:
+        ok = "WRONG"
+    print(f"case 1 (sure, no fallback) -> {ok}")
+
 
 def test_unsure_ticket() -> None:
     reasons = review_reasons(make_category(False), False)
-    print(f"case 2 (unsure)            -> {reasons}")
+    ok = "OK"
+    if len(reasons) != 1:
+        ok = "WRONG"
+    print(f"case 2 (unsure flagged)   -> {ok}")
+
 
 def test_fallback_used() -> None:
     reasons = review_reasons(make_category(True), True)
-    print(f"case 3 (fallback)          -> {reasons}")
+    ok = "OK"
+    if len(reasons) != 1:
+        ok = "WRONG"
+    print(f"case 3 (fallback flagged) -> {ok}")
+
 
 if __name__ == "__main__":
     test_clear_ticket()
@@ -212,71 +194,94 @@ if __name__ == "__main__":
     test_fallback_used()
 ```
 
-**Changed from Step 1:** the integration test checks the review flag on a clear and an unclear ticket.
+**Changed from Step 1:** the integration test adds case 5 — the unclear ticket must be flagged for a human.
 
 ```python
 # tests/integration/test_live_pipeline.py
-# Runs the classifier and the whole pipeline against the real API.
-# Makes real API calls — needs a valid OPENAI_API_KEY in .env.
-# Run from the repo root: python tests/integration/test_live_pipeline.py
+# Runs the classifier and the whole pipeline against the real API — each
+# step adds cases. Each case prints OK or WRONG. Needs OPENAI_API_KEY.
+# Run from the repo root: python -m tests.integration.test_live_pipeline
 import json
 
-from langchainpro.chains.classifier import classify_ticket
-from langchainpro.config import load_config
-from langchainpro.services.pipeline import handle_ticket
+from src.chains.classifier import classify_ticket
+from src.config import load_config
+from src.services.pipeline import handle_ticket
+
 
 def load_samples() -> list[dict]:
     with open("data/sample/tickets.json") as samples_file:
-        # how: read the file as text, then json.loads() it (Doc02)
         return json.loads(samples_file.read())
 
-def test_classification(samples: list[dict]) -> None:
-    # case 1: every sample ticket gets the category we expect
-    for sample in samples:
-        result = classify_ticket(sample["ticket"])
-        print(f"case 1 (expected {sample['expected']}) -> "
-              f"{result.category}, sure={result.sure}")
+
+def test_billing_classified(samples: list[dict]) -> None:
+    result = classify_ticket(samples[0]["ticket"])
+    ok = "OK"
+    if result.category != "billing":
+        ok = "WRONG"
+    print(f"case 1 (billing)   -> {ok} ({result.category})")
+
+
+def test_technical_classified(samples: list[dict]) -> None:
+    result = classify_ticket(samples[1]["ticket"])
+    ok = "OK"
+    if result.category != "technical":
+        ok = "WRONG"
+    print(f"case 2 (technical) -> {ok} ({result.category})")
+
+
+def test_general_classified(samples: list[dict]) -> None:
+    result = classify_ticket(samples[2]["ticket"])
+    ok = "OK"
+    if result.category != "general":
+        ok = "WRONG"
+    print(f"case 3 (general)   -> {ok} ({result.category})")
+
 
 def test_full_pipeline(samples: list[dict]) -> None:
-    # case 2: the billing ticket goes all the way to a reply
-    billing = samples[0]
-    record = handle_ticket(billing["ticket"], billing["customer_id"])
-    print(f"case 2 (billing)  -> {record.category}")
-    # new in Step 4
-    print(f"                     review={record.needs_human_review}")
+    record = handle_ticket(samples[0]["ticket"], samples[0]["customer_id"])
+    ok = "OK"
+    if record.category != "billing" or record.reply == "":
+        ok = "WRONG"
+    print(f"case 4 (full pipeline) -> {ok}")
 
-    # new in Step 4
-    # case 3: the unclear ticket — must be flagged for a human
-    unclear = samples[3]
-    record = handle_ticket(unclear["ticket"], unclear["customer_id"])
-    print(f"case 3 (unclear)  -> review={record.needs_human_review}, "
-          f"{record.review_reasons}")
+
+# new in Step 4
+def test_unclear_flagged(samples: list[dict]) -> None:
+    record = handle_ticket(samples[3]["ticket"], samples[3]["customer_id"])
+    ok = "OK"
+    if not record.needs_human_review:
+        ok = "WRONG"
+    print(f"case 5 (unclear flagged) -> {ok}")
+
 
 if __name__ == "__main__":
     load_config()
     samples = load_samples()
-    test_classification(samples)
+    test_billing_classified(samples)
+    test_technical_classified(samples)
+    test_general_classified(samples)
     test_full_pipeline(samples)
+    test_unclear_flagged(samples)
 ```
 
-**Run it:**
+**Run it** (from the repo root):
 
 ```bash
-python tests/unit/test_review.py
-python tests/unit/test_schemas.py
-python tests/integration/test_live_pipeline.py
-python -m langchainpro.main
+python -m tests.unit.test_review
+python -m tests.unit.test_schemas
+python main.py
+python -m tests.integration.test_live_pipeline
 ```
 
-`test_review.py` prints:
+`test_review` prints:
 
 ```
-case 1 (sure, no fallback) -> []
-case 2 (unsure)            -> ['the ticket could fit more than one category']
-case 3 (fallback)          -> ['the fallback reply was sent']
+case 1 (sure, no fallback) -> OK
+case 2 (unsure flagged)   -> OK
+case 3 (fallback flagged) -> OK
 ```
 
-`python -m langchainpro.main` ends each ticket like this (log lines left out; model replies vary):
+`python main.py` ends the unclear ticket (`C-1004`) like this (log lines left out; model replies vary):
 
 ```
 Ticket from C-1004: My invoice and the dashboard numbers don't match. Bug?

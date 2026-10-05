@@ -188,7 +188,7 @@ python -m tests.unit.test_agents
 python -m tests.integration.test_live_agents
 ```
 
-The unit tests check the config, the tools and the Worker's helpers. The integration tests check: the no-tools chain, the right tool for a clear task, no tool for general knowledge, recovery from a failing tool, the step limit, and that the Verifier **rejects** a deliberately wrong answer and approves a right one.
+Every test case prints `OK` or `WRONG`. The unit tests check the config, the tools and the Worker's helpers. The integration tests check: the no-tools chain, the right tool for a clear task, no tool for general knowledge, recovery from a failing tool, the step limit, and that the Verifier **rejects** a deliberately wrong answer and approves a right one.
 
 ## Error Handling
 

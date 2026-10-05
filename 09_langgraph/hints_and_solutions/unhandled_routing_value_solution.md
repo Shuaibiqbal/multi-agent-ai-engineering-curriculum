@@ -224,6 +224,8 @@ Compare this to Approach 1's `KeyError: 'path_c'` — both fail immediately, at 
 
 **Story:** sometimes failing loudly isn't actually what you want in production — you might prefer routing anything unexpected to a dedicated "unhandled" node that logs the problem and gives a safe response, rather than crashing the whole run. **If not:** the only 2 choices left would be "crash the whole run" or "silently do the wrong thing" — a deliberate fallback node is the real third option, chosen on purpose, not fallen into by accident.
 
+Add this below Approach 2's code in the same file — it reuses `GraphState`, `node_decide`, `node_a` and `node_b` from there.
+
 ```python
 # conditional_routing_practice.py — Edge cases section
 import logging
@@ -240,7 +242,7 @@ def route_with_fallback(state: GraphState) -> str:
 
 
 def unhandled_node(state: GraphState) -> dict:
-    logger.warning("Unhandled routing case for state: %s", state)
+    logger.warning(f"Unhandled routing case for state: {state}")
     return {"message": f"Unhandled routing case for state: {state}"}
 
 

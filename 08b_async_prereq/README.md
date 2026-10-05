@@ -217,7 +217,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ## Practice Exercises
 
-**Setup:** same venv as before — if it's not active, `cd 08b_async_prereq && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New package for this document: `pip install openai`.
+**Setup:** same venv as before — if it's not active, `cd 08b_async_prereq && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). Packages for this document: `pip install openai langchain langchain-openai requests` (`langchain` for the Real-world exercise's Approach 5, `requests` for the Failure exercise's Approach 3).
 
 **Where your code lives:** all of it under `08b_async_prereq/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — two of them share one file, each in its own labelled section — the same convention as Doc01 and Doc02.
 
@@ -225,19 +225,19 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 practice/
-├── coroutine_basics_practice.py       Basic
-├── gather_practice.py                 Intermediate + Edge cases
-│                                       (two sections)
 ├── async_client_conversion_practice.py  Real-world
-└── blocking_event_loop_practice.py    Failure
+├── blocking_event_loop_practice.py      Failure
+├── coroutine_basics_practice.py         Basic
+└── gather_practice.py                   Intermediate + Edge cases
+                                          (two sections)
 ```
 
 **Why each script exists:**
 
-- `coroutine_basics_practice.py` — the one fact everything else in this gate assumes: `async def` alone doesn't run anything, only `await`/`asyncio.run()` does.
-- `gather_practice.py` — the actual speed difference, measured, plus proof that `gather` waits for the slowest task, not the fastest.
-- `async_client_conversion_practice.py` — the exact conversion Doc12's FastAPI service and Project 8's MCP client both need — a real function, not a toy.
+- `async_client_conversion_practice.py` — the exact conversion Doc12's FastAPI service and Project 8's MCP client both need — a real function, not a toy — plus `async with`, `async for` and LangChain's `ainvoke`/`astream`.
 - `blocking_event_loop_practice.py` — the single most common real async bug, caused on purpose here so you recognize its silent symptom later.
+- `coroutine_basics_practice.py` — the one fact everything else in this gate assumes: `async def` alone doesn't run anything, only `await`/`asyncio.run()` does — and `create_task()` to start one in the background.
+- `gather_practice.py` — the actual speed difference, measured, plus proof that `gather` waits for the slowest task, not the fastest.
 
 **Jump to an exercise:** [Basic](#ex-first_coroutine) · [Intermediate](#ex-gather_speed) · [Real-world](#ex-async_client_conversion) · [Edge cases](#ex-gather_waits_for_slowest) · [Failure](#ex-blocking_event_loop)
 
@@ -245,7 +245,7 @@ practice/
 
 - **What:** an `async def` function that awaits `asyncio.sleep(1)` and returns a value, called with `asyncio.run()`.
 - **Why:** you need to see, once, that `async def` alone doesn't run anything — `await` and `asyncio.run()` are what actually make it go.
-- **How to code it:** `async def wait_and_return(): await asyncio.sleep(1); return "done"`, then `print(asyncio.run(wait_and_return()))`.
+- **How to code it:** `async def wait_and_return(): await asyncio.sleep(1); return "done"`, then `print(asyncio.run(wait_and_return()))`. Then add a timeout with `asyncio.wait_for(...)`, a check for an already-running loop, and start a coroutine in the background with `asyncio.create_task()`, awaiting it later.
 - **Save as:** `practice/coroutine_basics_practice.py`.
 - **Used later by:** the [Intermediate exercise](#ex-gather_speed) reuses this exact `asyncio.run()` shape around a timing comparison, and the [Real-world exercise](#ex-async_client_conversion) reuses it to run a real async client call.
 - **Stuck?** [Hint 1](hints_and_solutions/first_coroutine_hints.md#hint-1) · [Hint 2](hints_and_solutions/first_coroutine_hints.md#hint-2) · [Show me the solution](hints_and_solutions/first_coroutine_solution.md)
@@ -264,7 +264,7 @@ practice/
 
 - **What:** convert one function from Project 1 (Doc04) to use `AsyncOpenAI` instead of the normal client.
 - **Why:** this is the exact conversion [Doc12](../12_production_engineering/)'s FastAPI service needs for every route that calls the model — better to do it once here, deliberately, than for the first time under pressure later.
-- **How to code it:** replace `from openai import OpenAI` with `from openai import AsyncOpenAI`, make the function `async def`, and `await client.chat.completions.create(...)` instead of calling it directly.
+- **How to code it:** replace `from openai import OpenAI` with `from openai import AsyncOpenAI`, make the function `async def`, and `await client.chat.completions.create(...)` instead of calling it directly. Then add a client timeout, call it from an already-async function, open the client with `async with` and read a streamed reply with `async for`, and run a LangChain chain with `ainvoke`, `astream` and `gather`.
 - **Save as:** `practice/async_client_conversion_practice.py`.
 - **Builds on:** the [Basic exercise](#ex-first_coroutine)'s `async def` + `asyncio.run()` shape, now wrapping a real API call instead of `asyncio.sleep`.
 - **Used later by:** wrapping any agent behind a real API service ([Project 5](../project_5_contentforge_pro_production/)), and [Project 8 — MCPBridge](../project_8_mcpbridge_mcp_client/), whose `mcp` client is async-only and needs this same conversion throughout.
@@ -284,7 +284,7 @@ practice/
 
 - **What:** call a normal, waiting-style function from inside an `async def` function on purpose, without `await` or threading, and watch it kill the "at the same time" behavior you expected.
 - **Why:** this is the single most common real async bug, and it fails *silently* — no error, just quietly-worse performance — so you need to have seen it once to recognize it later.
-- **How to code it:** inside an `async def`, call `time.sleep(3)` (not `asyncio.sleep`) instead of awaiting something, run it alongside another coroutine with `gather`, and time it — confirm the total time is now the *sum*, not the max, proving concurrency broke.
+- **How to code it:** inside an `async def`, call `time.sleep(3)` (not `asyncio.sleep`) instead of awaiting something, run it alongside another coroutine with `gather` — the blocking one **first** — and time it. Confirm the total time is now the *sum*, not the max, proving concurrency broke. Then fix it with `asyncio.to_thread(...)`.
 - **Save as:** `practice/blocking_event_loop_practice.py`.
 - **Builds on:** the timing technique from the [Intermediate](#ex-gather_speed) and [Edge cases](#ex-gather_waits_for_slowest) exercises — same `gather` + `perf_counter()` habit, now used to catch a bug instead of prove a feature.
 - **Used later by:** [Doc14](../14_debugging_lab/)'s async debugging drill, which starts from exactly this broken-on-purpose pattern. This is also the first bug to check when a FastAPI service in [Project 5](../project_5_contentforge_pro_production/) "just hangs" — a sync `OpenAI` client used where `AsyncOpenAI` was needed.

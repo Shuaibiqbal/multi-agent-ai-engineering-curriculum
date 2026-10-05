@@ -11,47 +11,41 @@ After this step every answer waits for your yes/no, and a paused run survives a 
 **Changed from Step 1:** `state.py` adds `approved`.
 
 ```python
-# src/documind/state.py
+# src/state.py
+# DocState: everything any node can read or write. `path` adds each node's
+# entries to the list (operator.add), so it logs the nodes that ran.
+# start_state(task) gives every field a starting value.
 import operator
 from typing import Annotated, TypedDict
 
 class DocState(TypedDict):
-    # why: one typed shape listing everything any node can read or write
     task: str
-    # how: operator.add appends each node's entries instead of replacing
-    # the list — so path is a running log of the nodes that ran (Doc09)
     path: Annotated[list[str], operator.add]
     # new in Step 2: whether a person (or later, the checks) approved it
     approved: bool
     answer: str
 
 def start_state(task: str) -> DocState:
-    # why: every field starts with a known value, so no node ever has to
-    # guess whether a key exists yet
     return {"task": task, "path": [], "approved": False, "answer": ""}
 ```
 
 **Story — `agents/approval_agent.py`:** the Approval agent's file, with its node from day one. `approval_node` calls `interrupt()`, which pauses the graph and saves the state; whatever you pass to `Command(resume=...)` comes back as `decision` (Doc09). For now its list of `reasons` is one fixed line, so **every** answer goes to a person — Step 5 replaces that one line with real checks. (Also create an empty `agents/__init__.py`.) **If not:** answers would go out with no human check at all.
 
 ```python
-# src/documind/agents/approval_agent.py
+# src/agents/approval_agent.py
+# The Approval agent: approval_node() pauses with interrupt() and waits for
+# a person's yes or no. On resume, the node runs again from its first line,
+# so nothing above interrupt() may do a real action.
 from langgraph.types import interrupt
 
-from documind.state import DocState
-from documind.utils.logger import get_logger
+from src.state import DocState
+from src.utils.logger import get_logger
 
 def approval_node(state: DocState) -> dict:
     logger = get_logger(__name__)
-    # why: for now EVERY answer is checked by a person — Step 5 replaces
-    # this one line with real checks, and approves safe answers alone
     reasons = ["every answer is checked by a person for now"]
 
-    logger.info("asking a human, failed checks: %s", reasons)
-    # how: interrupt() pauses the graph here and saves the state; the
-    # value passed to Command(resume=...) comes back as `decision`
-    # when: on resume, this node runs again from its first line — so the
-    # log line above prints twice, and nothing above interrupt() may do a
-    # real action (like sending an email)
+    logger.info(f"asking a human, failed checks: {reasons}")
     decision = interrupt({"answer": state["answer"], "failed_checks": reasons})
     if decision == "yes":
         return {"approved": True, "path": ["human_approved"]}
@@ -65,17 +59,17 @@ def approval_node(state: DocState) -> dict:
 **Story — `graph.py`:** the checkpointer is **passed in** (Doc09's Build Task): `main.py` passes a SQLite one that writes to disk, tests pass a `MemorySaver`. **If not:** the checkpointer would be hard-coded, and a test and the app couldn't each use their own.
 
 ```python
-# src/documind/graph.py
+# src/graph.py
+# build_graph(): adds the nodes and edges and compiles the graph. The
+# checkpointer is passed in, so the app and the tests can each choose one.
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from documind.agents.approval_agent import approval_node
-from documind.nodes import answer_node, clean_task
-from documind.state import DocState
+from src.agents.approval_agent import approval_node
+from src.nodes import answer_node, clean_task
+from src.state import DocState
 
 def build_graph(checkpointer=None):
-    # why: the checkpointer is passed in (Doc09) — main.py uses a SQLite
-    # one that survives a restart, the tests use a fresh MemorySaver
     if checkpointer is None:
         checkpointer = MemorySaver()
 
@@ -88,7 +82,6 @@ def build_graph(checkpointer=None):
     builder.add_edge("clean_task", "answer_node")
     builder.add_edge("answer_node", "approval_node")
     builder.add_edge("approval_node", END)
-    # how: without a checkpointer, interrupt() has nowhere to save state
     return builder.compile(checkpointer=checkpointer)
 ```
 
@@ -97,7 +90,10 @@ def build_graph(checkpointer=None):
 **Story — `main.py`:** `SqliteSaver.from_conn_string(DB_PATH)` stores every checkpoint in `checkpoints.sqlite` (add it to `.gitignore`). Each question gets its own `thread_id`, so runs never mix. When the result contains `"__interrupt__"`, `ask_human()` shows the answer and the reason, asks yes/no, and the app resumes with `Command(resume=decision)`. **If not:** a paused run would be lost on restart, and two questions could share one saved state.
 
 ```python
-# src/documind/main.py
+# main.py
+# The file you run: python main.py
+# Loads the settings, builds the graph, then answers questions in a loop,
+# printing the path each run took.
 import sys
 import time
 
@@ -105,13 +101,12 @@ import openai
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from documind.config import load_config
-from documind.exceptions import MissingConfigError
-from documind.graph import build_graph
-from documind.state import start_state
-from documind.utils.logger import get_logger
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.graph import build_graph
+from src.state import start_state
+from src.utils.logger import get_logger
 
-# why: a file on disk — a paused run survives even if the app is closed
 DB_PATH = "checkpoints.sqlite"
 
 def ask_human(request: dict) -> str:
@@ -121,7 +116,6 @@ def ask_human(request: dict) -> str:
     return input("  Approve? (yes/no): ").strip().lower()
 
 def main() -> None:
-    # why: config first — a missing OPENAI_API_KEY stops the app here
     try:
         load_config()
     except MissingConfigError as e:
@@ -142,8 +136,6 @@ def main() -> None:
                 continue
 
             run_number = run_number + 1
-            # why: one thread id per question — the saved state of each
-            # run is kept apart; the time makes it unique across restarts
             thread_id = f"run-{int(time.time())}-{run_number}"
             config = {"configurable": {"thread_id": thread_id}}
             try:
@@ -171,14 +163,14 @@ if __name__ == "__main__":
 
 ```python
 # scripts/pause_demo.py
-# Part 1 of 2: starts a run that needs approval, and stops at the pause.
-# Run from the repo root: python scripts/pause_demo.py
-# Then run scripts/resume_demo.py — a separate process — to finish it.
+# Part 1 of the restart proof: starts a run that needs approval, saves the
+# pause to checkpoints.sqlite, and exits.
+# Run from the repo root: python -m scripts.pause_demo
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from documind.config import load_config
-from documind.graph import build_graph
-from documind.state import start_state
+from src.config import load_config
+from src.graph import build_graph
+from src.state import start_state
 
 DB_PATH = "checkpoints.sqlite"
 THREAD_ID = "demo-1"
@@ -194,7 +186,7 @@ def main() -> None:
         request = result["__interrupt__"][0].value
         print(f"Paused on thread {THREAD_ID}, waiting for approval:")
         print(f"  answer: {request['answer']}")
-        print("Now close this and run: python scripts/resume_demo.py")
+        print("Now close this and run: python -m scripts.resume_demo")
     else:
         print("The run finished without pausing — nothing to resume.")
 
@@ -204,13 +196,14 @@ if __name__ == "__main__":
 
 ```python
 # scripts/resume_demo.py
-# Part 2 of 2: a NEW process that picks up the paused run from disk.
-# Run from the repo root, after scripts/pause_demo.py.
+# Part 2: a brand-new process finds the paused run in checkpoints.sqlite
+# with get_state() and finishes it.
+# Run from the repo root: python -m scripts.resume_demo
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
-from documind.config import load_config
-from documind.graph import build_graph
+from src.config import load_config
+from src.graph import build_graph
 
 DB_PATH = "checkpoints.sqlite"
 THREAD_ID = "demo-1"
@@ -220,8 +213,6 @@ def main() -> None:
     config = {"configurable": {"thread_id": THREAD_ID}}
     with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
         graph = build_graph(checkpointer)
-        # why: read the saved state first — this process never saw the
-        # run start, so everything it knows comes from the checkpoint file
         saved = graph.get_state(config)
         if not saved.next:
             print(f"Nothing is paused on thread {THREAD_ID}.")
@@ -236,23 +227,113 @@ if __name__ == "__main__":
     main()
 ```
 
+**Changed from Step 1:** `tests/integration/test_live_graph.py` gets cases 2-4. `run()` gains one optional parameter, `decision`: if the run paused, it resumes with that answer (`None` means "leave it paused"). The test builds the graph with a fresh `MemorySaver`, so nothing is written to disk.
+
+**Story — `tests/integration/test_live_graph.py`:** the pause is this step's feature, so it gets three checks: an action task pauses, "yes" approves it, and "no" stops it. **If not:** a pause that didn't stop anything — or a "no" that still sent the answer — would go unnoticed.
+
+```python
+# tests/integration/test_live_graph.py
+# Runs the whole graph against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
+# Run from the repo root: python -m tests.integration.test_live_graph
+# new in Step 2
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.types import Command
+
+from src.config import load_config
+from src.graph import build_graph
+from src.state import start_state
+
+# new in Step 2
+ACTION_TASK = "What is the refund policy? Send it to the customer."
+
+
+# changed in Step 2: resumes a paused run with `decision` (None = don't)
+def run(
+    graph, thread_id: str, task: str, decision: str | None = "yes"
+) -> dict:
+    config = {"configurable": {"thread_id": thread_id}}
+    outcome = graph.invoke(start_state(task), config)
+    if decision is not None and "__interrupt__" in outcome:
+        outcome = graph.invoke(Command(resume=decision), config)
+    return outcome
+
+
+def show(case: str, passed: bool, outcome: dict) -> None:
+    result = "OK"
+    if not passed:
+        result = "WRONG"
+    print(f"{case} -> {result}: {outcome.get('path')}")
+
+
+def test_general_question(graph) -> None:
+    outcome = run(graph, "t1", "What is the capital of France?")
+    passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
+    show("case 1 (general question)", passed, outcome)
+
+
+# new in Step 2
+def test_action_pauses(graph) -> None:
+    outcome = run(graph, "t2", ACTION_TASK, decision=None)
+    show("case 2 (pauses)          ", "__interrupt__" in outcome, outcome)
+
+
+# new in Step 2
+def test_human_says_yes(graph) -> None:
+    outcome = run(graph, "t3", ACTION_TASK, "yes")
+    passed = outcome["approved"] and "human_approved" in outcome["path"]
+    show("case 3 (human: yes)      ", passed, outcome)
+
+
+# new in Step 2
+def test_human_says_no(graph) -> None:
+    outcome = run(graph, "t4", ACTION_TASK, "no")
+    passed = outcome["answer"].startswith("Not approved")
+    show("case 4 (human: no)       ", passed, outcome)
+
+
+if __name__ == "__main__":
+    load_config()
+    # changed in Step 2: a fresh MemorySaver, nothing on disk
+    graph = build_graph(MemorySaver())
+    test_general_question(graph)
+    # new in Step 2
+    test_action_pauses(graph)
+    test_human_says_yes(graph)
+    test_human_says_no(graph)
+```
+
+**Expected output** of `python -m tests.integration.test_live_graph` (every answer pauses in this step, and case 1 is resumed with "yes"):
+
+```
+case 1 (general question) -> OK: ['clean_task', 'answer_node',
+'human_approved']
+case 2 (pauses)           -> OK: ['clean_task', 'answer_node']
+case 3 (human: yes)       -> OK: ['clean_task', 'answer_node',
+'human_approved']
+case 4 (human: no)        -> OK: ['clean_task', 'answer_node',
+'human_rejected']
+```
+
+(Wrapped to fit the page.)
+
 **Run it:**
 
 ```bash
-python scripts/pause_demo.py      # pauses, then exits
-python scripts/resume_demo.py     # a new process finishes the run
-python -m documind.main
+python -m scripts.pause_demo      # pauses, then exits
+python -m scripts.resume_demo     # a new process finishes the run
+python main.py
 ```
 
 **Expected output** (the answer's wording varies):
 
 ```
-$ python scripts/pause_demo.py
+$ python -m scripts.pause_demo
 Paused on thread demo-1, waiting for approval:
   answer: Refund policies usually allow returns within 14-30 days ...
-Now close this and run: python scripts/resume_demo.py
+Now close this and run: python -m scripts.resume_demo
 
-$ python scripts/resume_demo.py
+$ python -m scripts.resume_demo
 Found a paused run: What is the refund policy? Send it to the customer.
 Approve? (yes/no): yes
 path: clean_task -> answer_node -> human_approved

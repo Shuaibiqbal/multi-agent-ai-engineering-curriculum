@@ -161,7 +161,7 @@ def main() -> None:
             continue
 
         trim_history(history, MAX_HISTORY_TOKENS)
-        logger.debug("Sending %d earlier messages", len(history))
+        logger.debug(f"Sending {len(history)} earlier messages")
         print("Assistant: ", end="", flush=True)
         stream_message(client, history, message)
 
@@ -169,20 +169,26 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/unit/test_history.py`:** proves trimming keeps the system prompt and the newest turn, with no API key and no network. It uses the same plain `print` style as Doc04's test file. **If not:** a trimming bug would only show up as a strange reply after a long chat — very hard to trace back here.
+**Story — `tests/unit/test_history.py`:** proves trimming keeps the system prompt and the newest turn, with no API key and no network. Each case prints `OK` or `WRONG`, like the Step 1 tests. **If not:** a trimming bug would only show up as a strange reply after a long chat — very hard to trace back here.
 
 ```python
 # tests/unit/test_history.py
-# Checks the history helpers. No API calls, no API key needed.
+# Checks the history helpers. Each case prints OK or WRONG.
+# No API calls, no API key needed.
 # Run from the repo root: python -m tests.unit.test_history
 from src.utils.history import estimate_tokens, trim_history
+
 
 def test_estimate_tokens() -> None:
     history = [
         {"role": "system", "content": "a" * 20},
         {"role": "user", "content": "b" * 20},
     ]
-    print(f"case 1 (estimate)            -> {estimate_tokens(history)}")
+    result = "OK"
+    if estimate_tokens(history) != 10:
+        result = "WRONG"
+    print(f"case 1 (40 characters = 10 tokens) -> {result}")
+
 
 def test_short_history_untouched() -> None:
     history = [
@@ -190,18 +196,24 @@ def test_short_history_untouched() -> None:
         {"role": "user", "content": "hi"},
     ]
     trim_history(history, max_tokens=100)
-    print(f"case 2 (short history)       -> {len(history)} messages kept")
+    result = "OK"
+    if len(history) != 2:
+        result = "WRONG"
+    print(f"case 2 (short chat not trimmed)    -> {result}")
+
 
 def test_long_history_trimmed() -> None:
     history = [{"role": "system", "content": "be nice"}]
     for number in range(1, 6):
         history.append({"role": "user", "content": str(number) * 400})
     trim_history(history, max_tokens=250)
-    first = history[0]["role"]
-    newest = history[-1]["content"][0]
-    print(f"case 3 (system prompt kept)  -> {first}")
-    print(f"case 3 (newest turn kept)    -> turn {newest}")
-    print(f"case 3 (messages left)       -> {len(history)}")
+    result = "OK"
+    if history[0]["role"] != "system":
+        result = "WRONG"
+    if history[-1]["content"] != "5" * 400:
+        result = "WRONG"
+    print(f"case 3 (long chat trimmed)         -> {result}")
+
 
 if __name__ == "__main__":
     test_estimate_tokens()
@@ -212,14 +224,12 @@ if __name__ == "__main__":
 **Run the test:** `python -m tests.unit.test_history`
 
 ```
-case 1 (estimate)            -> 10
-case 2 (short history)       -> 2 messages kept
-case 3 (system prompt kept)  -> system
-case 3 (newest turn kept)    -> turn 5
-case 3 (messages left)       -> 3
+case 1 (40 characters = 10 tokens) -> OK
+case 2 (short chat not trimmed)    -> OK
+case 3 (long chat trimmed)         -> OK
 ```
 
-Case 3 keeps 3 messages: the system prompt plus turns 4 and 5 (about 200 tokens — adding turn 3 would pass 250).
+Case 3 checks the two things that matter: the system prompt is still first, and the newest turn (turn 5) is still last. (Turns 4 and 5 stay — about 200 tokens; adding turn 3 would pass 250.)
 
 **Changed from Step 1:** `tests/integration/test_live_agents.py` gets case 3 — one new function and one new call.
 
@@ -227,12 +237,9 @@ Case 3 keeps 3 messages: the system prompt plus turns 4 and 5 (about 200 tokens 
 
 ```python
 # tests/integration/test_live_agents.py
-# The project's checks against the real OpenAI API — each step adds
-# cases. Needs a valid OPENAI_API_KEY in .env.
+# Checks the app against the real OpenAI API — each step adds cases.
+# Each case prints OK or WRONG. Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-#   case 1 — one message in, a real reply out
-#   case 2 — a wrong key is caught at startup, not mid-chat
-#   case 3 — turn 3 can use what was said in turn 1 (memory)
 from openai import OpenAI
 
 from src.config import load_config
@@ -245,13 +252,18 @@ from src.models.llm import (
 
 def test_first_reply(client: OpenAI) -> None:
     reply = send_message(client, [], "What's 2+2?")
-    print(f"case 1 (first reply)   -> {reply}")
+    result = "OK"
+    if "4" not in reply:
+        result = "WRONG"
+    print(f"case 1 (first reply) -> {result}: {reply}")
 
 
 def test_bad_key() -> None:
     bad_client = OpenAI(api_key="sk-fake-key-123")
-    key_ok = check_api_key_at_startup(bad_client)
-    print(f"case 2 (bad key ok?)   -> {key_ok}")
+    result = "OK"
+    if check_api_key_at_startup(bad_client):
+        result = "WRONG"
+    print(f"case 2 (bad key)     -> {result}")
 
 
 # new in Step 2
@@ -260,7 +272,10 @@ def test_memory(client: OpenAI) -> None:
     send_message(client, history, "My order number is 4471.")
     send_message(client, history, "Thanks, that's all for now.")
     reply = send_message(client, history, "What was my order number?")
-    print(f"case 3 (memory)        -> {reply}")
+    result = "OK"
+    if "4471" not in reply:
+        result = "WRONG"
+    print(f"case 3 (memory)      -> {result}: {reply}")
 
 
 if __name__ == "__main__":
@@ -275,7 +290,7 @@ if __name__ == "__main__":
 **Run the tests:** `python -m tests.integration.test_live_agents` — the Step 1 cases, then:
 
 ```
-case 3 (memory)        -> Your order number was 4471.
+case 3 (memory)      -> OK: Your order number was 4471.
 ```
 
 **Run the app:** `python main.py`, then:

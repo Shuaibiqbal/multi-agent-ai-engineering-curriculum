@@ -12,7 +12,7 @@
 
 Two agents: a **Worker** (3 real tools, a hard step limit, recovers cleanly from a tool failure) and a **Verifier** (a second, separate check that compares the Worker's answer with what the tools really returned, before it goes out). This is where "agent" stops being a buzzword — you build the loop yourself — and where you get your first creator-and-checker pair, the same shape Project 4's Writer/Reviewer builds on.
 
-**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Step 2](#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Step 3](#step-3-scaling-to-3-tools-with-a-hard-step-limit-and-failure-recovery) · [Step 4](#step-4-a-verifier-agent-that-catches-the-workers-bad-answers-final-2-agents) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
+**Jump to:** [Read first](#what-to-read-first-docs-this-project-uses) · [Project structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [How testing works](#how-testing-works-in-this-project) · [Step 1](#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Step 2](#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Step 3](#step-3-scaling-to-3-tools-with-a-hard-step-limit-and-failure-recovery) · [Step 4](#step-4-a-verifier-agent-that-catches-the-workers-bad-answers-final-2-agents) · [Checklist](#checklist-before-you-call-this-done) · [Publish](#publish-it-to-github)
 
 ## The Story — what you're actually building
 
@@ -221,16 +221,16 @@ Every file you'll write, in one place — the same What/Why list the documents g
     - **What:** One Pydantic class, `VerifierVerdict`, with `approved: bool` and `reason: str`.
     - **Why:** The Verifier's answer is a real True/False the code can use. Without it you'd search the text for "approved" — and "NOT approved" would pass.
 - `tests/integration/test_live_agents.py`
-    - **What:** Test functions that call the real model (and the weather API), added step by step: the no-tools chain, the right tool for a clear task, no tool for general knowledge, the step limit, a weather task, recovery from the failing search, and the Verifier rejecting a wrong answer and approving a right one. Each prints one `case` line.
+    - **What:** Test functions that call the real model (and the weather API), added step by step: the no-tools chain, the right tool for a clear task, no tool for general knowledge, the step limit, a weather task, recovery from the failing search, and the Verifier rejecting a wrong answer and approving a right one. Each prints `OK` or `WRONG`.
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `tests/unit/test_agents.py`
-    - **What:** Test functions that pass hand-made tool-call dicts to `find_tool()` and `run_tool()`, and hand-made steps to `collect_evidence()`, and print the results.
+    - **What:** One test function per case, each printing `OK` or `WRONG`: hand-made tool-call dicts for `find_tool()` and `run_tool()` (known tool, unknown tool, good call, unknown-tool call, bad arguments), and hand-made steps for `collect_evidence()` (a failed step left out, no steps).
     - **Why:** It proves failures turn into readable error messages and only good results reach the Verifier — without any model call.
 - `tests/unit/test_config.py`
-    - **What:** Doc01's `test_config.py` with the imports changed. It moves your real `.env` aside, writes three test versions (none, no key, a full one), checks that `load_config()` raises `MissingConfigError` or loads, then puts your `.env` back.
+    - **What:** Three test functions, no API call, each printing `OK` or `WRONG`: `require_env()` raises `MissingConfigError` for a missing and for an empty setting (a made-up setting name, so your `.env` is never touched), and `load_config()` returns a `Config` when a key is set.
     - **Why:** It proves a missing key stops the app with one clear error, with no API call — the first thing that must work.
 - `tests/unit/test_tools.py`
-    - **What:** Test functions that call the tools directly with `.invoke({...})`: a conversion, a bad argument caught as `ValidationError`, the weather params for a known and an unknown city, and the search failing once and then working.
+    - **What:** One test function per case, each printing `OK` or `WRONG`, calling the tools directly with `.invoke({...})`: 18°C is 64.4°F, a bad argument raises `ValidationError`, the weather params for a known and an unknown city, and the search failing once and then working.
     - **Why:** A broken tool shows up here, with no network and no model — not as a strange agent answer later.
 - `main.py`
     - **What:** `main()` loads the config, builds the model and the Verifier chain, then loops: read a task, call `answer_task()`, print the step log with `print_steps()`, and print the answer marked verified or NOT verified. It catches `MaxIterationsExceeded` (prints the partial log) and the OpenAI key and rate-limit errors.
@@ -384,6 +384,29 @@ The project grows step by step, and **after every step it runs**: Step 1 answers
 
 Every command runs from the **repo root** (`ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses/`) with the venv active.
 
+### How testing works in this project
+
+**Story:** ResearchHand's whole promise is "verified answers, not guesses" — so its own code gets the same treatment. Every step adds the tests for the feature it adds: the chain, the tool loop, each tool, the step limit, the Verifier. When something breaks, the newest `WRONG` points straight at the newest code. **If not:** you'd only ever know the agent "seemed to work" on the questions you happened to type, and a tool that quietly broke would show up as a confident wrong answer.
+
+- **Two kinds of test:**
+    - `tests/unit/` — code that needs no model and no network: settings, each tool called directly with `.invoke({...})`, the Worker's and Verifier's helper functions. No API key, no cost, under a second. **When:** after every change to the file it tests — run them all the time.
+    - `tests/integration/test_live_agents.py` — the parts that need the real model (and the weather API): the chain, the Worker's tool choices, the step limit, recovery, the Verifier. Real API calls (a fraction of a cent). **When:** at the end of every step, and after changing a prompt, a tool's docstring, or `MAX_ITERATIONS` in `main.py`.
+- **One pattern for every case** — so the output never needs judging:
+
+```
+def test_something() -> None:
+    result = "OK"
+    if <it came out wrong>:
+        result = "WRONG"
+    print(f"case 1 (what it checks) -> {result}")
+```
+
+- **An error you expect** (like `ValidationError` or `MaxIterationsExceeded`): start with `result = "WRONG"`, and set `result = "OK"` inside `except TheError:`.
+- **One function per case**, all called at the bottom under `if __name__ == "__main__":`. Each file numbers its own cases, and case numbers never change once written.
+- **Model answers vary**, so check one fact — a tool name in the step log, "Paris" in the answer, `approved` is `False` — never the exact wording.
+- **Run from the repo root with `-m`:** `python -m tests.unit.test_tools` (dots, no `.py`). Running the file by its path fails with `No module named 'src'`, because Python then starts looking for imports in `tests/unit/`.
+- **Got a `WRONG`?** Read that one test function, then the code it calls. Fix the code — change the test only if the test itself checks the wrong thing.
+
 ### Step 1 — A Single LCEL Chain That Answers One Question, No Tools
 
 *Project: **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — Step 1 of 4*
@@ -405,7 +428,7 @@ What to do:
 3. Write `prompts/direct.txt` (with a `{question}` placeholder) and `chains/direct_answer.py`: `build_direct_chain(model)` returns `prompt | model | StrOutputParser()`.
 4. Write `main.py`: config, model, chain, then a loop — `/quit` to exit, and a wrong key gives one clear line (`openai.AuthenticationError`).
 5. Ask a general question, then a live one ("What's the weather in Lahore right now?"). See the guess.
-6. Write `tests/unit/test_config.py` (Doc01's, imports changed) and `tests/integration/test_live_agents.py` with case 1 (the chain answers a question). Run both with `python -m`.
+6. Write `tests/unit/test_config.py` (Doc01's three config checks, each printing `OK` or `WRONG`) and `tests/integration/test_live_agents.py` with case 1 (the chain answers a question). Run both with `python -m`.
 
 **Your files after Step 1:**
 
@@ -464,14 +487,37 @@ ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses/
     - **What:** One error class, `MissingConfigError` (Doc01), raised by `load_config()` when a setting is missing.
     - **Why:** Each problem can be caught by name. `MaxIterationsExceeded` carries the step log, so hitting the limit still shows where the Worker got stuck.
 - `test_live_agents.py`
-    - **What:** One test function that calls the real model: `test_direct_answer()` builds the direct chain and prints its answer to a general question (case 1).
+    - **What:** One test function that calls the real model: `test_direct_answer()` builds the direct chain, asks for the capital of France, and prints `OK` only if the answer contains "Paris" (case 1).
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `test_config.py`
-    - **What:** Doc01's `test_config.py` with the imports changed. It moves your real `.env` aside, writes three test versions (none, no key, a full one), checks that `load_config()` raises `MissingConfigError` or loads, then puts your `.env` back.
+    - **What:** Three test functions, no API call, each printing `OK` or `WRONG`: `require_env()` raises `MissingConfigError` for a missing and for an empty setting (a made-up setting name, so your `.env` is never touched), and `load_config()` returns a `Config` when a key is set.
     - **Why:** It proves a missing key stops the app with one clear error, with no API call — the first thing that must work.
 - `main.py`
     - **What:** One function, `main()`. It loads the config, builds the model and the direct chain, then loops: read a question, stop on `/quit`, and print the chain's answer from memory. A wrong key gives one clear line.
     - **Why:** One starting point that reads input and prints results. The agents and the flow live in other files.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 1 (missing setting)** — `tests/unit/test_config.py`
+    - **Check:** with a made-up setting name removed from `os.environ`, `require_env()` raises `MissingConfigError`.
+    - **Why:** a missing key must stop the app at startup with one clear line.
+    - **When:** after any change to `config.py` or `exceptions.py`.
+    - **If not:** a missing key would surface later as a confusing `AuthenticationError` from OpenAI.
+- **case 2 (empty setting)** — `tests/unit/test_config.py`
+    - **Check:** the same name set to `""` also raises `MissingConfigError`.
+    - **Why:** `OPENAI_API_KEY=` with nothing after it is "set" but never usable.
+    - **When:** same as case 1.
+    - **If not:** the app would start happily and fail on the first real call.
+- **case 3 (config loads)** — `tests/unit/test_config.py`
+    - **Check:** with `OPENAI_API_KEY` set in `os.environ`, `load_config()` returns a `Config` holding that key.
+    - **Why:** cases 1–2 only prove the *error* path; this proves the values actually come back.
+    - **When:** same as case 1.
+    - **If not:** a missing `return value` in `require_env()` passes cases 1–2, and every setting silently becomes `None`.
+- **case 1 (direct answer)** — `tests/integration/test_live_agents.py`
+    - **Check:** the no-tools chain, asked "What is the capital of France?", answers with "Paris".
+    - **Why:** proves the key, the model, the prompt file and the LCEL chain work together, end to end.
+    - **When:** at the end of the step, and after changing `prompts/direct.txt` or `models/llm.py`.
+    - **If not:** a broken prompt variable or model name would be found by the first user, not by you.
 
 ### Step 2 — One Tool, One Loop: the Smallest Possible Working Agent
 
@@ -536,17 +582,70 @@ ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses/
     - **What:** Two error classes: `MissingConfigError` (Doc01) and `MaxIterationsExceeded` (Doc07), which carries the partial step log.
     - **Why:** Each problem can be caught by name. `MaxIterationsExceeded` carries the step log, so hitting the limit still shows where the Worker got stuck.
 - `test_live_agents.py`
-    - **What:** Step 1's case plus `tools_used()` and three Worker cases with the real model: a conversion uses the converter, a general question uses no tool, and one round can't finish a tool task, so `MaxIterationsExceeded` is raised (cases 2-4).
+    - **What:** Step 1's case plus `tools_used()` and three Worker cases with the real model: a conversion uses the converter, a general question uses no tool, and one round can't finish a tool task, so `MaxIterationsExceeded` is raised (cases 2-4). Each prints `OK` or `WRONG`.
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `test_agents.py`
-    - **What:** Two test functions: `find_tool()` with a known and an unknown name, and `run_tool()` with a good call, an unknown tool and bad arguments — all hand-made, no API key.
+    - **What:** Five test functions, each printing `OK` or `WRONG`: `find_tool()` with a known and an unknown name, and `run_tool()` with a good call (returns `"32.0"`), an unknown tool and bad arguments (both return an error, no result) — all hand-made, no API key.
     - **Why:** It proves failures turn into readable error messages and only good results reach the Verifier — without any model call.
 - `test_tools.py`
-    - **What:** Two test functions that call the converter with `.invoke({...})`: a normal conversion, and a bad argument (`celsius='hot'`) that the tool's Pydantic check rejects.
+    - **What:** Two test functions that call the converter with `.invoke({...})`, each printing `OK` or `WRONG`: 18°C must give 64.4, and a bad argument (`celsius='hot'`) must be rejected by the tool's Pydantic check.
     - **Why:** A broken tool shows up here, with no network and no model — not as a strange agent answer later.
 - `main.py`
     - **What:** Two functions. `print_steps(steps)` prints each tool call and its result; `main()` loads the config, builds the model, then loops: read a task, run `run_worker()`, print the step log and the answer, and turn a bad key, a rate limit or `MaxIterationsExceeded` into one clear message.
     - **Why:** One starting point that reads input and prints results. The agents and the flow live in other files.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 1 (18°C is 64.4°F)** — `tests/unit/test_tools.py`
+    - **Check:** `celsius_to_fahrenheit.invoke({"celsius": 18})` returns `64.4`.
+    - **Why:** the Worker trusts this number — the tool itself must be right before the model ever calls it.
+    - **When:** after any change to `tools/converter.py`.
+    - **If not:** a wrong formula would produce confident, wrong answers that look like real research.
+- **case 2 (celsius='hot' refused)** — `tests/unit/test_tools.py`
+    - **Check:** `{"celsius": "hot"}` raises `ValidationError`.
+    - **Why:** `@tool` checks the argument's type before the function runs (Doc06) — bad arguments never reach your code.
+    - **When:** same as case 1.
+    - **If not:** a model's badly-typed call would crash inside the tool instead of becoming a clean error.
+- **case 1 (known tool found)** — `tests/unit/test_agents.py`
+    - **Check:** `find_tool(ALL_TOOLS, "celsius_to_fahrenheit")` is not `None`.
+    - **Why:** every tool call the model makes starts with this lookup.
+    - **When:** after any change to `agents/worker.py` or `ALL_TOOLS`.
+    - **If not:** a tool missing from `ALL_TOOLS` would only show up as an "unknown tool" step in a real run.
+- **case 2 (unknown tool gives None)** — `tests/unit/test_agents.py`
+    - **Check:** `find_tool(ALL_TOOLS, "send_email")` is `None`.
+    - **Why:** a made-up tool name must be reported, not matched to something wrong.
+    - **When:** same as case 1.
+    - **If not:** the Worker could run a different tool than the model asked for.
+- **case 3 (good call gives 32.0)** — `tests/unit/test_agents.py`
+    - **Check:** `run_tool()` on a good converter call returns `("32.0", None)`.
+    - **Why:** the happy path: a result and no error.
+    - **When:** same as case 1.
+    - **If not:** a bug that drops the result would make every tool step look like a failure.
+- **case 4 (unknown tool gives error)** — `tests/unit/test_agents.py`
+    - **Check:** `run_tool()` on `send_email` returns no result and an error message.
+    - **Why:** an unknown tool must become a readable observation, never a crash.
+    - **When:** same as case 1.
+    - **If not:** one hallucinated tool name would end the whole run with a traceback.
+- **case 5 (bad arguments give error)** — `tests/unit/test_agents.py`
+    - **Check:** `run_tool()` with `{"celsius": "x"}` returns no result and an error message.
+    - **Why:** the `ValidationError` from case 2 must be caught inside `run_tool()`, so the model can try again.
+    - **When:** same as case 1.
+    - **If not:** a badly-typed call from the model would crash the loop instead of being retried.
+- **case 2 (conversion)** — `tests/integration/test_live_agents.py`
+    - **Check:** a Celsius-to-Fahrenheit question puts `celsius_to_fahrenheit` in the step log.
+    - **Why:** the agent must use the tool for a calculation, not guess from memory.
+    - **When:** at the end of the step, and after changing `prompts/worker.txt` or a tool's docstring.
+    - **If not:** the agent could answer conversions from memory, with no step log to check.
+- **case 3 (no tool needed)** — `tests/integration/test_live_agents.py`
+    - **Check:** "What is the capital of France?" finishes with **zero** tool steps.
+    - **Why:** calling tools for general knowledge costs time and money for nothing.
+    - **When:** same as case 2.
+    - **If not:** the agent could start calling tools for every question.
+- **case 4 (step limit)** — `tests/integration/test_live_agents.py`
+    - **Check:** a tool task with `max_iterations=1` raises `MaxIterationsExceeded`.
+    - **Why:** the loop must **always** stop — this proves the limit is really enforced.
+    - **When:** same as case 2, and after any change to the loop in `run_worker()`.
+    - **If not:** a model that keeps asking for tools could loop (and bill you) forever.
 
 ### Step 3 — Scaling to 3 Tools With a Hard Step Limit and Failure Recovery
 
@@ -616,11 +715,39 @@ ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses/
     - **What:** Four error classes: `MissingConfigError` (Doc01), `TransientHTTPError` and `PermanentHTTPError` (Doc02), and `MaxIterationsExceeded` (Doc07), which carries the partial step log.
     - **Why:** Each problem can be caught by name. `MaxIterationsExceeded` carries the step log, so hitting the limit still shows where the Worker got stuck.
 - `test_live_agents.py`
-    - **What:** Step 2's cases plus a weather task that must use `get_weather`, and recovery from the failing search: one failed step, then a successful one (cases 5-6).
+    - **What:** Step 2's cases plus a weather task that must use `get_weather`, and recovery from the failing search: at least one failed step and one successful one (cases 5-6).
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `test_tools.py`
-    - **What:** Step 2's converter cases plus `build_weather_params()` for a known and an unknown city, and the failing search: its first call raises, the second returns the policy.
+    - **What:** Step 2's converter cases plus three new functions: `build_weather_params()` for Lahore (latitude 31.55) and for an unknown city (`None`), and the failing search — its first call raises `ConnectionError`, the second returns the refund policy (cases 3-5).
     - **Why:** A broken tool shows up here, with no network and no model — not as a strange agent answer later.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 3 (Lahore coordinates)** — `tests/unit/test_tools.py`
+    - **Check:** `build_weather_params("Lahore")` returns latitude `31.55`.
+    - **Why:** the weather tool is only as right as the coordinates it sends — checked here with no network.
+    - **When:** after any change to `tools/weather.py`.
+    - **If not:** a typo in a city's coordinates would return another city's weather, and look completely normal.
+- **case 4 (unknown city gives None)** — `tests/unit/test_tools.py`
+    - **Check:** `build_weather_params("Atlantis")` returns `None`.
+    - **Why:** an unknown city must become a clear "no coordinates" message, not a bad API request.
+    - **When:** same as case 3.
+    - **If not:** an unknown city could send a broken request to the weather API.
+- **case 5 (fails once, then works)** — `tests/unit/test_tools.py`
+    - **Check:** after `search_state.call_count = 0`, the first `search_docs` call raises `ConnectionError` and the second returns the refund policy.
+    - **Why:** the recovery test (case 6 below) only means something if the tool really fails once, every time.
+    - **When:** after any change to `tools/docs_search.py`.
+    - **If not:** case 6 could pass without any failure ever happening.
+- **case 5 (weather task)** — `tests/integration/test_live_agents.py`
+    - **Check:** a live weather question puts `get_weather` in the step log.
+    - **Why:** with 3 tools, the model must pick the right one for live data.
+    - **When:** at the end of the step, and after changing any tool's docstring.
+    - **If not:** the agent could answer "the weather now" from memory.
+- **case 6 (recovery)** — `tests/integration/test_live_agents.py`
+    - **Check:** the refund question's step log has at least one failed and one successful step.
+    - **Why:** a tool failing mid-run must become an observation the model works around — this step's main feature.
+    - **When:** same as case 5.
+    - **If not:** one flaky tool would end the whole run, or the agent would answer as if the failure never happened.
 
 ### Step 4 — A Verifier Agent That Catches the Worker's Bad Answers (final: 2 agents)
 
@@ -693,14 +820,38 @@ ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses/
     - **What:** One Pydantic class, `VerifierVerdict`, with `approved: bool` and `reason: str`.
     - **Why:** The Verifier's answer is a real True/False the code can use. Without it you'd search the text for "approved" — and "NOT approved" would pass.
 - `test_live_agents.py`
-    - **What:** Test functions that call the real model (and the weather API), added step by step: the no-tools chain, the right tool for a clear task, no tool for general knowledge, the step limit, a weather task, recovery from the failing search, and the Verifier rejecting a wrong answer and approving a right one. Each prints one `case` line.
+    - **What:** Test functions that call the real model (and the weather API), added step by step: the no-tools chain, the right tool for a clear task, no tool for general knowledge, the step limit, a weather task, recovery from the failing search, and the Verifier rejecting a wrong answer and approving a right one. Each prints `OK` or `WRONG`.
     - **Why:** It proves the parts that need the real model actually work, and each step's new feature gets its own check.
 - `test_agents.py`
-    - **What:** Test functions that pass hand-made tool-call dicts to `find_tool()` and `run_tool()`, and hand-made steps to `collect_evidence()`, and print the results.
+    - **What:** One test function per case, each printing `OK` or `WRONG`: hand-made tool-call dicts for `find_tool()` and `run_tool()` (known tool, unknown tool, good call, unknown-tool call, bad arguments), and hand-made steps for `collect_evidence()` (a failed step left out, no steps).
     - **Why:** It proves failures turn into readable error messages and only good results reach the Verifier — without any model call.
 - `main.py`
     - **What:** `main()` loads the config, builds the model and the Verifier chain, then loops: read a task, call `answer_task()`, print the step log with `print_steps()`, and print the answer marked verified or NOT verified. It catches `MaxIterationsExceeded` (prints the partial log) and the OpenAI key and rate-limit errors.
     - **Why:** One starting point that reads input and prints results. The agents and the flow live in other files.
+
+**Tests for this step — write them yourself** (the solution has the code, to compare):
+
+- **case 6 (failed step left out)** — `tests/unit/test_agents.py`
+    - **Check:** `collect_evidence()` on one failed and one good step includes the good result and not the failed one.
+    - **Why:** the Verifier must only see what the tools really returned.
+    - **When:** after any change to `agents/verifier.py`.
+    - **If not:** an error message could be treated as evidence, and a wrong answer approved.
+- **case 7 (no steps)** — `tests/unit/test_agents.py`
+    - **Check:** `collect_evidence([])` returns `"(no tools were used)"`.
+    - **Why:** a from-memory answer must be judged with an honest "no evidence", not an empty string.
+    - **When:** same as case 6.
+    - **If not:** the Verifier prompt would get a blank evidence section and guess what it means.
+- **case 7 (wrong answer)** — `tests/integration/test_live_agents.py`
+    - **Check:** evidence says 64.4°F, the answer says 90°F — `verify()` returns `approved=False`.
+    - **Why:** a Verifier that has never rejected anything hasn't been tested. This is the most important case in the project.
+    - **When:** at the end of the step, and after changing `prompts/verifier.txt` or `VerifierVerdict`.
+    - **If not:** a Verifier that approves everything would look exactly like one that works.
+- **case 8 (right answer)** — `tests/integration/test_live_agents.py`
+    - **Check:** the same evidence with the right answer (64.4°F) gives `approved=True`.
+    - **Why:** the opposite check — a Verifier that rejects everything is just as broken.
+    - **When:** same as case 7.
+    - **If not:** every good answer would be retried for nothing, doubling the cost.
+Not a test: `scripts/compare_with_tools.py` prints from-memory and verified answers side by side for **you** to read. Tests check facts; only a person can judge whether the verified answer is really better.
 
 **Final Deliverable:** **ResearchHand-Tool-Agent-Get-Verified-Answers-Not-Guesses** — a 2-agent system in a proper package layout. A Worker solves tool-using tasks with a hard limit and failure recovery. An independent Verifier checks every answer against the tools' evidence before the user sees it.
 
@@ -751,7 +902,7 @@ python -m tests.unit.test_agents
 python -m tests.integration.test_live_agents
 ```
 
-The unit tests check the config, the tools and the Worker's helpers. The integration tests check: the no-tools chain, the right tool for a clear task, no tool for general knowledge, recovery from a failing tool, the step limit, and that the Verifier **rejects** a deliberately wrong answer and approves a right one.
+Every test case prints `OK` or `WRONG`. The unit tests check the config, the tools and the Worker's helpers. The integration tests check: the no-tools chain, the right tool for a clear task, no tool for general knowledge, recovery from a failing tool, the step limit, and that the Verifier **rejects** a deliberately wrong answer and approves a right one.
 
 ## Checklist Before You Call This Done
 
@@ -765,7 +916,8 @@ The unit tests check the config, the tools and the Worker's helpers. The integra
 - [ ] The Verifier runs on every answer, with its own separate prompt
 - [ ] At least one test where the Verifier rejects a wrong answer
 - [ ] A step log for every run, and the Verifier's verdict logged separately
-- [ ] `tests/unit/` pass with no API key; `tests/integration/` pass with one
+- [ ] Every test case prints `OK` — `tests/unit/` with no API key, `tests/integration/` with one
+- [ ] You wrote each step's tests yourself, and can say for each one what goes wrong without it
 - [ ] `.env` is not in git
 - [ ] You can explain why the Worker chose each tool, and why the Verifier approved or rejected
 
