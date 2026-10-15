@@ -58,16 +58,16 @@ There's no separate practice track for the whole capstone — the capstone itsel
 
 ```
 practice/
-├── design_self_review.md   Basic
+├── capstone_review.md      Real-world
 ├── defend_tradeoff.md      Intermediate
-└── capstone_review.md      Real-world
+└── design_self_review.md   Basic
 ```
 
 **Why each file exists:**
 
-- `design_self_review.md` — the two-direction requirement check on your Stage-1 design, done before any code, so gaps and extra pieces are found on paper.
-- `defend_tradeoff.md` — one debatable decision, the strongest objection you can build against it, and your honest answer — including the second round of pushback.
 - `capstone_review.md` — your notes after the cold review: which answers held, which were defaults, and which two answers turned out to contradict each other.
+- `defend_tradeoff.md` — one debatable decision, the strongest objection you can build against it, and your honest answer — including the second round of pushback.
+- `design_self_review.md` — the two-direction requirement check on your Stage-1 design, done before any code, so gaps and extra pieces are found on paper.
 
 **Jump to an exercise:** [Basic](#ex-design_self_review) · [Intermediate](#ex-defend_tradeoff) · [Real-world](#ex-capstone_review)
 

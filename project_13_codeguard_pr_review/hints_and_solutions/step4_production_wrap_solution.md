@@ -1,155 +1,185 @@
-# Step 4 — Production Wrap — Solution
+# Step 4 — Production Wrap (optional) — Solution
 
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
+> [Back to the step](../READING_README.md#step-4-production-wrap-optional) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2)
 
-## Basic Version
+**Story:** wrap the finished 4-agent system in Project 5's production layer — a FastAPI `/review` endpoint and an eval that specifically checks routing — proving that layer generalizes too, not just the agent design. **If not:** CodeGuard stays a thing you describe instead of a link you can hand someone.
 
-### Approach 1 — the direct way (Project 5's Step 1 pattern, pointed at CodeGuard)
+This step reuses Project 5 almost unchanged. No new ideas — just repetition.
+
+## `src/pipeline.py` — the one door
 
 ```python
-# api/schemas.py
+# src/pipeline.py
+# The single entry point the API and the terminal both call: build the graph,
+# run it on a diff, return the compiled review.
+from src.graph import build_graph
+from src.state import start_state
+
+_APP = None
+
+
+def get_app(model, style_collection):
+    global _APP
+    if _APP is None:
+        _APP = build_graph(model, style_collection)
+    return _APP
+
+
+def review_diff(model, style_collection, diff: str) -> dict:
+    app = get_app(model, style_collection)
+    final = app.invoke(start_state(diff))
+    return {
+        "review": final["review"],
+        "reviewers_run": final["routing_log"],
+        "finding_count": len(final["findings"]),
+    }
+```
+
+## The FastAPI layer
+
+```python
+# src/api/schemas.py
 from pydantic import BaseModel
+
 
 class ReviewRequest(BaseModel):
     diff: str
 
-class ReviewResponse(BaseModel):
-    compiled_review: str
 
-# api/routes.py
+class ReviewResponse(BaseModel):
+    review: str
+    reviewers_run: list
+    finding_count: int
+```
+
+```python
+# src/api/routes.py
 from fastapi import APIRouter
-from supervisor import run_codeguard
-from api.schemas import ReviewRequest, ReviewResponse
+
+from src.api.schemas import ReviewRequest, ReviewResponse
+from src.config import load_config
+from src.models.llm import get_model
+from src.pipeline import review_diff
+from src.rag.ingest import build_style_store
+from src.rag.store import get_collection
 
 router = APIRouter()
+_CONFIG = load_config()
+_MODEL = get_model(_CONFIG)
+_COLLECTION = build_style_store(get_collection())
 
-@router.post("/review", response_model=ReviewResponse)
-def review(request: ReviewRequest):
-    result = run_codeguard(request.diff)
-    return ReviewResponse(compiled_review=result)
 
 @router.get("/health")
 def health():
     return {"status": "ok"}
-```
-This is exactly Project 5 Step 1's Basic Version, with `topic` swapped for `diff` and `final_report` swapped for `compiled_review`. It works, and it has the exact same gaps Project 5's own Basic Version has — no error handling, and a blocking call directly inside a synchronous route.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — the full Project 5 stack, reused: FastAPI + SQLite + Dockerfile
-
-```python
-# api/routes.py
-import logging
-from uuid import uuid4
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException
-from starlette.concurrency import run_in_threadpool
-from db.database import SessionLocal
-from db.models import Run
-from supervisor import run_codeguard
-from api.schemas import ReviewRequest, ReviewResponse
-
-logger = logging.getLogger("codeguard.api")
-router = APIRouter()
 
 
 @router.post("/review", response_model=ReviewResponse)
-async def review(request: ReviewRequest) -> ReviewResponse:
-    run_id = str(uuid4())
-    logger.info("review %s starting", run_id)
-
-    with SessionLocal() as session:
-        session.add(Run(id=run_id, input=request.diff, status="pending", created_at=datetime.now(timezone.utc)))
-        session.commit()
-
-    try:
-        result = await run_in_threadpool(run_codeguard, request.diff)
-    except Exception:
-        logger.exception("review %s failed", run_id)
-        raise HTTPException(status_code=500, detail="Review failed — please try again")
-
-    with SessionLocal() as session:
-        run = session.get(Run, run_id)
-        run.output = result
-        run.status = "success"
-        run.completed_at = datetime.now(timezone.utc)
-        session.commit()
-
-    return ReviewResponse(compiled_review=result)
-
-
-@router.get("/runs/{run_id}")
-def get_run(run_id: str) -> Run:
-    with SessionLocal() as session:
-        run = session.get(Run, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    return run
+def review(request: ReviewRequest):
+    result = review_diff(_MODEL, _COLLECTION, request.diff)
+    return ReviewResponse(**result)
 ```
-
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-
-**Difference from Basic:** every piece here — `run_in_threadpool`, the safe error handling, the `Run` table, the two-phase `"pending"`→`"success"` write, the layer-cached Dockerfile — is Project 5's own Intermediate/Advanced solution, reused directly, exactly as the README instructs ("no new ideas here — just repetition"). The only genuinely new content is the request/response shape (`diff` in, `compiled_review` out) and which function gets called (`run_codeguard` instead of `graph.invoke`).
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-4-production-wrap-optional-reuses-the-standard-deployment-steps-completely) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2) · [Solution](step4_production_wrap_solution.md)
-
-## Advanced Version
-
-### Approach 1 — an eval suite that specifically tests routing, not just reviewer accuracy
 
 ```python
-# eval_suite/tasks.py
-EVAL_TASKS = [
-    {
-        "name": "planted_secret_flagged_critical",
-        "diff": 'diff --git a/config.py b/config.py\n+ API_KEY = "sk-realistic-looking-secret-12345"',
-        "check": lambda review: "critical" in review.lower(),
-    },
-    {
-        "name": "docs_only_diff_skips_security",
-        "diff": 'diff --git a/README.md b/README.md\n+ Some documentation text.',
-        "check": lambda review, applicable_reviewers: "security" not in applicable_reviewers,
-    },
-    {
-        "name": "source_change_no_test_flagged",
-        "diff": 'diff --git a/app.py b/app.py\n+ def new_feature(): pass',
-        "check": lambda review: "test" in review.lower(),
-    },
-]
-```
-This directly tests Step 3's routing logic (`docs_only_diff_skips_security`), not just each reviewer answering correctly in isolation — the gap Hint 2's Intermediate level pointed at. A suite that only tested reviewer accuracy could pass even with Step 3's routing completely broken (every reviewer running on every diff), since over-running a reviewer doesn't make its individual answers wrong — it just wastes money, which this suite alone wouldn't catch without a task designed specifically to check it.
+# src/api/main.py
+# uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+from fastapi import FastAPI
 
-### Approach 2 — the style guide as a mounted volume, not baked into the image
+from src.api.routes import router
+
+app = FastAPI(title="CodeGuard")
+app.include_router(router)
+```
 
 ```dockerfile
-# Dockerfile — style_guide.md is NOT copied in; it's mounted at run time
+# Dockerfile
 FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-# style_guide.md is intentionally excluded via .dockerignore
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
-```bash
-# run time: mount the real style guide in, rebuild the vectorstore from it once at container startup
-docker run --env-file .env -v $(pwd)/style_guide.md:/app/style_guide.md -p 8000:8000 codeguard-api
+EXPOSE 8000
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate's eval suite proves each reviewer works but says nothing about whether Step 3's routing is actually saving any money — a completely broken router (running every reviewer on every diff) would still pass every task in Intermediate's suite. Approach 1 closes that gap with a task built specifically to test routing. Approach 2 is a separate, genuinely new concern Project 5 never had: CodeGuard's Style reviewer depends on a real document that isn't a secret but *does* change independently of the code — baking it into the image (Project 5's default pattern for everything else) means rebuilding the whole image every time the style guide changes, where mounting it as a volume lets the guide update without a rebuild.
+## The routing eval (the one that matters)
 
-**Which one should you actually write?** Approach 1's routing-aware eval task, without question — it's the one part of this step that's genuinely CodeGuard-specific rather than a copy of Project 5, and skipping it means your test suite could pass while Step 3's actual routing logic is silently broken. Approach 2's volume-mount is worth doing once you notice the style guide will realistically change more often than your application code does — for a first pass, baking it in (Intermediate's approach) is a perfectly fine simplification, same as skipping this whole optional step is fine for a first pass at the project overall.
+A suite that only checks each reviewer's accuracy could pass even if routing were completely broken. So the key eval checks **routing**: a docs-only diff must not produce a Security finding, and must not run the Security reviewer.
+
+```python
+# src/evals/routing_eval.py
+# Prove the routing works, not just the reviewers. Run from the repo root:
+#   python -m src.evals.routing_eval
+from src.config import load_config
+from src.models.llm import get_model
+from src.pipeline import review_diff
+from src.rag.ingest import build_style_store
+from src.rag.store import get_collection
+
+DOCS_ONLY = "--- a/README.md\n+++ b/README.md\n+a new line in the docs\n"
+CODE_WITH_SECRET = (
+    "--- a/app.py\n+++ b/app.py\n+api_key = \"SUPERsecret12345\"\n"
+)
+
+
+def main():
+    config = load_config()
+    model = get_model(config)
+    collection = build_style_store(get_collection())
+
+    docs = review_diff(model, collection, DOCS_ONLY)
+    ok_docs = "security" not in docs["reviewers_run"]
+    print(f"routing (docs-only skips security) -> "
+          f"{'PASS' if ok_docs else 'FAIL'}")
+
+    code = review_diff(model, collection, CODE_WITH_SECRET)
+    ok_code = "security" in code["reviewers_run"] and "secret" in code["review"]
+    print(f"routing (code runs security + flags secret) -> "
+          f"{'PASS' if ok_code else 'FAIL'}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## The API test (team faked, no key)
+
+```python
+# tests/api/test_routes.py
+# The API with the pipeline faked, so it runs with no model and no key.
+#   python -m pytest tests/api/test_routes.py -v
+import os
+
+os.environ.setdefault("OPENAI_API_KEY", "sk-test")
+
+
+def test_review_route(monkeypatch):
+    from src import pipeline
+
+    def fake_review(model, collection, diff):
+        return {"review": "CodeGuard review: [HIGH] (security) secret",
+                "reviewers_run": ["security", "coverage", "style"],
+                "finding_count": 1}
+
+    monkeypatch.setattr(pipeline, "review_diff", fake_review)
+    from fastapi.testclient import TestClient
+    from src.api.main import app
+    client = TestClient(app)
+    assert client.get("/health").json()["status"] == "ok"
+    response = client.post("/review", json={"diff": "x"})
+    assert response.status_code == 200
+    assert "security" in response.json()["review"]
+```
+
+**Expected routing-eval output** (real model):
+
+```
+routing (docs-only skips security) -> PASS
+routing (code runs security + flags secret) -> PASS
+```
+
+That's the production wrap: the same FastAPI + eval + Docker layer from Project 5, on a completely different system — the final proof that both halves of what you learned, the agent design *and* the production layer, generalize. With this, CodeGuard is a real, runnable service you can hand an interviewer a link to.
+
+## The whole project, in one sentence
+
+A Supervisor-led team of three specialist reviewers — Security (a secret/unsafe-pattern scanner), Style (grounded in your real style guide through RAG), and Test-Coverage — routed by what actually changed, compiled into one de-duplicated, severity-sorted review, and served behind a FastAPI endpoint. The same patterns as ContentForge, proven on an entirely different problem.

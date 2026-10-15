@@ -1,48 +1,30 @@
 # Step 2 — Wrap It as a Single MCP Tool — Solution
 
-> [Back to this step](../README.md#step-2-wrap-it-as-a-single-mcp-tool) · [Hint 1](step2_mcp_wrapper_hints.md#hint-1) · [Hint 2](step2_mcp_wrapper_hints.md#hint-2) · [Solution](step2_mcp_wrapper_solution.md)
+> [Back to the step](../READING_README.md#step-2-wrap-it-as-a-single-mcp-tool) · [Hint 1](step2_mcp_wrapper_hints.md#hint-1) · [Hint 2](step2_mcp_wrapper_hints.md#hint-2)
 
-## Basic Version
+**Story:** the whole pipeline, exposed as one `deep_research(topic) -> str` tool. The tool's body is just "run the pipeline, return the summary" — the thinnest possible MCP layer. **If not:** putting logic in the tool body (timeouts, formatting) mixes the MCP layer's job with the pipeline's, the mistake this project warns about.
 
-### Approach 1 — the direct way
+## `mcp_server.py` (new, at the repo root)
 
-```python
-# mcp_server.py
-from mcp.server.mcpserver import MCPServer
-from pipeline import run_pipeline
-
-mcp = MCPServer("deep-research-service")
-
-
-@mcp.tool()
-def deep_research(topic):
-    result = run_pipeline(topic, max_rounds=3)
-    return result.final_summary
-
-
-if __name__ == "__main__":
-    mcp.run(transport="stdio")
-```
-
-This works. It's missing type hints, a real docstring, config, and logging — all fine for a first pass proving the wrapper itself calls the pipeline correctly.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-wrap-it-as-a-single-mcp-tool) · [Hint 1](step2_mcp_wrapper_hints.md#hint-1) · [Hint 2](step2_mcp_wrapper_hints.md#hint-2) · [Solution](step2_mcp_wrapper_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — typed, with a real description, config, and logging
+**Story:** a `MCPServer` with exactly one tool. The tool builds the model and the config once (module level), then each call runs the pipeline and returns the final summary. **If not:** rebuilding the model and config on every call would be slow and noisy.
 
 ```python
-# mcp_server.py
+# mcp_server.py  (Step 2 version — the thinnest wrapper)
+# Exposes the whole Researcher/Fact-Checker pipeline as ONE MCP tool. The
+# tool body just runs the pipeline and returns the summary. Logging goes to
+# stderr (src/utils/logger.py); nothing prints to stdout -- stdout is the
+# MCP protocol channel. Run it with:  mcp dev mcp_server.py
+import sys
+
 from mcp.server.mcpserver import MCPServer
 
-from pipeline import run_pipeline
-from config import load_config
-from logging_setup import get_logger
+from src.config import load_config
+from src.models.llm import get_model
+from src.pipeline import run_pipeline
+from src.utils.logger import get_logger
 
-config = load_config()
+CONFIG = load_config()
+MODEL = get_model(CONFIG)
 logger = get_logger(__name__)
 
 mcp = MCPServer("deep-research-service")
@@ -50,110 +32,34 @@ mcp = MCPServer("deep-research-service")
 
 @mcp.tool()
 def deep_research(topic: str) -> str:
-    """Research a topic and return a fact-checked summary. Internally this
-    runs a Researcher/Fact-Checker loop with a bounded number of revision
-    rounds and can take several seconds -- the caller only sees the final,
-    approved (or best-effort) summary."""
-    logger.info("deep_research called for topic=%r", topic)
-    result = run_pipeline(topic, max_rounds=config.max_revision_rounds)
-    logger.info(
-        "deep_research finished for topic=%r: approved=%s, rounds=%d",
-        topic, result.approved, result.revision_count,
-    )
+    """Research a topic through a fact-checked, multi-round pipeline and
+    return a verified summary. One call runs a Researcher and a Fact-Checker
+    until the summary is approved or a round cap is reached."""
+    logger.info(f"deep_research: {topic}")
+    result = run_pipeline(MODEL, topic, CONFIG.max_revision_rounds)
     return result.final_summary
 
 
 if __name__ == "__main__":
-    logger.info("Starting deep-research-service over stdio")
+    print("deep-research service starting", file=sys.stderr)
     mcp.run(transport="stdio")
 ```
 
-**Expected behavior:** `mcp dev mcp_server.py` opens the Inspector; `deep_research` appears as the only tool. Calling it with `{"topic": "Retrieval-Augmented Generation (RAG)"}` takes a few seconds (multiple real LLM calls happening inside `run_pipeline`), then returns the final, fact-checked summary as a plain string.
+## Trying it
 
-<hr class="page-break">
+With the MCP Inspector:
 
-> [Back to this step](../README.md#step-2-wrap-it-as-a-single-mcp-tool) · [Hint 1](step2_mcp_wrapper_hints.md#hint-1) · [Hint 2](step2_mcp_wrapper_hints.md#hint-2) · [Solution](step2_mcp_wrapper_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a minimal client script, to prove it end to end without the Inspector
-
-```python
-# client_step2_check.py -- a throwaway script, not part of the final project
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-
-async def main():
-    server_params = StdioServerParameters(command="python", args=["mcp_server.py"])
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-
-            tools = await session.list_tools()
-            print("Tools this server offers:", [t.name for t in tools.tools])
-
-            result = await session.call_tool(
-                "deep_research",
-                {"topic": "Retrieval-Augmented Generation (RAG)"},
-            )
-            print("Result:", result)
-
-
-asyncio.run(main())
+```bash
+mcp dev mcp_server.py
 ```
 
-**Expected output:**
-```
-Tools this server offers: ['deep_research']
-Result: <CallToolResult with the final fact-checked summary inside it>
-```
+Then call `deep_research` with `topic = "Retrieval-Augmented Generation (RAG)"`. You get back the plain final summary — the fact-checked one, after the loop ran — with **no trace yet**. A caller sees a single clean answer and has no idea a two-agent revision loop produced it. That's the whole "agent-as-a-service" idea working.
 
-This is the same `stdio_client`/`ClientSession` shape Project 7's Step 4 built — proof this server works with any real MCP client, not just the Inspector's UI.
+## What's deliberately *not* here yet
 
-### Approach 2 — hardened against a stray `print()` anywhere in the import chain
+- **No trace.** The caller waits on a multi-round call with zero feedback, then gets only the final string. That's a bad experience for a slow tool — Step 3 fixes it by returning a revision trace alongside the summary.
+- **No timeout.** A slow or broken run hangs the caller indefinitely — Step 4 adds a timeout and a partial fallback.
 
-```python
-# mcp_server.py
-from mcp.server.mcpserver import MCPServer
+Resist adding either now. Keeping Step 2 a two-line tool body proves the wrapping itself is trivial; all the interesting *design* is deciding what a slow, multi-step process should look like from the outside, which is Steps 3 and 4.
 
-from pipeline import run_pipeline
-from config import load_config
-from logging_setup import get_logger
-
-config = load_config()
-logger = get_logger(__name__)
-
-# NEVER call print() anywhere in this file, or in researcher.py, fact_checker.py,
-# or pipeline.py -- on the stdio transport, stdout IS the protocol channel. A
-# stray print() in ANY of those files corrupts every message the client reads
-# after it, not just ones written directly in this file.
-
-mcp = MCPServer("deep-research-service")
-
-
-@mcp.tool()
-def deep_research(topic: str) -> str:
-    """Research a topic through a Researcher/Fact-Checker loop and return a
-    fact-checked summary. This can take several seconds -- it may make
-    several real LLM calls internally before answering."""
-    logger.info("deep_research called for topic=%r", topic)
-    result = run_pipeline(topic, max_rounds=config.max_revision_rounds)
-    logger.info(
-        "deep_research finished for topic=%r: approved=%s, rounds=%d",
-        topic, result.approved, result.revision_count,
-    )
-    return result.final_summary
-
-
-if __name__ == "__main__":
-    logger.info("Starting deep-research-service over stdio")
-    mcp.run(transport="stdio")
-```
-
-**Expected behavior:** identical to Intermediate from the client's point of view. The difference only shows up the day someone (or future-you) adds a debug `print()` to `researcher.py` while chasing a prompt-tuning issue — this comment, sitting in the one file every future change touches, is what stops that from silently breaking the whole server.
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate proves the wrapper works, tested by hand through the Inspector. Approach 1 proves the exact same thing with real client code — the mechanism any actual MCP client (Claude Desktop, another agent) would use. Approach 2 changes no behavior; it documents, right where it matters most, the one constraint (no `print()`, anywhere in the import chain) that's cheap to write down and expensive to debug once violated by accident.
-
-**Which one should you actually write?** Intermediate Approach 1 is what belongs in `mcp_server.py` for the rest of this project. Run Advanced Approach 1's client script once, by hand — confirming `deep_research` works through a real `ClientSession`, not just the Inspector, is worth the two minutes it takes. Keep Approach 2's comment; it costs nothing and saves a genuinely confusing debugging session later.
+**Tests for this step:** the integration test (Step 4's file) confirms a real `deep_research` call returns a non-empty summary — proof the pipeline runs correctly through the MCP layer.

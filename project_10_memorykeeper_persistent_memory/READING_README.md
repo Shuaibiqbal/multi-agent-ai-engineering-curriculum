@@ -1,233 +1,220 @@
 # Project 10 (Bonus) — MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions
 
-**Title:** MemoryKeeper Persistent Assistant That Remembers You Across Sessions
+**Type:** Single-agent chat assistant (LangGraph graph: checkpointer + long-term store) · **Stack:** Python, LangGraph, `langchain-openai`, `SqliteSaver`, `InMemoryStore`, Pydantic · **Level:** Intermediate
 
-**Type:** Single-agent chat assistant (LangGraph graph, checkpointer + long-term store) · **Stack:** Python, LangGraph, `langchain-openai`, `SqliteSaver`, `InMemoryStore`, python-dotenv, pydantic · **Level:** Intermediate
-**Tagline:** A terminal chat assistant that remembers real facts about you across separate runs of the program — not just within one conversation.
+**Tagline:** A chat assistant with two memory systems — a per-conversation checkpointer and a per-user long-term store — so a brand-new conversation can still know who you are, with a real "forget me."
 
-> Not part of the numbered Doc01-19 project arc — a bonus/portfolio project built on [09_langgraph](../09_langgraph/)'s "Long-term memory" topic, using [01_python_foundations](../01_python_foundations/)'s config/logging pattern and [04_openai_api](../04_openai_api/)'s chat patterns. Read Doc09's Core Concepts first if you haven't already — this file has the full build spec, not a pointer elsewhere.
+> Not part of the numbered Doc01-19 arc — a bonus/portfolio project built on [09_langgraph](../09_langgraph/)'s long-term memory topic. Read Doc09's Core Concepts first.
 
 ## Charter (what this project is)
-Build a terminal chat assistant — reusing Doc01's config/logging, Doc04's chat patterns, and Doc09's LangGraph graph structure — that remembers real facts about the user **across separate runs of the program**, not just within one conversation. Close the program. Run it again tomorrow, as a brand-new conversation. It should still remember your name, and what you told it last time. Doc07's "Agent memory" topic named this problem and set it aside on purpose, for later. Doc09's "Long-term memory" topic just introduced the real mechanism for solving it: `langgraph.store`, a `Store` kept separate from the per-conversation checkpointer, keyed by user instead of by thread. This project builds that mechanism all the way through — read facts in, decide what's actually worth saving, write facts out, and give the user a real way to be forgotten.
 
-**Jump to:** [Setup](#setup-do-this-once-before-step-1) · [Step 1](#step-1-a-normal-graph-with-only-short-term-checkpointer-memory) · [Step 2](#step-2-add-a-long-term-store-and-a-node-that-reads-from-it) · [Step 3](#step-3-deciding-whats-worth-remembering-and-writing-it-back) · [Step 4](#step-4-forgetting-and-a-privacy-respecting-delete)
+Build a chat assistant that remembers you across *separate* conversations, not just within one. It has two memory systems on purpose: a **checkpointer** (keyed by `thread_id`) that holds one conversation's messages, and a **long-term Store** (keyed by `user_id`) that holds durable facts about you, independent of any one conversation. The hard part isn't reading memory back — it's **deciding what's worth remembering** (saying no far more than yes), not duplicating a fact in slightly different words, and offering a real **"forget me"** that deletes everything.
+
+**Jump to:** [Project Structure](#project-structure-the-professional-layout) · [Setup](#setup-do-this-once-before-step-1) · [How testing works](#how-testing-works-in-this-project) · [Step 1](#step-1-a-graph-with-only-short-term-checkpointer-memory) · [Step 2](#step-2-add-a-long-term-store-and-a-node-that-reads-it) · [Step 3](#step-3-deciding-whats-worth-remembering-and-writing-it-back) · [Step 4](#step-4-forgetting-and-a-privacy-respecting-delete)
 
 ## The Story — what you're actually building
 
-Picture a chat assistant with a good short-term memory. Inside one conversation, it remembers everything you said five minutes ago — that's a checkpointer, and Doc09 already taught you how to build one. Now picture closing that conversation, coming back tomorrow, and starting a brand-new one. A checkpointer alone gives you a stranger. It has no idea who you are, even though you told it your name yesterday.
+Most chatbots have the memory of a goldfish between sessions. Close the tab, open a new one, and you're a stranger again — you re-tell it your name, your preferences, everything. A real assistant shouldn't work that way. The second time you talk to it, in a completely new conversation, it should already know you.
 
-That's the actual gap this project closes. MemoryKeeper is a small terminal chat assistant with two kinds of memory working together, not one. The checkpointer still handles one conversation's back-and-forth, exactly like Doc09 taught. But sitting next to it is a second thing: a long-term **Store**, keyed by user instead of by conversation, that survives no matter how many separate runs you start. Before MemoryKeeper answers you, it checks the Store for anything it already knows about you. After you say something worth remembering, it writes a short, distilled fact back to the Store — not the whole conversation, just the part worth keeping. And because a real memory system has to let people leave, MemoryKeeper also has a `forget_me` command that actually deletes what it knows about you, for good.
+That takes **two** kinds of memory, and keeping them straight is the whole design. The first is short-term: the messages of *this* conversation, so it doesn't forget what you said three turns ago. LangGraph's **checkpointer** does that — but it's keyed by `thread_id`, so a brand-new conversation gets a brand-new empty slate. The second is long-term: facts about *you* — your name, your preferences — that should outlive any single conversation. That's the **Store**, keyed by `user_id`, so it doesn't care how many separate threads you've started.
 
-The Steps below build this up in order. Step 1 proves the limitation first: a normal LangGraph chat graph, with only a checkpointer, that forgets everything the moment you start a new thread. Step 2 adds the Store and a node that reads it, so a brand-new thread can still "know" you. Step 3 adds the harder half: deciding, on its own, what's actually worth writing back, and not saving the same fact twice in slightly different words. Step 4 adds forgetting — a real delete, tested by proving a fresh run afterward truly knows nothing.
+Step 1 proves the limitation first: a normal graph with only a checkpointer, that forgets everything the moment you start a new thread. Step 2 adds the Store and a node that reads it, so a brand-new thread can still know you. Step 3 adds the harder half: deciding, on its own, what's actually worth writing back, and not saving the same fact twice. Step 4 adds forgetting — a real delete, tested by proving a fresh run afterward truly knows nothing.
 
-> **Before you read further — think about it yourself:** if a brand-new conversation (a new `thread_id`) can still know your name, where does the checkpointer's job end and the Store's job begin — are they really the same "memory," or two separate systems doing two separate jobs? And if the assistant has to decide, on its own, whether something you just said is worth remembering forever, what should make it say no — should it save "I'm in a bad mood today" the same way it saves your name?
-
-**What you're actually building, in one line:** a terminal chat assistant that keeps two separate memories — one for the current conversation, one for facts about you that survive across separate runs.
-
-**Why this needs to exist:** a model's context window is finite and every extra token costs money on every call, so you can't just keep feeding it the whole history of every past conversation forever. You need a small, separate place to keep only the facts worth keeping.
-
-**When you'd reach for this at a real job:** any assistant a user expects to "remember me" the next time they open it — a support bot that recalls a customer's plan, a coding assistant that recalls a user's preferred setup, anything with a return visit built into the product.
-
-**How it works, mechanically:** a checkpointer saves one conversation's full message history, keyed by thread ID; a separate Store saves a small number of distilled facts, keyed by user ID, that one node reads before answering and another node writes to after.
-
-**Why not just do it some simpler/different way:** you could just keep stuffing the whole conversation history into context and let the model "remember" that way — but context windows are limited in size, and cost grows with every token you send on every call, so this stops working the moment there's more history than fits. You could also assume the checkpointer alone is enough — but its state lives inside one thread, and the moment a new thread starts (a new day, a new session), that state is gone, no matter how much you saved. Only a store keyed by user, not by thread, survives that.
+> **Before you read further — think about it yourself:** for each of these, which memory does it belong in — the checkpointer or the Store? (a) "what did I just ask you?" (b) "my name is Sam" (c) "I think I'll have pasta tonight". If you can't place all three with confidence, settle that before Step 1 — it's the entire architecture.
 
 ## Where This Fits
-This is a bonus/portfolio project, not part of the main 5-project arc (Projects 1-5), and it isn't scored the way Project 6 tests architecture on a new domain. It's built directly on [09_langgraph](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here)'s "Long-term memory: remembering across separate conversations" topic — the real mechanism (`langgraph.store`) for a problem [07_ai_agents](../07_ai_agents/README.md#core-concepts-read-this-first-everything-you-need-is-here)'s "Agent memory: what actually persists between calls" topic named early on and explicitly deferred, because at that point in the curriculum there was no graph to hang it on yet. Now there is. If you haven't read Doc09's Core Concepts yet, read them first — this file assumes you already know what a checkpointer is, and builds the second, separate memory system next to it.
 
-What's new here is turning "the Store exists" into a full, working loop: read from it before answering, decide what's worth writing after answering, and give the user a real way to erase it. This belongs in your portfolio as proof you can build a memory system that does more than store text — one that also makes a judgment call about what's worth keeping, and respects a user who wants to be forgotten.
+A bonus/portfolio project that gives Doc09's long-term memory topic its own hands-on build. What's new here is the two-memory architecture, the *decision* of what's worth keeping (the real design problem), and a privacy-respecting delete — the things a paragraph of advice can't teach.
+
+## Project Structure (the professional layout)
+
+Same rule as every project: `main.py` at the repo root, all code in `src/`. No `pyproject`, no `pip install -e`.
+
+### The final layout (after Step 4)
+
+```
+<repo folder>/ (MemoryKeeper-...-Remembers-You-Across-Sessions/)
+├── src/
+│   ├── memory/
+│   │   ├── __init__.py
+│   │   ├── store.py            recall_facts/save_fact/forget_user
+│   │   └── writer.py           MemoryDecision, decide_memory()
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── llm.py              get_model()
+│   ├── prompts/
+│   │   ├── chat.txt
+│   │   └── writer.txt
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── logger.py
+│   │   └── prompts.py
+│   ├── __init__.py
+│   ├── config.py
+│   ├── exceptions.py
+│   ├── graph.py                build_graph(model, store, checkpointer)
+│   ├── nodes.py                recall_node, chat_node, write_back_node
+│   └── state.py                ChatState
+├── tests/
+│   ├── integration/
+│   │   └── test_live_memory.py real model: recall/write-back/forget
+│   └── unit/
+│       ├── test_config.py
+│       └── test_store.py       recall/save/forget — no model
+├── .env.example
+├── .gitignore
+├── LICENSE
+├── main.py
+├── README.md
+└── requirements.txt
+```
+
+### Why each folder exists
+
+- `src/memory/` — the two long-term-memory pieces: the Store helpers (`store.py`) and the "what's worth remembering" decision (`writer.py`).
+- `src/models/` — the one file that builds the chat model.
+- `src/` root — the graph, its nodes, and the state that flows through them.
+
+### How the structure grows, step by step
+
+- **Step 1** builds config/exceptions/logger/prompts-loader, `models/llm`, `state`, `nodes` (`chat_node` only), `graph` (checkpointer only), `main` (hardcoded thread), `test_config`.
+- **Step 2** adds `memory/store.py`, a `recall_node`, a real `user_id`, and `test_store`.
+- **Step 3** adds `memory/writer.py` (`decide_memory`) and a `write_back_node`.
+- **Step 4** adds `forget_user` and a `forget_me` command in `main.py`.
 
 ## Setup (do this once, before Step 1)
+
 ```bash
-cd project_10_memorykeeper
+cd MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install langgraph langgraph-checkpoint-sqlite langchain-openai python-dotenv pydantic
+pip install langgraph langgraph-checkpoint-sqlite \
+  langchain-openai python-dotenv pydantic
 pip freeze > requirements.txt
 ```
-Same `.env` setup as every other project:
-```
-OPENAI_API_KEY=sk-...
-LOG_LEVEL=INFO
-```
-And the same `.env.example` with the key names but no real secret.
 
-`langgraph-checkpoint-sqlite` is a separate package from `langgraph` itself — it's what gives you `SqliteSaver`, a checkpointer backed by a real file on disk instead of a plain Python dict (`MemorySaver`, Doc09's default) that disappears the moment the process ends. You need the file-backed one here: Step 1's whole point is proving something survives being a completely new `python main.py` process.
+`.env.example` (copy to `.env`): `OPENAI_API_KEY=sk-...`, `LOG_LEVEL=INFO`. `.gitignore`: `.env`, `.venv/`, `__pycache__/`, `*.pyc`, `*.sqlite`. Every folder under `src/` gets an empty `__init__.py`.
+
+`langgraph-checkpoint-sqlite` is a separate package — it gives you `SqliteSaver`, a checkpointer backed by a real file instead of the in-memory `MemorySaver`. You need the file-backed one: a specific conversation (`thread_id`) should survive a brand-new `python main.py` process.
 
 ## A Real Example (so this isn't just theory)
-Use this scenario, or one close to it, for every step below:
 
-**Scenario:** You are the user. Your `user_id` is a fixed string, like `"sam"`, that you pass to MemoryKeeper every time you run it (an argument, or an env var — your choice). Across several separate runs:
+- **Run 1, thread A, user `sam`:** "my name is Sam." MemoryKeeper writes a durable `preferred_name` fact.
+- **Run 2, a brand-new thread, same `sam`:** "what's my name?" → it still knows you're Sam (the **Store**, not the checkpointer).
+- **Thread C:** "I think I'll have pasta tonight." → **not** written to long-term memory (ephemeral, not a durable fact).
+- **Thread D:** "actually, call me Sammy." → **updates** the existing name fact, not a second contradictory one.
+- **`forget_me`:** deletes everything about `sam`. A brand-new thread afterward has no idea who you are.
 
-1. **Run 1, thread A:** "Hi, I'm Sam. I prefer being called Sam, not Samuel." Chat a little more, then close the program.
-2. **Run 2, thread A again (same thread ID):** Ask "what's my name?" — this should work even with only a checkpointer, since it's the *same* conversation continuing (Step 1's baseline).
-3. **Run 3, thread B (a brand-new thread ID, same `user_id`):** Ask "what's my name?" again — with only a checkpointer (Step 1), this fails: brand-new thread, brand-new empty state. With the Store wired in (Step 2 onward), this should work: MemoryKeeper still knows you're Sam, in a conversation it has never seen before.
-4. **Run 4, thread C:** Say something small and forgettable, like "I think I'll have pasta tonight." Confirm (Step 3) that this does **not** get written to long-term memory — it's not a durable fact, it's just today's dinner.
-5. **Run 5, thread D:** Say "actually, call me Sammy instead." Confirm (Step 3) this updates the existing name fact instead of sitting alongside it as a second, contradictory one.
-6. **Run 6:** Type `forget_me`. Confirm MemoryKeeper deletes everything it knows about `"sam"`. **Run 7, a brand-new thread:** ask "what's my name?" one more time — it should now have no idea (Step 4's test).
+## How testing works in this project
 
-## Why This Project Is Good for Your Portfolio
-- **What problem it solves:** most chat demos quietly reset the moment you close the terminal. This one doesn't — it remembers real facts about a specific user across completely separate runs, and can be told to forget them again.
-- **Why it matters:** a checkpointer alone is not "memory" in the way most users mean it — it's one conversation's scratchpad. Knowing the difference between per-conversation state and per-user long-term memory, and building both correctly, is exactly what separates a toy chatbot from something you'd trust with real user data.
-- **When you'd build something like this at a real job:** any assistant a user talks to more than once — a support bot that remembers a customer's plan and past issues, an internal tool that remembers a colleague's preferences, anything with a "remember me" expectation and a legal or ethical obligation to actually delete data on request.
-- **How it's built:** a LangGraph chat graph with a `SqliteSaver` checkpointer for one conversation's state, an `InMemoryStore` (or `PostgresStore` in production) namespaced by `user_id` for facts that outlive any one thread, a node that decides what's worth saving, and a `forget_me` path that deletes a user's Store entries for real.
+Two layers, one style. Because this project builds on Doc09 (plain test scripts, not `pytest`), **every test is a plain OK/WRONG script**, run with `python -m`:
 
-**Problems you'll likely run into, and how to fix them:**
+- **`tests/unit/`** — no model: `test_config` (settings), `test_store` (recall/save/update-by-key/forget on an `InMemoryStore`).
+- **`tests/integration/test_live_memory.py`** — the real proof with the model: a durable fact is saved and recalled in a brand-new thread; an ephemeral line is not saved; `forget_me` leaves a fresh thread knowing nothing.
 
-| Problem | Fix |
-|---|---|
-| A new thread ID still "remembers" the last conversation | Check you're actually starting a new thread — a repeated `thread_id` in your test script is the checkpointer doing its job correctly, not the Store. Change `thread_id` between runs to genuinely test the Store, and keep `user_id` fixed |
-| The Store node saves something, but a later run can't find it | Confirm the namespace you write to and the namespace you read from are built the exact same way — `(user_id, "memories")` has to match on both sides, including `user_id` being the same type (a stray `int` vs `str` mismatch is a common cause) |
-| Every single message gets written to long-term memory, including "ok" and "thanks" | The write-back node needs an actual judgment step, not "always save the last message" — ask a small, separate LLM call something like "is there a durable fact here worth remembering forever? If not, say so" before writing anything |
-| The same fact gets saved twice, worded slightly differently ("Sam" vs "call me Sam") | Save facts under a small number of fixed, meaningful keys (like `"preferred_name"`), not a new random key per save — writing to the same key overwrites the old value instead of piling up near-duplicates |
-| `forget_me` "succeeds" but a later run still knows the user's name | Deleting one key isn't enough if you saved multiple facts under multiple keys — list every key in the user's namespace and delete each one, then prove it by actually running a fresh process afterward, not just checking the delete call didn't raise an error |
+Each step ends with a **Tests for this step** box: what it checks, why, when it should pass, what a failure means.
 
-## Built During These Documents
-[01_python_foundations](../01_python_foundations/) → [04_openai_api](../04_openai_api/) → [09_langgraph](../09_langgraph/)
+## Step 1 — A Graph With Only Short-Term (Checkpointer) Memory
 
-## Plan Before You Code
-Same process as every project (see [15_five_projects_index](../15_five_projects_index/)): Problem → Requirements → Architecture → Components → Data Flow → Implementation Plan → Coding Tasks — before writing any graph code. Before you open your editor, sketch on paper the two memory systems side by side: what lives in the checkpointer's state (this conversation's messages), and what lives in the Store (facts about this user, independent of any one conversation). If you can't say, for a given piece of information, which of the two it belongs in, that's worth settling before Step 1.
+**What this step does:** a normal LangGraph chat graph with only a `SqliteSaver` checkpointer, that remembers within one conversation but forgets the moment you start a new thread.
 
-## How To Build This — Step by Step
+**Why this step matters:** you can't appreciate what long-term memory adds until you've felt its absence — this is the baseline every later step measures against.
 
-### Step 1 — A Normal Graph With Only Short-Term (Checkpointer) Memory
-
-*Project: **MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions** — Step 1 of 4: A Normal Graph With Only Short-Term (Checkpointer) Memory*
-
-**What this step does:** builds a plain, working LangGraph chat graph with a `SqliteSaver` checkpointer, and proves — on purpose — both what it can and can't do: it remembers everything inside one thread, and remembers nothing at all in a brand-new one.
-**Why this step matters:** you can't appreciate what long-term memory adds until you've felt its absence for yourself. This step is the baseline the rest of the project measures itself against — every later step gets compared back to "what Step 1 could and couldn't do."
-**When you'll hit this for real:** the first time a user says "wait, didn't I already tell you this yesterday?" — and you have to explain, honestly, that yesterday's conversation and today's are two completely different threads as far as the checkpointer is concerned.
-**Read first:** [09_langgraph Core Concepts — "Checkpointers: saved state that survives a pause"](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here), [09_langgraph Core Concepts — "State: one typed object flowing through the graph"](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here).
-
-**Stuck on this step?** [Hint 1](hints_and_solutions/step1_checkpointer_only_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_checkpointer_only_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step1_checkpointer_only_solution.md)
+**Stuck?** [Hint 1](hints_and_solutions/step1_checkpointer_only_hints.md#hint-1) · [Hint 2](hints_and_solutions/step1_checkpointer_only_hints.md#hint-2) · [Solution](hints_and_solutions/step1_checkpointer_only_solution.md)
 
 What to do:
-1. Write `state.py`: a `ChatState(TypedDict)` with `messages: list` (use `Annotated[list, add_messages]`, the same reducer pattern Doc09 uses, so new messages append instead of overwriting).
-2. Write `graph.py`: a `build_graph(checkpointer)` function with one node, `chat_node`, that calls `ChatOpenAI(model="gpt-4o-mini")` on `state["messages"]` and returns the reply appended to `messages`. Wire `START → chat_node → END`. Compile with `builder.compile(checkpointer=checkpointer)`.
-3. In `main.py`, build a real `SqliteSaver`: `conn = sqlite3.connect("memory_keeper.db", check_same_thread=False)`, then `SqliteSaver(conn)`. Pass it into `build_graph`.
-4. Write a small terminal loop: read a line of input, call `graph.invoke({"messages": [...]}, config={"configurable": {"thread_id": THREAD_ID}})`, print the reply. Hardcode a `THREAD_ID` for now (Step 2 makes this a real per-run ID).
-5. Prove both halves of the baseline: run `main.py`, chat a little, close it, run it again with the **same** `THREAD_ID` — confirm it remembers. Then run it once more with a **different** `THREAD_ID` — confirm it has no memory of the earlier conversation at all. Write both checks into `test_memory_keeper.py` so you don't have to eyeball it by hand every time.
+1. Write config/exceptions/`utils/logger`/`utils/prompts`, `models/llm` (`get_model`), `src/state.py` (`ChatState`: `messages` with `add_messages`, `user_id`, `recalled`).
+2. Write `src/nodes.py` with `chat_node` (system prompt + the conversation → model reply), and `src/graph.py` `build_graph(model, store, checkpointer)` with `START → chat → END`, compiled with the checkpointer (and store, unused yet).
+3. Write `main.py`: build the model + `SqliteSaver` (inside a `with` block), a hardcoded `thread_id`, and a terminal loop. Ask your name, then ask it back in the same thread — it remembers. Start a new thread — it forgets.
 
-**Your files after Step 1:**
-```
-project_10_memorykeeper_persistent_memory/
-├── .env / .env.example
-├── config.py                  (reused pattern from Doc01)
-├── logging_setup.py           (reused pattern from Doc01)
-├── state.py                   → ChatState(TypedDict): messages (with add_messages reducer)
-├── graph.py                   → build_graph(checkpointer) -> compiled graph, one chat_node
-├── main.py                    → terminal chat loop, fixed thread_id, SqliteSaver wired in
-└── test_memory_keeper.py      → confirms same thread_id remembers, different thread_id doesn't
-```
+**Your files after Step 1:** config, exceptions, `utils/logger`, `utils/prompts`, `models/llm`, `state`, `nodes` (chat only), `graph`, `main`, `tests/unit/test_config.py`.
 
-### Step 2 — Add a Long-Term Store, and a Node That Reads From It
+**Tests for this step** (`python -m tests.unit.test_config`): a missing/empty setting raises `MissingConfigError`; a present key loads.
 
-*Project: **MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions** — Step 2 of 4: Add a Long-Term Store, and a Node That Reads From It*
+## Step 2 — Add a Long-Term Store, and a Node That Reads It
 
-**What this step does:** wires in an `InMemoryStore`, namespaced by `user_id`, and adds a node at the very start of the graph that reads any saved facts about the current user and injects them into the system prompt — before the model ever answers.
-**Why this step matters:** this is the actual fix for Step 1's gap. A checkpointer can't help a brand-new thread, because it's keyed by thread on purpose. The Store is keyed by `user_id` instead, so it doesn't care how many separate threads that user has ever started.
-**What's new vs. Step 1:** a `store.py` module, a `recall_node` that runs before `chat_node`, and a real `user_id` (instead of only a `thread_id`) flowing through `main.py`. **What stays the same:** `chat_node` itself, and the checkpointer from Step 1 — you're adding a second memory system next to the first one, not replacing it.
-**When you'll hit this for real:** any assistant that talks to the same person more than once, across more than one session — a returning customer, a returning colleague, anyone the product genuinely expects to come back.
-**Read first:** [09_langgraph Core Concepts — "Long-term memory: remembering across separate conversations"](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here).
+**What this step does:** adds the `InMemoryStore` (keyed by `user_id`) and a `recall_node` that runs before `chat_node`, so a brand-new thread still knows the user.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step2_long_term_store_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_long_term_store_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_long_term_store_solution.md)
+**Why this step matters:** this is the fix for Step 1's gap. The checkpointer is keyed by thread on purpose; the Store is keyed by `user_id`, so it doesn't care how many threads that user has started.
+
+**What's new vs. Step 1:** `memory/store.py`, a `recall_node`, and a real `user_id`. **What stays the same:** `chat_node` and the checkpointer — you're adding a second memory system, not replacing the first.
+
+**Stuck?** [Hint 1](hints_and_solutions/step2_long_term_store_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_long_term_store_hints.md#hint-2) · [Solution](hints_and_solutions/step2_long_term_store_solution.md)
 
 What to do:
-1. Write `store.py`: `get_store()` returning a module-level `InMemoryStore()` (write a comment noting `PostgresStore` is the production swap, same shape, different constructor), plus `namespace_for(user_id)` returning `(user_id, "memories")` — one function, used everywhere a namespace is needed, so a typo in one place can't silently break a lookup somewhere else.
-2. Update `state.py`: add `user_id: str` to `ChatState`.
-3. Write `recall_node(state, store)`: calls `store.search(namespace_for(state["user_id"]), query=...)` (or `store.get(...)` for known keys, like `"preferred_name"`), builds a short system message like `"Known facts about this user: ..."` from whatever it finds, and puts it first in `messages` if it isn't already there. If nothing is found, add nothing — don't inject an empty or awkward "I know nothing about you" line.
-4. Update `graph.py`: `START → recall_node → chat_node → END`. Since `recall_node` needs the store and `chat_node` doesn't need to change, use a closure or `functools.partial` to bind the store into `recall_node` when building the graph, the same way you bound the checkpointer in Step 1.
-5. Seed a fact by hand for testing (call `store.put(namespace_for("sam"), "preferred_name", {"text": "Sam"})` once, outside the graph), then update `main.py` to accept a `user_id` and generate a **new** `thread_id` every run. Run it, ask "what's my name?" in a thread that has never existed before, and confirm the answer is correct — proving recall, not the checkpointer, is what made it work.
+1. Write `memory/store.py`: `namespace_for(user_id)`, `recall_facts(store, user_id)`, `save_fact(store, user_id, key, fact)` (same key = update), `build_store()`.
+2. Add `recall_node(state, *, store)` to `nodes.py` — it reads the store and puts the facts into `state["recalled"]`; `chat_node` folds `recalled` into its system prompt. (The store is injected by `compile(store=...)` because the node declares a `store` parameter.)
+3. Update `graph.py` to `START → recall → chat → END`, and `main.py` to carry a real `user_id`. Seed a fact by hand, start a brand-new thread, and confirm it's recalled.
 
-**Your files after Step 2:**
-```
-project_10_memorykeeper_persistent_memory/
-├── config.py
-├── logging_setup.py
-├── state.py                   → adds user_id: str
-├── store.py                   → get_store(), namespace_for(user_id)
-├── graph.py                   → adds recall_node before chat_node
-├── main.py                    → new thread_id every run, fixed user_id, seeds a test fact once
-└── test_memory_keeper.py      → adds: a brand-new thread_id still recalls a seeded fact
-```
+**Your files after Step 2:** + `memory/store.py`, `nodes.py` (recall), `graph.py` (recall edge), `tests/unit/test_store.py`.
 
-### Step 3 — Deciding What's Worth Remembering, and Writing It Back
+**Tests for this step** (`python -m tests.unit.test_store`): save then recall returns the fact; a second thread (new) still recalls it; saving the same key updates rather than duplicates.
 
-*Project: **MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions** — Step 3 of 4: Deciding What's Worth Remembering, and Writing It Back*
+## Step 3 — Deciding What's Worth Remembering, and Writing It Back
 
-**What this step does:** adds a node that looks at what was just said and decides, on its own, whether anything genuinely durable came up — a name, a stated preference — and if so, writes just that distilled fact to the Store. Most messages write nothing at all.
-**Why this step matters:** Step 2 proved reading from the Store works, but everything in it so far was seeded by hand. A real system has to decide, itself, what's worth keeping — and the real design problem is saying no far more often than yes.
-**What's new vs. Step 2:** a `memory_writer.py` module and a `write_back_node`, running after `chat_node`. **What stays the same:** `recall_node`, and the checkpointer — this step only adds a way for facts to get into the Store on their own, it doesn't touch how they get read back out.
-**When you'll hit this for real:** the moment "remember what I tell you" stops being a demo script with a hand-seeded fact, and has to work on whatever a real user actually types, most of which isn't worth remembering at all.
-**Read first:** [09_langgraph Core Concepts — "Long-term memory: remembering across separate conversations"](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here) (the paragraph on deciding what's worth saving), [07_ai_agents Core Concepts — "Agent memory: what actually persists between calls"](../07_ai_agents/README.md#core-concepts-read-this-first-everything-you-need-is-here).
+**What this step does:** adds a `write_back_node` (after `chat_node`) that decides, itself, whether the user's last message holds a durable fact worth saving — and saves it under a stable key so a rename updates instead of duplicates.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step3_deciding_what_to_remember_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_deciding_what_to_remember_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step3_deciding_what_to_remember_solution.md)
+**Why this step matters:** Step 2 read facts someone seeded by hand. A real system decides for itself what to keep — and the real design problem is saying no far more often than yes.
+
+**What's new vs. Step 2:** `memory/writer.py` and a `write_back_node`. **What stays the same:** `recall_node` and the checkpointer.
+
+**Stuck?** [Hint 1](hints_and_solutions/step3_deciding_what_to_remember_hints.md#hint-1) · [Hint 2](hints_and_solutions/step3_deciding_what_to_remember_hints.md#hint-2) · [Solution](hints_and_solutions/step3_deciding_what_to_remember_solution.md)
 
 What to do:
-1. Write `memory_writer.py`: `judge_message(text: str) -> dict | None`, a small, separate `ChatOpenAI` call (structured output — a pydantic model with `worth_remembering: bool`, `key: str | None`, `value: str | None`) that looks at one message and decides if it names a durable fact (a name, a stated preference, a correction to a fact already known) versus something that only matters today (a mood, a one-off request, small talk). Write the prompt with real examples of both — "I'm Sam" is worth remembering, "I think I'll have pasta tonight" is not — models guess better with 2-3 concrete examples than with an abstract rule alone.
-2. Decide your fact keys up front, and keep the list short and fixed (`"preferred_name"`, `"stated_preference"`, and so on) — this is the actual answer to "how do you avoid saving the same fact twice in slightly different words": you don't generate a new key per save, you write to one of a small number of known keys, so a later, re-worded version of the same fact overwrites the old one at `store.put(namespace, key, value)` instead of sitting next to it as a second, half-contradicting entry.
-3. Write `write_back_node(state, store)`: after `chat_node` runs, call `judge_message` on the user's latest message, and if `worth_remembering` is true, `store.put(namespace_for(state["user_id"]), key, {"text": value})`. If false, do nothing — log at `DEBUG`, not `INFO`, so a normal run's logs aren't full of "decided not to save" noise.
-4. Update `graph.py`: `START → recall_node → chat_node → write_back_node → END`.
-5. Test both directions on purpose: a message that should get saved (confirm a later, brand-new thread recalls it correctly), and one that shouldn't (confirm the Store's contents are unchanged after it). Also test the overwrite case: state your name, then correct it in a later message — confirm the Store ends up with one current value, not two.
+1. Write `memory/writer.py`: a `MemoryDecision` Pydantic model (`should_remember`, `key`, `fact`) and `decide_memory(model, message)` = `prompt | model.with_structured_output(MemoryDecision)`. The prompt says: save only durable facts (name, lasting preferences), never ephemeral things (today's dinner); reuse a stable key (`preferred_name`) so a change updates the same fact.
+2. Add `write_back_node(state, *, store)` to `nodes.py`: find the last user message, call `decide_memory`, and if `should_remember`, `save_fact` under the returned key.
+3. Update `graph.py` to `START → recall → chat → write_back → END`. Test: a name is saved; "pasta tonight" is not; "call me Sammy" updates the existing name.
 
-**Your files after Step 3:**
-```
-project_10_memorykeeper_persistent_memory/
-├── config.py
-├── logging_setup.py
-├── state.py
-├── store.py
-├── memory_writer.py            → judge_message(text) -> dict | None, structured-output LLM judgment
-├── graph.py                    → adds write_back_node after chat_node
-├── main.py
-└── test_memory_keeper.py       → adds: a durable fact gets saved, a forgettable one doesn't, a correction overwrites instead of duplicating
-```
+**Your files after Step 3:** + `memory/writer.py`, `nodes.py` (write_back), `graph.py`, `prompts/writer.txt`.
 
-### Step 4 — Forgetting, and a Privacy-Respecting Delete
+**Tests for this step:** the integration test's write-back + dedup cases (real model).
 
-*Project: **MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions** — Step 4 of 4: Forgetting, and a Privacy-Respecting Delete*
+## Step 4 — Forgetting, and a Privacy-Respecting Delete
 
-**What this step does:** adds a real `forget_me` command that deletes everything the Store knows about the current user, and proves it worked the honest way — by running a brand-new process afterward and confirming it truly has no memory left, not just that the delete call didn't raise an error.
-**Why this step matters:** a memory system that can only add and never remove isn't safe to put in front of a real user. People correct facts, and people ask to be forgotten — both need an actual, working delete, not a feature that exists in name only.
-**When you'll hit this for real:** a user asks "please forget what I told you" or a fact you saved turns out to be wrong, and the honest answer to "can we actually delete that?" has to be yes, not "well, technically it's still in there somewhere."
-**Read first:** [09_langgraph Core Concepts — "Long-term memory: remembering across separate conversations"](../09_langgraph/README.md#core-concepts-read-this-first-everything-you-need-is-here).
+**What this step does:** adds `forget_user(store, user_id)` and a `forget_me` command, deleting **every** stored item for that user — proven by a fresh run afterward knowing nothing.
 
-**Stuck on this step?** [Hint 1](hints_and_solutions/step4_forgetting_and_delete_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_forgetting_and_delete_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step4_forgetting_and_delete_solution.md)
+**Why this step matters:** a system that remembers you must be able to truly forget you. A delete that clears one key but leaves others isn't a real forget.
+
+**Stuck?** [Hint 1](hints_and_solutions/step4_forgetting_and_delete_hints.md#hint-1) · [Hint 2](hints_and_solutions/step4_forgetting_and_delete_hints.md#hint-2) · [Solution](hints_and_solutions/step4_forgetting_and_delete_solution.md)
 
 What to do:
-1. Add `forget_user(user_id)` to `store.py`: call `store.search(namespace_for(user_id))` to list every item actually stored for that user, then `store.delete(namespace_for(user_id), item.key)` for each one. Don't assume there's only ever one key — Step 3 may have written several (`preferred_name`, `stated_preference`, ...), and a delete that only clears one of them isn't a real forget.
-2. In `main.py`'s terminal loop, recognize a special input, `forget_me`, that calls `forget_user(user_id)` directly (no LLM call needed — this is a plain, deterministic command, not something you want the model deciding whether to honor) and prints a clear confirmation, like `"All saved memories for sam have been deleted."`
-3. Think through, in a short comment above `forget_user`, why this has to be a real delete and not a soft flag: if `forget_me` only set an `is_forgotten` marker but left the actual fact rows in place, a bug (or a change of mind by someone other than the user) could bring them right back — a real delete removes that risk entirely.
-4. Update `test_memory_keeper.py` with the honest version of this test: seed a fact, confirm a fresh run recalls it, call `forget_user`, then run the recall check **again as a genuinely separate step** — confirm the Store returns nothing for that user, and a brand-new thread's `recall_node` finds nothing to inject.
-5. Run the full scenario from **A Real Example** start to finish, all 7 runs, and confirm every step behaves the way it's described there.
+1. Add `forget_user(store, user_id)` to `store.py`: `search` the user's namespace for every item, then `delete` each one — don't assume a single key.
+2. Add a `forget_me` command to `main.py`'s loop that calls it and confirms.
+3. Test: save two facts, forget, confirm the store has none; a brand-new thread recalls nothing.
 
-**Your files after Step 4 (final):**
-```
-project_10_memorykeeper_persistent_memory/
-├── config.py
-├── logging_setup.py
-├── state.py
-├── store.py                    → adds forget_user(user_id) -> deletes every key in that user's namespace
-├── memory_writer.py
-├── graph.py
-├── main.py                     → recognizes a forget_me command, calls forget_user directly
-└── test_memory_keeper.py       → adds: forget_user actually empties the Store, proven by a fresh recall check afterward
+**Your files after Step 4 (final):** + `store.py` (`forget_user`), `main.py` (`forget_me`), `test_store.py` (forget case).
+
+**Tests for this step:** `test_store`'s forget case (all keys gone); the integration test's forget case (fresh thread knows nothing).
+
+**Final Deliverable:** an assistant with two memory systems — a per-thread checkpointer and a per-user store — that recalls you in a brand-new conversation, decides for itself what's worth keeping, updates a fact instead of duplicating it, and truly forgets you on request.
+
+## Run, Test and Configure the Final Project
+
+```bash
+python main.py
+python -m tests.unit.test_config
+python -m tests.unit.test_store
+python -m tests.integration.test_live_memory
 ```
 
-**Final Deliverable:** **MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions** — a terminal chat assistant with two working memory systems: a `SqliteSaver` checkpointer for one conversation's state, and an `InMemoryStore` for facts that survive across completely separate runs. It decides for itself what's worth remembering, avoids saving the same fact twice, and gives the user a real, tested way to be forgotten.
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `OPENAI_API_KEY` | yes | — | Your OpenAI API key |
+| `LOG_LEVEL` | no | `INFO` | Log verbosity |
 
 ## Checklist Before You Call This Done
-- [ ] A `SqliteSaver`-backed checkpointer proven to survive being a completely new `python main.py` process, on the same `thread_id`
-- [ ] The same test, on a brand-new `thread_id`, proven to have **no** memory with only the checkpointer (Step 1's baseline)
-- [ ] `recall_node` reads from the Store by `user_id`, not by `thread_id`, and a brand-new thread can still recall a fact saved in an earlier one
-- [ ] `write_back_node` decides, per message, whether something is durable — a test message that shouldn't be saved is proven to leave the Store unchanged
-- [ ] Facts are saved under a small, fixed set of keys, so a re-worded version of the same fact overwrites the old value instead of creating a duplicate
-- [ ] `forget_me` deletes every key in a user's namespace, proven by a fresh process afterward finding nothing — not just a delete call that didn't error
-- [ ] You can explain, for any given piece of information in this project, whether it belongs in the checkpointer's state or the Store, and why
+- [ ] Step 1's new-thread amnesia was actually observed, not assumed
+- [ ] A brand-new thread recalls a fact from the Store, keyed by `user_id`
+- [ ] An ephemeral message ("pasta tonight") is **not** written to long-term memory
+- [ ] A rename ("call me Sammy") updates the existing fact, not a second one
+- [ ] `forget_me` deletes **every** key for that user; a fresh thread then knows nothing
+- [ ] You can say which memory any given fact belongs in — checkpointer or Store
+
+## Publish It to GitHub
+Name the repo `MemoryKeeper-Persistent-Assistant-That-Remembers-You-Across-Sessions`, add the `README.md`, commit `.env.example` (never `.env`), and push. It's a strong portfolio piece: it shows you understand short-term vs. long-term memory, the decision of what's worth keeping, and a privacy-respecting delete.
 
 ## Status
-Not started. Track your progress in [../PROGRESS.md](../PROGRESS.md).
+Not started.
 
 ---
-Stuck? Ask for **Hint 1** or **Hint 2** about the exact part you're stuck on. Only ask for the full code if you say **"Show me the solution."**
-
+Stuck? Ask for **Hint 1** or **Hint 2**. Ask for the full code only if you say **"Show me the solution."**

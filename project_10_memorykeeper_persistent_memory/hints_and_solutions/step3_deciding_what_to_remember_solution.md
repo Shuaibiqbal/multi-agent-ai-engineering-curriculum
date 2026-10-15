@@ -1,197 +1,119 @@
 # Step 3 — Deciding What's Worth Remembering, and Writing It Back — Solution
 
-> [Back to this step](../README.md#step-3-deciding-whats-worth-remembering-and-writing-it-back) · [Hint 1](step3_deciding_what_to_remember_hints.md#hint-1) · [Hint 2](step3_deciding_what_to_remember_hints.md#hint-2) · [Solution](step3_deciding_what_to_remember_solution.md)
+> [Back to the step](../READING_README.md#step-3-deciding-whats-worth-remembering-and-writing-it-back) · [Hint 1](step3_deciding_what_to_remember_hints.md#hint-1) · [Hint 2](step3_deciding_what_to_remember_hints.md#hint-2)
 
-All examples below assume Step 2's `state.py`, `store.py`, `graph.py`, and `main.py` already exist and work.
+**Story:** a `write_back_node` that decides, for the user's last message, whether it holds a durable fact worth saving — and saves it under a stable key, so a rename updates instead of duplicating. The real skill is saying *no* far more than yes. **If not:** the Store fills with "pasta tonight" noise and three contradictory spellings of the user's name.
 
-## Basic Version
+## `src/memory/writer.py` (new)
 
-### Approach 1 — the direct way, always saving under one key
-
-```python
-# memory_writer.py (Basic -- no real judgment, saves everything under one key)
-from langchain_openai import ChatOpenAI
-
-model = ChatOpenAI(model="gpt-4o-mini")
-
-
-def judge_message(text: str) -> dict:
-    # Basic version: no real "should I save this?" check yet -- just summarizes
-    # whatever was said. This is exactly the noisy behavior Intermediate fixes.
-    reply = model.invoke([{"role": "user", "content": f"Summarize this in a few words: {text}"}])
-    return {"worth_remembering": True, "key": "last_message_summary", "value": reply.content}
-```
-**Expected output:** every single message, including "thanks" and "ok", gets saved -- and each one overwrites `last_message_summary`, so you never actually lose the *previous* fact to a duplicate, but you also never keep more than one fact at a time, and it's usually not the fact you actually wanted kept. This is why Intermediate adds a real judgment step and more than one key.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-3-deciding-whats-worth-remembering-and-writing-it-back) · [Hint 1](step3_deciding_what_to_remember_hints.md#hint-1) · [Hint 2](step3_deciding_what_to_remember_hints.md#hint-2) · [Solution](step3_deciding_what_to_remember_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a real structured-output judge, with a fixed key list
+**Story:** a structured decision. `decide_memory` asks the model to return a `MemoryDecision` — save or not, under which stable key, and the fact to store. The prompt does the hard part: durable facts yes, ephemera no, and reuse a key like `preferred_name` so a change updates it. **If not:** parsing free text for "should I remember this?" would be fragile, and nothing would enforce stable keys.
 
 ```python
-# memory_writer.py
-from langchain_openai import ChatOpenAI
+# src/memory/writer.py
+# Decide whether the user's last message holds a durable fact worth keeping,
+# and under which stable key. The model returns a checked MemoryDecision.
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
-ALLOWED_KEYS = ["preferred_name", "stated_preference"]
-
-JUDGE_PROMPT = """Decide if this message contains a fact worth remembering forever
-about the user, versus something that only matters today.
-
-Worth remembering (examples): "I'm Sam", "call me Sam, not Samuel",
-"I prefer short answers", "always write my emails formally".
-NOT worth remembering (examples): "I think I'll have pasta tonight",
-"I'm tired today", "thanks", "ok sounds good".
-
-If it IS worth remembering, classify it under exactly one of these keys:
-{allowed_keys}
-
-Message: {text}
-"""
+from src.utils.prompts import load_prompt
 
 
-class MemoryJudgment(BaseModel):
-    worth_remembering: bool
-    key: str | None = None
-    value: str | None = None
+class MemoryDecision(BaseModel):
+    should_remember: bool
+    key: str
+    fact: str
 
 
-judge_model = ChatOpenAI(model="gpt-4o-mini").with_structured_output(MemoryJudgment)
-
-
-def judge_message(text: str) -> MemoryJudgment:
-    prompt = JUDGE_PROMPT.format(allowed_keys=", ".join(ALLOWED_KEYS), text=text)
-    return judge_model.invoke([{"role": "user", "content": prompt}])
-```
-**Expected output:**
-```python
->>> judge_message("I think I'll have pasta tonight")
-MemoryJudgment(worth_remembering=False, key=None, value=None)
->>> judge_message("I'm Sam, and I prefer being called Sam, not Samuel")
-MemoryJudgment(worth_remembering=True, key='preferred_name', value='Sam')
+def decide_memory(model, message: str) -> MemoryDecision:
+    prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
+    chain = prompt | model.with_structured_output(MemoryDecision)
+    return chain.invoke({"message": message})
 ```
 
-<hr class="page-break">
+```text
+# src/prompts/writer.txt
+Decide whether the user's message contains a DURABLE fact worth remembering
+long-term about this user.
 
-> [Back to this step](../README.md#step-3-deciding-whats-worth-remembering-and-writing-it-back) · [Hint 1](step3_deciding_what_to_remember_hints.md#hint-1) · [Hint 2](step3_deciding_what_to_remember_hints.md#hint-2) · [Solution](step3_deciding_what_to_remember_solution.md)
+Remember: a name, a lasting preference, an allergy, a standing choice.
+Do NOT remember: today's plans, one-off questions, small talk, anything
+temporary.
 
-## Advanced Version
+If it is worth remembering, set should_remember true, choose a short STABLE
+key (reuse "preferred_name" for the user's name so a change updates it), and
+write the fact as a short sentence ("Name is Sam"). Otherwise set
+should_remember false with empty key and fact.
 
-### Approach 1 — `write_back_node`, wired into the graph, logging keys not raw values
+User message: {message}
+```
+
+## `src/nodes.py` — add `write_back_node`
+
+**Story:** after the chat, look at the user's last message, ask `decide_memory`, and save only if it said yes — under the key it chose, so a later value for the same key replaces the old one. **If not:** the assistant would never learn anything on its own, or would hoard everything.
 
 ```python
-# graph.py (adds write_back_node to Step 2's recall_node + chat_node)
-import logging
-from functools import partial
-from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, START, END
-from state import ChatState
-from store import namespace_for
-from memory_writer import judge_message
+# src/nodes.py  (add this; recall_node and chat_node unchanged)
+from langchain_core.messages import HumanMessage
 
-logger = logging.getLogger(__name__)
-model = ChatOpenAI(model="gpt-4o-mini")
+from src.memory.store import save_fact
+from src.memory.writer import decide_memory
 
 
-def _last_user_text(messages) -> str | None:
-    for message in reversed(messages):
-        role = getattr(message, "type", None)
-        if role == "human":
-            return message.content
-        if isinstance(message, dict) and message.get("role") == "user":
-            return message["content"]
-    return None
-
-
-def write_back_node(state: ChatState, store) -> dict:
-    text = _last_user_text(state["messages"])
-    if text is None:
+def make_write_back_node(model):
+    def write_back_node(state, *, store):
+        last_user = None
+        for message in reversed(state["messages"]):
+            if isinstance(message, HumanMessage):
+                last_user = message
+                break
+        if last_user is None:
+            return {}
+        decision = decide_memory(model, last_user.content)
+        if decision.should_remember:
+            save_fact(store, state["user_id"], decision.key, decision.fact)
         return {}
-
-    judgment = judge_message(text)
-    if not judgment.worth_remembering or not judgment.key:
-        logger.debug("write_back_node: nothing worth saving this turn")
-        return {}
-
-    namespace = namespace_for(state["user_id"])
-    store.put(namespace, judgment.key, {"text": judgment.value})
-    logger.info("write_back_node: saved fact under key=%s", judgment.key)  # not the raw value
-    return {}
-
-
-def build_graph(checkpointer, store):
-    from graph_nodes import recall_node, chat_node  # Step 2's nodes, unchanged
-
-    builder = StateGraph(ChatState)
-    builder.add_node("recall_node", partial(recall_node, store=store))
-    builder.add_node("chat_node", chat_node)
-    builder.add_node("write_back_node", partial(write_back_node, store=store))
-    builder.add_edge(START, "recall_node")
-    builder.add_edge("recall_node", "chat_node")
-    builder.add_edge("chat_node", "write_back_node")
-    builder.add_edge("write_back_node", END)
-    return builder.compile(checkpointer=checkpointer)
-```
-**Expected output**, run end to end on a brand-new thread:
-```
-you: I'm Sam. Please call me Sam, not Samuel.
-bot: Got it, Sam! How can I help?
-[log] write_back_node: saved fact under key=preferred_name
-
-you: I think I'll have pasta tonight.
-bot: Sounds good!
-[no log line at INFO -- nothing was worth saving]
+    return write_back_node
 ```
 
-### Approach 2 — the overwrite test, proving the dedupe design actually works
+(The node needs both the model and the store: the model is captured by the closure, and the store is injected because the inner function declares a `store` parameter.)
+
+## `src/graph.py` — chat then write back
 
 ```python
-# test_memory_keeper.py (adds to Step 1 and Step 2's tests)
-from store import get_store, namespace_for
-from memory_writer import judge_message
+# src/graph.py  (Step 3 version)
+from langgraph.graph import END, START, StateGraph
+
+from src.nodes import make_chat_node, make_write_back_node, recall_node
+from src.state import ChatState
 
 
-def test_forgettable_message_is_not_saved():
-    store = get_store()
-    before = store.search(namespace_for("dana"), query="anything")
-    judgment = judge_message("I think I'll have pasta tonight")
-    assert judgment.worth_remembering is False
-    after = store.search(namespace_for("dana"), query="anything")
-    assert len(before) == len(after)  # nothing was added
-
-
-def test_corrected_name_overwrites_instead_of_duplicating():
-    store = get_store()
-    namespace = namespace_for("dana")
-
-    first = judge_message("I'm Dana")
-    store.put(namespace, first.key, {"text": first.value})
-
-    second = judge_message("actually, please call me Danielle")
-    store.put(namespace, second.key, {"text": second.value})
-
-    assert first.key == second.key == "preferred_name"  # same key both times
-    results = store.search(namespace, query="preferred name")
-    matching = [item for item in results if item.key == "preferred_name"]
-    assert len(matching) == 1  # one row, not two -- the second put overwrote the first
-    assert matching[0].value["text"] == "Danielle"
-
-
-if __name__ == "__main__":
-    test_forgettable_message_is_not_saved()
-    print("PASS: a forgettable message writes nothing to the Store")
-    test_corrected_name_overwrites_instead_of_duplicating()
-    print("PASS: a corrected name overwrites the old value instead of duplicating it")
-```
-**Expected output:**
-```
-PASS: a forgettable message writes nothing to the Store
-PASS: a corrected name overwrites the old value instead of duplicating it
+def build_graph(model, store, checkpointer):
+    graph = StateGraph(ChatState)
+    graph.add_node("recall", recall_node)
+    graph.add_node("chat", make_chat_node(model))
+    graph.add_node("write_back", make_write_back_node(model))
+    graph.add_edge(START, "recall")
+    graph.add_edge("recall", "chat")
+    graph.add_edge("chat", "write_back")
+    graph.add_edge("write_back", END)
+    return graph.compile(checkpointer=checkpointer, store=store)
 ```
 
-**Difference from Intermediate, and what this approach adds:** Intermediate proves the judge classifies correctly in isolation. Advanced proves the two things that actually matter once this is wired into a real graph: a message judged not worth saving genuinely leaves the Store untouched (not just "the code ran"), and two different phrasings of a correction land on the same key, so `store.put`'s overwrite behavior does the deduping for you -- no similarity search, no embeddings, no second "is this like something I already know?" model call needed.
+## Proving it (part of the integration test)
 
-**Which one should you actually write?** The fixed-key approach (Intermediate's `ALLOWED_KEYS` plus Advanced's `write_back_node`) is what you should keep. It's simple enough to explain in an interview in one sentence -- "facts are saved under a small set of known keys, so a new phrasing overwrites instead of duplicating" -- and it's genuinely correct for the kind of facts this project cares about (a name, a preference). A more general system, remembering arbitrary open-ended facts with no fixed key list, would need real similarity search over existing memories before writing a new one -- worth knowing that's the next step up, but well past what this project needs.
+The behaviour that matters needs the real model, so it's checked in `tests/integration/test_live_memory.py` (full file in [Step 4's solution](step4_forgetting_and_delete_solution.md)):
+
+- "my name is Sam" → a `preferred_name` fact is saved; a brand-new thread recalls it.
+- "I think I'll have pasta tonight" → **nothing** is saved (ephemeral).
+- "actually, call me Sammy" → the `preferred_name` fact is **updated**, not duplicated (one fact, now "Sammy").
+
+**Expected behaviour**, with `decide_memory` driving the write-back:
+
+```
+You: my name is Sam            -> saves preferred_name = "Name is Sam"
+You: I'll have pasta tonight   -> saves nothing
+You: actually call me Sammy    -> updates preferred_name = "Name is Sammy"
+(new thread) what's my name?   -> the model answers "Sammy"
+```
+
+The whole point is the ratio: most messages save nothing. A `write_back` that saves on every turn isn't memory, it's a junk drawer — the `decide_memory` prompt's job is to say no.

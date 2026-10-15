@@ -1,157 +1,348 @@
-# Step 1 — Security Reviewer Chain — Solution
+# Step 1 — The Security Reviewer on a Diff — Solution
 
-> [Back to this step](../README.md#step-1-one-reviewer-working-as-a-plain-chain-on-a-made-up-diff) · [Hint 1](step1_security_reviewer_chain_hints.md#hint-1) · [Hint 2](step1_security_reviewer_chain_hints.md#hint-2) · [Solution](step1_security_reviewer_chain_solution.md)
+> [Back to the step](../READING_README.md#step-1-the-security-reviewer-on-a-diff) · [Hint 1](step1_security_reviewer_chain_hints.md#hint-1) · [Hint 2](step1_security_reviewer_chain_hints.md#hint-2)
 
-## Basic Version
+**Story:** the smallest piece — a Security reviewer working on a diff, proven on a planted *and* a clean example before anything else exists. **If not:** a reviewer only ever tested on bad input will happily flag good code.
 
-### Approach 1 — the direct way
+## Setup files
+
+`requirements.txt`: `openai`, `langchain-openai`, `langgraph`, `chromadb`, `python-dotenv`, `pydantic`.
+`.env.example`: `OPENAI_API_KEY=sk-your-key-here` / `LOG_LEVEL=INFO`. `.gitignore`: `.env`, `.venv/`, `__pycache__/`, `*.pyc`, `chroma_db/`. Every folder under `src/` gets an empty `__init__.py`. `LICENSE` is the MIT text.
+
+## Settings, errors, logging
 
 ```python
-from pydantic import BaseModel
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+# src/exceptions.py
+class MissingConfigError(Exception):
+    """A required setting is missing from the environment."""
+    pass
+```
 
-class Finding(BaseModel):
-    severity: str  # "critical" | "warning" | "info"
-    message: str
+```python
+# src/config.py
+import os
+from dataclasses import dataclass
+from dotenv import load_dotenv
+from src.exceptions import MissingConfigError
 
-class SecurityReview(BaseModel):
-    findings: list[Finding]
 
-def build_security_reviewer():
-    prompt = ChatPromptTemplate.from_template(
-        "You are a security code reviewer. Look for hardcoded secrets, obvious "
-        "unsafe patterns, and other security issues in this diff:\n{diff}"
+@dataclass
+class Config:
+    openai_api_key: str
+    log_level: str
+
+
+def require_env(key: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
+
+
+def load_config() -> Config:
+    load_dotenv()
+    return Config(
+        openai_api_key=require_env("OPENAI_API_KEY"),
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
     )
-    model = ChatOpenAI(model="gpt-4o-mini").with_structured_output(SecurityReview)
-    return prompt | model
-
-reviewer = build_security_reviewer()
-diff_with_secret = '+ API_KEY = "sk-abc123real-looking-key"'
-diff_clean = '+ def add(a, b):\n+     return a + b'
-
-print(reviewer.invoke({"diff": diff_with_secret}))
-print(reviewer.invoke({"diff": diff_clean}))
 ```
-This works — a made-up diff with an obvious hardcoded key comes back with a finding, and a clean diff comes back with an empty `findings` list. It hands the whole diff string to the model as-is, including any unchanged context lines, and doesn't yet check whether a "clean" diff with an old, pre-existing secret sitting nearby gets wrongly flagged.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-one-reviewer-working-as-a-plain-chain-on-a-made-up-diff) · [Hint 1](step1_security_reviewer_chain_hints.md#hint-1) · [Hint 2](step1_security_reviewer_chain_hints.md#hint-2) · [Solution](step1_security_reviewer_chain_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — typed, with severity guidance and a real test set
 
 ```python
-from pydantic import BaseModel, Field
-from langchain_core.prompts import ChatPromptTemplate
+# src/utils/logger.py
+import logging
+import os
+
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        level = getattr(logging, level_name.upper(), logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        handler.setFormatter(logging.Formatter(log_format))
+        logger.addHandler(handler)
+        logger.setLevel(level)
+    return logger
+```
+
+```python
+# src/models/llm.py
 from langchain_openai import ChatOpenAI
-from langchain_core.runnables import Runnable
+
+from src.config import Config
+
+MODEL_NAME = "gpt-4o-mini"
+
+
+def get_model(config: Config) -> ChatOpenAI:
+    return ChatOpenAI(
+        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+    )
+```
+
+## The finding shape and the diff parser
+
+```python
+# src/schemas.py
+# One review finding. severity is high/medium/low; category is which reviewer
+# raised it; message is the human-readable issue.
+from pydantic import BaseModel
 
 
 class Finding(BaseModel):
-    severity: str = Field(description="One of: critical, warning, info")
-    message: str = Field(description="What the problem is and why it matters")
-
-
-class SecurityReview(BaseModel):
-    findings: list[Finding]
-
-
-SECURITY_PROMPT = (
-    "You are a security code reviewer. Review this diff for: hardcoded secrets "
-    "or API keys, SQL injection risk, unsafe deserialization, and other clear "
-    "security issues. Only flag real problems — if the diff is clean, return "
-    "an empty findings list.\n\nDiff:\n{diff}"
-)
-
-
-def build_security_reviewer() -> Runnable:
-    prompt = ChatPromptTemplate.from_template(SECURITY_PROMPT)
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(SecurityReview)
-    return prompt | model
-
-
-if __name__ == "__main__":
-    reviewer = build_security_reviewer()
-    test_diffs = {
-        "hardcoded_secret": '+ API_KEY = "sk-abc123real-looking-key"',
-        "sql_injection": '+ query = f"SELECT * FROM users WHERE id = {user_id}"',
-        "clean": "+ def add(a, b):\n+     return a + b",
-    }
-    for name, diff in test_diffs.items():
-        print(name, "->", reviewer.invoke({"diff": diff}))
+    severity: str
+    category: str
+    message: str
 ```
 
-**Difference from Basic:** `temperature=0` for consistent, repeatable judgments (a code reviewer that flags something different each run on the same diff is not trustworthy). The prompt explicitly names the categories to check *and* explicitly says to return an empty list on a clean diff — without that second half, models tend to invent a minor nitpick just to have something to say. Three named test diffs instead of two loose variables, covering more than one kind of real security issue. Still not handling: whether an *unchanged* line elsewhere in the diff context gets wrongly flagged as if it were part of this change.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-one-reviewer-working-as-a-plain-chain-on-a-made-up-diff) · [Hint 1](step1_security_reviewer_chain_hints.md#hint-1) · [Hint 2](step1_security_reviewer_chain_hints.md#hint-2) · [Solution](step1_security_reviewer_chain_solution.md)
-
-## Advanced Version
-
-### Approach 1 — filter to only added/changed lines before the model ever sees them
-
 ```python
-def extract_added_lines(diff_text: str) -> str:
-    """Keep only lines that were actually added in this diff — not removed
-    lines, not unchanged context lines shown for readability."""
-    added = []
-    for line in diff_text.splitlines():
-        if line.startswith("+") and not line.startswith("+++"):
-            added.append(line[1:])  # strip the leading '+'
-    return "\n".join(added)
+# src/diff.py
+# Parse a unified diff into the ADDED lines per file (like Doc08's chunking:
+# only look at what actually changed), and categorize a file by extension.
+def parse_diff(text: str) -> list:
+    files = []
+    current = None
+    for line in text.splitlines():
+        if line.startswith("+++ b/"):
+            current = {"path": line[len("+++ b/"):], "added": []}
+            files.append(current)
+        elif line.startswith("+") and not line.startswith("+++"):
+            if current is not None:
+                current["added"].append(line[1:])
+    return files
 
 
-def run_security_review(reviewer, full_diff: str) -> SecurityReview:
-    added_only = extract_added_lines(full_diff)
-    if not added_only.strip():
-        return SecurityReview(findings=[])
-    return reviewer.invoke({"diff": added_only})
+def categorize(path: str) -> str:
+    if path.endswith((".md", ".rst", ".txt")):
+        return "docs"
+    if path.endswith((".yaml", ".yml", ".json", ".toml", ".ini", ".cfg")):
+        return "config"
+    return "code"
 ```
-This directly fixes the problems-table complaint: a diff that shows an old, pre-existing hardcoded key as unchanged context (a line with no `+`/`-` prefix, or a `-` removed line) never reaches the model at all — only genuinely new/changed lines do, so a finding can only ever be about *this* change.
 
-### Approach 2 — a deterministic regex pre-scan alongside the LLM review
+## The Security reviewer
+
+**Story:** a deterministic scanner is the trustworthy core — it looks only at the added lines for secret and unsafe patterns, and returns `Finding`s. (You can add an LLM pass for judgment calls, but the scanner is what you can actually test.) **If not:** a purely prompted reviewer is non-deterministic and hard to pin down on a clean diff.
 
 ```python
+# src/agents/security_reviewer.py
+# Scan the diff's ADDED lines for hardcoded secrets and unsafe patterns.
+# Deterministic, so it's testable; a reviewer tested only on bad input would
+# flag good code, so test a clean diff too.
 import re
 
+from src.schemas import Finding
+
 SECRET_PATTERNS = [
-    re.compile(r'(?i)(api[_-]?key|secret|password|token)\s*=\s*["\'][^"\']{8,}["\']'),
-    re.compile(r'sk-[a-zA-Z0-9]{20,}'),
+    (r"AKIA[0-9A-Z]{16}", "hardcoded AWS access key"),
+    (r"(?i)(password|passwd|secret|api[_-]?key)\s*=\s*['\"][^'\"]{6,}['\"]",
+     "hardcoded secret/credential"),
+]
+UNSAFE_PATTERNS = [
+    (r"\beval\(", "use of eval() on untrusted input"),
+    (r"subprocess\.\w+\([^)]*shell\s*=\s*True", "subprocess with shell=True"),
+    (r"pickle\.loads\(", "unsafe pickle.loads()"),
 ]
 
 
-def regex_prescan(added_lines: str) -> list[Finding]:
+def run_security(files) -> list:
     findings = []
-    for pattern in SECRET_PATTERNS:
-        for match in pattern.finditer(added_lines):
-            findings.append(Finding(severity="critical", message=f"Possible hardcoded secret: {match.group(0)[:40]}"))
+    for one_file in files:
+        for line in one_file["added"]:
+            for pattern, message in SECRET_PATTERNS:
+                if re.search(pattern, line):
+                    findings.append(Finding(
+                        severity="high", category="security",
+                        message=f"{one_file['path']}: {message}",
+                    ))
+            for pattern, message in UNSAFE_PATTERNS:
+                if re.search(pattern, line):
+                    findings.append(Finding(
+                        severity="medium", category="security",
+                        message=f"{one_file['path']}: {message}",
+                    ))
     return findings
-
-
-def run_security_review(reviewer, full_diff: str) -> SecurityReview:
-    added_only = extract_added_lines(full_diff)
-    if not added_only.strip():
-        return SecurityReview(findings=[])
-
-    regex_findings = regex_prescan(added_only)
-    llm_result = reviewer.invoke({"diff": added_only})
-
-    combined = regex_findings + llm_result.findings
-    # de-duplicate near-identical messages so the same secret isn't reported twice
-    seen_messages = set()
-    unique = []
-    for finding in combined:
-        if finding.message not in seen_messages:
-            seen_messages.add(finding.message)
-            unique.append(finding)
-
-    return SecurityReview(findings=unique)
 ```
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate hands the model the entire diff, including unrelated context — the model *might* correctly ignore unchanged lines because the prompt asks it to, but nothing guarantees that. Approach 1 makes it structurally impossible to flag an unchanged line, by never sending it in the first place. Approach 2 adds a second, independent line of defense on top of Approach 1: a deterministic regex scan that catches obvious secret patterns with 100% consistency, run alongside the LLM's broader judgment — an LLM can occasionally miss an obvious hardcoded key it should have caught every time; a regex never will, for the patterns it knows about.
+## main.py (standalone)
 
-**Which one should you actually write?** Both, layered — Approach 1 as the foundation (never even feasible to flag unrelated code), Approach 2's regex pre-scan as a cheap, reliable safety net specifically for the "obvious, mechanically detectable" cases (a clearly-shaped API key, a `password = "..."` literal), leaving the LLM to handle the fuzzier judgment calls (unsafe deserialization, injection risk) a regex can't reasonably catch. This combination — deterministic checks for what's mechanically checkable, LLM judgment for what needs real understanding — is the same idea Doc06 and Doc08 both lean on: don't make the model do by inference what a simple, reliable function can just do directly.
+```python
+# main.py  (Step 1 version)
+from src.agents.security_reviewer import run_security
+from src.diff import parse_diff
+
+DIRTY = """--- a/app.py
++++ b/app.py
++api_key = "SUPERsecret12345"
++result = eval(user_input)
++x = 1
+"""
+CLEAN = """--- a/app.py
++++ b/app.py
++total = price * quantity
++return total
+"""
+
+
+def main():
+    for label, diff in [("dirty", DIRTY), ("clean", CLEAN)]:
+        findings = run_security(parse_diff(diff))
+        print(f"\n=== {label} ===")
+        if not findings:
+            print("  no security findings")
+        for finding in findings:
+            print(f"  [{finding.severity}] {finding.message}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## The tests
+
+```python
+# tests/unit/test_config.py
+# Run from the repo root: python -m tests.unit.test_config
+import os
+
+from src.config import load_config, require_env
+from src.exceptions import MissingConfigError
+
+TEST_SETTING = "CODEGUARD_TEST_SETTING"
+
+
+def test_missing_setting() -> None:
+    os.environ.pop(TEST_SETTING, None)
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 1 (missing setting) -> {result}")
+
+
+def test_empty_setting() -> None:
+    os.environ[TEST_SETTING] = ""
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 2 (empty setting)   -> {result}")
+
+
+def test_config_loads() -> None:
+    os.environ["OPENAI_API_KEY"] = "sk-test-123"
+    config = load_config()
+    result = "OK"
+    if config.openai_api_key != "sk-test-123":
+        result = "WRONG"
+    print(f"case 3 (config loads)    -> {result}")
+
+
+if __name__ == "__main__":
+    test_missing_setting()
+    test_empty_setting()
+    test_config_loads()
+```
+
+```python
+# tests/unit/test_diff.py
+# Run from the repo root: python -m tests.unit.test_diff
+from src.diff import categorize, parse_diff
+
+DIFF = """--- a/app.py
++++ b/app.py
+ unchanged line
++added line one
++added line two
+-removed line
+"""
+
+
+def test_parses_added_lines_only() -> None:
+    files = parse_diff(DIFF)
+    result = "OK"
+    if len(files) != 1 or files[0]["path"] != "app.py":
+        result = "WRONG"
+    if files[0]["added"] != ["added line one", "added line two"]:
+        result = "WRONG"
+    print(f"case 1 (added lines only) -> {result}")
+
+
+def test_categorize() -> None:
+    result = "OK"
+    if categorize("README.md") != "docs":
+        result = "WRONG"
+    if categorize("config.yaml") != "config":
+        result = "WRONG"
+    if categorize("app.py") != "code":
+        result = "WRONG"
+    print(f"case 2 (categorize paths) -> {result}")
+
+
+if __name__ == "__main__":
+    test_parses_added_lines_only()
+    test_categorize()
+```
+
+```python
+# tests/unit/test_security.py
+# Run from the repo root: python -m tests.unit.test_security
+from src.agents.security_reviewer import run_security
+from src.diff import parse_diff
+
+DIRTY = """--- a/app.py
++++ b/app.py
++api_key = "SUPERsecret12345"
++result = eval(user_input)
+"""
+CLEAN = """--- a/app.py
++++ b/app.py
++total = price * quantity
+"""
+
+
+def test_flags_secret_and_eval() -> None:
+    findings = run_security(parse_diff(DIRTY))
+    messages = " ".join(f.message for f in findings)
+    result = "OK"
+    if "secret" not in messages or "eval" not in messages:
+        result = "WRONG"
+    print(f"case 1 (secret + eval flagged) -> {result}")
+
+
+def test_clean_diff_no_findings() -> None:
+    findings = run_security(parse_diff(CLEAN))
+    result = "OK"
+    if findings != []:
+        result = "WRONG"
+    print(f"case 2 (clean diff -> none)    -> {result}")
+
+
+if __name__ == "__main__":
+    test_flags_secret_and_eval()
+    test_clean_diff_no_findings()
+```
+
+**Expected output:**
+
+```
+case 1 (missing setting) -> OK
+case 2 (empty setting)   -> OK
+case 3 (config loads)    -> OK
+```
+```
+case 1 (added lines only) -> OK
+case 2 (categorize paths) -> OK
+```
+```
+case 1 (secret + eval flagged) -> OK
+case 2 (clean diff -> none)    -> OK
+```
+
+The clean-diff case is the one that matters most: it proves the reviewer stays quiet on good code, not just that it's loud on bad code.

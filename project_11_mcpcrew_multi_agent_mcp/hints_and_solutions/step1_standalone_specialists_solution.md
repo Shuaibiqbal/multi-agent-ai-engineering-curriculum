@@ -1,329 +1,365 @@
 # Step 1 — Two Standalone MCP-Connected Specialists — Solution
 
-> [Back to this step](../README.md#step-1-two-standalone-mcp-connected-specialists) · [Hint 1](step1_standalone_specialists_hints.md#hint-1) · [Hint 2](step1_standalone_specialists_hints.md#hint-2) · [Solution](step1_standalone_specialists_solution.md)
+> [Back to the step](../READING_README.md#step-1-two-standalone-mcp-connected-specialists) · [Hint 1](step1_standalone_specialists_hints.md#hint-1) · [Hint 2](step1_standalone_specialists_hints.md#hint-2)
 
-All examples below assume `notes_server.py` and `web_server.py` from Hint 2's Intermediate Version already exist in the same folder.
+**Story:** two specialists, each opening its own MCP connection, each proven alone. No Supervisor, no graph yet. **If not:** a broken connection would surface inside Step 2's routing, and you'd be debugging two things at once.
 
-## Basic Version
+## Setup files
 
-### Approach 1 — the direct way, printing instead of returning
+`requirements.txt`: `mcp`, `openai`, `langgraph`, `python-dotenv`, `pydantic`.
+`.env.example`: `OPENAI_API_KEY=sk-your-key-here` / `LOG_LEVEL=INFO`. `.gitignore`: `.env`, `.venv/`, `__pycache__/`, `*.pyc`. Every folder under `src/` gets an empty `__init__.py`. `LICENSE` is the MIT text.
+
+## The two MCP servers
 
 ```python
-# notes_agent.py
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+# servers/notes_server.py
+# A minimal notes MCP server, seeded with a few Atlas notes.
+import sys
+from mcp.server.mcpserver import MCPServer
+
+mcp = MCPServer("notes-server")
+NOTES = [
+    "Atlas: beta ships next month, blocked on the auth rewrite.",
+    "Atlas standup: QA found a login bug; fix in review.",
+    "Atlas: design sign-off done; docs still pending.",
+]
+
+
+@mcp.tool()
+def add_note(text: str) -> str:
+    """Add a note to the notes store."""
+    NOTES.append(text)
+    return "Saved."
+
+
+@mcp.tool()
+def search_notes(query: str) -> str:
+    """Search notes by keyword and return the matching lines."""
+    hits = []
+    for note in NOTES:
+        if query.lower() in note.lower():
+            hits.append(note)
+    if not hits:
+        return "No matching notes."
+    return "\n".join(hits)
+
+
+if __name__ == "__main__":
+    print("notes server starting", file=sys.stderr)
+    mcp.run(transport="stdio")
+```
+
+```python
+# servers/web_server.py
+# A mocked web-fetch MCP server. A real deployment would point fetch_page at
+# a real fetch/search MCP server (or the public reference fetch server); this
+# is a hardcoded dict on purpose, for reliable, repeatable teaching.
+import sys
+from mcp.server.mcpserver import MCPServer
+
+mcp = MCPServer("web-server")
+PAGES = {
+    "https://intranet.example.com/atlas/status":
+        "Atlas status page: 82% complete, launch on track for next month, "
+        "two open risks (auth, docs).",
+}
+
+
+@mcp.tool()
+def fetch_page(url: str) -> str:
+    """Fetch a known internal status page by URL."""
+    return PAGES.get(url, "No content available for this URL.")
+
+
+if __name__ == "__main__":
+    print("web server starting", file=sys.stderr)
+    mcp.run(transport="stdio")
+```
+
+## Settings, errors, logging
+
+```python
+# src/exceptions.py
+class MissingConfigError(Exception):
+    """A required setting is missing from the environment."""
+    pass
+```
+
+```python
+# src/config.py
+import os
+from dataclasses import dataclass
+from dotenv import load_dotenv
+from src.exceptions import MissingConfigError
+
+
+@dataclass
+class Config:
+    openai_api_key: str
+    log_level: str
+    connect_timeout: float
+
+
+def require_env(key: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
+
+
+def load_config() -> Config:
+    load_dotenv()
+    return Config(
+        openai_api_key=require_env("OPENAI_API_KEY"),
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
+        connect_timeout=float(os.getenv("MCP_CONNECT_TIMEOUT", "10")),
+    )
+```
+
+```python
+# src/utils/logger.py
+import logging
+import os
+import sys
+
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        level = getattr(logging, level_name.upper(), logging.INFO)
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(level)
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        handler.setFormatter(logging.Formatter(log_format))
+        logger.addHandler(handler)
+        logger.setLevel(level)
+    return logger
+```
+
+```python
+# src/models/llm.py
 from openai import OpenAI
 
-client = OpenAI()
+from src.config import Config
+
+MODEL = "gpt-4o-mini"
 
 
-async def main():
-    server_params = StdioServerParameters(command="python", args=["notes_server.py"])
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools_result = await session.list_tools()
-
-            openai_tools = []
-            for tool in tools_result.tools:
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.inputSchema,
-                    },
-                })
-
-            messages = [{"role": "user", "content": "What do my notes say about Project Atlas?"}]
-            response = client.chat.completions.create(
-                model="gpt-4o-mini", messages=messages, tools=openai_tools
-            )
-            reply = response.choices[0].message
-
-            if reply.tool_calls:
-                for call in reply.tool_calls:
-                    import json
-                    args = json.loads(call.function.arguments)
-                    result = await session.call_tool(call.function.name, args)
-                    print("Tool result:", result.content[0].text)
-            else:
-                print(reply.content)
-
-
-asyncio.run(main())
+def create_client(config: Config) -> OpenAI:
+    return OpenAI(api_key=config.openai_api_key)
 ```
-**Expected output**, if the model chooses `search_notes("Project Atlas")`:
-```
-Tool result: ['Project Atlas kickoff meeting notes: launch targeted for Q3.', 'Project Atlas: waiting on legal sign-off before rollout.']
-```
-This proves the connection, discovery, and one real tool call all work. It's a single pass, not a real loop — if the model wanted to call a second tool after seeing the first result (like reading a note by id), this version wouldn't feed the result back and ask again. That's what Intermediate adds.
 
-<hr class="page-break">
+## The shared MCP specialist loop
 
-> [Back to this step](../README.md#step-1-two-standalone-mcp-connected-specialists) · [Hint 1](step1_standalone_specialists_hints.md#hint-1) · [Hint 2](step1_standalone_specialists_hints.md#hint-2) · [Solution](step1_standalone_specialists_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a real loop, reused across both agents via a shared helper
+**Story:** both specialists do the same thing — connect to *their* server, discover its tools, run a small ReAct loop. One shared `run_specialist` does it, returning the findings and an `unavailable` flag (the flag matters in Step 4). **If not:** you'd copy the whole connect-discover-loop into both agents.
 
 ```python
-# tool_bridge.py
+# src/mcp_client.py
+# The shared MCP specialist loop: connect to one server, discover its tools,
+# run a ReAct loop, return (findings, unavailable). The connection is opened
+# and closed inside this one async call (and this one task), which is why a
+# specialist can run as a graph node without the teardown crossing tasks.
+import asyncio
 import json
 
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
-def mcp_tools_to_openai_schema(tools: list) -> list[dict]:
-    """Convert MCP Tool objects into OpenAI's tools parameter shape."""
-    openai_tools = []
+from src.utils.logger import get_logger
+
+MODEL = "gpt-4o-mini"
+MAX_STEPS = 5
+
+
+def _openai_tools(tools):
+    schemas = []
     for tool in tools:
-        openai_tools.append({
+        schemas.append({
             "type": "function",
             "function": {
                 "name": tool.name,
-                "description": tool.description,
-                "parameters": tool.inputSchema,
+                "description": tool.description or "",
+                "parameters": tool.input_schema,
             },
         })
-    return openai_tools
+    return schemas
 
 
-async def call_mcp_tool(session, name: str, arguments: dict) -> str:
-    """Call an MCP tool and return its result as a plain string."""
-    result = await session.call_tool(name, arguments)
-    text_parts = []
-    for block in result.content:
-        if hasattr(block, "text"):
-            text_parts.append(block.text)
-    return "\n".join(text_parts)
-```
-
-```python
-# notes_agent.py
-import asyncio
-import json
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from openai import OpenAI
-from tool_bridge import mcp_tools_to_openai_schema, call_mcp_tool
-
-client = OpenAI()
-SYSTEM_PROMPT = "You are a helpful assistant that answers questions using the notes tools you're given."
-
-
-async def _run_notes_agent(task: str, max_iterations: int = 5) -> str:
-    server_params = StdioServerParameters(command="python", args=["notes_server.py"])
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools_result = await session.list_tools()
-            openai_tools = mcp_tools_to_openai_schema(tools_result.tools)
-
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": task},
-            ]
-
-            for _ in range(max_iterations):
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini", messages=messages, tools=openai_tools
+async def run_specialist(client, command, args, system, task,
+                         connect_timeout=10.0):
+    logger = get_logger(__name__)
+    params = StdioServerParameters(command=command, args=args)
+    try:
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await asyncio.wait_for(
+                    session.initialize(), timeout=connect_timeout
                 )
-                reply = response.choices[0].message
-                messages.append(reply)
-
-                if not reply.tool_calls:
-                    return reply.content
-
-                for call in reply.tool_calls:
-                    args = json.loads(call.function.arguments)
-                    result_text = await call_mcp_tool(session, call.function.name, args)
+                listed = await session.list_tools()
+                tools = _openai_tools(listed.tools)
+                messages = [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": task},
+                ]
+                for _ in range(MAX_STEPS):
+                    reply = client.chat.completions.create(
+                        model=MODEL, messages=messages, tools=tools
+                    ).choices[0].message
+                    if not reply.tool_calls:
+                        return reply.content or "", False
                     messages.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": result_text,
+                        "role": "assistant", "content": reply.content,
+                        "tool_calls": _calls_as_dicts(reply.tool_calls),
                     })
+                    for call in reply.tool_calls:
+                        arguments = json.loads(call.function.arguments)
+                        result = await session.call_tool(
+                            call.function.name, arguments
+                        )
+                        messages.append({
+                            "role": "tool", "tool_call_id": call.id,
+                            "content": result.content[0].text,
+                        })
+                return "(no answer)", False
+    except Exception as e:
+        logger.warning(f"specialist for {args} unavailable: {e}")
+        return "", True
 
-            return "Reached max iterations without a final answer."
 
-
-def run_notes_agent(task: str) -> str:
-    return asyncio.run(_run_notes_agent(task))
-
-
-if __name__ == "__main__":
-    print(run_notes_agent("What do my notes say about Project Atlas?"))
+def _calls_as_dicts(tool_calls):
+    out = []
+    for call in tool_calls:
+        out.append({
+            "id": call.id, "type": "function",
+            "function": {"name": call.function.name,
+                         "arguments": call.function.arguments},
+        })
+    return out
 ```
 
-`web_agent.py` is the identical shape, pointed at `web_server.py`:
+## The two specialists
 
 ```python
-# web_agent.py
+# src/agents/notes_agent.py
+from src.mcp_client import run_specialist
+
+NOTES_SYSTEM = ("You are the Notes specialist. Use the notes tools to answer "
+                "the task from the team's notes. Report only what you found.")
+
+
+async def run_notes_agent(client, task, connect_timeout=10.0):
+    findings, unavailable = await run_specialist(
+        client, "python", ["servers/notes_server.py"],
+        NOTES_SYSTEM, task, connect_timeout,
+    )
+    return findings, unavailable
+```
+
+```python
+# src/agents/web_agent.py
+from src.mcp_client import run_specialist
+
+WEB_SYSTEM = ("You are the Web specialist. Use the fetch tool to get the "
+              "relevant page and summarize it. Report only what you fetched.")
+
+
+async def run_web_agent(client, task, connect_timeout=10.0):
+    findings, unavailable = await run_specialist(
+        client, "python", ["servers/web_server.py"],
+        WEB_SYSTEM, task, connect_timeout,
+    )
+    return findings, unavailable
+```
+
+## main.py (standalone)
+
+```python
+# main.py  (Step 1 version)
 import asyncio
-import json
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from openai import OpenAI
-from tool_bridge import mcp_tools_to_openai_schema, call_mcp_tool
+import sys
 
-client = OpenAI()
-SYSTEM_PROMPT = "You are a helpful assistant that answers questions using the fetch_page tool you're given."
-
-
-async def _run_web_agent(task: str, max_iterations: int = 5) -> str:
-    server_params = StdioServerParameters(command="python", args=["web_server.py"])
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools_result = await session.list_tools()
-            openai_tools = mcp_tools_to_openai_schema(tools_result.tools)
-
-            messages = [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": task},
-            ]
-
-            for _ in range(max_iterations):
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini", messages=messages, tools=openai_tools
-                )
-                reply = response.choices[0].message
-                messages.append(reply)
-
-                if not reply.tool_calls:
-                    return reply.content
-
-                for call in reply.tool_calls:
-                    args = json.loads(call.function.arguments)
-                    result_text = await call_mcp_tool(session, call.function.name, args)
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": result_text,
-                    })
-
-            return "Reached max iterations without a final answer."
+from src.agents.notes_agent import run_notes_agent
+from src.agents.web_agent import run_web_agent
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.models.llm import create_client
 
 
-def run_web_agent(task: str) -> str:
-    return asyncio.run(_run_web_agent(task))
+async def run_demo():
+    try:
+        config = load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+    client = create_client(config)
+    notes, _ = await run_notes_agent(
+        client, "What do my notes say about Project Atlas?"
+    )
+    print("Notes Agent:\n", notes)
+    web, _ = await run_web_agent(
+        client, "Fetch the Atlas status page "
+        "(https://intranet.example.com/atlas/status) and summarize it.",
+    )
+    print("\nWeb Agent:\n", web)
+
+
+def main():
+    asyncio.run(run_demo())
 
 
 if __name__ == "__main__":
-    print(run_web_agent(
-        "Fetch https://intranet.example.com/atlas/status and tell me what it says."
-    ))
-```
-**Expected output** (notes agent): something like `"Your notes say Project Atlas is targeted for a Q3 launch, and it's currently waiting on legal sign-off."`
-**Expected output** (web agent): something like `"The status page says: Project Atlas status: on track, 80% complete."`
-
-**Difference from Basic:** Basic makes exactly one tool-call round trip and stops. Intermediate is a real loop (up to `max_iterations`), reused identically by both agents through the shared `tool_bridge.py` — this is the actual ReAct shape from Doc07 and Project 8's Step 2, and it's what lets the agent chain two tool calls together if it ever needs to (e.g. `search_notes` then a follow-up `add_note`).
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-two-standalone-mcp-connected-specialists) · [Hint 1](step1_standalone_specialists_hints.md#hint-1) · [Hint 2](step1_standalone_specialists_hints.md#hint-2) · [Solution](step1_standalone_specialists_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a shared, reusable connection helper, and a real "no results" test
-
-```python
-# mcp_connection.py
-from contextlib import asynccontextmanager
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-
-@asynccontextmanager
-async def connect_stdio_server(command: str, args: list[str]):
-    """Open a fully-initialized ClientSession to one MCP server over stdio."""
-    server_params = StdioServerParameters(command=command, args=args)
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            yield session
+    main()
 ```
 
-```python
-# notes_agent.py (relevant part only -- rest unchanged from Intermediate)
-import asyncio
-import json
-from mcp_connection import connect_stdio_server
-from openai import OpenAI
-from tool_bridge import mcp_tools_to_openai_schema, call_mcp_tool
-
-client = OpenAI()
-SYSTEM_PROMPT = "You are a helpful assistant that answers questions using the notes tools you're given. If a search finds nothing, say so plainly -- never invent a note that wasn't returned."
-
-
-async def _run_notes_agent(task: str, max_iterations: int = 5) -> str:
-    async with connect_stdio_server("python", ["notes_server.py"]) as session:
-        tools_result = await session.list_tools()
-        openai_tools = mcp_tools_to_openai_schema(tools_result.tools)
-
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": task},
-        ]
-
-        for _ in range(max_iterations):
-            response = client.chat.completions.create(
-                model="gpt-4o-mini", messages=messages, tools=openai_tools
-            )
-            reply = response.choices[0].message
-            messages.append(reply)
-
-            if not reply.tool_calls:
-                return reply.content
-
-            for call in reply.tool_calls:
-                args = json.loads(call.function.arguments)
-                result_text = await call_mcp_tool(session, call.function.name, args)
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": call.id,
-                    "content": result_text,
-                })
-
-        return "Reached max iterations without a final answer."
-
-
-def run_notes_agent(task: str) -> str:
-    return asyncio.run(_run_notes_agent(task))
-```
+## The test
 
 ```python
-# main.py
-from notes_agent import run_notes_agent
-from web_agent import run_web_agent
+# tests/unit/test_config.py
+# Run from the repo root: python -m tests.unit.test_config
+import os
+
+from src.config import load_config, require_env
+from src.exceptions import MissingConfigError
+
+TEST_SETTING = "MCPCREW_TEST_SETTING"
+
+
+def test_missing_setting() -> None:
+    os.environ.pop(TEST_SETTING, None)
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 1 (missing setting) -> {result}")
+
+
+def test_empty_setting() -> None:
+    os.environ[TEST_SETTING] = ""
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 2 (empty setting)   -> {result}")
+
+
+def test_config_loads() -> None:
+    os.environ["OPENAI_API_KEY"] = "sk-test-123"
+    config = load_config()
+    result = "OK"
+    if config.openai_api_key != "sk-test-123":
+        result = "WRONG"
+    print(f"case 3 (config loads)    -> {result}")
+
 
 if __name__ == "__main__":
-    print("== Notes Agent ==")
-    print(run_notes_agent("What do my notes say about Project Atlas?"))
-
-    print("\n== Notes Agent, a query with no match ==")
-    print(run_notes_agent("What do my notes say about a Mars mission?"))
-
-    print("\n== Web Agent ==")
-    print(run_web_agent("Fetch https://intranet.example.com/atlas/status and summarize it."))
-
-    print("\n== Web Agent, an unknown URL ==")
-    print(run_web_agent("Fetch https://intranet.example.com/does-not-exist and summarize it."))
-```
-**Expected output** (abridged):
-```
-== Notes Agent ==
-Your notes say Project Atlas is targeted for a Q3 launch and is waiting on legal sign-off.
-
-== Notes Agent, a query with no match ==
-I couldn't find anything in your notes about a Mars mission.
-
-== Web Agent ==
-The status page reports Project Atlas is on track and 80% complete.
-
-== Web Agent, an unknown URL ==
-No content is available for that URL.
+    test_missing_setting()
+    test_empty_setting()
+    test_config_loads()
 ```
 
-**Difference from Intermediate, and what this approach adds:** `mcp_connection.py` turns the nested `async with` blocks into one reusable `connect_stdio_server(...)` helper, both agents now share instead of each re-writing the same two lines. The system prompt now explicitly tells the model not to invent a note when the search comes back empty — without that line, a model will sometimes answer confidently from its own guess instead of the tool's real (empty) result, which is exactly the kind of quiet failure this step is meant to catch now, before Step 2 builds anything on top of it. `main.py` deliberately runs both agents twice each — once with a real match, once with a query that has none — so a "no results" bug is visible immediately instead of hiding behind a test that only ever asks the easy question.
-
-**Which one should you actually write?** The Advanced approach's shape — a shared `mcp_connection.py`, a shared `tool_bridge.py`, and a sync wrapper (`run_notes_agent`) around the real async logic (`_run_notes_agent`) — is what you should carry into Step 2. That sync/async split matters: Step 2's graph nodes can call `run_notes_agent(task)` directly like any normal Python function, without every part of the graph needing to be `async`. Keep the "don't invent an answer when the tool found nothing" line in both agents' system prompts — it's a one-line fix that prevents a real, easy-to-miss category of bug.
+**Expected output:** `case 1..3 -> OK`. Running `main.py` prints the Notes Agent's Atlas findings and the Web Agent's fetched status summary — each specialist working on its own, before any Supervisor exists.

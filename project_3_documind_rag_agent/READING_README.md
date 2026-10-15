@@ -983,7 +983,7 @@ git push -u origin main
 
 ## Status
 
-Not started. Track your progress in [../PROGRESS.md](../PROGRESS.md).
+Not started.
 
 ---
 Stuck? Ask for **Hint 1** or **Hint 2** about the exact part you're stuck on. Only ask for the full code if you say **"Show me the solution."**

@@ -1,0 +1,4 @@
+langgraph
+mcp
+openai
+python-dotenv

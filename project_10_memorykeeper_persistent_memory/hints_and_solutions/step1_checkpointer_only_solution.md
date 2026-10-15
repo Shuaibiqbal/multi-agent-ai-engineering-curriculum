@@ -1,152 +1,273 @@
-# Step 1 — A Normal Graph With Only Short-Term (Checkpointer) Memory — Solution
+# Step 1 — A Graph With Only Short-Term (Checkpointer) Memory — Solution
 
-> [Back to this step](../README.md#step-1-a-normal-graph-with-only-short-term-checkpointer-memory) · [Hint 1](step1_checkpointer_only_hints.md#hint-1) · [Hint 2](step1_checkpointer_only_hints.md#hint-2) · [Solution](step1_checkpointer_only_solution.md)
+> [Back to the step](../READING_README.md#step-1-a-graph-with-only-short-term-checkpointer-memory) · [Hint 1](step1_checkpointer_only_hints.md#hint-1) · [Hint 2](step1_checkpointer_only_hints.md#hint-2)
 
-All examples below assume a `.env` with `OPENAI_API_KEY` set, and are run from inside `project_10_memorykeeper_persistent_memory/`.
+**Story:** a normal chat graph with only a `SqliteSaver` checkpointer — it remembers within one conversation, and forgets the moment you start a new thread. **If not:** you'd never feel the gap the Store exists to fill.
 
-## Basic Version
+## Setup files
 
-### Approach 1 — the direct way, one file, no persistence yet
+`requirements.txt`: `langgraph`, `langgraph-checkpoint-sqlite`, `langchain-openai`, `python-dotenv`, `pydantic`.
+`.env.example`: `OPENAI_API_KEY=sk-your-key-here` / `LOG_LEVEL=INFO`. `.gitignore`: `.env`, `.venv/`, `__pycache__/`, `*.pyc`, `*.sqlite`. Every folder under `src/` gets an empty `__init__.py`. `LICENSE` is the MIT text.
+
+## Settings, errors, logging, prompts
 
 ```python
-# main.py (Basic -- no checkpointer at all, just to see the gap)
+# src/exceptions.py
+class MissingConfigError(Exception):
+    """A required setting is missing from the environment."""
+    pass
+```
+
+```python
+# src/config.py
+import os
+from dataclasses import dataclass
+from dotenv import load_dotenv
+from src.exceptions import MissingConfigError
+
+
+@dataclass
+class Config:
+    openai_api_key: str
+    log_level: str
+
+
+def require_env(key: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
+
+
+def load_config() -> Config:
+    load_dotenv()
+    return Config(
+        openai_api_key=require_env("OPENAI_API_KEY"),
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
+    )
+```
+
+```python
+# src/utils/logger.py
+import logging
+import os
+
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        level = getattr(logging, level_name.upper(), logging.INFO)
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        handler.setFormatter(logging.Formatter(log_format))
+        logger.addHandler(handler)
+        logger.setLevel(level)
+    return logger
+```
+
+```python
+# src/utils/prompts.py
+PROMPTS_DIR = "src/prompts"
+
+
+def load_prompt(name: str) -> str:
+    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+        return prompt_file.read().strip()
+```
+
+```python
+# src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-model = ChatOpenAI(model="gpt-4o-mini")
-messages = []
+from src.config import Config
 
-print("MemoryKeeper (no memory yet). Type 'exit' to quit.")
-while True:
-    text = input("you: ")
-    if text.strip().lower() == "exit":
-        break
-    messages.append({"role": "user", "content": text})
-    reply = model.invoke(messages)
-    messages.append(reply)
-    print("bot:", reply.content)
+MODEL_NAME = "gpt-4o-mini"
+
+
+def get_model(config: Config) -> ChatOpenAI:
+    return ChatOpenAI(
+        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+    )
 ```
-**Expected output:** within one run, this remembers fine -- `messages` is just a growing Python list. Close the program and run it again: `messages` starts empty, every time, because nothing was ever saved anywhere. This is Doc04's chatbot exactly -- no checkpointer, no graph, memory that only ever exists inside one running process.
 
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-a-normal-graph-with-only-short-term-checkpointer-memory) · [Hint 1](step1_checkpointer_only_hints.md#hint-1) · [Hint 2](step1_checkpointer_only_hints.md#hint-2) · [Solution](step1_checkpointer_only_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a real LangGraph graph, with a file-backed checkpointer
+## The state
 
 ```python
-# state.py
+# src/state.py
+# ChatState flows through the graph. messages uses add_messages so each node
+# can append. user_id identifies the person (for the Store, Step 2).
+# recalled holds the facts the Store returned (filled in Step 2).
 from typing import Annotated, TypedDict
+
 from langgraph.graph.message import add_messages
 
 
 class ChatState(TypedDict):
     messages: Annotated[list, add_messages]
+    user_id: str
+    recalled: str
+```
+
+## The chat prompt and the chat node
+
+```text
+# src/prompts/chat.txt
+You are MemoryKeeper, a friendly assistant. Answer naturally and briefly.
+What you remember about this user (may be empty):
+{recalled}
 ```
 
 ```python
-# graph.py
-from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, START, END
-from state import ChatState
+# src/nodes.py  (Step 1 version — chat only)
+# chat_node: fold whatever is in state["recalled"] into the system prompt,
+# then reply. The model is bound in build_graph (a closure), so the node
+# takes only state.
+from langchain_core.messages import SystemMessage
 
-model = ChatOpenAI(model="gpt-4o-mini")
-
-
-def chat_node(state: ChatState) -> dict:
-    reply = model.invoke(state["messages"])
-    return {"messages": [reply]}
+from src.utils.prompts import load_prompt
 
 
-def build_graph(checkpointer):
-    builder = StateGraph(ChatState)
-    builder.add_node("chat_node", chat_node)
-    builder.add_edge(START, "chat_node")
-    builder.add_edge("chat_node", END)
-    return builder.compile(checkpointer=checkpointer)
+def make_chat_node(model):
+    def chat_node(state):
+        recalled = state.get("recalled") or "nothing yet"
+        system = load_prompt("chat").replace("{recalled}", recalled)
+        messages = [SystemMessage(content=system)] + state["messages"]
+        reply = model.invoke(messages)
+        return {"messages": [reply]}
+    return chat_node
 ```
 
+## The graph
+
 ```python
-# main.py
-import sqlite3
+# src/graph.py  (Step 1 version)
+# build_graph: START -> chat -> END, compiled with the checkpointer (and the
+# store, which is unused until Step 2). The model is bound into the chat node.
+from langgraph.graph import END, START, StateGraph
+
+from src.nodes import make_chat_node
+from src.state import ChatState
+
+
+def build_graph(model, store, checkpointer):
+    graph = StateGraph(ChatState)
+    graph.add_node("chat", make_chat_node(model))
+    graph.add_edge(START, "chat")
+    graph.add_edge("chat", END)
+    return graph.compile(checkpointer=checkpointer, store=store)
+```
+
+## main.py
+
+```python
+# main.py  (Step 1 version)
+# Build the model and a file-backed SqliteSaver (inside its `with` block, so
+# a conversation survives a restart), then a terminal loop on a hardcoded
+# thread_id. Ask your name, then ask it back -> it remembers. Start a new
+# process with a new thread_id -> it forgets (the gap Step 2 fixes).
+import sys
+
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.sqlite import SqliteSaver
-from graph import build_graph
+from langgraph.store.memory import InMemoryStore
 
-THREAD_ID = "sam-thread-1"
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.graph import build_graph
+from src.models.llm import get_model
+
+THREAD_ID = "demo-thread"
+DB_PATH = "memorykeeper.sqlite"
 
 
 def main():
-    conn = sqlite3.connect("memory_keeper.db", check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
-    graph = build_graph(checkpointer)
-
-    print(f"MemoryKeeper -- thread_id={THREAD_ID}. Type 'exit' to quit.")
-    while True:
-        text = input("you: ")
-        if text.strip().lower() == "exit":
-            break
-        config = {"configurable": {"thread_id": THREAD_ID}}
-        result = graph.invoke({"messages": [{"role": "user", "content": text}]}, config=config)
-        print("bot:", result["messages"][-1].content)
+    try:
+        config = load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+    model = get_model(config)
+    store = InMemoryStore()
+    with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
+        app = build_graph(model, store, checkpointer)
+        print("MemoryKeeper — type a message, or /quit to exit.")
+        run_config = {"configurable": {"thread_id": THREAD_ID}}
+        while True:
+            text = input("You: ").strip()
+            if text == "/quit":
+                break
+            if text == "":
+                continue
+            result = app.invoke(
+                {"messages": [HumanMessage(content=text)],
+                 "user_id": "sam", "recalled": ""},
+                run_config,
+            )
+            print("MemoryKeeper:", result["messages"][-1].content)
 
 
 if __name__ == "__main__":
     main()
 ```
-**Expected output:** run `python main.py`, say `my name is Sam`, type `exit`. Run `python main.py` again -- same `THREAD_ID` still in the file -- ask `what's my name?`. It answers correctly, because `memory_keeper.db` really has that thread's messages saved on disk.
 
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-a-normal-graph-with-only-short-term-checkpointer-memory) · [Hint 1](step1_checkpointer_only_hints.md#hint-1) · [Hint 2](step1_checkpointer_only_hints.md#hint-2) · [Solution](step1_checkpointer_only_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a real test script proving both halves of the baseline
+## The test
 
 ```python
-# test_memory_keeper.py
-import subprocess
-import sqlite3
-from langgraph.checkpoint.sqlite import SqliteSaver
-from graph import build_graph
+# tests/unit/test_config.py
+# Run from the repo root: python -m tests.unit.test_config
+import os
+
+from src.config import load_config, require_env
+from src.exceptions import MissingConfigError
+
+TEST_SETTING = "MEMORYKEEPER_TEST_SETTING"
 
 
-def ask(thread_id: str, text: str) -> str:
-    conn = sqlite3.connect("memory_keeper.db", check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
-    graph = build_graph(checkpointer)
-    config = {"configurable": {"thread_id": thread_id}}
-    result = graph.invoke({"messages": [{"role": "user", "content": text}]}, config=config)
-    return result["messages"][-1].content
+def test_missing_setting() -> None:
+    os.environ.pop(TEST_SETTING, None)
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 1 (missing setting) -> {result}")
 
 
-def test_same_thread_remembers():
-    ask("test-thread-a", "My name is Sam. Remember it.")
-    answer = ask("test-thread-a", "What is my name?")
-    assert "sam" in answer.lower()
+def test_empty_setting() -> None:
+    os.environ[TEST_SETTING] = ""
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 2 (empty setting)   -> {result}")
 
 
-def test_new_thread_forgets():
-    ask("test-thread-b", "My name is Priya. Remember it.")
-    # a completely different thread_id -- brand new, empty state on purpose
-    answer = ask("test-thread-c", "What is my name?")
-    assert "priya" not in answer.lower()
+def test_config_loads() -> None:
+    os.environ["OPENAI_API_KEY"] = "sk-test-123"
+    config = load_config()
+    result = "OK"
+    if config.openai_api_key != "sk-test-123":
+        result = "WRONG"
+    print(f"case 3 (config loads)    -> {result}")
 
 
 if __name__ == "__main__":
-    test_same_thread_remembers()
-    print("PASS: same thread_id remembers across calls")
-    test_new_thread_forgets()
-    print("PASS: a different thread_id has no memory of the other one")
+    test_missing_setting()
+    test_empty_setting()
+    test_config_loads()
 ```
+
 **Expected output:**
-```
-PASS: same thread_id remembers across calls
-PASS: a different thread_id has no memory of the other one
-```
-Each `ask()` call opens its own fresh `sqlite3.connect(...)` and rebuilds the graph -- this is deliberately closer to "a separate process" than reusing one connection across the whole test file, since a shared in-Python connection object could hide a bug that a real process restart would expose. For the strongest version of this proof, run `test_same_thread_remembers`'s two `ask()` calls as two separate `python -c "..."` invocations instead of two calls in one test function -- that removes any chance the result is coming from Python objects still sitting in memory rather than the actual `.db` file.
 
-**Difference from Intermediate, and what this approach adds:** Intermediate proves the happy path by hand, once, by actually re-running `main.py` yourself. Advanced turns that into a repeatable, automated test that checks *both* directions on purpose -- a repeated `thread_id` remembering, and a fresh one not -- so a future change to this project can't quietly break either guarantee without a test catching it.
+```
+case 1 (missing setting) -> OK
+case 2 (empty setting)   -> OK
+case 3 (config loads)    -> OK
+```
 
-**Which one should you actually write?** Build Intermediate's `graph.py`/`state.py`/`main.py` exactly as shown -- this is the real shape every later step adds to, unchanged. Then write Advanced's test file, even though it's more code than the step strictly requires: it's what actually proves the baseline this whole project measures itself against, and it's the test you'll reuse (with more assertions added) in every step after this one.
+Run `main.py`, tell it your name, ask it back in the same thread — it remembers (the checkpointer). Stop and restart with a new `THREAD_ID` — it's a stranger again. That amnesia is exactly what Step 2's Store fixes.

@@ -295,16 +295,16 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ```
 practice/
-├── single_agent_design.md              Basic
+├── conflicting_requirements_design.md  Real-world
 ├── multi_agent_pipeline_design.md      Intermediate
-└── conflicting_requirements_design.md  Real-world
+└── single_agent_design.md              Basic
 ```
 
 **Why each file exists:**
 
-- `single_agent_design.md` — sizing a design to a one-sentence request: assumptions first, one agent, a clear human handoff.
-- `multi_agent_pipeline_design.md` — Project 4's shape designed fresh: phases, pattern, state, and a loop that can't run forever.
 - `conflicting_requirements_design.md` — naming stakeholder conflicts before designing, and turning a hidden decision into a written one.
+- `multi_agent_pipeline_design.md` — Project 4's shape designed fresh: phases, pattern, state, and a loop that can't run forever.
+- `single_agent_design.md` — sizing a design to a one-sentence request: assumptions first, one agent, a clear human handoff.
 
 **Jump to a design prompt:** [Basic](#ex-single_agent_design) · [Intermediate](#ex-multi_agent_pipeline_design) · [Real-world](#ex-conflicting_requirements_design)
 

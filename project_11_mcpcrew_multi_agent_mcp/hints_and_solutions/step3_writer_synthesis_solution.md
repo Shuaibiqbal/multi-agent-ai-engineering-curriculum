@@ -1,225 +1,81 @@
-# Step 3 — The Writer Agent Synthesizes a Final Report — Solution
+# Step 3 — The Writer Synthesizes a Final Report — Solution
 
-> [Back to this step](../README.md#step-3-the-writer-agent-synthesizes-a-final-report) · [Hint 1](step3_writer_synthesis_hints.md#hint-1) · [Hint 2](step3_writer_synthesis_hints.md#hint-2) · [Solution](step3_writer_synthesis_solution.md)
+> [Back to the step](../READING_README.md#step-3-the-writer-synthesizes-a-final-report) · [Hint 1](step3_writer_synthesis_hints.md#hint-1) · [Hint 2](step3_writer_synthesis_hints.md#hint-2)
 
-All examples below assume Step 2's `state.py`, `supervisor.py`, `notes_agent.py`, `web_agent.py`, and `graph.py` already work.
+**Story:** a Writer — a plain LLM call, no tools — that takes both specialists' findings and writes **one** coherent report, not two raw dumps side by side. The prompt must say *synthesize*, not concatenate. **If not:** the team's output reads like two paragraphs stapled together, and the whole point of a Writer is lost.
 
-## Basic Version
+## `src/agents/writer_agent.py` (new)
 
-### Approach 1 — the direct way, one prompt string
+**Story:** the Writer gets both findings and an explicit instruction to synthesize, plus the `web_unavailable` flag so it can name a missing source. **If not:** without the flag reaching the prompt, a degraded run would silently produce a report that pretends the web check happened.
 
 ```python
-# writer_agent.py
-from openai import OpenAI
+# src/agents/writer_agent.py
+# The Writer: a plain LLM call that synthesizes the specialists' findings into
+# one report, and explicitly notes any source that was unavailable.
+from src.utils.logger import get_logger
 
-client = OpenAI()
+MODEL = "gpt-4o-mini"
+
+WRITER_SYSTEM = (
+    "You are the Writer. Synthesize the specialists' findings into ONE short, "
+    "coherent status report with a title and a few bullet points. Do not just "
+    "concatenate the two sources - weave them together. If a source is marked "
+    "unavailable, say so plainly in the report; never pretend it was checked."
+)
 
 
-def run_writer(notes_findings, web_findings):
-    prompt = (
-        "Combine these findings into one short report:\n\n"
-        f"Notes: {notes_findings}\n\n"
-        f"Web: {web_findings}"
+def run_writer(client, task, notes_findings, web_findings, web_unavailable):
+    logger = get_logger(__name__)
+    web_section = web_findings
+    if web_unavailable:
+        web_section = "(the web status page could not be reached)"
+    user = (
+        f"Task: {task}\n\n"
+        f"Notes findings:\n{notes_findings or '(none)'}\n\n"
+        f"Web findings:\n{web_section or '(none)'}\n\n"
+        "Write the combined report."
     )
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.choices[0].message.content
+    reply = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": WRITER_SYSTEM},
+            {"role": "user", "content": user},
+        ],
+    ).choices[0].message
+    logger.info("writer produced the report")
+    return reply.content or ""
 ```
-This works, and is a real plain LLM call with no tools. Its instruction ("combine these findings") is vague enough that the model will often play it safe and write one paragraph per source instead of truly merging them — that's exactly the gap Intermediate's more specific prompt closes.
 
-<hr class="page-break">
+## `src/graph.py` — the real writer node
 
-> [Back to this step](../README.md#step-3-the-writer-agent-synthesizes-a-final-report) · [Hint 1](step3_writer_synthesis_hints.md#hint-1) · [Hint 2](step3_writer_synthesis_hints.md#hint-2) · [Solution](step3_writer_synthesis_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a specific synthesis instruction, and a node wrapper
+Replace Step 2's placeholder `writer_node` with one that calls `run_writer`:
 
 ```python
-# writer_agent.py
-from openai import OpenAI
-from langgraph.graph import END
-from langgraph.types import Command
-from state import TeamState
+# src/graph.py  (writer node, Step 3)
+from src.agents.writer_agent import run_writer
+# ...
 
-client = OpenAI()
-
-WRITER_PROMPT = """You are writing a short status report from research findings.
-
-Notes findings:
-{notes_findings}
-
-Web findings:
-{web_findings}
-
-Write one short, clear report. State what is known, citing which source(s)
-support each point. Do not write one paragraph per source -- organize by
-topic or conclusion instead."""
-
-
-def run_writer(notes_findings: str, web_findings: str) -> str:
-    prompt = WRITER_PROMPT.format(
-        notes_findings=notes_findings or "(not checked for this request)",
-        web_findings=web_findings or "(not checked for this request)",
-    )
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.choices[0].message.content
-
-
-def writer_agent_node(state: TeamState) -> Command:
-    report = run_writer(state.get("notes_findings", ""), state.get("web_findings", ""))
-    return Command(goto=END, update={"report": report})
+    def writer_node(state):
+        report = run_writer(
+            client, state["task"], state["notes_findings"],
+            state["web_findings"], state["web_unavailable"],
+        )
+        return Command(goto=END, update={"report": report})
 ```
 
-```python
-# supervisor.py (updated routing)
-from langgraph.graph import END
-from langgraph.types import Command
-from state import TeamState
+Everything else in `build_graph` stays as it was in Step 2. The Supervisor routes to `writer` once the needed specialists have run (`decide_next` returns `"writer"` when nothing else is pending).
 
+## Proving it
 
-def figure_out_needed(task: str) -> list[str]:
-    needed = []
-    task_lower = task.lower()
-    if "note" in task_lower:
-        needed.append("notes_agent")
-    if "http" in task_lower or "fetch" in task_lower or "page" in task_lower:
-        needed.append("web_agent")
-    if not needed:
-        needed.append("notes_agent")
-    return needed
+Run task 3 (`"Check my notes for Atlas, fetch its status page too, and give one combined report."`). The routing log is `['notes', 'web', 'writer']`, and the report reads as one synthesized status update that draws on **both** sources — the Atlas beta/auth notes and the fetched "82% complete, on track" status — rather than two disconnected paragraphs.
 
+```
+Routing: ['notes', 'web', 'writer']
 
-def supervisor_node(state: TeamState) -> Command:
-    needed = state.get("needed") or figure_out_needed(state["task"])
-    visited = state.get("visited") or []
-
-    for specialist in needed:
-        if specialist not in visited:
-            return Command(goto=specialist, update={"needed": needed})
-
-    return Command(goto="writer_agent")
+Project Atlas — Status Report
+- On track: the status page reports ~82% complete, launch next month.
+- Risks from the notes: auth rewrite is a blocker; a login bug is in review.
+- Docs are still pending (notes) and listed as an open risk (status page).
 ```
 
-```python
-# state.py (updated)
-from typing import TypedDict
-
-
-class TeamState(TypedDict):
-    task: str
-    needed: list[str]
-    visited: list[str]
-    notes_findings: str
-    web_findings: str
-    report: str
-```
-
-```python
-# graph.py (adds the writer node)
-from langgraph.graph import StateGraph
-from state import TeamState
-from supervisor import supervisor_node
-from notes_agent import notes_agent_node
-from web_agent import web_agent_node
-from writer_agent import writer_agent_node
-
-
-def build_graph():
-    graph = StateGraph(TeamState)
-    graph.add_node("supervisor", supervisor_node)
-    graph.add_node("notes_agent", notes_agent_node)
-    graph.add_node("web_agent", web_agent_node)
-    graph.add_node("writer_agent", writer_agent_node)
-    graph.set_entry_point("supervisor")
-    return graph.compile()
-```
-
-**Expected output**, running task 3 through `main.py` and printing `final_state["report"]`: something like
-```
-Project Atlas is on track for a Q3 launch (per team notes) and is currently
-reported as 80% complete (per the status page). The notes also flag that
-legal sign-off is still pending, which isn't mentioned on the status page --
-worth confirming before launch.
-```
-
-**Difference from Basic:** the prompt now gives a specific, testable instruction ("organize by topic, not by source," "cite which source(s) support each point") instead of the vague "combine these." The `or "(not checked for this request)"` fallback also means a single-specialist task (task 1 or 2) still produces a clean report instead of a prompt with an awkward empty section.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-3-the-writer-agent-synthesizes-a-final-report) · [Hint 1](step3_writer_synthesis_hints.md#hint-1) · [Hint 2](step3_writer_synthesis_hints.md#hint-2) · [Solution](step3_writer_synthesis_solution.md)
-
-## Advanced Version
-
-### Approach 1 — testing the Writer directly against deliberately conflicting findings
-
-```python
-# test_writer_synthesis.py
-from writer_agent import run_writer
-
-notes_findings = "Project Atlas notes say the launch is targeted for Q3, on schedule."
-web_findings = "The status page reports Project Atlas is delayed to Q4 due to a staffing issue."
-
-report = run_writer(notes_findings, web_findings)
-print(report)
-```
-**Expected output:** something that names the discrepancy honestly, e.g.:
-```
-Sources disagree on Project Atlas's timeline: internal notes say Q3, on
-schedule, while the status page reports a delay to Q4 due to staffing.
-This should be confirmed with the project owner before reporting a firm date.
-```
-If your prompt instead produces a report that confidently states just one date and drops the conflict, that's a sign the prompt needs to say explicitly what to do when sources disagree (add a line like: "If sources disagree, say so plainly instead of picking one silently").
-
-### Approach 2 — single-specialist tasks produce a clean report, not an awkward gap
-
-```python
-# test_writer_single_source.py
-from writer_agent import run_writer
-
-report = run_writer("Project Atlas notes say the launch is targeted for Q3.", "")
-print(report)
-```
-**Expected output:** a report that discusses only the notes finding, without saying something confusing like "the web source found nothing" (which would misleadingly imply a web check happened and came up empty, when really the web agent was never asked).
-```
-Project Atlas is targeted for a Q3 launch, according to team notes.
-```
-
-### Approach 3 — the full team, run end to end through the graph
-
-```python
-# main.py
-from graph import build_graph
-
-TASKS = [
-    "What do my notes say about Project Atlas?",
-    "Fetch https://intranet.example.com/atlas/status and tell me what it says.",
-    "Check my notes for anything about Project Atlas, and also fetch its status page.",
-]
-
-if __name__ == "__main__":
-    app = build_graph()
-    for task in TASKS:
-        print(f"\n=== Task: {task} ===")
-        final_state = app.invoke({
-            "task": task, "needed": [], "visited": [], "notes_findings": "", "web_findings": "", "report": "",
-        })
-        print("Report:\n" + final_state["report"])
-```
-**Expected output** (abridged, task 3 only):
-```
-=== Task: Check my notes for anything about Project Atlas, and also fetch its status page. ===
-Report:
-Project Atlas is on track for a Q3 launch (per notes) and 80% complete
-(per the status page). Legal sign-off is still pending per notes -- worth
-confirming before launch.
-```
-
-**Difference from Intermediate, and between these 3 Advanced approaches:** Approach 1 tests the Writer against inputs that genuinely conflict, which the happy-path tests so far never exercised — this is the same instinct as Step 1's "test a query with no match," applied here to the Writer's honesty under disagreement rather than a specialist's honesty under an empty result. Approach 2 confirms the single-source case reads cleanly, not just that it doesn't crash. Approach 3 is the full, real end-to-end proof — all specialists, real MCP connections, the real Supervisor routing, and the real Writer, together.
-
-**Which one should you actually write?** Intermediate's `run_writer` and `writer_agent_node` are what you carry forward. Run Approach 1's conflicting-findings test once, by hand, and tighten your prompt's instruction for the disagreement case if it doesn't already handle it honestly — this is a cheap, high-value check, since a report that silently picks one of two conflicting facts is a genuinely worse failure than one that's just poorly organized. Approach 3's full run is your actual proof this step is done; keep it as `main.py`'s default behavior going into Step 4, where it gets one more scenario added — a Web Agent that can't connect at all.
+The Writer's value is exactly that last bullet — it *connected* a note and the status page into one point, which a concatenation never would. (The full, runnable graph and the integration test that checks the report mentions both sources are in the [Step 4 solution](step4_graceful_degradation_solution.md).)

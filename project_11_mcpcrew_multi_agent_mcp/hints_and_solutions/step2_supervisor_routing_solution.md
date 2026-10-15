@@ -1,276 +1,188 @@
 # Step 2 — A Supervisor Routes Between Them — Solution
 
-> [Back to this step](../README.md#step-2-a-supervisor-routes-between-them) · [Hint 1](step2_supervisor_routing_hints.md#hint-1) · [Hint 2](step2_supervisor_routing_hints.md#hint-2) · [Solution](step2_supervisor_routing_solution.md)
+> [Back to the step](../READING_README.md#step-2-a-supervisor-routes-between-them) · [Hint 1](step2_supervisor_routing_hints.md#hint-1) · [Hint 2](step2_supervisor_routing_hints.md#hint-2)
 
-All examples below assume Step 1's `notes_agent.py` (`run_notes_agent`) and `web_agent.py` (`run_web_agent`) already work standalone.
+**Story:** a `Command`-based Supervisor (Project 4's pattern) in a LangGraph graph, routing between the two proven specialists. The Supervisor only *routes* — it never opens a connection. **If not:** the coordinator would reach into each specialist's MCP connection, and the clean "each specialist owns its own server" boundary would be gone.
 
-## Basic Version
-
-### Approach 1 — the direct way, routing decided with plain `if` statements
+## `src/state.py` (new)
 
 ```python
-# state.py
+# src/state.py
+# The shared state. One writer per field: notes_agent writes notes_findings,
+# web_agent writes web_findings + web_unavailable, writer writes report,
+# supervisor writes routing_log.
 from typing import TypedDict
 
 
 class TeamState(TypedDict):
     task: str
-    needed: list[str]
-    visited: list[str]
     notes_findings: str
     web_findings: str
+    web_unavailable: bool
+    report: str
+    routing_log: list
+
+
+def start_state(task: str) -> TeamState:
+    return {
+        "task": task,
+        "notes_findings": "",
+        "web_findings": "",
+        "web_unavailable": False,
+        "report": "",
+        "routing_log": [],
+    }
 ```
 
+## `src/agents/supervisor.py` (new)
+
+**Story:** `decide_next` reads the state and names who runs next, based on what's still needed and what the task asks for. `supervisor` logs the decision and routes with `Command`. **If not:** routing logic scattered through the graph would be impossible to unit-test without a model.
+
 ```python
-# supervisor.py
+# src/agents/supervisor.py
+# decide_next: route to the next specialist that still has work, else the
+# writer. supervisor: log the decision and route with Command. This never
+# touches an MCP connection -- it only picks a node.
 from langgraph.types import Command
 
+from src.utils.logger import get_logger
 
-def supervisor_node(state):
-    needed = state.get("needed", [])
-    if not needed:
-        needed = ["notes_agent"]
-        if "http" in state["task"].lower():
-            needed.append("web_agent")
 
-    visited = state.get("visited", [])
+def needs_notes(task: str) -> bool:
+    lowered = task.lower()
+    return "note" in lowered or "check" in lowered or "both" in lowered
 
-    if "notes_agent" in needed and "notes_agent" not in visited:
-        return Command(goto="notes_agent", update={"needed": needed})
-    if "web_agent" in needed and "web_agent" not in visited:
-        return Command(goto="web_agent", update={"needed": needed})
-    return Command(goto="__end__")
+
+def needs_web(task: str) -> bool:
+    lowered = task.lower()
+    return "fetch" in lowered or "status page" in lowered or "web" in lowered
+
+
+def decide_next(state) -> str:
+    task = state["task"]
+    if needs_notes(task) and state["notes_findings"] == "":
+        return "notes"
+    if needs_web(task) and state["web_findings"] == "" \
+            and not state["web_unavailable"]:
+        return "web"
+    return "writer"
+
+
+def supervisor(state):
+    logger = get_logger(__name__)
+    target = decide_next(state)
+    log = state["routing_log"] + [target]
+    logger.info(f"supervisor -> {target}")
+    return Command(goto=target, update={"routing_log": log})
 ```
-This works for the two test tasks that need exactly one specialist, and for task 3, which needs both. It's missing a helper for deciding `needed` cleanly (it's inline and a little repetitive), and `visited` update logic that lives outside `supervisor.py` — both fine for a first working version.
 
-<hr class="page-break">
+## `src/graph.py` — the async graph
 
-> [Back to this step](../README.md#step-2-a-supervisor-routes-between-them) · [Hint 1](step2_supervisor_routing_hints.md#hint-1) · [Hint 2](step2_supervisor_routing_hints.md#hint-2) · [Solution](step2_supervisor_routing_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a named helper for "what does this task need," reused cleanly
+**Story:** `START → supervisor`. The specialist nodes are **async** (they open MCP connections), and the graph is run with `.ainvoke()`. Each specialist node calls its agent and returns `Command(goto="supervisor", ...)`, so control always comes back to the Supervisor. **If not:** a sync node wrapping the async specialist in `asyncio.run()` fights LangGraph's own event loop and hangs.
 
 ```python
-# supervisor.py
+# src/graph.py  (Step 2 version — no writer yet; the writer target ends the
+# run until Step 3 adds the node)
+from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
-from state import TeamState
+
+from src.agents.notes_agent import run_notes_agent
+from src.agents.supervisor import supervisor
+from src.agents.web_agent import run_web_agent
+from src.state import TeamState
 
 
-def figure_out_needed(task: str) -> list[str]:
-    """Decide which specialists a task needs, based on simple keyword checks."""
-    needed = []
-    task_lower = task.lower()
-    if "note" in task_lower:
-        needed.append("notes_agent")
-    if "http" in task_lower or "fetch" in task_lower or "page" in task_lower:
-        needed.append("web_agent")
-    if not needed:
-        needed.append("notes_agent")
-    return needed
+def build_graph(client, connect_timeout=10.0):
+    async def notes_node(state):
+        findings, _ = await run_notes_agent(
+            client, state["task"], connect_timeout
+        )
+        return Command(goto="supervisor",
+                       update={"notes_findings": findings})
 
+    async def web_node(state):
+        findings, unavailable = await run_web_agent(
+            client, state["task"], connect_timeout
+        )
+        return Command(goto="supervisor", update={
+            "web_findings": findings, "web_unavailable": unavailable,
+        })
 
-def supervisor_node(state: TeamState) -> Command:
-    needed = state.get("needed") or figure_out_needed(state["task"])
-    visited = state.get("visited") or []
+    def writer_node(state):
+        # placeholder until Step 3: just concatenate the raw findings
+        return Command(goto=END, update={
+            "report": state["notes_findings"] + "\n" + state["web_findings"],
+        })
 
-    for specialist in needed:
-        if specialist not in visited:
-            return Command(goto=specialist, update={"needed": needed})
-
-    return Command(goto="__end__")
-```
-
-```python
-# notes_agent.py (adds the node function; run_notes_agent unchanged from Step 1)
-from langgraph.types import Command
-from state import TeamState
-
-
-def notes_agent_node(state: TeamState) -> Command:
-    result = run_notes_agent(state["task"])
-    visited = state.get("visited", []) + ["notes_agent"]
-    return Command(goto="supervisor", update={"notes_findings": result, "visited": visited})
-```
-
-```python
-# web_agent.py (adds the node function; run_web_agent unchanged from Step 1)
-from langgraph.types import Command
-from state import TeamState
-
-
-def web_agent_node(state: TeamState) -> Command:
-    result = run_web_agent(state["task"])
-    visited = state.get("visited", []) + ["web_agent"]
-    return Command(goto="supervisor", update={"web_findings": result, "visited": visited})
-```
-
-```python
-# graph.py
-from langgraph.graph import StateGraph
-from state import TeamState
-from supervisor import supervisor_node
-from notes_agent import notes_agent_node
-from web_agent import web_agent_node
-
-
-def build_graph():
     graph = StateGraph(TeamState)
-    graph.add_node("supervisor", supervisor_node)
-    graph.add_node("notes_agent", notes_agent_node)
-    graph.add_node("web_agent", web_agent_node)
-    graph.set_entry_point("supervisor")
+    graph.add_node("supervisor", supervisor)
+    graph.add_node("notes", notes_node)
+    graph.add_node("web", web_node)
+    graph.add_node("writer", writer_node)
+    graph.add_edge(START, "supervisor")
     return graph.compile()
 ```
 
+In `main.py`, build the graph and run it with `await build_graph(client).ainvoke(start_state(task))`.
+
+## The test
+
 ```python
-# main.py
-from graph import build_graph
+# tests/unit/test_supervisor.py
+# The routing brain, on hand-made states — no model, no servers.
+# Run from the repo root: python -m tests.unit.test_supervisor
+from src.agents.supervisor import decide_next
+from src.state import start_state
+
+BOTH = "Check my notes for Atlas, fetch its status page, and give a report."
+
+
+def test_fresh_routes_to_notes() -> None:
+    target = decide_next(start_state(BOTH))
+    print(f"case 1 (fresh -> notes)  -> "
+          f"{'OK' if target == 'notes' else 'WRONG'}")
+
+
+def test_notes_done_routes_to_web() -> None:
+    state = start_state(BOTH)
+    state["notes_findings"] = "found"
+    target = decide_next(state)
+    print(f"case 2 (notes done -> web) -> "
+          f"{'OK' if target == 'web' else 'WRONG'}")
+
+
+def test_both_done_routes_to_writer() -> None:
+    state = start_state(BOTH)
+    state["notes_findings"] = "found"
+    state["web_findings"] = "fetched"
+    target = decide_next(state)
+    print(f"case 3 (both done -> writer) -> "
+          f"{'OK' if target == 'writer' else 'WRONG'}")
+
+
+def test_web_unavailable_skips_web() -> None:
+    state = start_state(BOTH)
+    state["notes_findings"] = "found"
+    state["web_unavailable"] = True
+    target = decide_next(state)
+    print(f"case 4 (web down -> writer) -> "
+          f"{'OK' if target == 'writer' else 'WRONG'}")
+
 
 if __name__ == "__main__":
-    app = build_graph()
-    initial_state = {
-        "task": "Check my notes for anything about Project Atlas, and also fetch its status page.",
-        "needed": [],
-        "visited": [],
-        "notes_findings": "",
-        "web_findings": "",
-    }
-    final_state = app.invoke(initial_state)
-    print("Visited:", final_state["visited"])
-    print("Notes findings:", final_state["notes_findings"])
-    print("Web findings:", final_state["web_findings"])
-```
-**Expected output** (abridged, order of `visited` may vary):
-```
-Visited: ['notes_agent', 'web_agent']
-Notes findings: Your notes say Project Atlas is targeted for a Q3 launch...
-Web findings: The status page reports Project Atlas is on track and 80% complete.
+    test_fresh_routes_to_notes()
+    test_notes_done_routes_to_web()
+    test_both_done_routes_to_writer()
+    test_web_unavailable_skips_web()
 ```
 
-**Difference from Basic:** the routing decision is now a named, reusable `figure_out_needed()` function instead of inline logic mixed into the node, and both specialist nodes follow the exact same small shape — run the Step 1 function, append their own name to `visited`, write their own field, route back to `"supervisor"`. That symmetry matters: it means adding a third MCP-backed specialist later would mean copying this same 4-line pattern, not inventing a new one.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-a-supervisor-routes-between-them) · [Hint 1](step2_supervisor_routing_hints.md#hint-1) · [Hint 2](step2_supervisor_routing_hints.md#hint-2) · [Solution](step2_supervisor_routing_solution.md)
-
-## Advanced Version
-
-### Approach 1 — using `langgraph.graph.END` explicitly, and testing routing logic on fake state first
-
-```python
-# supervisor.py
-from langgraph.graph import END
-from langgraph.types import Command
-from state import TeamState
-
-
-def figure_out_needed(task: str) -> list[str]:
-    needed = []
-    task_lower = task.lower()
-    if "note" in task_lower:
-        needed.append("notes_agent")
-    if "http" in task_lower or "fetch" in task_lower or "page" in task_lower:
-        needed.append("web_agent")
-    if not needed:
-        needed.append("notes_agent")
-    return needed
-
-
-def supervisor_node(state: TeamState) -> Command:
-    needed = state.get("needed") or figure_out_needed(state["task"])
-    visited = state.get("visited") or []
-
-    for specialist in needed:
-        if specialist not in visited:
-            return Command(goto=specialist, update={"needed": needed})
-
-    return Command(goto=END)
-```
-
-```python
-# test_supervisor_routing.py
-# Tests the routing DECISION against a hand-built fake state -- no real
-# agent calls, no MCP connections -- so a routing bug is easy to place,
-# separate from "do the real specialists work."
-from supervisor import supervisor_node
-
-# task needing only notes, nothing visited yet -> should route to notes_agent
-state1 = {"task": "What do my notes say?", "needed": [], "visited": [], "notes_findings": "", "web_findings": ""}
-result1 = supervisor_node(state1)
-assert result1.goto == "notes_agent", result1.goto
-
-# task needing both, notes already visited -> should route to web_agent next
-state2 = {
-    "task": "Check my notes and fetch the status page.",
-    "needed": ["notes_agent", "web_agent"],
-    "visited": ["notes_agent"],
-    "notes_findings": "some findings",
-    "web_findings": "",
-}
-result2 = supervisor_node(state2)
-assert result2.goto == "web_agent", result2.goto
-
-# task needing both, both visited -> should route to END
-state3 = {
-    "task": "Check my notes and fetch the status page.",
-    "needed": ["notes_agent", "web_agent"],
-    "visited": ["notes_agent", "web_agent"],
-    "notes_findings": "some findings",
-    "web_findings": "some web findings",
-}
-result3 = supervisor_node(state3)
-from langgraph.graph import END
-assert result3.goto == END, result3.goto
-
-print("All routing tests passed.")
-```
 **Expected output:**
+
 ```
-All routing tests passed.
-```
-
-### Approach 2 — full graph run, confirming both specialists actually ran once each
-
-```python
-# main.py
-from graph import build_graph
-
-TASKS = [
-    "What do my notes say about Project Atlas?",
-    "Fetch https://intranet.example.com/atlas/status and tell me what it says.",
-    "Check my notes for anything about Project Atlas, and also fetch its status page.",
-]
-
-if __name__ == "__main__":
-    app = build_graph()
-    for task in TASKS:
-        print(f"\n=== Task: {task} ===")
-        final_state = app.invoke({
-            "task": task, "needed": [], "visited": [], "notes_findings": "", "web_findings": "",
-        })
-        print("Visited:", final_state["visited"])
-        if final_state["notes_findings"]:
-            print("Notes findings:", final_state["notes_findings"])
-        if final_state["web_findings"]:
-            print("Web findings:", final_state["web_findings"])
-```
-**Expected output** (abridged):
-```
-=== Task: What do my notes say about Project Atlas? ===
-Visited: ['notes_agent']
-Notes findings: Your notes say Project Atlas is targeted for a Q3 launch...
-
-=== Task: Fetch https://intranet.example.com/atlas/status and tell me what it says. ===
-Visited: ['web_agent']
-Web findings: The status page reports Project Atlas is on track and 80% complete.
-
-=== Task: Check my notes for anything about Project Atlas, and also fetch its status page. ===
-Visited: ['notes_agent', 'web_agent']
-Notes findings: Your notes say Project Atlas is targeted for a Q3 launch...
-Web findings: The status page reports Project Atlas is on track and 80% complete.
+case 1 (fresh -> notes)  -> OK
+case 2 (notes done -> web) -> OK
+case 3 (both done -> writer) -> OK
+case 4 (web down -> writer) -> OK
 ```
 
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate proves the whole graph works end to end, but only by running it and reading the output. Approach 1 separates two concerns Project 4's Step 5 also separated: is the *routing decision* correct (tested here against fake state, no LLM calls, no MCP connections, runs in milliseconds), versus does the *full graph with real specialists* work (Approach 2). If Approach 2 ever produces a wrong final state, Approach 1's tests tell you immediately whether the bug is in the routing logic or somewhere inside a specialist's own code — the same value Project 4's "test routing against fake state first" step description called out directly.
-
-**Which one should you actually write?** Both. Keep Approach 1's fake-state routing tests as a fast, cheap first check any time you touch `supervisor.py` — they catch a routing bug in milliseconds, before you've spent real API calls and real MCP connections finding out the hard way. Then run Approach 2's full graph for the real end-to-end proof. This two-layer testing habit — logic tested in isolation, then the real system tested end to end — is worth carrying into Step 3 and Step 4 too, where a routing bug would otherwise be much harder to spot underneath a real Writer call.
+Case 4 is the one that matters for Step 4: once the Web Agent has marked its server unavailable, the Supervisor routes straight to the Writer instead of looping on a server that isn't coming back.

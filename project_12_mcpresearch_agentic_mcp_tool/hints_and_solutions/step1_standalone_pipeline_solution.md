@@ -1,368 +1,394 @@
-# Step 1 — The Two-Agent Pipeline, Running Standalone — Solution
+# Step 1 — The Two-Agent Pipeline, Running Standalone (No MCP Yet) — Solution
 
-> [Back to this step](../README.md#step-1-the-two-agent-pipeline-running-standalone-no-mcp-yet) · [Hint 1](step1_standalone_pipeline_hints.md#hint-1) · [Hint 2](step1_standalone_pipeline_hints.md#hint-2) · [Solution](step1_standalone_pipeline_solution.md)
+> [Back to the step](../READING_README.md#step-1-the-two-agent-pipeline-running-standalone-no-mcp-yet) · [Hint 1](step1_standalone_pipeline_hints.md#hint-1) · [Hint 2](step1_standalone_pipeline_hints.md#hint-2)
 
-## Basic Version
+**Story:** the Researcher, the Fact-Checker, and the revise loop as a plain Python program — no MCP. Prove it works before anything wraps it. **If not:** a pipeline bug hidden behind a protocol in Step 2 is two bugs to find instead of one.
 
-### Approach 1 — the direct way, no config/logging yet
+## Setup files
+
+`requirements.txt`: `mcp[cli]`, `langchain-openai`, `python-dotenv`, `pydantic`.
+`.env.example`: `OPENAI_API_KEY=sk-your-key-here` / `LOG_LEVEL=INFO` / `MAX_REVISION_ROUNDS=3` / `DEEP_RESEARCH_TIMEOUT_SECONDS=60`. `.gitignore`: `.env`, `.venv/`, `__pycache__/`, `*.pyc`. Every folder under `src/` gets an empty `__init__.py`. `LICENSE` is the MIT text.
+
+## Settings, errors, logging, prompts
 
 ```python
-# researcher.py
-from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-
-RESEARCHER_SYSTEM_PROMPT = (
-    "You are a careful research assistant. Given a topic, write a short, "
-    "factual summary (3-5 sentences). If feedback from a previous draft is "
-    "given, fix exactly the issues named in it -- do not rewrite parts that "
-    "were not flagged."
-)
-
-
-class Draft(BaseModel):
-    topic: str
-    summary: str
-
-
-_prompt = ChatPromptTemplate.from_messages([
-    ("system", RESEARCHER_SYSTEM_PROMPT),
-    ("human", "Topic: {topic}\n\nFeedback from the last fact-check (none if this is the first draft): {feedback}"),
-])
-_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
-_chain = _prompt | _llm | StrOutputParser()
-
-
-def run_researcher(topic, feedback=None):
-    summary = _chain.invoke({"topic": topic, "feedback": feedback or "none"})
-    return Draft(topic=topic, summary=summary.strip())
+# src/exceptions.py
+class MissingConfigError(Exception):
+    """A required setting is missing from the environment."""
+    pass
 ```
 
 ```python
-# fact_checker.py
-from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-
-FACT_CHECKER_SYSTEM_PROMPT = (
-    "You check a research summary for real factual problems: wrong dates, "
-    "wrong names, invented facts, or claims stated more confidently than "
-    "the evidence supports. Set approved=True only if there are no real "
-    "problems. If not approved, list each specific issue to fix."
-)
-
-
-class FactCheckVerdict(BaseModel):
-    approved: bool
-    issues: list[str]
-
-
-_prompt = ChatPromptTemplate.from_messages([
-    ("system", FACT_CHECKER_SYSTEM_PROMPT),
-    ("human", "Topic: {topic}\n\nDraft summary:\n{summary}"),
-])
-_llm = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(FactCheckVerdict)
-_chain = _prompt | _llm
-
-
-def run_fact_checker(draft):
-    return _chain.invoke({"topic": draft.topic, "summary": draft.summary})
-```
-
-This works, and it's a fine first pass to run by hand a few times. It has no type hints, no config, no logging, and creates its `ChatOpenAI` instances at import time with no way to point them at a test double — all fine to fix once you know the basic shape is right.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-the-two-agent-pipeline-running-standalone-no-mcp-yet) · [Hint 1](step1_standalone_pipeline_hints.md#hint-1) · [Hint 2](step1_standalone_pipeline_hints.md#hint-2) · [Solution](step1_standalone_pipeline_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — full type hints, config, and the loop in `pipeline.py`
-
-```python
-# config.py
+# src/config.py
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
-
-load_dotenv()
+from src.exceptions import MissingConfigError
 
 
 @dataclass
 class Config:
-    log_level: str
     openai_api_key: str
+    log_level: str
     max_revision_rounds: int
+    timeout_seconds: float
+
+
+def require_env(key: str) -> str:
+    value = os.getenv(key)
+    if value is None or value == "":
+        raise MissingConfigError(
+            f"Required environment variable is missing: {key}"
+        )
+    return value
 
 
 def load_config() -> Config:
+    load_dotenv()
     return Config(
+        openai_api_key=require_env("OPENAI_API_KEY"),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
-        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         max_revision_rounds=int(os.getenv("MAX_REVISION_ROUNDS", "3")),
+        timeout_seconds=float(os.getenv("DEEP_RESEARCH_TIMEOUT_SECONDS", "60")),
     )
 ```
 
 ```python
-# logging_setup.py
+# src/utils/logger.py
 import logging
 import os
+import sys
 
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     if not logger.handlers:
-        # StreamHandler() defaults to stderr, not stdout -- important once
-        # mcp_server.py exists in Step 2, where stdout is the MCP protocol
-        # channel on the stdio transport.
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        level_name = os.getenv("LOG_LEVEL", "INFO")
+        level = getattr(logging, level_name.upper(), logging.INFO)
+        # stderr: the MCP server (Step 2) uses stdout as the protocol channel
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(level)
+        log_format = "%(asctime)s %(name)s %(levelname)s %(message)s"
+        handler.setFormatter(logging.Formatter(log_format))
         logger.addHandler(handler)
-        logger.setLevel(os.getenv("LOG_LEVEL", "INFO"))
+        logger.setLevel(level)
     return logger
 ```
 
 ```python
-# researcher.py
-from pydantic import BaseModel
+# src/utils/prompts.py
+PROMPTS_DIR = "src/prompts"
+
+
+def load_prompt(name: str) -> str:
+    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+        return prompt_file.read().strip()
+```
+
+```python
+# src/models/llm.py
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+
+from src.config import Config
+
+MODEL_NAME = "gpt-4o-mini"
+
+
+def get_model(config: Config) -> ChatOpenAI:
+    return ChatOpenAI(
+        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+    )
+```
+
+## The Researcher
+
+```python
+# src/prompts/researcher.txt
+Write a short, accurate 3-5 sentence summary of the topic. Be precise about
+names, dates, and who did what.
+
+{feedback_block}
+
+Topic: {topic}
+```
+
+```python
+# src/agents/researcher.py
+# The Researcher: draft a summary. With feedback, fix exactly the named
+# issues (not a rewrite) - that's what makes round 2 different from round 1.
+from dataclasses import dataclass
+
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 
-from config import load_config
-
-config = load_config()
-
-RESEARCHER_SYSTEM_PROMPT = (
-    "You are a careful research assistant. Given a topic, write a short, "
-    "factual summary (3-5 sentences). If feedback from a previous draft is "
-    "given, fix exactly the issues named in it -- do not rewrite parts that "
-    "were not flagged."
-)
+from src.utils.prompts import load_prompt
 
 
-class Draft(BaseModel):
+@dataclass
+class Draft:
     topic: str
     summary: str
 
 
-def _build_chain():
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", RESEARCHER_SYSTEM_PROMPT),
-        ("human", "Topic: {topic}\n\nFeedback from the last fact-check (none if this is the first draft): {feedback}"),
-    ])
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2, api_key=config.openai_api_key)
-    return prompt | llm | StrOutputParser()
+def run_researcher(model, topic: str, feedback=None) -> Draft:
+    if feedback:
+        feedback_block = (
+            "A fact-checker rejected your previous draft for these reasons - "
+            f"fix ONLY these, keep the rest:\n{feedback}"
+        )
+    else:
+        feedback_block = ""
+    prompt = ChatPromptTemplate.from_template(load_prompt("researcher"))
+    chain = prompt | model | StrOutputParser()
+    summary = chain.invoke({"topic": topic, "feedback_block": feedback_block})
+    return Draft(topic=topic, summary=summary)
+```
 
+## The Fact-Checker
 
-_chain = _build_chain()
+```python
+# src/prompts/fact_checker.txt
+You fact-check a short summary. Approve ONLY if it is accurate. Reject if it
+has: a wrong date, a wrong name or attribution, an invented fact, or an
+overconfident claim. For each problem, write one specific issue naming the
+exact error and the correction.
 
-
-def run_researcher(topic: str, feedback: str | None = None) -> Draft:
-    summary = _chain.invoke({"topic": topic, "feedback": feedback or "none"})
-    return Draft(topic=topic, summary=summary.strip())
+Topic: {topic}
+Summary to check:
+{summary}
 ```
 
 ```python
-# fact_checker.py
-from pydantic import BaseModel
-from langchain_openai import ChatOpenAI
+# src/agents/fact_checker.py
+# The Fact-Checker: a checked verdict with specific issues. Real criteria in
+# the prompt, so it doesn't approve everything on round 1.
 from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel
 
-from config import load_config
-from researcher import Draft
-
-config = load_config()
-
-FACT_CHECKER_SYSTEM_PROMPT = (
-    "You check a research summary for real factual problems: wrong dates, "
-    "wrong names, invented facts, or claims stated more confidently than "
-    "the evidence supports. Set approved=True only if there are no real "
-    "problems. If not approved, list each specific issue to fix, one per "
-    "item, naming exactly what's wrong."
-)
+from src.utils.prompts import load_prompt
 
 
 class FactCheckVerdict(BaseModel):
     approved: bool
-    issues: list[str]
+    issues: list
 
 
-def _build_chain():
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", FACT_CHECKER_SYSTEM_PROMPT),
-        ("human", "Topic: {topic}\n\nDraft summary:\n{summary}"),
-    ])
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key)
-    return prompt | llm.with_structured_output(FactCheckVerdict)
-
-
-_chain = _build_chain()
-
-
-def run_fact_checker(draft: Draft) -> FactCheckVerdict:
-    return _chain.invoke({"topic": draft.topic, "summary": draft.summary})
+def run_fact_checker(model, draft) -> FactCheckVerdict:
+    prompt = ChatPromptTemplate.from_template(load_prompt("fact_checker"))
+    chain = prompt | model.with_structured_output(FactCheckVerdict)
+    return chain.invoke({"topic": draft.topic, "summary": draft.summary})
 ```
 
+## The pipeline
+
+**Story:** the loop that ties them together, bounded by `max_rounds`, recording what happened each round into a `Progress` holder (the holder matters for Step 4's partial fallback). **If not:** a loop with no cap can run forever on a topic the checker never likes (Doc11's warning).
+
 ```python
-# pipeline.py
-from pydantic import BaseModel
+# src/pipeline.py
+# run_pipeline: Researcher drafts -> Fact-Checker checks -> approved? stop;
+# else feed the issues back and go again, up to max_rounds. The Progress
+# holder records the latest draft and each round, so the MCP layer can show a
+# trace (Step 3) and fall back to the best draft on timeout (Step 4).
+from dataclasses import dataclass, field
 
-from researcher import run_researcher, Draft
-from fact_checker import run_fact_checker, FactCheckVerdict
-
-
-class RevisionRound(BaseModel):
-    round_number: int
-    summary: str
-    approved: bool
-    issues: list[str]
+from src.agents.fact_checker import run_fact_checker
+from src.agents.researcher import run_researcher
+from src.utils.logger import get_logger
 
 
-class PipelineResult(BaseModel):
+@dataclass
+class PipelineResult:
     topic: str
     final_summary: str
     approved: bool
-    rounds: list[RevisionRound]
-    revision_count: int
+    rounds: list
 
 
-def run_pipeline(topic: str, max_rounds: int) -> PipelineResult:
-    feedback: str | None = None
-    rounds: list[RevisionRound] = []
-    draft: Draft | None = None
-    verdict: FactCheckVerdict | None = None
+class Progress:
+    def __init__(self):
+        self.latest_draft = None
+        self.rounds = []
 
+
+def run_pipeline(model, topic, max_rounds, progress=None) -> PipelineResult:
+    logger = get_logger(__name__)
+    if progress is None:
+        progress = Progress()
+    draft = run_researcher(model, topic)
     for round_number in range(1, max_rounds + 1):
-        draft = run_researcher(topic, feedback=feedback)
-        verdict = run_fact_checker(draft)
-
-        rounds.append(RevisionRound(
-            round_number=round_number,
-            summary=draft.summary,
-            approved=verdict.approved,
-            issues=verdict.issues,
-        ))
-
+        progress.latest_draft = draft.summary
+        verdict = run_fact_checker(model, draft)
+        progress.rounds.append({
+            "round": round_number,
+            "approved": verdict.approved,
+            "issues": verdict.issues,
+        })
+        logger.info(f"round {round_number}: approved={verdict.approved}")
         if verdict.approved:
-            break
-        feedback = "; ".join(verdict.issues)
-
-    return PipelineResult(
-        topic=topic,
-        final_summary=draft.summary,
-        approved=verdict.approved,
-        rounds=rounds,
-        revision_count=len(rounds),
-    )
+            return PipelineResult(topic, draft.summary, True, progress.rounds)
+        feedback = "\n".join(f"- {issue}" for issue in verdict.issues)
+        draft = run_researcher(model, topic, feedback)
+    progress.latest_draft = draft.summary
+    return PipelineResult(topic, draft.summary, False, progress.rounds)
 ```
 
+## main.py (standalone)
+
 ```python
-# main.py
-from pipeline import run_pipeline
-from logging_setup import get_logger
+# main.py  (Step 1 version)
+import sys
 
-logger = get_logger(__name__)
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.models.llm import get_model
+from src.pipeline import run_pipeline
 
-TEST_TOPICS = [
+TOPICS = [
     "Retrieval-Augmented Generation (RAG)",
-    "my opinion of the color blue",  # deliberately hard to fact-check
+    "my opinion of the color blue",
 ]
 
 
 def main():
-    for topic in TEST_TOPICS:
-        result = run_pipeline(topic, max_rounds=3)
+    try:
+        config = load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+    model = get_model(config)
+    for topic in TOPICS:
+        result = run_pipeline(model, topic, config.max_revision_rounds)
         print(f"\n=== {topic} ===")
-        for round_info in result.rounds:
-            status = "approved" if round_info.approved else "rejected"
-            print(f"Round {round_info.round_number}: {status}")
-            for issue in round_info.issues:
-                print(f"  - {issue}")
-        if result.approved:
-            print(f"\nFinal (approved after {result.revision_count} round(s)):")
-        else:
-            print(f"\nFinal (NOT approved -- hit the {result.revision_count}-round cap):")
-        print(result.final_summary)
+        for entry in result.rounds:
+            mark = "approved" if entry["approved"] else "rejected"
+            print(f"  Round {entry['round']}: {mark}")
+        print(f"approved={result.approved}\n{result.final_summary}")
 
 
 if __name__ == "__main__":
     main()
 ```
 
-**Expected behavior:** running `python main.py` prints each round for both topics. The RAG topic should show at least one rejected round with a real, specific issue, then an approved round. The "opinion of the color blue" topic should either approve quickly (there's nothing to fact-check) or hit the 3-round cap and still print a final summary, clearly marked not approved — either is a correct result, as long as it stops at 3 rounds.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-1-the-two-agent-pipeline-running-standalone-no-mcp-yet) · [Hint 1](step1_standalone_pipeline_hints.md#hint-1) · [Hint 2](step1_standalone_pipeline_hints.md#hint-2) · [Solution](step1_standalone_pipeline_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a sanity check that catches a broken loop early
+## The tests
 
 ```python
-# test_pipeline_sanity.py -- a throwaway script, run once by hand
-from pipeline import run_pipeline
+# tests/unit/test_config.py
+# Run from the repo root: python -m tests.unit.test_config
+import os
 
-result = run_pipeline("Retrieval-Augmented Generation (RAG)", max_rounds=3)
+from src.config import load_config, require_env
+from src.exceptions import MissingConfigError
 
-# the final summary must always match the LAST round's summary --
-# if it doesn't, the loop is tracking the wrong round somewhere
-assert result.rounds[-1].summary == result.final_summary, (
-    "final_summary doesn't match the last round -- check the loop's "
-    "draft/verdict tracking"
-)
+TEST_SETTING = "MCPRESEARCH_TEST_SETTING"
 
-# the loop must never run more rounds than the cap allows
-assert result.revision_count <= 3, "loop ran past max_rounds"
 
-# if it says approved, the last round's verdict must actually say so too
-if result.approved:
-    assert result.rounds[-1].approved, "approved=True but last round wasn't approved"
+def test_missing_setting() -> None:
+    os.environ.pop(TEST_SETTING, None)
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 1 (missing setting) -> {result}")
 
-print("Sanity checks passed.")
-print(f"Rounds: {result.revision_count}, approved: {result.approved}")
+
+def test_empty_setting() -> None:
+    os.environ[TEST_SETTING] = ""
+    result = "WRONG"
+    try:
+        require_env(TEST_SETTING)
+    except MissingConfigError:
+        result = "OK"
+    print(f"case 2 (empty setting)   -> {result}")
+
+
+def test_config_loads() -> None:
+    os.environ["OPENAI_API_KEY"] = "sk-test-123"
+    config = load_config()
+    result = "OK"
+    if config.openai_api_key != "sk-test-123":
+        result = "WRONG"
+    if config.max_revision_rounds <= 0:
+        result = "WRONG"
+    print(f"case 3 (config loads)    -> {result}")
+
+
+if __name__ == "__main__":
+    test_missing_setting()
+    test_empty_setting()
+    test_config_loads()
+```
+
+```python
+# tests/unit/test_pipeline.py
+# The revise loop and the round cap, with a tiny FAKE model (no key). The
+# fake drives the Researcher (draft) and the Fact-Checker (verdict).
+# Run from the repo root: python -m tests.unit.test_pipeline
+from langchain_core.messages import AIMessage
+
+from src.agents.fact_checker import FactCheckVerdict
+from src.pipeline import run_pipeline
+
+
+class FakeModel:
+    # Researcher chain: prompt | model | StrOutputParser(); model(prompt_value)
+    # must return an AIMessage. We look at whether feedback was included.
+    def __call__(self, prompt_value):
+        text = prompt_value.to_string()
+        if "fact-checker rejected" in text:
+            return AIMessage(content="RAG: Lewis et al., Meta AI, 2020.")
+        return AIMessage(content="RAG was introduced by OpenAI in 2019.")
+
+    def with_structured_output(self, schema):
+        def check(prompt_value):
+            text = prompt_value.to_string()
+            if "OpenAI in 2019" in text:
+                return FactCheckVerdict(
+                    approved=False,
+                    issues=["RAG is Lewis et al., Meta AI, 2020, not OpenAI."],
+                )
+            return FactCheckVerdict(approved=True, issues=[])
+        return check
+
+
+class AlwaysReject(FakeModel):
+    def with_structured_output(self, schema):
+        def check(prompt_value):
+            return FactCheckVerdict(approved=False, issues=["nitpick"])
+        return check
+
+
+def test_rejects_then_approves() -> None:
+    result = run_pipeline(FakeModel(), "RAG", max_rounds=3)
+    ok = result.approved and len(result.rounds) == 2
+    if "Meta AI" not in result.final_summary:
+        ok = False
+    print(f"case 1 (wrong draft -> fixed, approved r2) -> "
+          f"{'OK' if ok else 'WRONG'}")
+
+
+def test_stops_at_cap() -> None:
+    result = run_pipeline(AlwaysReject(), "blue", max_rounds=2)
+    ok = (not result.approved) and len(result.rounds) == 2
+    print(f"case 2 (never approved -> stops at cap)    -> "
+          f"{'OK' if ok else 'WRONG'}")
+
+
+if __name__ == "__main__":
+    test_rejects_then_approves()
+    test_stops_at_cap()
 ```
 
 **Expected output:**
+
 ```
-Sanity checks passed.
-Rounds: 2, approved: True
+case 1 (missing setting) -> OK
+case 2 (empty setting)   -> OK
+case 3 (config loads)    -> OK
 ```
-(the exact round count depends on what the model does -- 1-3 is all valid, as long as it never exceeds `max_rounds`)
-
-This is the kind of check worth running once after building the loop, and again any time you refactor it — it catches exactly the class of bug Hint 2's Advanced section warned about (returning the wrong round's draft) immediately, instead of you noticing it by accident three steps later when the MCP tool's trace looks wrong.
-
-### Approach 2 — a fake Fact-Checker, to test the loop's shape without spending real API calls
-
-```python
-# test_pipeline_with_fake_checker.py -- a throwaway script
-from unittest.mock import patch
-from fact_checker import FactCheckVerdict
-import pipeline
-
-
-def fake_fact_checker(draft):
-    # always rejects, no matter what -- proves the cap actually stops the loop
-    return FactCheckVerdict(approved=False, issues=["always rejected, for testing"])
-
-
-with patch("pipeline.run_fact_checker", side_effect=fake_fact_checker):
-    result = pipeline.run_pipeline("any topic", max_rounds=3)
-
-assert result.revision_count == 3, "loop should have run exactly max_rounds times"
-assert result.approved is False, "should never be approved with a fact-checker that always rejects"
-print("Cap test passed:", result.revision_count, "rounds, approved =", result.approved)
+```
+case 1 (wrong draft -> fixed, approved r2) -> OK
+case 2 (never approved -> stops at cap)    -> OK
 ```
 
-**Expected output:**
-```
-Cap test passed: 3 rounds, approved = False
-```
-
-This is the actual proof the "hard cap, never loops forever" requirement holds — not by reading the code and believing it, but by forcing the one case (a Fact-Checker that never approves) that would reveal a bug immediately if the `break` condition or the `range()` bound were wrong. It also costs zero real API calls, since `run_researcher` is the only thing still hitting the model, and it runs fast enough to include in a real test suite later.
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate is the working pipeline itself. Approach 1 adds a quick, cheap correctness check you run against the real pipeline once, by hand. Approach 2 goes further — it isolates the loop's *shape* (does it actually stop at the cap?) from the model's actual behavior, using a fake Fact-Checker that always rejects, which is the only way to be completely certain the cap works, rather than hoping your test topics happen to hit it.
-
-**Which one should you actually write?** Build the Intermediate version — it's what `researcher.py`, `fact_checker.py`, `pipeline.py`, and `main.py` should actually contain going forward. Run Advanced Approach 1 once by hand after you build it, as a real sanity check. Approach 2's fake-checker test is worth keeping if you're comfortable with `unittest.mock` — it's the only way to test the cap with total certainty and no API cost — but skip it for now if mocking is new to you; nothing later in this project depends on it existing.
+Running `main.py` on a real key shows the RAG topic converging (a wrong first draft, rejected, then fixed and approved) and the "color blue" topic stopping cleanly at the cap — the loop proven before any MCP wraps it.

@@ -1,0 +1,6 @@
+fastapi
+langchain-core
+langchain-openai
+langgraph
+langgraph-checkpoint-sqlite
+uvicorn[standard]

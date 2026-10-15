@@ -1,189 +1,134 @@
-# Step 2 — Add a Long-Term Store, and a Node That Reads From It — Solution
+# Step 2 — Add a Long-Term Store, and a Node That Reads It — Solution
 
-> [Back to this step](../README.md#step-2-add-a-long-term-store-and-a-node-that-reads-from-it) · [Hint 1](step2_long_term_store_hints.md#hint-1) · [Hint 2](step2_long_term_store_hints.md#hint-2) · [Solution](step2_long_term_store_solution.md)
+> [Back to the step](../READING_README.md#step-2-add-a-long-term-store-and-a-node-that-reads-it) · [Hint 1](step2_long_term_store_hints.md#hint-1) · [Hint 2](step2_long_term_store_hints.md#hint-2)
 
-All examples below assume Step 1's `state.py`, `graph.py`, and `main.py` already exist and work.
+**Story:** the fix for Step 1's amnesia — a Store keyed by `user_id` (not `thread_id`) and a `recall_node` that reads it before the chat, so a brand-new conversation still knows the user. **If not:** every new thread would meet a stranger, no matter how many times they'd talked before.
 
-## Basic Version
+## `src/memory/store.py` (new)
 
-### Approach 1 — the direct way, no duplicate-guard yet
+**Story:** thin helpers over LangGraph's Store. The namespace is keyed by `user_id`, so facts belong to the *person*, not a conversation. Saving under the same key **updates** rather than duplicates. **If not:** facts keyed by thread would vanish with each new conversation, exactly like the checkpointer.
 
 ```python
-# store.py
+# src/memory/store.py
+# The long-term memory: facts about a user, independent of any conversation.
+# Keyed by user_id (not thread_id). Same key on save = update, not duplicate.
 from langgraph.store.memory import InMemoryStore
 
-_store = InMemoryStore()
 
-
-def get_store():
-    return _store
+def build_store():
+    return InMemoryStore()
 
 
 def namespace_for(user_id: str) -> tuple:
-    return (user_id, "memories")
+    return ("memories", user_id)
+
+
+def recall_facts(store, user_id: str) -> list:
+    facts = []
+    for item in store.search(namespace_for(user_id)):
+        facts.append(item.value["fact"])
+    return facts
+
+
+def save_fact(store, user_id: str, key: str, fact: str) -> None:
+    store.put(namespace_for(user_id), key, {"fact": fact})
 ```
 
+## `src/nodes.py` — add `recall_node`
+
+**Story:** `recall_node` runs before the chat. It reads the user's facts from the Store and puts them in `state["recalled"]`, which `chat_node` already folds into its system prompt. The Store reaches the node because the node declares a `store` parameter and the graph was compiled with `store=...`. **If not:** the facts would never make it into the prompt the model sees.
+
 ```python
-# graph.py (Basic -- recall_node always injects, no guard against repeating itself)
-from functools import partial
-from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, START, END
-from state import ChatState
-from store import namespace_for
+# src/nodes.py  (add this; chat_node from Step 1 is unchanged)
+from langgraph.store.base import BaseStore
 
-model = ChatOpenAI(model="gpt-4o-mini")
+from src.memory.store import recall_facts
 
 
-def recall_node(state: ChatState, store) -> dict:
-    namespace = namespace_for(state["user_id"])
-    found = store.search(namespace, query="facts about this user")
-    if not found:
-        return {}
-    facts_text = ", ".join(item.value.get("text", "") for item in found)
-    return {"messages": [{"role": "system", "content": f"Known facts about this user: {facts_text}"}]}
-
-
-def chat_node(state: ChatState) -> dict:
-    reply = model.invoke(state["messages"])
-    return {"messages": [reply]}
-
-
-def build_graph(checkpointer, store):
-    builder = StateGraph(ChatState)
-    builder.add_node("recall_node", partial(recall_node, store=store))
-    builder.add_node("chat_node", chat_node)
-    builder.add_edge(START, "recall_node")
-    builder.add_edge("recall_node", "chat_node")
-    builder.add_edge("chat_node", END)
-    return builder.compile(checkpointer=checkpointer)
+def recall_node(state, *, store: BaseStore):
+    facts = recall_facts(store, state["user_id"])
+    return {"recalled": "; ".join(facts)}
 ```
-**Expected output**, after seeding `store.put(("sam", "memories"), "preferred_name", {"text": "Prefers to be called Sam"})` by hand and asking `"what's my name?"` on a brand-new thread: `"You told me your name is Sam."` This works, but calling the graph a second time on the *same* thread injects the known-facts system message again, since nothing checks whether it's already there.
 
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-add-a-long-term-store-and-a-node-that-reads-from-it) · [Hint 1](step2_long_term_store_hints.md#hint-1) · [Hint 2](step2_long_term_store_hints.md#hint-2) · [Solution](step2_long_term_store_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a once-per-thread guard against duplicate injection
+## `src/graph.py` — recall before chat
 
 ```python
-# graph.py (adds the guard)
-def recall_node(state: ChatState, store) -> dict:
-    namespace = namespace_for(state["user_id"])
-    found = store.search(namespace, query="facts about this user")
-    if not found:
-        return {}
+# src/graph.py  (Step 2 version)
+from langgraph.graph import END, START, StateGraph
 
-    already_injected = any(
-        getattr(m, "type", None) == "system" and "Known facts about this user" in getattr(m, "content", "")
-        for m in state["messages"]
-    )
-    if already_injected:
-        return {}
+from src.nodes import make_chat_node, recall_node
+from src.state import ChatState
 
-    facts_text = ", ".join(item.value.get("text", "") for item in found)
-    return {"messages": [{"role": "system", "content": f"Known facts about this user: {facts_text}"}]}
+
+def build_graph(model, store, checkpointer):
+    graph = StateGraph(ChatState)
+    graph.add_node("recall", recall_node)
+    graph.add_node("chat", make_chat_node(model))
+    graph.add_edge(START, "recall")
+    graph.add_edge("recall", "chat")
+    graph.add_edge("chat", END)
+    return graph.compile(checkpointer=checkpointer, store=store)
 ```
-**Expected output:** calling the graph twice on the same thread now only injects the known-facts message once -- the first call adds it, the second call sees it's already present and adds nothing new, while the conversation itself still grows normally.
 
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-add-a-long-term-store-and-a-node-that-reads-from-it) · [Hint 1](step2_long_term_store_hints.md#hint-1) · [Hint 2](step2_long_term_store_hints.md#hint-2) · [Solution](step2_long_term_store_solution.md)
-
-## Advanced Version
-
-### Approach 1 — main.py wired end to end, with a hand-seeded fact for testing
+In `main.py`, create the store with `build_store()` and carry a real `user_id`. Seed a fact by hand to see recall work before Step 3 writes them automatically:
 
 ```python
-# main.py
-import sqlite3
-import uuid
-from langgraph.checkpoint.sqlite import SqliteSaver
-from graph import build_graph
-from store import get_store, namespace_for
+from src.memory.store import build_store, save_fact
+# ...
+store = build_store()
+save_fact(store, "sam", "preferred_name", "Name is Sam")
+# then build the graph with this store; a brand-new thread_id still recalls Sam
+```
 
-USER_ID = "sam"
+## The test
+
+```python
+# tests/unit/test_store.py  (Step 2 cases; Step 4 adds the forget case)
+# The Store helpers, no model, no graph. Run from the repo root:
+#   python -m tests.unit.test_store
+from src.memory.store import build_store, recall_facts, save_fact
 
 
-def main():
-    conn = sqlite3.connect("memory_keeper.db", check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
-    store = get_store()
+def test_save_then_recall() -> None:
+    store = build_store()
+    save_fact(store, "sam", "preferred_name", "Name is Sam")
+    result = "OK"
+    if recall_facts(store, "sam") != ["Name is Sam"]:
+        result = "WRONG"
+    print(f"case 1 (save then recall)      -> {result}")
 
-    # seed a fact by hand, once, to prove recall works before Step 3 can write facts on its own
-    store.put(namespace_for(USER_ID), "preferred_name", {"text": "Prefers to be called Sam"})
 
-    graph = build_graph(checkpointer, store)
-    thread_id = str(uuid.uuid4())  # a genuinely new thread every run, unlike Step 1's fixed one
+def test_recall_is_per_user() -> None:
+    store = build_store()
+    save_fact(store, "sam", "preferred_name", "Name is Sam")
+    result = "OK"
+    if recall_facts(store, "amy") != []:
+        result = "WRONG"
+    print(f"case 2 (another user sees none) -> {result}")
 
-    print(f"MemoryKeeper -- user_id={USER_ID}, thread_id={thread_id}. Type 'exit' to quit.")
-    while True:
-        text = input("you: ")
-        if text.strip().lower() == "exit":
-            break
-        config = {"configurable": {"thread_id": thread_id}}
-        result = graph.invoke(
-            {"messages": [{"role": "user", "content": text}], "user_id": USER_ID},
-            config=config,
-        )
-        print("bot:", result["messages"][-1].content)
+
+def test_same_key_updates() -> None:
+    store = build_store()
+    save_fact(store, "sam", "preferred_name", "Name is Sam")
+    save_fact(store, "sam", "preferred_name", "Name is Sammy")
+    result = "OK"
+    if recall_facts(store, "sam") != ["Name is Sammy"]:
+        result = "WRONG"
+    print(f"case 3 (same key updates)       -> {result}")
 
 
 if __name__ == "__main__":
-    main()
+    test_save_then_recall()
+    test_recall_is_per_user()
+    test_same_key_updates()
 ```
-**Expected output:** run `python main.py`, immediately ask `what's my name?` -- with **zero** prior messages on this brand-new `thread_id`, it still answers `"You prefer to be called Sam."` This is the actual proof Step 2 exists for: recall came from the Store, keyed by `user_id`, not from any conversation history, because there wasn't any yet.
 
-### Approach 2 — the automated test, extending Step 1's file
-
-```python
-# test_memory_keeper.py (adds to Step 1's tests)
-import sqlite3
-import uuid
-from langgraph.checkpoint.sqlite import SqliteSaver
-from graph import build_graph
-from store import get_store, namespace_for
-
-
-def ask_as_user(user_id: str, text: str, store) -> str:
-    conn = sqlite3.connect("memory_keeper.db", check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
-    graph = build_graph(checkpointer, store)
-    thread_id = str(uuid.uuid4())  # a brand-new thread every single call, on purpose
-    config = {"configurable": {"thread_id": thread_id}}
-    result = graph.invoke(
-        {"messages": [{"role": "user", "content": text}], "user_id": user_id},
-        config=config,
-    )
-    return result["messages"][-1].content
-
-
-def test_new_thread_recalls_a_seeded_fact():
-    store = get_store()
-    store.put(namespace_for("priya"), "preferred_name", {"text": "Prefers to be called Priya"})
-    answer = ask_as_user("priya", "What's my name?", store)
-    assert "priya" in answer.lower()
-
-
-def test_unknown_user_gets_no_injected_facts_and_does_not_crash():
-    store = get_store()
-    answer = ask_as_user("brand-new-user-nobody-seeded", "What's my name?", store)
-    assert "don't know" in answer.lower() or "not sure" in answer.lower() or "no" in answer.lower()
-
-
-if __name__ == "__main__":
-    test_new_thread_recalls_a_seeded_fact()
-    print("PASS: a brand-new thread recalls a fact saved for that user_id")
-    test_unknown_user_gets_no_injected_facts_and_does_not_crash()
-    print("PASS: a user with nothing saved gets a clean, honest answer, no crash")
-```
 **Expected output:**
+
 ```
-PASS: a brand-new thread recalls a fact saved for that user_id
-PASS: a user with nothing saved gets a clean, honest answer, no crash
+case 1 (save then recall)      -> OK
+case 2 (another user sees none) -> OK
+case 3 (same key updates)       -> OK
 ```
 
-**Difference from Intermediate, and what this approach adds:** Intermediate proves `recall_node` doesn't inject its message twice within one thread. Advanced proves the actual point of the step -- a `user_id` with a saved fact is recognized on a thread that has *never existed before*, and a `user_id` with nothing saved gets a clean, non-crashing answer instead of a `KeyError` or an empty, confusing injected message.
-
-**Which one should you actually write?** Intermediate's duplicate-guard is worth keeping exactly as shown -- it's a small check that prevents a real, easy-to-miss bug once conversations run longer than a couple of turns. Write Advanced's `main.py` with a real generated `thread_id` (`uuid.uuid4()`), since a hardcoded one (Step 1's `THREAD_ID`) would accidentally let the checkpointer, not the Store, answer "what's my name?" and you'd never notice the Store wasn't actually doing the work. Keep both test functions -- the seeded-fact case and the unknown-user case -- since Step 3 will need `test_memory_keeper.py` to keep growing without you re-checking these two by hand every time.
+The key insight case 3 proves: because facts are keyed (not just appended), a later value for `preferred_name` **replaces** the old one — the dedup you need before Step 3 starts writing automatically. And because the namespace is `user_id`, a brand-new `thread_id` reading through `recall_node` still finds the user's facts — the amnesia from Step 1 is gone.

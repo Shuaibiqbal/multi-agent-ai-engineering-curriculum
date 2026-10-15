@@ -1,278 +1,406 @@
 # Step 2 — A Real ReAct Agent That Calls a Discovered Tool — Solution
 
-> [Back to this step](../README.md#step-2-a-real-react-agent-that-calls-a-discovered-tool) · [Hint 1](step2_dynamic_tool_agent_hints.md#hint-1) · [Hint 2](step2_dynamic_tool_agent_hints.md#hint-2) · [Solution](step2_dynamic_tool_agent_solution.md)
+> [Back to the step](../READING_README.md#step-2-a-real-react-agent-that-calls-a-discovered-tool) · [Hint 1](step2_dynamic_tool_agent_hints.md#hint-1) · [Hint 2](step2_dynamic_tool_agent_hints.md#hint-2)
 
-All examples below assume Step 1's `example_server.py` (with `get_weather` and `add_numbers`) and Step 1's `list_server_tools()` from `mcp_connection.py`.
+**Story:** the point of the whole project — an agent that acts on tools it never had written into it. The bridge turns discovered MCP tools into OpenAI's function shape; the loop sends them to the model and runs whatever the model picks, through the MCP client. **If not:** you'd be back to hardcoding a `@tool` function for every capability — exactly what MCP exists to avoid.
 
-## Basic Version
+## `src/tool_bridge.py`
 
-### Approach 1 — the direct way, connection kept open for the whole run
-
-```python
-# tool_bridge.py
-import json
-
-
-def mcp_tools_to_openai_schema(tools):
-    result = []
-    for tool in tools:
-        result.append({
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description or "",
-                "parameters": tool.inputSchema,
-            },
-        })
-    return result
-
-
-async def call_mcp_tool(session, name, arguments):
-    result = await session.call_tool(name, arguments)
-    parts = []
-    for block in result.content:
-        if hasattr(block, "text"):
-            parts.append(block.text)
-    return " ".join(parts)
-```
+**Story:** two small adapters. `mcp_tools_to_openai_schema` turns each discovered tool into the dict OpenAI's `tools` parameter wants — an MCP tool's `input_schema` is already JSON Schema, so it's mostly a copy. `extract_text` pulls the text out of a `CallToolResult`, which is a list of content blocks, not a plain string. **If not:** the model call would reject the tool shape, and printing a result would crash on an object that isn't a string.
 
 ```python
-# agent.py
-from openai import OpenAI
-from tool_bridge import call_mcp_tool
-
-client = OpenAI()
+# Adapters between MCP's shapes and OpenAI's. Kept in one file so the loop
+# never has to know either library's exact types.
+from src.utils.logger import get_logger
 
 
-async def run_agent(task, session, openai_tools):
-    messages = [{"role": "user", "content": task}]
-
-    while True:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            tools=openai_tools,
-        )
-        message = response.choices[0].message
-
-        if not message.tool_calls:
-            return message.content
-
-        messages.append(message)
-        for tool_call in message.tool_calls:
-            name = tool_call.function.name
-            arguments = json.loads(tool_call.function.arguments)
-            result_text = await call_mcp_tool(session, name, arguments)
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": result_text,
-            })
-```
-
-```python
-# main.py
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from tool_bridge import mcp_tools_to_openai_schema
-from agent import run_agent
+def one_openai_tool(namespaced_name, description, input_schema):
+    return {
+        "type": "function",
+        "function": {
+            "name": namespaced_name,
+            "description": description,
+            "parameters": input_schema,
+        },
+    }
 
 
-async def main():
-    server_params = StdioServerParameters(command="python", args=["example_server.py"])
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools_result = await session.list_tools()
-            openai_tools = mcp_tools_to_openai_schema(tools_result.tools)
-
-            answer = await run_agent("What's the weather in Paris, FR?", session, openai_tools)
-            print(answer)
-
-
-asyncio.run(main())
-```
-**Expected output:** something like `The weather in Paris, FR is 18C and cloudy.`
-
-This works correctly, and it makes the one connection-lifetime decision that matters: the `ClientSession` stays open for the entire agent run, opened once in `main()` and passed down into `run_agent`, instead of reconnecting per tool call. It has `while True` with no hard stop, no logging, and no handling of a tool's own `isError` flag — all fine for a first working version, all fixed below.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-a-real-react-agent-that-calls-a-discovered-tool) · [Hint 1](step2_dynamic_tool_agent_hints.md#hint-1) · [Hint 2](step2_dynamic_tool_agent_hints.md#hint-2) · [Solution](step2_dynamic_tool_agent_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — type hints, a real `max_iterations` limit, and a step log
-
-```python
-# tool_bridge.py
-from mcp.types import Tool
-
-
-def mcp_tools_to_openai_schema(tools: list[Tool]) -> list[dict]:
-    return [
-        {
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description or "",
-                "parameters": tool.inputSchema,
-            },
-        }
-        for tool in tools
-    ]
-
-
-async def call_mcp_tool(session, name: str, arguments: dict) -> str:
-    result = await session.call_tool(name, arguments)
-    parts = [block.text for block in result.content if hasattr(block, "text")]
-    return " ".join(parts) if parts else "(tool returned no text content)"
-```
-
-```python
-# agent.py
-import json
-from openai import OpenAI
-from tool_bridge import call_mcp_tool
-
-client = OpenAI()
-
-
-async def run_agent(task: str, session, openai_tools: list[dict], max_iterations: int = 6) -> dict:
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant. Use the available tools when they help answer the question."},
-        {"role": "user", "content": task},
-    ]
-    log: list[dict] = []
-
-    for step in range(max_iterations):
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            tools=openai_tools,
-        )
-        message = response.choices[0].message
-
-        if not message.tool_calls:
-            log.append({"step": step, "type": "final_answer", "content": message.content})
-            return {"answer": message.content, "log": log}
-
-        messages.append(message)
-        for tool_call in message.tool_calls:
-            name = tool_call.function.name
-            arguments = json.loads(tool_call.function.arguments)
-            log.append({"step": step, "type": "tool_call", "tool": name, "arguments": arguments})
-
-            result_text = await call_mcp_tool(session, name, arguments)
-            log.append({"step": step, "type": "observation", "tool": name, "result": result_text})
-
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": result_text,
-            })
-
-    raise RuntimeError(f"Agent did not finish within {max_iterations} steps. Log: {log}")
-```
-**Expected output**, printing `result["log"]` after a run: a list showing each `tool_call` paired with its `observation`, ending in one `final_answer` entry — the full scratchpad, not just the final string.
-
-**Difference from Basic:** a real, typed `max_iterations` cap instead of `while True` — Doc07's "a limit isn't optional" applied for real. Every step is logged as it happens (call and result both recorded), and the return value is a small dict carrying both the answer and the full log, instead of just a bare string — Step 4's testing needs that log to confirm *what actually happened* during a run, not just whether the final answer looked right.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-a-real-react-agent-that-calls-a-discovered-tool) · [Hint 1](step2_dynamic_tool_agent_hints.md#hint-1) · [Hint 2](step2_dynamic_tool_agent_hints.md#hint-2) · [Solution](step2_dynamic_tool_agent_solution.md)
-
-## Advanced Version
-
-### Approach 1 — handles `isError`, a missing description, and a named `MaxIterationsExceeded`
-
-```python
-# tool_bridge.py
-import logging
-from mcp.types import Tool
-
-logger = logging.getLogger(__name__)
-
-
-def mcp_tools_to_openai_schema(tools: list[Tool]) -> list[dict]:
+def mcp_tools_to_openai_schema(named_tools):
+    logger = get_logger(__name__)
     schemas = []
-    for tool in tools:
-        if not tool.description:
-            logger.warning("Tool '%s' has no description -- the model will struggle to know when to use it.", tool.name)
-        schemas.append({
-            "type": "function",
-            "function": {
-                "name": tool.name,
-                "description": tool.description or f"(no description provided for '{tool.name}')",
-                "parameters": tool.inputSchema,
-            },
-        })
+    for namespaced_name, tool in named_tools:
+        description = tool.description
+        if description is None:
+            description = ""
+        schemas.append(
+            one_openai_tool(namespaced_name, description, tool.input_schema)
+        )
+    logger.info(f"converted {len(schemas)} MCP tools to OpenAI schema")
     return schemas
 
 
-async def call_mcp_tool(session, name: str, arguments: dict) -> str:
-    result = await session.call_tool(name, arguments)
-    parts = [block.text for block in result.content if hasattr(block, "text")]
-    text = " ".join(parts) if parts else "(tool returned no text content)"
-    if result.isError:
-        return f"Error from tool '{name}': {text}"
-    return text
+def extract_text(call_result):
+    parts = []
+    for block in call_result.content:
+        text = getattr(block, "text", None)
+        if text is not None:
+            parts.append(text)
+    return "\n".join(parts)
 ```
+
+`named_tools` is the list of `(namespaced_name, mcp_tool)` pairs the pool already built in Step 1 — the bridge never touches a raw server, only what was discovered.
+
+## `src/server_pool.py` — two methods added
+
+**Story:** the pool now also hands out the OpenAI-shaped tool list and dispatches a call by its namespaced name. The loop calls these two methods and nothing else. **If not:** the agent would need to know about sessions and routing, instead of just "here are the tools, call this one."
+
+Add these two methods to the `MCPServerPool` class from Step 1:
 
 ```python
-# agent.py
-import json
+    def openai_tools(self):
+        return mcp_tools_to_openai_schema(self.named_tools)
+
+    async def call_tool(self, namespaced_name, arguments):
+        server_name, tool_name = self.routing[namespaced_name]
+        session = self.sessions[server_name]
+        result = await session.call_tool(tool_name, arguments)
+        return extract_text(result)
+```
+
+and the imports at the top of the file:
+
+```python
+from src.tool_bridge import extract_text, mcp_tools_to_openai_schema
+```
+
+(Step 4 wraps `call_tool`'s dispatch in a `try/except`; for now a clean call is enough.)
+
+## `src/models/llm.py`
+
+**Story:** the one file that talks to OpenAI — create the client, and one `ask_model()` that sends the conversation plus the discovered tools and returns the model's message. **If not:** OpenAI calls would be scattered through the loop, and swapping the model or adding a startup check would mean editing several files.
+
+```python
+# The only file that talks to the OpenAI SDK: the client, a startup key
+# check, and the one tool-calling request the ReAct loop makes.
+import openai
 from openai import OpenAI
-from tool_bridge import call_mcp_tool
 
-client = OpenAI()
+from src.config import Config
 
-
-class MaxIterationsExceeded(Exception):
-    def __init__(self, message: str, log: list[dict]):
-        super().__init__(message)
-        self.log = log
+MODEL = "gpt-4o-mini"
 
 
-async def run_agent(task: str, session, openai_tools: list[dict], max_iterations: int = 6) -> dict:
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant. Use the available tools when they help answer the question."},
+def create_client(config: Config) -> OpenAI:
+    return OpenAI(api_key=config.openai_api_key)
+
+
+def check_api_key_at_startup(client: OpenAI) -> bool:
+    try:
+        client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=1,
+        )
+    except openai.AuthenticationError:
+        return False
+    return True
+
+
+def ask_model(client, messages, tools):
+    response = client.chat.completions.create(
+        model=MODEL, messages=messages, tools=tools
+    )
+    return response.choices[0].message
+```
+
+## `src/agent.py`
+
+**Story:** the hand-built ReAct loop (no `create_agent`/`AgentExecutor`) — ask the model, run any tool calls through the pool, append each result as a `tool` message, repeat until the model answers with no tool calls. A plain `max_iterations` cap stops a runaway loop. **If not:** a confused model could call tools forever, and the "discovered tools" idea would have no loop to prove it.
+
+```python
+# The ReAct loop: think (ask the model) -> act (call a discovered tool via
+# the pool) -> observe (feed the result back). Bounded by max_iterations.
+import json
+from dataclasses import dataclass
+
+from src.exceptions import MaxIterationsExceeded
+from src.models.llm import ask_model
+from src.utils.logger import get_logger
+
+
+@dataclass
+class AgentResult:
+    answer: str
+    steps: list
+
+
+def build_messages(task):
+    system = (
+        "You are a helpful agent. Use the available tools to answer the "
+        "task. When you have enough information, answer in plain words."
+    )
+    return [
+        {"role": "system", "content": system},
         {"role": "user", "content": task},
     ]
-    log: list[dict] = []
 
-    for step in range(max_iterations):
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            tools=openai_tools,
-        )
-        message = response.choices[0].message
 
-        if not message.tool_calls:
-            log.append({"step": step, "type": "final_answer", "content": message.content})
-            return {"answer": message.content, "log": log}
+async def run_agent(task, pool, client, max_iterations=6):
+    logger = get_logger(__name__)
+    messages = build_messages(task)
+    tools = pool.openai_tools()
+    steps = []
 
-        messages.append(message)
-        for tool_call in message.tool_calls:
-            name = tool_call.function.name
-            arguments = json.loads(tool_call.function.arguments)
-            log.append({"step": step, "type": "tool_call", "tool": name, "arguments": arguments})
+    for step_number in range(max_iterations):
+        reply = ask_model(client, messages, tools)
+        if not reply.tool_calls:
+            logger.info("agent finished with a final answer")
+            return AgentResult(answer=reply.content, steps=steps)
 
-            result_text = await call_mcp_tool(session, name, arguments)
-            log.append({"step": step, "type": "observation", "tool": name, "result": result_text})
-
+        messages.append({
+            "role": "assistant",
+            "content": reply.content,
+            "tool_calls": _tool_calls_as_dicts(reply.tool_calls),
+        })
+        for call in reply.tool_calls:
+            name = call.function.name
+            arguments = json.loads(call.function.arguments)
+            logger.info(f"step {step_number}: calling {name} {arguments}")
+            observation = await pool.call_tool(name, arguments)
+            steps.append({"tool": name, "args": arguments,
+                          "observation": observation})
             messages.append({
                 "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": result_text,
+                "tool_call_id": call.id,
+                "content": observation,
             })
 
-    raise MaxIterationsExceeded(f"Agent did not finish within {max_iterations} steps", log)
+    raise MaxIterationsExceeded(
+        f"agent did not finish within {max_iterations} steps"
+    )
+
+
+def _tool_calls_as_dicts(tool_calls):
+    out = []
+    for call in tool_calls:
+        out.append({
+            "id": call.id,
+            "type": "function",
+            "function": {
+                "name": call.function.name,
+                "arguments": call.function.arguments,
+            },
+        })
+    return out
 ```
-**Expected output**, on a task where a tool call is given a deliberately bad argument (like a `note_id` that doesn't exist): the `observation` log entry reads `"Error from tool 'read_note': ..."`, and the model's *next* message reacts to that error (asking for a different ID, or telling the user the note wasn't found) instead of stating a made-up note's contents as fact.
 
-**Difference from Intermediate, and from Approach 1's earlier form:** Intermediate's version treats every tool result as a success. This Approach checks `result.isError` explicitly and labels a tool's *self-reported* failure clearly, the same way Doc06 taught for a Python exception's error message — the model gets a real chance to react correctly to a failure it can actually see, instead of reading error text with no signal that it *was* an error. It also warns (not fails) on a missing tool description, and replaces the plain `RuntimeError` with a named `MaxIterationsExceeded` carrying the log, so calling code can catch it specifically and still inspect what happened.
+## `main.py` — now runs the agent
 
-**Which one should you actually write?** Advanced Approach 1's version — treat `isError` handling and a named `MaxIterationsExceeded` as non-negotiable the moment tools come from a server you don't control, since a discovered tool failing in a way your bridge code silently swallows is exactly the kind of bug that's invisible until a demo goes wrong in front of someone. Basic's plain `while True` version is fine as a five-minute proof that the wiring works, but replace it with Intermediate's typed, limited loop before building anything else on top of it — Step 3 and Step 4 both extend this exact loop, so its shape needs to be right now.
+```python
+# Step 2 demo: connect to one server, discover its tools, and run the
+# agent on a real task — printing each tool call and the final answer.
+import asyncio
+import sys
+
+from src.agent import run_agent
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.models.llm import create_client
+from src.server_pool import MCPServerPool
+from src.servers_config import SERVERS
+
+TASK = "What does my note about the Q3 roadmap say?"
+
+
+async def run_demo():
+    try:
+        config = load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
+
+    client = create_client(config)
+    pool = MCPServerPool(SERVERS, connect_timeout=config.connect_timeout)
+    await pool.connect_all()
+    print(f"Connected servers: {list(pool.sessions.keys())}")
+    print(f"Tools discovered: {len(pool.named_tools)}")
+    try:
+        print(f"\nTask: {TASK}")
+        result = await run_agent(
+            TASK, pool, client, max_iterations=config.max_iterations
+        )
+        for step in result.steps:
+            print(f"  -> {step['tool']} {step['args']}")
+        print(f"Answer: {result.answer}")
+    finally:
+        await pool.aclose()
+
+
+def main():
+    asyncio.run(run_demo())
+
+
+if __name__ == "__main__":
+    main()
+```
+
+**Expected output** (`python main.py`, with a real key) — the chained case: `search_notes` finds the note id, then `read_note` reads it using that id.
+
+```
+Connected servers: ['notes']
+Tools discovered: 2
+
+Task: What does my note about the Q3 roadmap say?
+  -> notes__search_notes {'query': 'roadmap'}
+  -> notes__read_note {'note_id': 'n1'}
+Answer: Your Q3 roadmap note says to ship the billing API first, then the
+mobile app beta.
+```
+
+## `tests/unit/test_tool_bridge.py`
+
+```python
+# Checks the schema bridge with tiny fakes — no server, no network.
+# Run from the repo root: python -m tests.unit.test_tool_bridge
+from src.tool_bridge import extract_text, mcp_tools_to_openai_schema
+
+
+class FakeTool:
+    def __init__(self, name, description, input_schema):
+        self.name = name
+        self.description = description
+        self.input_schema = input_schema
+
+
+class FakeBlock:
+    def __init__(self, text):
+        self.text = text
+
+
+class FakeResult:
+    def __init__(self, texts):
+        self.content = []
+        for text in texts:
+            self.content.append(FakeBlock(text))
+
+
+def test_schema_shape() -> None:
+    tool = FakeTool("search_notes", "Search notes.",
+                    {"type": "object", "properties": {}})
+    schemas = mcp_tools_to_openai_schema([("notes__search_notes", tool)])
+    one = schemas[0]
+    result = "OK"
+    if one["type"] != "function":
+        result = "WRONG"
+    if one["function"]["name"] != "notes__search_notes":
+        result = "WRONG"
+    if one["function"]["description"] != "Search notes.":
+        result = "WRONG"
+    if "properties" not in one["function"]["parameters"]:
+        result = "WRONG"
+    print(f"case 1 (openai schema shape)   -> {result}")
+
+
+def test_missing_description() -> None:
+    tool = FakeTool("t", None, {"type": "object"})
+    schemas = mcp_tools_to_openai_schema([("s__t", tool)])
+    result = "OK"
+    if schemas[0]["function"]["description"] != "":
+        result = "WRONG"
+    print(f"case 2 (None description -> '') -> {result}")
+
+
+def test_extract_text_joins() -> None:
+    result_obj = FakeResult(["line one", "line two"])
+    text = extract_text(result_obj)
+    result = "OK"
+    if text != "line one\nline two":
+        result = "WRONG"
+    print(f"case 3 (extract_text joins)    -> {result}")
+
+
+if __name__ == "__main__":
+    test_schema_shape()
+    test_missing_description()
+    test_extract_text_joins()
+```
+
+**Expected output:**
+
+```
+case 1 (openai schema shape)   -> OK
+case 2 (None description -> '') -> OK
+case 3 (extract_text joins)    -> OK
+```
+
+## `tests/integration/test_agent.py` (cases 1–2)
+
+**Story:** the real proof — launch the example server over a real MCP connection and confirm the agent discovers its tools and chains two calls. **If not:** a unit test with fakes could pass while the real protocol path was broken.
+
+```python
+# Integration test: launches the real example servers over MCP. Each case
+# prints OK or WRONG. Run from the repo root:
+#   python -m tests.integration.test_agent
+import asyncio
+
+from src.agent import run_agent
+from src.config import load_config
+from src.models.llm import create_client
+from src.server_pool import MCPServerPool
+
+NOTES = {"name": "notes", "command": "python",
+         "args": ["servers/notes_server.py"]}
+
+
+async def connect(servers):
+    config = load_config()
+    client = create_client(config)
+    pool = MCPServerPool(servers, connect_timeout=config.connect_timeout)
+    await pool.connect_all()
+    return config, client, pool
+
+
+async def test_discovery_namespaced() -> None:
+    config, client, pool = await connect([NOTES])
+    names = []
+    for namespaced, tool in pool.named_tools:
+        names.append(namespaced)
+    result = "OK"
+    if "notes__search_notes" not in names:
+        result = "WRONG"
+    if "notes__read_note" not in names:
+        result = "WRONG"
+    await pool.aclose()
+    print(f"case 1 (tools discovered + namespaced) -> {result}")
+
+
+async def test_chained_single_server() -> None:
+    config, client, pool = await connect([NOTES])
+    out = await run_agent("What does my note about the Q3 roadmap say?",
+                          pool, client, config.max_iterations)
+    result = "OK"
+    if len(out.steps) != 2:
+        result = "WRONG"
+    if out.steps[0]["tool"] != "notes__search_notes":
+        result = "WRONG"
+    if out.steps[1]["tool"] != "notes__read_note":
+        result = "WRONG"
+    await pool.aclose()
+    print(f"case 2 (chained search then read)      -> {result}")
+
+
+async def main() -> None:
+    await test_discovery_namespaced()
+    await test_chained_single_server()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Expected output** (cases 3–4 are added in Steps 3 and 4):
+
+```
+case 1 (tools discovered + namespaced) -> OK
+case 2 (chained search then read)      -> OK
+```

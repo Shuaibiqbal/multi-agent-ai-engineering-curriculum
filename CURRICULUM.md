@@ -7,7 +7,6 @@ Rules we're following (from you, kept short):
 - Every topic gets: WHAT / WHY / WHEN / WHERE / HOW / HOW IT WORKS UNDERNEATH / ALTERNATIVES / TRADE-OFFS / COMMON MISTAKES / HOW IT'S USED IN PRODUCTION.
 - Every topic goes: theory → practice (you code) → build → break → debug → explain → interview practice.
 - No document starts until you type **START DOCUMENT 01** (or the number of whichever document you want).
-- Progress is tracked in `PROGRESS.md` (🟢 mastered / 🟡 needs practice / 🔴 not learned yet), updated at the end of every document.
 - Folder rule: each document gets a `NN_topic_name/` folder, and each project gets a `project_N_name/` folder, made when we actually start it — not built ahead of time.
 
 ---
@@ -59,17 +58,17 @@ Everything else matches your numbering exactly.
         ↓
 13 Testing, Evaluation & Watching Your System
         ↓
-14 Debugging Lab (covers everything: every failure type from Docs 01-13, practiced together)
+14 Debugging Lab (every failure type from Docs 01-13, practiced together)
         ↓
-15 Five Projects (an index page linking each project brief back to its documents)
+15 Five Projects (an index linking each project brief to its documents)
         ↓
 16 System Design & Architecture
         ↓
-17 Interview Preparation (covers everything: pulls together interview practice from every document)
+17 Interview Preparation (pulls interview practice from every document)
         ↓
 18 Final Production Multi-Agent Capstone  ──► PROJECT 5 (Production system)
         ↓
-19 MLOps & LLMOps (versions, gated releases, rollback, watching for slow decline — running Project 5)
+19 MLOps & LLMOps (versions, gated releases, rollback, slow-decline watch)
 ```
 
 **Document 19 got added after your original request**, at your ask ("MLOps and Docker stuff too"). It sits after the capstone on purpose — MLOps only makes sense once there's a real system (Project 5) to run. Docker itself is covered where it belongs, inside Doc12, since it's part of shipping *one* version. Doc19 is about safely changing that shipped system afterward.
@@ -331,4 +330,4 @@ By Document 19 you should be able to, on your own, without AI writing the code f
 
 Roadmap complete. Nothing has been taught yet — as you asked, I'm stopping here.
 
-Say **START DOCUMENT 01** (or name any document/checkpoint above) when you're ready. Progress will be tracked in `PROGRESS.md` from that point on.
+Say **START DOCUMENT 01** (or name any document/checkpoint above) when you're ready.

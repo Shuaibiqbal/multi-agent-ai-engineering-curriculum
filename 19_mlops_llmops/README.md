@@ -615,20 +615,20 @@ Before each call: if `breaker.is_open()`, skip the main provider and go straight
 
 ```
 practice/
-├── version_log_practice.py       Basic
+├── build_task/                   Build Task — its own folder
+├── canary_release_practice.py    Real-world
 ├── release_gate_practice.py      Intermediate + Edge cases
 │                                   (2 sections)
-├── canary_release_practice.py    Real-world
 ├── rollback_trigger_practice.py  Failure
-└── build_task/                   Build Task — its own folder
+└── version_log_practice.py       Basic
 ```
 
 **Why each script exists:**
 
-- `version_log_practice.py` — every prompt version saved with its text and time, never overwritten, so "which version was live?" has an answer.
-- `release_gate_practice.py` — a gate that only lets a version go live if its score clears the bar, then proof it can't be skipped by editing a file.
 - `canary_release_practice.py` — a small share of traffic on the new version, with quality *and* cost compared against the old one.
+- `release_gate_practice.py` — a gate that only lets a version go live if its score clears the bar, then proof it can't be skipped by editing a file.
 - `rollback_trigger_practice.py` — a trigger that fires when scores really drop, and fires only once.
+- `version_log_practice.py` — every prompt version saved with its text and time, never overwritten, so "which version was live?" has an answer.
 
 **How to run each exercise:** if two exercises below are really about the same thing, save them together in ONE script named after that topic, with each level's version as its own clearly labeled section inside it. Run each topic's file from inside `practice/`, for example: `python version_log_practice.py`.
 
@@ -710,20 +710,20 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 **Suggested files:**
 ```
 19_mlops_llmops/practice/build_task/
-├── versioning.py         VersionRecord, save/load/get a version
 ├── deploy_gate.py        deploy() -> DeployResult, event history
-├── rollback.py           rollback_to_previous() -> VersionRecord
 ├── main.py               runs one save / deploy / rollback cycle
-└── test_deploy_gate.py   one test per row of the Test Cases table
+├── rollback.py           rollback_to_previous() -> VersionRecord
+├── test_deploy_gate.py   one test per row of the Test Cases table
+└── versioning.py         VersionRecord, save/load/get a version
 ```
 
 **Why each file exists:**
 
-- `versioning.py` — `version_log`'s load-then-append record, with each version as a typed `VersionRecord`.
 - `deploy_gate.py` — `release_gate`'s gate and `DeployResult`; every decision is a timestamped event, and "what's live" is worked out from those events (`gate_bypass`'s idea), so there's no pointer file to edit.
-- `rollback.py` — goes back to the last version that *passed*, never to one the gate refused.
 - `main.py` — one short run that shows the whole cycle working.
+- `rollback.py` — goes back to the last version that *passed*, never to one the gate refused.
 - `test_deploy_gate.py` — the Test Cases table below as pytest tests, in the same style as Doc13.
+- `versioning.py` — `version_log`'s load-then-append record, with each version as a typed `VersionRecord`.
 
 **Functions/Components to build:**
 

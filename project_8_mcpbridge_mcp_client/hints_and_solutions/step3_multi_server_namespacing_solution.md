@@ -1,242 +1,176 @@
 # Step 3 — Multiple MCP Servers at Once, With Tool Namespacing — Solution
 
-> [Back to this step](../README.md#step-3-multiple-mcp-servers-at-once-with-tool-namespacing) · [Hint 1](step3_multi_server_namespacing_hints.md#hint-1) · [Hint 2](step3_multi_server_namespacing_hints.md#hint-2) · [Solution](step3_multi_server_namespacing_solution.md)
+> [Back to the step](../READING_README.md#step-3-multiple-mcp-servers-at-once-with-tool-namespacing) · [Hint 1](step3_multi_server_namespacing_hints.md#hint-1) · [Hint 2](step3_multi_server_namespacing_hints.md#hint-2)
 
-All examples below assume two small servers, `notes_server.py` (tools `search_notes`, `read_note`) and `filesystem_server.py` (tools `list_files`, `read_file`) — each a `MCPServer` server in the same shape as Step 1's `example_server.py`, and this config:
+**Story:** a real agent needs tools from more than one source — a notes server *and* a filesystem server. Two servers can expose the same tool name, so each discovered tool is namespaced `servername__toolname`, and a routing table maps that back to the real server + tool. The pool already did this in Step 1; this step is where it earns its keep. **If not:** two `search` tools would collide, and a call meant for one server would silently hit the other.
+
+The pool code doesn't change this step — it already namespaces and routes. What's new is a **second server** and a task that needs both.
+
+## `servers/files_server.py`
+
+**Story:** a second tiny server, a different domain. Now there are two independent tool sources, exactly like two teams' services. **If not:** you could never prove routing actually picks the right server — one server can't collide with itself.
+
 ```python
-# servers_config.py
+# A second minimal MCP server (files), launched as its own subprocess.
+# Independent of the notes server — a different domain, its own tools.
+import sys
+from mcp.server.mcpserver import MCPServer
+
+mcp = MCPServer("files-server")
+
+FILES = {
+    "project": ["app.py", "config.yaml", "deploy.sh", "README.md"],
+}
+
+
+@mcp.tool()
+def list_files(directory: str) -> str:
+    """List the file names in a directory."""
+    if directory not in FILES:
+        return f"Error: no directory named {directory}"
+    return "\n".join(FILES[directory])
+
+
+@mcp.tool()
+def read_file(path: str) -> str:
+    """Read the text of one file by its path."""
+    return f"(pretend contents of {path})"
+
+
+if __name__ == "__main__":
+    print("files server starting", file=sys.stderr)
+    mcp.run(transport="stdio")
+```
+
+## `src/servers_config.py` — now two servers
+
+```python
+# The servers to connect to, as plain data. The agent never hardcodes
+# these servers' tools — only how to launch them.
 SERVERS = [
-    {"name": "notes", "command": "python", "args": ["notes_server.py"]},
-    {"name": "filesystem", "command": "python", "args": ["filesystem_server.py"]},
+    {"name": "notes", "command": "python",
+     "args": ["servers/notes_server.py"]},
+    {"name": "filesystem", "command": "python",
+     "args": ["servers/files_server.py"]},
 ]
 ```
 
-## Basic Version
+## Why the namespacing matters — and the gotcha
 
-### Approach 1 — the direct way
-
-```python
-# server_pool.py
-from contextlib import AsyncExitStack
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from tool_bridge import call_mcp_tool
-
-
-class MCPServerPool:
-    def __init__(self):
-        self._sessions = {}
-        self._routing = {}
-        self._stack = AsyncExitStack()
-
-    async def connect_all(self, servers_config):
-        openai_tools = []
-        for server in servers_config:
-            params = StdioServerParameters(command=server["command"], args=server["args"])
-            read, write = await self._stack.enter_async_context(stdio_client(params))
-            session = await self._stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            self._sessions[server["name"]] = session
-
-            tools_result = await session.list_tools()
-            for tool in tools_result.tools:
-                namespaced_name = server["name"] + "__" + tool.name
-                self._routing[namespaced_name] = (server["name"], tool.name)
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": namespaced_name,
-                        "description": tool.description or "",
-                        "parameters": tool.inputSchema,
-                    },
-                })
-        return openai_tools
-
-    async def call_tool(self, namespaced_name, arguments):
-        server_name, original_name = self._routing[namespaced_name]
-        session = self._sessions[server_name]
-        return await call_mcp_tool(session, original_name, arguments)
-
-    async def close(self):
-        await self._stack.aclose()
-```
-**Expected output**, calling `pool.connect_all(SERVERS)`: an `openai_tools` list where every entry's `name` looks like `notes__search_notes`, `notes__read_note`, `filesystem__list_files`, `filesystem__read_file` — four tools, from two servers, in one flat list.
-
-This works correctly. There's no check for a duplicate `server["name"]` in the config, and `call_tool` will raise a plain `KeyError` if the model somehow sends back a name that was never registered — both fine for a first working version, both fixed below.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-3-multiple-mcp-servers-at-once-with-tool-namespacing) · [Hint 1](step3_multi_server_namespacing_hints.md#hint-1) · [Hint 2](step3_multi_server_namespacing_hints.md#hint-2) · [Solution](step3_multi_server_namespacing_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — type hints, and `agent.py` updated to call through the pool
+The pool namespaces every tool as `servername__toolname` and keeps a routing dict:
 
 ```python
-# server_pool.py (unchanged from Basic, plus type hints)
-from contextlib import AsyncExitStack
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from tool_bridge import call_mcp_tool
-
-NAMESPACE_SEP = "__"
-
-
-class MCPServerPool:
-    def __init__(self) -> None:
-        self._sessions: dict[str, ClientSession] = {}
-        self._routing: dict[str, tuple[str, str]] = {}
-        self._stack = AsyncExitStack()
-
-    async def connect_all(self, servers_config: list[dict]) -> list[dict]:
-        openai_tools: list[dict] = []
-        for server in servers_config:
-            params = StdioServerParameters(command=server["command"], args=server["args"])
-            read, write = await self._stack.enter_async_context(stdio_client(params))
-            session = await self._stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            self._sessions[server["name"]] = session
-
-            tools_result = await session.list_tools()
-            for tool in tools_result.tools:
-                namespaced_name = f"{server['name']}{NAMESPACE_SEP}{tool.name}"
-                self._routing[namespaced_name] = (server["name"], tool.name)
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": namespaced_name,
-                        "description": tool.description or "",
-                        "parameters": tool.inputSchema,
-                    },
-                })
-        return openai_tools
-
-    async def call_tool(self, namespaced_name: str, arguments: dict) -> str:
-        server_name, original_name = self._routing[namespaced_name]
-        session = self._sessions[server_name]
-        return await call_mcp_tool(session, original_name, arguments)
-
-    async def close(self) -> None:
-        await self._stack.aclose()
+# built inside connect_all(), per discovered tool:
+namespaced = name + NAME_SEPARATOR + tool.name     # "notes__search_notes"
+self.routing[namespaced] = (name, tool.name)   # -> ("notes","search_notes")
 ```
 
-```python
-# agent.py -- only the tool-calling round changes from Step 2
-...
-for tool_call in message.tool_calls:
-    name = tool_call.function.name          # now a namespaced name, e.g. "notes__search_notes"
-    arguments = json.loads(tool_call.function.arguments)
-    log.append({"step": step, "type": "tool_call", "tool": name, "arguments": arguments})
+**The gotcha, worth stating plainly:** OpenAI's function-name field allows only letters, digits, underscores, and hyphens. A human-readable `notes.search_notes` with a `.` is **rejected** by the API. That's why the separator is `__` (`NAME_SEPARATOR = "__"`), not `.`. The model only ever sees the namespaced name; `pool.call_tool` uses the routing dict to turn it back into the real `(server, tool)` pair before dispatching.
 
-    result_text = await pool.call_tool(name, arguments)   # was call_mcp_tool(session, ...)
-    log.append({"step": step, "type": "observation", "tool": name, "result": result_text})
-
-    messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": result_text})
-...
-```
-**Expected output:** identical run shape to Step 2, except the loop's `run_agent` signature now takes `pool: MCPServerPool` instead of `session: ClientSession`, and each log entry's `tool` field shows exactly which server the call belonged to (the `notes__` or `filesystem__` prefix), not just a bare tool name.
-
-**Difference from Basic:** full type hints, a named `NAMESPACE_SEP` constant instead of a magic string repeated in two places, and `agent.py` shown updated to call through the pool — Step 2's loop logic doesn't change at all, only *what* it calls to actually run a tool.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-3-multiple-mcp-servers-at-once-with-tool-namespacing) · [Hint 1](step3_multi_server_namespacing_hints.md#hint-1) · [Hint 2](step3_multi_server_namespacing_hints.md#hint-2) · [Solution](step3_multi_server_namespacing_solution.md)
-
-## Advanced Version
-
-### Approach 1 — guards against duplicate server names and an unknown tool call
+## `main.py` — a task that needs both servers
 
 ```python
-# server_pool.py
-from contextlib import AsyncExitStack
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from tool_bridge import call_mcp_tool
-
-NAMESPACE_SEP = "__"
-
-
-class UnknownToolError(Exception):
-    pass
-
-
-class MCPServerPool:
-    def __init__(self) -> None:
-        self._sessions: dict[str, ClientSession] = {}
-        self._routing: dict[str, tuple[str, str]] = {}
-        self._stack = AsyncExitStack()
-
-    async def connect_all(self, servers_config: list[dict]) -> list[dict]:
-        seen_names = set()
-        for server in servers_config:
-            if server["name"] in seen_names:
-                raise ValueError(f"Duplicate server name in config: '{server['name']}'")
-            seen_names.add(server["name"])
-
-        openai_tools: list[dict] = []
-        for server in servers_config:
-            params = StdioServerParameters(command=server["command"], args=server["args"])
-            read, write = await self._stack.enter_async_context(stdio_client(params))
-            session = await self._stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
-            self._sessions[server["name"]] = session
-
-            tools_result = await session.list_tools()
-            for tool in tools_result.tools:
-                namespaced_name = f"{server['name']}{NAMESPACE_SEP}{tool.name}"
-                self._routing[namespaced_name] = (server["name"], tool.name)
-                openai_tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": namespaced_name,
-                        "description": tool.description or "",
-                        "parameters": tool.inputSchema,
-                    },
-                })
-        return openai_tools
-
-    async def call_tool(self, namespaced_name: str, arguments: dict) -> str:
-        if namespaced_name not in self._routing:
-            raise UnknownToolError(f"'{namespaced_name}' was never discovered from any connected server.")
-        server_name, original_name = self._routing[namespaced_name]
-        session = self._sessions[server_name]
-        return await call_mcp_tool(session, original_name, arguments)
-
-    async def close(self) -> None:
-        await self._stack.aclose()
-```
-
-```python
-# main.py
+# Step 3 demo: connect to BOTH servers and run a task that needs tools
+# from each — printing which namespaced tool handled each step.
 import asyncio
-from servers_config import SERVERS
-from server_pool import MCPServerPool
-from agent import run_agent
+import sys
+
+from src.agent import run_agent
+from src.config import load_config
+from src.exceptions import MissingConfigError
+from src.models.llm import create_client
+from src.server_pool import MCPServerPool
+from src.servers_config import SERVERS
+
+TASK = ("Check my notes for anything about the deploy process, and also "
+        "list the files in the project folder.")
 
 
-async def main():
-    pool = MCPServerPool()
+async def run_demo():
     try:
-        openai_tools = await pool.connect_all(SERVERS)
-        print(f"Connected. {len(openai_tools)} tools available: {[t['function']['name'] for t in openai_tools]}")
+        config = load_config()
+    except MissingConfigError as e:
+        print(f"Setup problem: {e}")
+        sys.exit(1)
 
+    client = create_client(config)
+    pool = MCPServerPool(SERVERS, connect_timeout=config.connect_timeout)
+    await pool.connect_all()
+    print(f"Connected servers: {list(pool.sessions.keys())}")
+    print(f"Tools discovered: {len(pool.named_tools)}")
+    try:
+        print(f"\nTask: {TASK}")
         result = await run_agent(
-            "Check my notes for anything about the deploy process, and also check "
-            "if there's a deploy script in the project folder.",
-            pool,
-            openai_tools,
+            TASK, pool, client, max_iterations=config.max_iterations
         )
-        print(result["answer"])
-        for entry in result["log"]:
-            print(entry)
+        for step in result.steps:
+            print(f"  -> {step['tool']} {step['args']}")
+        print(f"Answer: {result.answer}")
     finally:
-        await pool.close()
+        await pool.aclose()
 
 
-asyncio.run(main())
+def main():
+    asyncio.run(run_demo())
+
+
+if __name__ == "__main__":
+    main()
 ```
-**Expected output:** the connect line lists all 4 namespaced tools; the log shows at least one `notes__...` call and at least one `filesystem__...` call within the same run, proving the single task actually routed to both servers — the direct test of task 3 from **A Real Example**.
 
-**Difference from Intermediate, and between these Advanced pieces:** Intermediate's pool works correctly but trusts the config and every incoming tool name blindly. This Approach adds two real guards: a duplicate `server["name"]` in the config fails loudly at `connect_all` time (before any subprocess is even launched), and a namespaced name the model somehow produces that was never actually discovered raises a named `UnknownToolError` instead of a confusing `KeyError` two lines down. The `main.py` shown also demonstrates the `try`/`finally` cleanup discipline — `pool.close()` runs even if the agent raises partway through, so a crash never leaves orphaned server subprocesses running.
+**Expected output** (`python main.py`) — one call routes to the notes server, one to the filesystem server:
 
-**Which one should you actually write?** Advanced Approach 1. The duplicate-name guard and the `UnknownToolError` are both cheap to add and turn a confusing failure (a `KeyError` on some internal dict, or two servers silently overwriting each other's tools) into a clear, named one — exactly Doc02's error-handling instinct, applied here. The `try`/`finally` around `pool.close()` in `main.py` is not optional once you're running real subprocesses; skipping it is how you end up with orphaned server processes still running in the background after your script has already exited.
+```
+Connected servers: ['notes', 'filesystem']
+Tools discovered: 4
+
+Task: Check my notes for anything about the deploy process, and also list
+the files in the project folder.
+  -> notes__search_notes {'query': 'deploy'}
+  -> filesystem__list_files {'directory': 'project'}
+Answer: Your notes say the deploy process runs deploy.sh after the staging
+check; the project folder contains app.py, config.yaml, deploy.sh and
+README.md.
+```
+
+## `tests/integration/test_agent.py` — add case 3
+
+Add the `FILES` server and this case to the integration test:
+
+```python
+FILES = {"name": "filesystem", "command": "python",
+         "args": ["servers/files_server.py"]}
+
+
+async def test_routing_across_servers() -> None:
+    config, client, pool = await connect([NOTES, FILES])
+    task = ("Check my notes for anything about the deploy process, and also "
+            "list the files in the project folder.")
+    out = await run_agent(task, pool, client, config.max_iterations)
+    tools_used = []
+    for step in out.steps:
+        tools_used.append(step["tool"])
+    result = "OK"
+    if "notes__search_notes" not in tools_used:
+        result = "WRONG"
+    if "filesystem__list_files" not in tools_used:
+        result = "WRONG"
+    await pool.aclose()
+    print(f"case 3 (routes to both servers)        -> {result}")
+```
+
+and call it from `main()`:
+
+```python
+    await test_routing_across_servers()
+```
+
+**Expected output:**
+
+```
+case 1 (tools discovered + namespaced) -> OK
+case 2 (chained search then read)      -> OK
+case 3 (routes to both servers)        -> OK
+```
+
+The case checks the *tools used*, not just the final text — that's what proves each namespaced call reached the server you expected, not that the answer happened to look right.

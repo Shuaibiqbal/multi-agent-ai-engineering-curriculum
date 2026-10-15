@@ -1,184 +1,153 @@
-# Step 2 — Style Reviewer With RAG — Solution
+# Step 2 — The Style Reviewer, Grounded in Your Style Guide With RAG — Solution
 
-> [Back to this step](../README.md#step-2-that-reviewer-turned-into-an-agent-add-the-style-reviewer-with-rag) · [Hint 1](step2_style_reviewer_rag_hints.md#hint-1) · [Hint 2](step2_style_reviewer_rag_hints.md#hint-2) · [Solution](step2_style_reviewer_rag_solution.md)
+> [Back to the step](../READING_README.md#step-2-the-style-reviewer-grounded-in-your-style-guide-with-rag) · [Hint 1](step2_style_reviewer_rag_hints.md#hint-1) · [Hint 2](step2_style_reviewer_rag_hints.md#hint-2)
 
-## Basic Version
+**Story:** the Style reviewer, grounded in your **real** style guide through RAG — it searches your document and cites the actual rule, instead of freelancing from general knowledge. **If not:** an ungrounded reviewer looks right until it confidently cites a rule that was never yours.
 
-### Approach 1 — the direct way
+## The style guide (`data/style_guide.md`)
+
+Put at least one **specific, unusual** rule in here — something a model wouldn't invent from general training knowledge. That's what proves retrieval is actually doing the work.
+
+```text
+# data/style_guide.md
+
+Rule S-3: Every public function must have a one-line docstring.
+
+Rule S-7: Never use single-letter variable names, except loop counters
+(i, j, k) and comprehension variables.
+
+Rule S-9: Function names must be snake_case. camelCase is not allowed,
+even for functions ported from JavaScript.
+
+Rule S-14: Timeouts must be passed explicitly to every network call; relying
+on the library default is a review failure on this team.
+```
+
+## The RAG layer
 
 ```python
-from langchain_community.document_loaders import TextLoader
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_chroma import Chroma
+# src/rag/store.py
+import chromadb
+
+COLLECTION_NAME = "style_guide"
+
+
+def get_collection(embedding_function=None):
+    client = chromadb.Client()
+    try:
+        client.delete_collection(COLLECTION_NAME)
+    except Exception:
+        pass
+    if embedding_function is None:
+        return client.create_collection(COLLECTION_NAME)
+    return client.create_collection(
+        COLLECTION_NAME, embedding_function=embedding_function
+    )
+```
+
+```python
+# src/rag/ingest.py
+# Chunk the style guide into individual rules (one per paragraph) and embed
+# them, so a diff line can retrieve the specific rules it might violate.
+import os
+
+STYLE_GUIDE_PATH = "data/style_guide.md"
+
+
+def load_rules(path: str = STYLE_GUIDE_PATH) -> list:
+    with open(path) as guide_file:
+        text = guide_file.read()
+    rules = []
+    for block in text.split("\n\n"):
+        cleaned = block.strip()
+        if cleaned.startswith("Rule"):
+            rules.append(cleaned)
+    return rules
+
+
+def build_style_store(collection, path: str = STYLE_GUIDE_PATH):
+    rules = load_rules(path)
+    ids = []
+    for index in range(len(rules)):
+        ids.append(f"rule-{index}")
+    collection.add(ids=ids, documents=rules)
+    return collection
+```
+
+```python
+# src/rag/retriever.py
+def retrieve_rules(collection, query: str, k: int = 3) -> list:
+    found = collection.query(query_texts=[query], n_results=k)
+    return found["documents"][0]
+```
+
+## The Style reviewer
+
+**Story:** for the changed lines, retrieve the relevant rules and ask the model which lines violate which rule — returning `Finding`s that **cite the retrieved rule text**. The model judges; the rules come from your document, not its memory. **If not:** the reviewer would judge against rules it imagined.
+
+```python
+# src/prompts/style.txt
+You check changed code lines against the team's style rules. ONLY use the
+rules provided - never invent a rule. For each clear violation, return a
+finding that quotes the rule it breaks. If there are no violations, return an
+empty list.
+
+Style rules (the only rules that exist):
+{rules}
+
+Changed lines:
+{lines}
+```
+
+```python
+# src/agents/style_reviewer.py
+# The Style reviewer: retrieve the relevant style rules for the changed lines,
+# then ask the model which lines violate which rule - citing the retrieved
+# rule, not general knowledge.
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
-docs = TextLoader("style_guide.md").load()
-vectorstore = Chroma.from_documents(docs, OpenAIEmbeddings())
-retriever = vectorstore.as_retriever()
+from src.rag.retriever import retrieve_rules
+from src.schemas import Finding
+from src.utils.prompts import load_prompt
 
-class Finding(BaseModel):
-    severity: str
-    message: str
 
-class StyleReview(BaseModel):
+class StyleFindings(BaseModel):
     findings: list
 
-def run_style_review(diff):
-    chunks = retriever.invoke(diff)
-    guide_text = "\n".join(c.page_content for c in chunks)
-    prompt = f"Style guide:\n{guide_text}\n\nCheck this diff against the style guide:\n{diff}"
-    model = ChatOpenAI(model="gpt-4o-mini").with_structured_output(StyleReview)
-    return model.invoke(prompt)
-```
-This works — the style guide gets chunked, embedded, and retrieved chunks get inserted into the prompt before the model sees the diff. Loading the whole file as one `TextLoader` document means Chroma is splitting on nothing (one giant chunk), which defeats most of the point of retrieval on anything longer than a page or two.
 
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-that-reviewer-turned-into-an-agent-add-the-style-reviewer-with-rag) · [Hint 1](step2_style_reviewer_rag_hints.md#hint-1) · [Hint 2](step2_style_reviewer_rag_hints.md#hint-2) · [Solution](step2_style_reviewer_rag_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — real chunking, typed output, Security turned into a tool-using agent
-
-**`agents/style_reviewer.py`**
-```python
-from langchain_community.document_loaders import TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_chroma import Chroma
-from pydantic import BaseModel, Field
+class _StyleItem(BaseModel):
+    line: str
+    rule: str
 
 
-class Finding(BaseModel):
-    severity: str = Field(description="One of: critical, warning, info")
-    message: str = Field(description="The specific style-guide rule violated, and why")
-
-
-class StyleReview(BaseModel):
-    findings: list[Finding]
-
-
-def build_style_retriever(guide_path: str = "style_guide.md"):
-    docs = TextLoader(guide_path).load()
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = splitter.split_documents(docs)
-    vectorstore = Chroma.from_documents(chunks, OpenAIEmbeddings())
-    return vectorstore.as_retriever(search_kwargs={"k": 4})
-
-
-def run_style_review(retriever, diff: str) -> StyleReview:
-    retrieved = retriever.invoke(diff)
-    guide_text = "\n\n".join(chunk.page_content for chunk in retrieved)
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(StyleReview)
-    return model.invoke(
-        f"You are a style reviewer. Only flag violations of the style guide excerpts "
-        f"below — do not use general style conventions that aren't stated here. "
-        f"If nothing in these excerpts is violated, return an empty findings list.\n\n"
-        f"Style guide excerpts:\n{guide_text}\n\nDiff:\n{diff}"
-    )
+def run_style(model, collection, files) -> list:
+    changed = []
+    for one_file in files:
+        for line in one_file["added"]:
+            changed.append(line)
+    if not changed:
+        return []
+    query = "\n".join(changed)
+    rules = retrieve_rules(collection, query)
+    prompt = ChatPromptTemplate.from_template(load_prompt("style"))
+    chain = prompt | model.with_structured_output(StyleFindings)
+    result = chain.invoke({"rules": "\n".join(rules), "lines": query})
+    out = []
+    for item in result.findings:
+        out.append(Finding(
+            severity="low", category="style",
+            message=str(item),
+        ))
+    return out
 ```
 
-**`agents/security_agent.py`** — turning Step 1's plain chain into an agent with a real tool
-```python
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
-from langchain.agents import create_agent
-import re
+(The model returns a list of violations under `findings`; each is turned into a `Finding`. The `rules` passed into the prompt came from retrieval, so a violation can only cite a rule that's actually in your guide.)
 
-SECRET_PATTERNS = [
-    re.compile(r'(?i)(api[_-]?key|secret|password|token)\s*=\s*["\'][^"\']{8,}["\']'),
-    re.compile(r'sk-[a-zA-Z0-9]{20,}'),
-]
+## Proving retrieval works
 
+The key test is that the Style reviewer catches a violation of a **specific** rule from your guide. For a changed line like `+def getUserName(id):`, retrieval should pull Rule S-9 (snake_case / no camelCase), and the finding should cite it — a result the model couldn't produce from general knowledge, because "no camelCase even for ported JS" is *your* rule, not a universal one.
 
-@tool
-def scan_for_secret_patterns(added_lines: str) -> list[str]:
-    """Scan added diff lines for hardcoded secret/API key patterns using regex.
-    Always call this before concluding a diff has no secrets."""
-    matches = []
-    for pattern in SECRET_PATTERNS:
-        matches.extend(m.group(0) for m in pattern.finditer(added_lines))
-    return matches
+**Unit-testing retrieval with no model:** use a small offline keyword embedding (L2-normalized, like Doc08/Project 3's) so `retrieve_rules(collection, "camelCase function name snake_case")` returns Rule S-9 first — proving the search finds the right rule before any model judges it. The full Style reviewer (with the model) is checked in the integration test.
 
-
-def run_security_review(topic_diff: str):
-    agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[scan_for_secret_patterns])
-    return agent.invoke({"messages": [("user", f"Security review this diff, using the scan tool first:\n{topic_diff}")]})
-```
-
-**Difference from Basic:** `RecursiveCharacterTextSplitter` actually splits the guide into retrievable chunks instead of one giant blob, `k=4` limits how many chunks come back, and the prompt explicitly instructs the model to only flag what's in the retrieved excerpts and to say nothing if nothing's violated — closing off the "invents a plausible-sounding rule" failure mode a vaguer prompt invites. Security becomes genuinely agent-shaped: it now decides to call a real tool (a regex secret scanner, matching Step 1's Advanced hint) rather than just producing structured output from one direct prompt. Neither piece yet *proves* the Style reviewer's answer is actually grounded in the retrieved text, or that the Security agent actually called its tool — that's what Advanced verifies.
-
-<hr class="page-break">
-
-> [Back to this step](../README.md#step-2-that-reviewer-turned-into-an-agent-add-the-style-reviewer-with-rag) · [Hint 1](step2_style_reviewer_rag_hints.md#hint-1) · [Hint 2](step2_style_reviewer_rag_hints.md#hint-2) · [Solution](step2_style_reviewer_rag_solution.md)
-
-## Advanced Version
-
-### Approach 1 — a `quote` field per finding, verified against the retrieved chunks
-
-```python
-class Finding(BaseModel):
-    severity: str = Field(description="One of: critical, warning, info")
-    message: str = Field(description="The specific style-guide rule violated, and why")
-    quote: str = Field(description="The exact sentence from the style guide excerpts that this finding is based on")
-
-
-class StyleReview(BaseModel):
-    findings: list[Finding]
-
-
-class UngroundedFindingError(Exception):
-    pass
-
-
-def run_style_review(retriever, diff: str) -> StyleReview:
-    retrieved = retriever.invoke(diff)
-    guide_text = "\n\n".join(chunk.page_content for chunk in retrieved)
-
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0).with_structured_output(StyleReview)
-    review = model.invoke(
-        f"You are a style reviewer. Only flag violations of the style guide excerpts "
-        f"below. For every finding, include the exact quote from the excerpts that "
-        f"supports it, word for word. If nothing is violated, return an empty list.\n\n"
-        f"Style guide excerpts:\n{guide_text}\n\nDiff:\n{diff}"
-    )
-
-    for finding in review.findings:
-        if finding.quote not in guide_text:
-            raise UngroundedFindingError(
-                f"Finding '{finding.message}' cites a quote not found in the retrieved "
-                f"style guide excerpts — likely answered from general knowledge, not RAG."
-            )
-
-    return review
-```
-**Expected behavior:** a genuine violation of a rule actually in your style guide passes through with its quote verified. If the model ever invents a plausible-sounding rule that isn't in the retrieved text (the exact failure this project's problems table warns about), the quote check catches it and raises `UngroundedFindingError` instead of silently returning an ungrounded finding as if it were real.
-
-### Approach 2 — verifying the Security agent actually called its tool
-
-```python
-class ToolNotCalledError(Exception):
-    pass
-
-
-def run_security_review(diff_text: str):
-    agent = create_agent(ChatOpenAI(model="gpt-4o-mini"), tools=[scan_for_secret_patterns])
-    result = agent.invoke(
-        {"messages": [("user", f"Security review this diff, using the scan_for_secret_patterns tool first:\n{diff_text}")]},
-        {"recursion_limit": 8},
-    )
-
-    tool_was_called = any(
-        getattr(message, "name", None) == "scan_for_secret_patterns"
-        for message in result["messages"]
-    )
-    if not tool_was_called:
-        raise ToolNotCalledError("Security agent answered without running the secret scanner tool")
-
-    return result
-```
-
-**Difference from Intermediate, and between these 2 Advanced approaches:** Intermediate trusts that "only use the retrieved excerpts" and "always call the scan tool first" hold just because the prompt asked for them — exactly the same trust-without-verifying gap Project 4's Step 3 and Step 4 Advanced hints both closed for Research and Analysis. Approach 1 closes it for the Style reviewer, by forcing every finding to cite a real, checkable quote from what was actually retrieved. Approach 2 closes it for the Security agent, by confirming — the same way Project 4's Research agent verification worked — that the tool call genuinely happened, not just that a plausible answer came back.
-
-**Which one should you actually write?** Both — they're the same underlying idea (verify grounding/tool use actually happened, don't just prompt for it and hope) applied to this project's two different reviewers. This is also the real generalization test the project's own charter names: if you recognize "this is the same verification pattern from Project 4, just applied to RAG instead of a research tool," that's the proof the pattern actually transferred, not just the code.
+**Tests for this step:** the integration test — `run_style` on a `camelCase`-function diff returns a finding that cites the snake_case rule (S-9).

@@ -1,0 +1,7 @@
+chromadb
+langchain-core
+langchain-openai
+langgraph
+langgraph-checkpoint-sqlite
+pydantic
+python-dotenv

@@ -1,0 +1,2 @@
+# No third-party dependencies — this is a design / planning / interview doc
+# with no runnable code of its own.
