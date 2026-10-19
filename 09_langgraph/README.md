@@ -18,7 +18,7 @@
   5. Use **Hint 1 → Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, draw the graph on paper from memory and check it against your code. If they don't match, you're not done.
 
-**Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-graph-skeleton-feeds-into-project-3)
+**Jump to:** [Learn It in Order (start here)](#learn-it-in-order-build-a-graph-step-by-step) · [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-graph-skeleton-feeds-into-project-3)
 
 ## The Story — what this document is actually building
 
@@ -30,9 +30,152 @@ Two more pieces make this genuinely production-ready instead of just a nicer dia
 
 The **Build Task** ties all of this together: you rebuild Project 2's exact tool-using behavior as a graph, add a conditional edge, wire up a checkpointer, and add one real `interrupt()` point. This isn't its own app — it's the literal skeleton [Project 3](../project_3_documind_rag_agent/) copies straight into its own `state.py`/`nodes.py`/`graph.py`, then grows into a 3-agent system.
 
+## Learn It in Order — Build a Graph Step by Step
+
+**New to LangGraph? Start here.** Doc07's agent loop was hidden inside a `while`. A graph makes each step an explicit, named, inspectable node — so you can route, loop, and *pause* on purpose. We build one graph one piece at a time. Then the Core Concepts below go deeper, and the Practice Exercises are these exact steps.
+
+> Setup: `pip install langgraph langchain-openai`. Builds on Doc07's loop.
+
+### Step 0 — Why a graph at all
+
+Doc07's loop worked, but the flow lived inside a `while` — you couldn't see it,
+pause it, or draw it. A graph turns each step into a **node** with **edges**
+between them, so the flow becomes something you can read, test, and stop midway
+for a human.
+
+### Step 1 — State: the typed object that flows through
+
+**State** is one typed shape listing everything that moves between nodes — like a
+patient file passed from desk to desk:
+
+```python
+from typing import TypedDict
+
+class State(TypedDict):
+    question: str
+    answer: str
+    steps: int
+```
+
+**What's new:** reading the state shape tells you exactly what any node can see
+or change — no hunting through scattered variables.
+
+### Step 2 — A node: state in, a small update out
+
+A **node** is just a function. It returns a small dict of *only the fields it
+changes* — it never edits state in place:
+
+```python
+def answer_node(state):
+    reply = f"Echo: {state['question']}"
+    return {"answer": reply, "steps": state["steps"] + 1}
+```
+
+**What's new:** a node returns an *update*, and the engine applies it. Mutating
+`state` directly is a bug — always return a dict.
+
+### Step 3 — Edges + compile + run
+
+Wire the nodes with edges, compile, and run with `.invoke(state)`:
+
+```python
+from langgraph.graph import StateGraph, START, END
+
+builder = StateGraph(State)
+builder.add_node("answer", answer_node)
+builder.add_edge(START, "answer")       # required — nothing runs without this
+builder.add_edge("answer", END)
+graph = builder.compile()
+
+final = graph.invoke({"question": "hi", "answer": "", "steps": 0})
+print(final["answer"], "| steps:", final["steps"])   # Echo: hi | steps: 1
+```
+
+**What's new:** `START`/`END` are imported objects (not strings). The work is the
+same as a function call — but now it's a named node you can test, draw, and pause.
+
+### Step 4 — Conditional edges: a real decision, as structure
+
+A **conditional edge** runs a small function on the state and picks the next node
+— an `if` that lives in the graph instead of buried three functions deep:
+
+```python
+def route(state):
+    if "refund" in state["question"].lower():
+        return "billing"
+    return "general"
+
+# after the "classify" node, go to billing or general:
+builder.add_conditional_edges("classify", route,
+                              {"billing": "billing", "general": "general"})
+```
+
+**What's new:** `route(state)` returns a **key of the mapping**, and the engine
+goes to that node. A returned value that isn't in the mapping is a real bug (the
+Edge-case exercise).
+
+### Step 5 — Loops: a conditional edge pointing backward
+
+Point a conditional edge **back** to an earlier node and you have a loop — the
+same mechanism as Step 4, aimed backward. It **must** have a stopping rule in the
+state:
+
+```python
+def keep_going(state):
+    if state["steps"] >= 3:          # the stopping rule, in state
+        return "done"
+    return "again"
+
+builder.add_conditional_edges("work", keep_going,
+                              {"again": "work", "done": END})
+```
+
+**What's new:** a loop on purpose, not by accident — the counter lives in state so
+the stop is visible and checkpointed. (LangGraph's `recursion_limit` is the
+backstop if you forget.)
+
+### Step 6 — Checkpointer + `interrupt()`: pause for a human
+
+A **checkpointer** saves the state at every step; `interrupt()` uses it to pause
+mid-run and wait for a person, then resume exactly where it stopped:
+
+```python
+from langgraph.checkpoint.memory import MemorySaver   # prod: SqliteSaver (disk)
+from langgraph.types import Command
+
+graph = builder.compile(checkpointer=MemorySaver())
+config = {"configurable": {"thread_id": "user-1"}}
+
+graph.invoke(inputs, config)                 # runs, then PAUSES at interrupt()
+# ... a human reviews the paused state ...
+graph.invoke(Command(resume="yes"), config)  # continues from the pause
+```
+
+**What's new:** state now lives *outside* the running program — close the
+terminal, reopen, and a `SqliteSaver` graph is still paused where it was. This is
+Project 3's human-approval gate.
+
+### You've built a graph, zero to advanced
+
+State → nodes → edges → conditional edges → loops → checkpointer + `interrupt()`.
+Everything else in this document (parallel branches, subgraphs, streaming, visual
+debugging, long-term memory) builds on these. Now the Practice Exercises, in
+order:
+
+| You read | Now practice |
+|---|---|
+| Steps 1-3 (state, a node, edges) | [Basic — your first graph](#ex-first_graph) |
+| Step 4 (conditional routing) | [Intermediate — real branching](#ex-conditional_routing) |
+| Rebuild Doc07's loop as a graph | [Real-world — rebuild Project 2 as a graph](#ex-agent_loop_to_graph) |
+| Step 4's trap (an unmapped route value) | [Edge cases — an unhandled routing value](#ex-unhandled_routing_value) |
+| Steps 5-6 (loop limit + pause/resume) | [Failure — an endless loop, and a real pause/resume](#ex-loop_limit_and_interrupt_resume) |
+
+The detailed Core Concepts below explain each piece more deeply — read them after
+you've run the steps above.
+
 ## Core Concepts (read this first — everything you need is here)
 
-**Topics on this page:** [LangChain vs. LangGraph vs. RAG](#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate) · [Tool-calling inside a graph](#tool-calling-inside-a-graph-and-the-path-from-one-agent-to-many) · [From a hidden loop to a clear graph](#from-a-hidden-loop-to-a-clear-graph) · [State](#state-one-typed-object-flowing-through-the-graph) · [Nodes and edges](#nodes-and-edges-including-conditional-edges) · [Loops](#loops-on-purpose-not-by-accident) · [Checkpointers](#checkpointers-saved-state-that-survives-a-pause) · [`interrupt()`](#interrupt-pausing-for-a-human) · [Parallel branches](#parallel-branches-fan-out-fan-in) · [Subgraphs](#subgraphs-a-graph-as-one-node-in-a-bigger-graph) · [Streaming a graph's execution](#streaming-a-graphs-execution) · [Debugging a graph visually](#debugging-a-graph-visually) · [Long-term memory](#long-term-memory-remembering-across-separate-conversations)
+**Topics on this page:** [LangChain vs. LangGraph vs. RAG](#langchain-vs-langgraph-vs-rag-how-these-three-actually-relate) · [Tool-calling inside a graph](#tool-calling-inside-a-graph-and-the-path-from-one-agent-to-many) · [From a hidden loop to a clear graph](#from-a-hidden-loop-to-a-clear-graph) · [State](#state-one-typed-object-flowing-through-the-graph) · [Nodes and edges](#nodes-and-edges-including-conditional-edges) · [Loops](#loops-on-purpose-not-by-accident) · [Checkpointers](#checkpointers-saved-state-that-survives-a-pause) · [`interrupt()`](#interrupt-pausing-for-a-human) · [Time travel & editing state](#time-travel-and-editing-a-paused-run) · [Parallel branches](#parallel-branches-fan-out-fan-in) · [Subgraphs](#subgraphs-a-graph-as-one-node-in-a-bigger-graph) · [Streaming a graph's execution](#streaming-a-graphs-execution) · [Debugging a graph visually](#debugging-a-graph-visually) · [Long-term memory](#long-term-memory-remembering-across-separate-conversations)
 
 ### LangChain vs. LangGraph vs. RAG — how these three actually relate
 
@@ -369,6 +512,47 @@ Some actions matter enough that a person should sign off before the graph contin
 - Resume with the same `thread_id` and `Command(resume=value)`.
 - Put the gate in its own node — don't interrupt inside a node that also decides what to do.
 - Rejection is ordinary state (a bool field), not a separate primitive.
+
+### Time travel and editing a paused run
+
+Because a checkpointer saves state after **every** step, you don't only have the *latest* state — you have every past one. That gives you two powerful moves on a paused or finished run: **look back** at (and re-run from) any earlier step, and **edit** the current state before resuming. This is what makes a stuck agent debuggable instead of a mystery, and what lets a human *fix* a run rather than only approve or reject it.
+
+**How it really works**
+
+- `graph.get_state(config)` returns the **current** `StateSnapshot` — `.values` (the state dict), `.next` (which node runs next; empty means finished), and `.config` (which carries a `checkpoint_id`).
+- `graph.get_state_history(config)` returns **every** snapshot for that thread, newest first — the full timeline of the run, one entry per step.
+- **Time travel:** take an earlier snapshot's `.config` (it names that checkpoint) and pass it back to `graph.invoke(None, that_config)` to re-run **from that point** — optionally after changing something, which forks a new branch of the run instead of overwriting history.
+- **Editing state:** `graph.update_state(config, {"field": new_value})` writes an update into the paused state exactly as if a node had returned it (reducers still apply). Resume afterward and the graph continues with your correction.
+- Editing is the third human-in-the-loop option: a plain `interrupt()` lets a human **approve or reject**; `update_state` lets them **fix** — change the draft, correct a wrong tool argument, drop a bad retrieved chunk — then let the run finish.
+- All of this needs a checkpointer and a `thread_id`; it's reading and rewriting the same saved checkpoints `interrupt()` pauses on.
+
+```python
+# every past step of this thread, newest first
+history = list(graph.get_state_history(config))
+print(len(history), "checkpoints")          # one per step
+
+# edit the paused state, then resume
+graph.update_state(config, {"draft": "the human-corrected draft"})
+graph.invoke(None, config)                  # continues with the correction
+
+# time travel: re-run from an earlier checkpoint
+earlier = history[-1].config                # an older snapshot's config
+graph.invoke(None, earlier)                 # replays from that point
+```
+
+**Common mistakes:**
+
+- *Mistake:* trying to "go back" by mutating `.values` from `get_state`. → *Symptom:* nothing changes — you edited a copy. → *Fix:* `update_state(config, {...})` is the only write path; it goes through the reducers and saves a new checkpoint.
+- *Mistake:* expecting history without a checkpointer. → *Symptom:* `get_state_history` is empty. → *Fix:* history only exists because the checkpointer saved it — no checkpointer, no past.
+
+**Where you'll meet it:** [Doc14](../14_debugging_lab/)'s debugging drills use `get_state_history` to see exactly where a run went wrong; a real human-in-the-loop system (Project 3's approval) can grow from "approve/reject" to "edit, then approve" with `update_state`.
+
+**Quick cheat sheet:**
+
+- `get_state(config)` = now; `get_state_history(config)` = every past step.
+- `update_state(config, {...})` edits a paused run (reducers apply); then resume.
+- Pass an older snapshot's `.config` to `invoke(None, ...)` to re-run from there.
+- Interrupt = approve/reject; `update_state` = fix. Both need a checkpointer.
 
 ### Parallel branches (fan-out / fan-in)
 

@@ -18,7 +18,7 @@
   5. Use **Hint 1 → Hint 4** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, explain out loud the difference between a retrieval failure and a generation failure, with a real example of each from your own testing. If you can't, you're not done.
 
-**Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-retriever-module)
+**Jump to:** [Learn It in Order (start here)](#learn-it-in-order-build-a-rag-pipeline-step-by-step) · [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-retriever-module)
 
 ## The Story — what this document is actually building
 
@@ -30,9 +30,171 @@ Every one of those steps can go wrong independently, and a wrong final answer do
 
 The **Build Task** ties this into one function, `retrieve(collection, query, k) -> list[dict]`. It isn't its own app — it becomes a *tool* Project 3's agent calls whenever it needs to look something up, the same way a search-the-web tool would.
 
+## Learn It in Order — Build a RAG Pipeline Step by Step
+
+**New to RAG? Start here.** RAG = let the model answer from **your** documents instead of its training memory. We build the whole pipeline one piece at a time and run each. Then the Core Concepts below go deeper, and the Practice Exercises are these exact steps.
+
+> Setup: `pip install langchain-openai chromadb langchain-community langchain-text-splitters` (add `pypdf` for PDFs), your key in `.env`. Builds on Doc05's chains.
+
+### Step 0 — The problem: the model doesn't know your documents
+
+Ask the model about your company's refund policy and it either guesses or makes
+something up — it never read your docs. And a confident wrong answer is worse
+than "I don't know." RAG fixes this: **find** the right text in your docs, then
+answer **from** it.
+
+### Step 1 — Embeddings: turn text into a location
+
+An **embedding** turns a piece of text into a list of numbers — a point in
+space. Texts that *mean* similar things land close together:
+
+```python
+from langchain_openai import OpenAIEmbeddings
+
+embedder = OpenAIEmbeddings(model="text-embedding-3-small")
+vector = embedder.embed_query("refund policy")
+print(len(vector))      # -> 1536   (the text's coordinates)
+```
+
+**What's new:** meaning becomes geometry. "How do I get my money back?" and
+"Refunds are issued within 14 days" sit close together even though they share no
+words — that's what makes search by *meaning* possible.
+
+### Step 2 — Chunking: split documents into small pieces
+
+You don't search whole files — you search **chunks**, so a hit returns just the
+relevant paragraph, not a 20-page manual:
+
+```python
+text = open("faq.md").read()
+chunks = []
+for paragraph in text.split("\n\n"):     # simplest split: one per paragraph
+    if paragraph.strip():
+        chunks.append(paragraph.strip())
+```
+
+**What's new:** where you split matters more than it seems. Cut a fact in half
+and neither chunk can answer the question — that's the trap the Edge-case and
+Failure exercises make you feel.
+
+> **Real files aren't plain text.** Here we `open()` a `.md` file for simplicity,
+> but a PDF, a web page, or a whole folder needs a **document loader** first —
+> `PyPDFLoader`, `WebBaseLoader`, `DirectoryLoader` — which returns `Document`
+> objects you then split with `RecursiveCharacterTextSplitter`. See the
+> [Document loaders](#document-loaders-getting-text-out-of-real-files) concept
+> below. The pipeline is really **load → split → embed → store → retrieve**.
+
+### Step 3 — A vector store: embed the chunks once, store them
+
+Embed every chunk and keep them in a vector store (here, Chroma) so you can
+search them later:
+
+```python
+import chromadb
+
+client = chromadb.Client()
+collection = client.create_collection("faq")
+collection.add(
+    ids=[f"c{i}" for i in range(len(chunks))],
+    documents=chunks,
+    embeddings=embedder.embed_documents(chunks),   # embed once, up front
+    metadatas=[{"source": "faq.md"} for _ in chunks],
+)
+```
+
+**What's new:** you embed the documents **once** at ingest time; at question time
+you only embed the question. The store keeps the vectors next to their text.
+
+### Step 4 — Retrieve: the top-k closest chunks to the question
+
+Embed the question, ask the store for the nearest chunks. **Distance** is how far
+a chunk is from the question — **lower is closer**:
+
+```python
+def retrieve(collection, query, k=3):
+    results = collection.query(
+        query_embeddings=[embedder.embed_query(query)], n_results=k)
+    hits = []
+    for doc, dist, meta in zip(results["documents"][0],
+                               results["distances"][0],
+                               results["metadatas"][0]):
+        hits.append({"text": doc, "distance": dist, "source": meta["source"]})
+    return hits
+
+for hit in retrieve(collection, "how do I get a refund?"):
+    print(round(hit["distance"], 2), hit["source"], "-", hit["text"][:40])
+# -> 0.21 faq.md - Refunds are issued within 14 days of ...
+```
+
+**What's new:** this `retrieve(collection, query, k)` is the whole Build Task —
+the tool Project 3's agent calls. `distances` lower = more relevant.
+
+### Step 5 — RAG: answer *from* the retrieved chunks
+
+Put the retrieved text into the prompt and tell the model to answer only from it:
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+
+question = "How long do refunds take?"
+texts = []
+for hit in retrieve(collection, question):
+    texts.append(hit["text"])
+context = "\n\n".join(texts)
+prompt = ChatPromptTemplate.from_template(
+    "Answer ONLY from the context. If it's not there, say you don't know.\n\n"
+    "Context:\n{context}\n\nQuestion: {question}")
+chain = prompt | ChatOpenAI(model="gpt-4o-mini", temperature=0)
+print(chain.invoke({"context": context, "question": question}).content)
+# -> Refunds are issued within 14 days of return.
+```
+
+**What's new:** the answer comes from **your** retrieved text, not the model's
+memory. That's the whole name — **R**etrieval (find the chunks) + **A**ugmented
+**G**eneration (answer from them).
+
+### Step 6 — The "I don't know" cutoff (advanced, but essential)
+
+If even the closest chunk is **far** (distance above a cutoff, e.g. ~1.2 for
+Chroma's default), nothing relevant was found — pass **no** context and let the
+model say "I don't know" instead of answering from junk:
+
+```python
+MAX_DISTANCE = 1.2
+relevant = []
+for hit in retrieve(collection, question):
+    if hit["distance"] <= MAX_DISTANCE:      # keep only close-enough chunks
+        relevant.append(hit)
+# if 'relevant' is empty: pass NO context, and expect "I don't know"
+```
+
+**What's new:** RAG changes *what* gets made up; it doesn't remove the risk. The
+cutoff is what stops an off-topic question from retrieving three unrelated chunks
+and getting a confident wrong answer. (Hybrid search, reranking, and metadata
+filtering below make retrieval even sharper.)
+
+### You've built RAG, zero to advanced
+
+Embed → chunk → store → retrieve → answer-from-context, with a cutoff so "not
+found" stays honest. Everything else in this document (lost-in-the-middle,
+hybrid search, reranking, metadata filtering, evaluation, injection) makes one of
+those five steps sharper or safer. Now the Practice Exercises, in order:
+
+| You read | Now practice |
+|---|---|
+| Step 1 (embeddings as geometry) | [Basic — see embeddings as geometry](#ex-embedding_similarity) |
+| Step 2 (chunking changes the answer) | [Intermediate — chunking method changes the answer](#ex-chunking_methods) |
+| Steps 3-4 (store + retrieve) | [Real-world — build and search a knowledge base](#ex-knowledge_base_search) |
+| Step 2's danger (a fact split in two) | [Edge cases — the answer spans two chunks](#ex-chunk_boundary_split) |
+| Step 2 + `k` (a bad split, a `k` sweep) | [Failure — a bad split, and a `k` comparison](#ex-bad_split_k_comparison) |
+
+The detailed Core Concepts below explain each piece more deeply — read them after
+you've run the steps above.
+
 ## Core Concepts (read this first — everything you need is here)
 
-**Topics on this page:** [Embeddings](#embeddings-meaning-turned-into-geometry) · [Chunking](#chunking-why-where-you-split-matters-more-than-it-seems-like-it-should) · [Vector stores & top-k](#vector-stores-and-searching-for-the-top-matches) · [Lost in the middle](#lost-in-the-middle-more-text-isnt-automatically-better) · [RAG and made-up answers](#rag-changes-what-gets-made-up-it-doesnt-remove-the-problem) · [Hybrid search](#hybrid-search-combining-keyword-and-vector-search) · [Reranking](#reranking-a-second-more-careful-pass-over-the-top-results) · [Metadata filtering](#metadata-filtering) · [Evaluating RAG](#evaluating-a-rag-system) · [RAG prompt injection](#rag-specific-prompt-injection-your-own-knowledge-base-can-attack-your-own-agent) · [Retriever as an MCP tool](#exposing-your-retriever-as-an-mcp-tool)
+**Topics on this page:** [Embeddings](#embeddings-meaning-turned-into-geometry) · [Document loaders](#document-loaders-getting-text-out-of-real-files) · [Chunking](#chunking-why-where-you-split-matters-more-than-it-seems-like-it-should) · [Vector stores & top-k](#vector-stores-and-searching-for-the-top-matches) · [Lost in the middle](#lost-in-the-middle-more-text-isnt-automatically-better) · [RAG and made-up answers](#rag-changes-what-gets-made-up-it-doesnt-remove-the-problem) · [Hybrid search](#hybrid-search-combining-keyword-and-vector-search) · [Reranking](#reranking-a-second-more-careful-pass-over-the-top-results) · [Metadata filtering](#metadata-filtering) · [Advanced retrieval](#advanced-retrieval-strategies-when-plain-top-k-isnt-enough) · [Evaluating RAG](#evaluating-a-rag-system) · [RAG prompt injection](#rag-specific-prompt-injection-your-own-knowledge-base-can-attack-your-own-agent) · [Retriever as an MCP tool](#exposing-your-retriever-as-an-mcp-tool)
 
 ### Embeddings: meaning turned into geometry
 
@@ -71,6 +233,43 @@ An **embedding model** turns a piece of text into a long list of numbers (a *vec
 - Scores are relative — calibrate any threshold against your own corpus.
 - Changing the embedding model means re-embedding everything; there's no incremental path.
 - Embed chunks, not whole documents — a vector over 40 pages is an average of nothing in particular.
+
+### Document loaders: getting text out of real files
+
+Before you can chunk, embed, or search anything, you have to *load* it. Your documents are rarely plain `.txt` sitting in a variable — they're PDFs, web pages, CSVs, a whole folder of Markdown. A **document loader** reads one of those sources and returns a list of LangChain `Document` objects, each with `.page_content` (the text) and `.metadata` (where it came from). That metadata is what later lets a citation say "faq.pdf, page 3."
+
+**How it really works**
+
+- `loader.load()` returns `list[Document]`. A `Document` is just `.page_content` (a string) and `.metadata` (a dict) — the same shape every splitter, store, and retriever downstream expects.
+- The loaders live in `langchain-community` (`from langchain_community.document_loaders import TextLoader`) and the splitters in `langchain-text-splitters`. LangChain is gradually moving integrations into standalone packages, so `langchain-community` shows a sunset warning — but the `loader.load()` → `Document` → split pattern itself is stable and is what you actually need to know.
+- `TextLoader(path)` reads one `.txt`/`.md` file; `PyPDFLoader(path)` reads a PDF and returns **one `Document` per page** (the page number lands in `.metadata`); `CSVLoader(path)` returns one `Document` per row; `WebBaseLoader(url)` fetches and strips a web page.
+- `DirectoryLoader(folder, glob="**/*.md", loader_cls=TextLoader)` loads a whole folder in one call — the real-world case, since a knowledge base is a directory, not one file.
+- A loader's output feeds **straight** into a text splitter: `splitter.split_documents(docs)` keeps each chunk's `.metadata`, so a chunk still knows which file and page it came from. Loading and splitting are two separate steps — load first, split second.
+- Each loader needs its own small dependency (`pypdf` for PDFs, `beautifulsoup4` for the web). Install only the ones you actually use — the same minimal-`requirements.txt` discipline as Doc01.
+- Loaded text is **untrusted content** — a PDF or web page can carry injected instructions. This is exactly the attack surface the [RAG-injection topic](#rag-specific-prompt-injection-your-own-knowledge-base-can-attack-your-own-agent) below covers; a loader is where that hostile text first enters your system.
+
+| Your source | Loader | Returns |
+|---|---|---|
+| A `.txt` / `.md` file | `TextLoader(path)` | One `Document` |
+| A PDF | `PyPDFLoader(path)` | One `Document` **per page** |
+| A `.csv` | `CSVLoader(path)` | One `Document` per row |
+| A web page | `WebBaseLoader(url)` | One `Document` (needs `beautifulsoup4`) |
+| A whole folder | `DirectoryLoader(dir, glob, loader_cls)` | One `Document` per matched file |
+
+**Common mistakes:**
+
+- *Mistake:* embedding a loader's raw `Document` without splitting it. → *Symptom:* a 40-page PDF becomes one giant chunk; search returns the whole book or nothing useful. → *Fix:* always `split_documents(docs)` between loading and embedding.
+- *Mistake:* throwing away `.metadata` by pulling out `.page_content` too early. → *Symptom:* you can retrieve the text but can't tell the user *which file or page* it came from. → *Fix:* carry the `Document` objects (with metadata) all the way to the store.
+
+**Where you'll meet it:** the [Real-world exercise](#ex-knowledge_base_search) loads a folder of files into a knowledge base; [Project 3](../project_3_documind_rag_agent/) loads your real documents the same way before its agent can search them.
+
+**Quick cheat sheet:**
+
+- Load first, split second, embed third — three separate steps.
+- `TextLoader` / `PyPDFLoader` / `CSVLoader` / `WebBaseLoader` / `DirectoryLoader`.
+- Every loader returns `list[Document]` (`.page_content` + `.metadata`).
+- `split_documents(docs)` keeps the metadata, so citations survive.
+- Loaded content is untrusted — it's where injection gets in.
 
 ### Chunking: why where you split matters more than it seems like it should
 
@@ -396,6 +595,41 @@ class ScopedRetriever:
 - Test the negative case: tenant A must not be able to retrieve tenant B's chunk.
 - Filter for staleness; rerank for ambiguity.
 
+### Advanced retrieval strategies: when plain top-k isn't enough
+
+Plain "embed the question, take the `k` closest chunks" is the right default and what your `retrieve()` does. But on real corpora it has known weak spots — near-duplicate results, a question phrased differently from the documents, a filter hidden inside natural language. Each of these has a named strategy. You don't need to build them now; you need to **recognize which one to reach for** when top-k underperforms, so you're not stuck.
+
+**How it really works**
+
+- **MMR (Maximal Marginal Relevance)** — instead of the `k` *most similar* chunks, pick chunks that are relevant **and** different from each other, so you don't get five near-duplicates of the same paragraph. In LangChain's `Chroma` it's `search_type="mmr"` (with `lambda_mult` trading relevance against diversity). Reach for it when your top-k keeps returning the same fact five ways.
+- **Multi-query** — the model rewrites the question into several phrasings, searches each, and merges the hits. Catches chunks that only match a *different wording* of the question. Costs extra model calls; worth it when users and documents use different vocabulary.
+- **Self-query** — the model turns a natural question ("refund policies updated after 2023") into a **metadata filter** (`year > 2023`) **plus** a search string, automatically — bridging the metadata-filtering topic above and plain search.
+- **Parent-document retrieval** — embed and search *small* chunks for precision, but return the *larger* parent section for context, so the model gets a precise hit with enough surrounding text to use it.
+- **Contextual compression** — after retrieving, a second, cheap model trims each chunk down to only the sentences that actually answer the question, so the context stays small and the "lost in the middle" problem shrinks.
+
+| Weak spot in plain top-k | Reach for | One-line why |
+|---|---|---|
+| Five near-duplicate chunks | MMR (`search_type="mmr"`) | Relevant **and** diverse results |
+| Question worded unlike the docs | Multi-query | Searches several rewordings, merges |
+| A filter hidden in the question | Self-query | Auto-extracts a metadata filter + search |
+| Precise hit, too little context | Parent-document | Search small, return the bigger parent |
+| Context too long / noisy | Contextual compression | Trim each chunk to the useful sentences |
+
+**Common mistakes:**
+
+- *Mistake:* reaching for multi-query or compression before plain top-k is even measured. → *Symptom:* a slow, expensive pipeline solving a problem you never confirmed you had. → *Fix:* start with plain `retrieve()`, measure, and add a strategy only against a weakness you can see.
+- *Mistake:* stacking every strategy at once. → *Symptom:* you can't tell which one helped or hurt. → *Fix:* add one, re-measure with the [evaluation](#evaluating-a-rag-system) below, keep it only if it moved the number.
+
+**Where you'll meet it:** plain top-k is all [Project 3](../project_3_documind_rag_agent/) needs; these strategies are what you reach for when a real, larger knowledge base makes plain search miss — and knowing their names is what keeps you unstuck.
+
+**Quick cheat sheet:**
+
+- Default is plain top-k — add a strategy only against a measured weakness.
+- MMR = relevant **+** diverse. Multi-query = several rewordings.
+- Self-query = auto metadata filter. Parent-document = search small, return big.
+- Contextual compression = trim chunks to the useful sentences.
+- Add one at a time; keep it only if evaluation says it helped.
+
 ### Evaluating a RAG system
 
 "Does the answer look right?" doesn't scale past a handful of manual checks, and it can't tell you *which stage* to fix. RAG evaluation splits into two measurements that fail independently: **retrieval metrics** (did the right chunk even get found, and how high did it rank?) and **generation metrics** (given the chunks it was handed, did the model use them correctly?). A restaurant serving a bad dish: was it the ingredients (wilted vegetables delivered) or the cooking (good vegetables, burnt)? Tasting the dish tells you it's bad; it doesn't tell you which. Retrieval metrics inspect the delivery; generation metrics inspect the pan.
@@ -555,7 +789,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ## Practice Exercises
 
-**Setup:** same venv as before — if it's not active, `cd 08_rag && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langchain langchain-openai langchain-chroma chromadb`.
+**Setup:** same venv as before — if it's not active, `cd 08_rag && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). New packages for this document: `pip install langchain langchain-openai langchain-chroma chromadb langchain-community langchain-text-splitters` (and `pypdf` if you load PDFs).
 
 **Where your code lives:** all of it under `08_rag/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — the same convention as Doc01/02/06/07 — so one topic's growth from basic to intermediate stays visible in one file.
 
@@ -610,6 +844,7 @@ practice/
 - **What:** write 5-10 short real documents yourself, and search against them.
 - **Why:** made-up test documents you actually wrote are the fastest way to know, immediately, whether a search result is right or wrong — you already know the answer.
 - **How to code it:** write the documents to `docs/`, embed each one, `collection.add(...)` it to a `chromadb.Client()` collection, and `collection.query(...)` 3 questions. Then keep only `.txt`/`.md` files (`os.listdir` + `.endswith`, then `Path.glob` + `.suffix`), store `source_file` as metadata, use `get_or_create_collection`, drop results above a distance cutoff, embed all documents in one batched call, rebuild cleanly with `delete_collection()` (catching `NotFoundError`), and do the same with LangChain's `Chroma` (`similarity_search_with_score`, `persist_directory`).
+- **Also practice the library loaders:** load the same `docs/` folder with `DirectoryLoader("docs", glob="**/*.md", loader_cls=TextLoader)`, split the loaded `Document`s with `RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50).split_documents(docs)`, and confirm each chunk's `.metadata["source"]` still names its file — the same **load → split → embed** pipeline, done the library way (and the way that also reads PDFs with `PyPDFLoader`).
 - **Save as:** `practice/knowledge_base_search_practice.py`.
 - **Builds on:** [Basic](#ex-embedding_similarity)'s embedding call, now storing vectors in a real Chroma collection instead of comparing them by hand.
 - **Used later by:** the Build Task, which becomes Project 3's search tool — the documents you write here are a good starting set for it.

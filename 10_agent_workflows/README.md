@@ -18,7 +18,7 @@
   5. Use **Hint 1 → Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, explain out loud, step by step, what happens when search finds nothing useful. If you can't, you're not done.
 
-**Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-project-3-langgraph-app)
+**Jump to:** [Learn It in Order (start here)](#learn-it-in-order-build-agentic-rag-step-by-step) · [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-project-3-langgraph-app)
 
 ## The Story — what this document is actually building
 
@@ -27,6 +27,114 @@ Picture the agent you've been building since Doc06 as a person starting their fi
 Document 10 is the day all of that has to work together at once, on a real task. A request comes in. The agent has to decide, on its own, whether this request even needs the filing cabinet — searching when you don't need to wastes time and money, and can even hand the model confusing text that pulls it off track. If it does need to search, it searches, and whatever it finds has to travel with the task, not get lost — because a few steps later, the agent is going to pause and show a human what it found, and ask "should I go ahead?" before doing anything that can't be undone. That pause is the whole point of Doc09's saved-state trick: the agent can stop completely, wait for a real person to say yes or no — seconds, minutes, or a lunch break later — and then pick up again exactly where it left off, with nothing lost.
 
 That's the whole story: **routing** decides if search is needed. **Search** (from Doc08) finds grounding text when it is. **State** (from Doc09) carries that found text forward so nothing has to be re-searched or re-explained. And an **interrupt** (also Doc09) makes the agent stop and ask before it acts. Put together, this is what a real, single-agent production system looks like — and it's exactly what the Build Task below, **Project 3**, asks you to build: one LangGraph agent that searches your documents when it needs to, pauses for your approval before acting, and finishes with an answer you can actually trust, because you can see exactly what it found and what it did with it.
+
+## Learn It in Order — Build Agentic RAG Step by Step
+
+**New here? Start here.** This document is just two things you already have — Doc08's `retrieve()` and Doc09's graph — wired so the agent *decides* when to search and when to pause. We add one decision at a time. Then the Core Concepts go deeper, and the Practice Exercises are these exact steps.
+
+> Setup: `pip install langgraph langchain-openai chromadb`. Builds on Doc08 (RAG) + Doc09 (graphs).
+
+### Step 0 — Plain RAG always searched; a real agent shouldn't
+
+Doc08's RAG searched on every question. But "hi, thanks!" needs no document
+lookup, and searching anyway wastes a call and can drag in irrelevant text. A
+real agent **decides** whether to search.
+
+### Step 1 — Search is just a node (Doc08's `retrieve`)
+
+Wrap Doc08's retriever as one graph node that writes what it found into state:
+
+```python
+def search_node(state):
+    hits = retrieve(collection, state["question"])   # Doc08's retrieve()
+    return {"context": hits}
+```
+
+**What's new:** nothing — it's Doc08's `retrieve()` as a Doc09 node. The found
+text goes **into state** so later nodes can use it.
+
+### Step 2 — Route: search, or answer directly
+
+A conditional edge decides whether to run `search_node` at all:
+
+```python
+def needs_search(state):
+    question = state["question"].lower()
+    if "thank" in question or "hello" in question:
+        return "answer"          # small talk -> skip search
+    return "search"
+
+builder.add_conditional_edges("classify", needs_search,
+                              {"search": "search", "answer": "answer"})
+```
+
+**What's new:** search became a **routed step**, not something that always runs —
+Doc09's conditional edge doing a real job.
+
+### Step 3 — State carries what was found, not just the question
+
+The answer node reads the retrieved text out of state — it never re-searches:
+
+```python
+def answer_node(state):
+    context = state.get("context", [])
+    # build the prompt from context (or say "I don't know" if it's empty),
+    # then answer
+    return {"answer": "..."}
+```
+
+**What's new:** state holds `question` **and** `context`. Nothing is re-searched
+or re-explained — the whole point of carrying it forward.
+
+### Step 4 — Multi-step search: when one search isn't enough
+
+Sometimes the first results aren't enough. A conditional edge can loop back to
+search with a refined query — with a limit, exactly like Doc09's loops:
+
+```python
+def enough(state):
+    if state["context"] or state["tries"] >= 2:   # stop rule in state
+        return "answer"
+    return "search"
+```
+
+**What's new:** the agent can search more than once — but a counter in state
+stops it, same discipline as every loop.
+
+### Step 5 — Approval: block vs. just notify
+
+Before a real action (send an email, issue a refund), `interrupt()` pauses for a
+human — **block** when the action is irreversible; just **notify** when it isn't:
+
+```python
+from langgraph.types import interrupt
+
+def approval_node(state):
+    decision = interrupt({"action": state["planned_action"]})   # PAUSE here
+    if decision != "yes":
+        return {"answer": "Cancelled by reviewer."}
+    return {"approved": True}
+```
+
+**What's new:** Doc09's `interrupt()` used for a real gate. Block the risky path;
+let the safe path flow. This is Project 3's approval step.
+
+### You've built agentic RAG, zero to advanced
+
+Route → search (into state) → answer from state → maybe search again → pause for
+approval. Everything else here (caching, combining search with tools, empty/failed
+search) hardens one of those steps. Now the Practice Exercises, in order:
+
+| You read | Now practice |
+|---|---|
+| Step 1 (search as a node/tool) | [Basic — plug search in as a plain tool](#ex-search_as_tool) |
+| Step 2 (route: search or not) | [Intermediate — make search conditional](#ex-conditional_search) |
+| Step 5 (the approval pause) | [Real-world — a real approval pause](#ex-approval_pause) |
+| Step 3 when nothing is found | [Edge cases — search comes back empty](#ex-empty_search) |
+| Search failing mid-run | [Failure — search fails mid-run](#ex-search_failure) |
+
+The detailed Core Concepts below explain each piece more deeply — read them after
+you've run the steps above.
 
 ## Core Concepts (read this first — everything you need is here)
 

@@ -1,4 +1,6 @@
 chromadb
+langchain-community
 langchain-openai
+langchain-text-splitters
 openai
 python-dotenv

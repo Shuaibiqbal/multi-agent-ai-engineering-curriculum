@@ -561,6 +561,53 @@ empty store: []
 ```
 The store now lives in `./chroma_db/`, so a later script can open it with the same `collection_name`, `embedding_function` and `persist_directory` without embedding anything again. A search on an empty store returns `[]` instead of crashing.
 
-**Difference between Approaches 1–7:** Approaches 1/2 work, but crash on a second call, and always return *something*, whether or not it's relevant. Approach 3 makes building safe to call twice with `get_or_create_collection` plus a cheap "already built" check — the same "check first, only do the real work if needed" pattern as Doc01's `load_config()` cache. Approach 4 makes "nothing here is relevant" a real, testable outcome. Approach 5 reads only real documents (`glob` + `suffix`) and embeds them in one batched call. Approach 6 replaces Approach 3's "skip if built" with a clean rebuild, so an edited document is picked up. Approach 7 does the same with LangChain's `Chroma`, and adds scores and a store saved on disk.
+### Approach 8 — load and split with the library (`DirectoryLoader` + `RecursiveCharacterTextSplitter`)
+
+**Story:** every approach so far read files with plain `open()`. That's fine for `.txt` and `.md`, but a real knowledge base also has PDFs, and PDFs aren't plain text. LangChain's **document loaders** read any of these into `Document` objects, and its **text splitter** cuts them into chunks that still remember which file (and page) they came from — the [Document loaders](../README.md#document-loaders-getting-text-out-of-real-files) topic. **If not:** the moment someone drops a PDF in `docs/`, your `open().read()` either crashes or stores raw binary.
+
+This is the same **load → split → embed** pipeline, done the library way. `DirectoryLoader` loads the whole folder; `split_documents` keeps each chunk's `.metadata`; then it goes into the same `Chroma` store from Approach 7.
+
+```python
+# knowledge_base_search_practice.py
+from langchain_chroma import Chroma
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
+from langchain_openai import OpenAIEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
+
+
+def build_store_from_folder(folder: str):
+    loader = DirectoryLoader(folder, glob="**/*.md", loader_cls=TextLoader)
+    documents = loader.load()                     # one Document per file
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500, chunk_overlap=50,
+    )
+    chunks = splitter.split_documents(documents)  # keeps each chunk's metadata
+    return Chroma.from_documents(
+        chunks, EMBEDDINGS, collection_name="knowledge_base",
+    )
+
+
+def ask(store, question: str, k: int = 3) -> None:
+    print(f"Q: {question}")
+    for document, score in store.similarity_search_with_score(question, k=k):
+        print(f"  {score:.2f}  {document.metadata['source']}")
+
+
+store = build_store_from_folder("docs")
+ask(store, "What grind size should I use for a French press?")
+```
+
+To also read PDFs, swap `glob="**/*.pdf"` and `loader_cls=PyPDFLoader` (install
+`pypdf`) — the rest of the pipeline is unchanged, which is the whole point of
+loaders: the source format changes, your code doesn't.
+
+**Difference from Approach 7:** Approach 7 wrote the sample files and embedded
+their whole text. Approach 8 *loads* a real folder with a `DirectoryLoader` and
+*splits* it with a text splitter before embedding — the real-world ingest path,
+and the only one that also handles PDFs.
+
+**Difference between Approaches 1–8:** Approaches 1/2 work, but crash on a second call, and always return *something*, whether or not it's relevant. Approach 3 makes building safe to call twice with `get_or_create_collection` plus a cheap "already built" check — the same "check first, only do the real work if needed" pattern as Doc01's `load_config()` cache. Approach 4 makes "nothing here is relevant" a real, testable outcome. Approach 5 reads only real documents (`glob` + `suffix`) and embeds them in one batched call. Approach 6 replaces Approach 3's "skip if built" with a clean rebuild, so an edited document is picked up. Approach 7 does the same with LangChain's `Chroma`, and adds scores and a store saved on disk.
 
 **Which one should you actually use?** Together, Approaches 4, 5 and 6 are what a real knowledge base needs. Read only real documents in one batched call (Approach 5), rebuild cleanly so edits are picked up (Approach 6 — use Approach 3's `get_or_create_collection` only when the documents never change), and judge every result against a cutoff you tuned on your own good and off-topic questions (Approach 4). Use Approach 7 when the rest of your code already uses LangChain. All of them feed the Build Task: its `ingest.py` is Approach 5 + 6 with chunks instead of whole files, and its off-topic Test Case ("a bigger distance than an on-topic question") is Approach 4's distance check.

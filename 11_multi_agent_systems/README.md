@@ -18,7 +18,7 @@
   5. Use **Hint 1 → Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, defend out loud — to an imagined tough senior engineer — why this task needed 4 agents and not 1. If you can't, you're not done.
 
-**Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-project-4-multi-agent-system)
+**Jump to:** [Learn It in Order (start here)](#learn-it-in-order-build-a-supervisor-team-step-by-step) · [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-project-4-multi-agent-system)
 
 ## The Story — what this document is actually building
 
@@ -27,6 +27,125 @@ Project 3 (Doc10) built one agent that could search, reason, pause for approval,
 The tempting mistake is to assume "more agents" is automatically better, because it sounds more advanced. It usually isn't — a single well-organized agent is cheaper, faster, and has fewer places to break, and stays your default choice. Multi-agent design only earns its cost when a task truly has separate phases that would fight each other in one prompt, when one agent's tools or history would get overloaded, or when running independent pieces at the same time genuinely saves real time. This document walks through the seven shapes multi-agent systems come in — single, sequential, supervisor, hierarchical, peer-to-peer, parallel, and generator→critic→revision — so that you're choosing a shape on purpose, with a real reason, not by default.
 
 That's the whole story: **the patterns** are just different ways of arranging who talks to whom and in what order. The **`Command` tool** is today's clean way for one agent to say "here's my update, and here's who goes next" in a single step, replacing older, more fragile text-code routing. **Shared state** is the contract the whole team reads and writes, and deciding what belongs in it — versus what stays private to one agent — is a real design skill, not a detail. **Error propagation** decides whether one agent's bad day sinks the whole team or is handled gracefully. And the **Build Task**, Project 4, asks you to put a real version of all of this together: a Supervisor that routes a task to a Research agent, then an Analysis agent, then a Writer, then a Reviewer who can send the work back for changes — a real, working, multi-agent pipeline, not just a diagram of one.
+
+## Learn It in Order — Build a Supervisor Team Step by Step
+
+**New to multi-agent? Start here.** A multi-agent system is just Doc09's graph where the nodes are *agents* and one special node — the **Supervisor** — decides who goes next. We build a tiny team one piece at a time. Then the Core Concepts go deeper, and the Practice Exercises are these exact steps.
+
+> Setup: `pip install langgraph langchain-openai`. Builds on Doc07 (agents) + Doc09 (graphs).
+
+### Step 0 — Why many agents instead of one
+
+One agent with 15 tools chooses badly — too many overlapping options. Three
+agents with 4 tools each choose well. Split a big job into **specialists**, and
+give one coordinator the job of routing between them.
+
+### Step 1 — Each agent is a node
+
+An agent (a Doc07 loop, or a chain) becomes one node that does its narrow job and
+writes its result into shared state:
+
+```python
+def research(state):
+    findings = f"researched: {state['task']}"
+    return {"findings": findings}
+
+def write(state):
+    draft = f"draft from: {state['findings']}"
+    return {"draft": draft}
+```
+
+**What's new:** nothing per agent — each is a Doc09 node doing one specialist
+job. The team is just several of these.
+
+### Step 2 — Shared state is the contract between agents
+
+The state lists exactly what each agent reads and writes — the Research agent
+writes `findings`, the Writer reads `findings` and writes `draft`. Writing that
+shape down first is what keeps a multi-agent project from turning into mud:
+
+```python
+from typing import TypedDict
+
+class TeamState(TypedDict):
+    task: str
+    findings: str
+    draft: str
+    done: list        # which agents have run
+```
+
+**What's new:** state is the team's shared contract — each agent's inputs and
+outputs are visible in one place.
+
+### Step 3 — The Supervisor routes with `Command`
+
+The Supervisor is a node that decides who goes next and says so in one step with
+`Command(goto=...)`. Each agent hands control **back** to the Supervisor:
+
+```python
+from langgraph.types import Command
+from langgraph.graph import END
+
+def supervisor(state):
+    if "research" not in state["done"]:
+        return Command(goto="research")
+    if "write" not in state["done"]:
+        return Command(goto="write")
+    return Command(goto=END)
+
+def research(state):
+    update = {"findings": "...", "done": state["done"] + ["research"]}
+    return Command(goto="supervisor", update=update)
+```
+
+**What's new:** `Command(goto=X, update={...})` = "here's my update, and here's
+who goes next" in one move — today's clean routing, instead of fragile text codes.
+
+### Step 4 — The loop: supervisor → agent → supervisor → … → END
+
+Wire `START → supervisor`; every agent returns to the supervisor, which routes to
+the next one, until it routes to `END`:
+
+```python
+builder.add_edge(START, "supervisor")   # agents each Command(goto="supervisor")
+```
+
+**What's new:** the whole team is one graph that keeps returning to the
+Supervisor — the Supervisor is just a conditional router over agent nodes.
+
+### Step 5 — A convergence limit (the Reviewer loop)
+
+When a Reviewer can send work back for changes, that's a loop — and like every
+loop it needs a hard stop (a revision counter in state), or two agents can argue
+forever:
+
+```python
+def route_after_review(state):
+    if state["approved"] or state["revisions"] >= 2:   # stop rule in state
+        return "finish"
+    return "write"       # send it back for one more revision
+```
+
+**What's new:** the same loop-limit discipline from Doc09, now between two agents.
+No limit = an infinite, expensive argument.
+
+### You've built a multi-agent team, zero to advanced
+
+Specialist agents as nodes → shared state as the contract → a Supervisor routing
+with `Command` → the return-to-supervisor loop → a convergence limit. Everything
+else here (cost/latency, error propagation, logging per agent) makes that team
+safer. Now the Practice Exercises, in order:
+
+| You read | Now practice |
+|---|---|
+| Step 0-2 (design the team on paper) | [Basic — design on paper before code](#ex-paper_design) |
+| The one-after-another version first | [Intermediate — measure the sequential version](#ex-sequential_measure) |
+| Steps 3-4 (the Supervisor routing) | [Real-world — build and compare the supervisor](#ex-supervisor_compare) |
+| When routing is ambiguous | [Edge cases — an ambiguous routing decision](#ex-ambiguous_routing) |
+| Step 5 (a loop that won't converge) | [Failure — a loop that won't converge](#ex-convergence_and_cost_cutting) |
+
+The detailed Core Concepts below explain each piece more deeply — read them after
+you've run the steps above.
 
 ## Core Concepts (read this first — everything you need is here)
 

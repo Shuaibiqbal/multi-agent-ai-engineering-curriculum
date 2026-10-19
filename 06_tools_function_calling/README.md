@@ -20,7 +20,7 @@
   5. Use **Hint 1 → Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, explain out loud why a tool's description is really just another prompt. If you can't, you're not done.
 
-**Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-tool-library)
+**Jump to:** [Learn It in Order (start here)](#learn-it-in-order-one-tool-wired-up-step-by-step) · [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-tool-library)
 
 ## The Story — what this document is actually building
 
@@ -29,6 +29,152 @@ Picture this: everything up through Doc05 was about the model talking — answer
 **First**, you register a tool: a real Python function, with a name and a plain-English description, handed to the model alongside the conversation. The model reads that description exactly the way it reads a prompt. **Second**, you define the tool's arguments as a Pydantic model — this shows the model the exact shape it needs to send, and checks whatever it actually sends before your function ever runs. **Third**, once you have more than one tool, the model has to *choose*, and that choice gets unreliable exactly when two descriptions overlap. **Fourth**, tools fail, and the fix is never to let that crash the program — it's to catch the failure and hand it back to the model as a clear result, so the model can react to it. **Fifth**, once a tool can run mid-conversation, it can run several times, in parallel or in a chain, and the model can be told when it must, must not, or may call one. **Sixth**, because tool arguments are steered by text a user typed — and can be steered by text a document or a web page contains — tools are a real attack surface, with prompt injection as the sharpest version of that risk. **Finally**, MCP (Model Context Protocol) is the standard way to stop re-wiring the same tool into every app and agent by hand.
 
 That's the whole story: description, argument contract, selection, failure, the full round-trip, concurrency and sequencing, forcing, security, and — because tools are what makes all of this real — the protocol for sharing them. The Build Task asks you to build a small library of 2-3 tools, because that exact library is what Doc07's agent loop, and every agent after it in this curriculum, will call.
+
+## Learn It in Order — One Tool, Wired Up Step by Step
+
+**New to tool calling? Start here.** We take **one** tiny function and wire it to the model one piece at a time, running it after each step so you *see* what changed. Type each step and run it. Once this clicks, the detailed Core Concepts below are the same steps explained more deeply, and the Practice Exercises are these exact steps, in order.
+
+> Setup (once): `pip install langchain langchain-openai langchain-core`, and your `OPENAI_API_KEY` in `.env`. Builds on Doc05's `ChatOpenAI`.
+
+### Step 0 — A plain function the model cannot use (yet)
+
+```python
+def add(a, b):
+    return a + b
+
+print(add(5, 7))      # -> 12
+```
+
+The model can't call this. It only sees text. The next steps make it callable.
+
+### Step 1 — Make it a tool with `@tool`
+
+`@tool` wraps your function and attaches what the model needs to decide to use
+it: a **name**, a **description** (from the docstring), and the **argument
+shape** (from the type hints):
+
+```python
+from langchain_core.tools import tool
+
+@tool
+def add(a: int, b: int) -> int:
+    """Add two numbers a and b."""
+    return a + b
+
+print(add.name)          # -> add
+print(add.description)   # -> Add two numbers a and b.
+print(add.args)          # -> {'a': {...int}, 'b': {...int}}
+print(add.invoke({"a": 5, "b": 7}))   # -> 12  (you still call it directly)
+```
+
+**What's new:** the docstring is not a comment — it's the **prompt** the model
+reads to decide whether and how to call the tool. A vague docstring = unreliable
+tool choice.
+
+### Step 2 — Give the tool to the model: it *asks*, it doesn't run
+
+`bind_tools([...])` hands the tool to the model. The model never runs your code
+— it replies with a **request** to call it (`tool_calls`), and your code runs it:
+
+```python
+from langchain_openai import ChatOpenAI
+
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([add])
+reply = model.invoke("What's 5 + 7?")
+
+print(reply.content)      # -> ''   (it didn't answer — it wants a tool)
+print(reply.tool_calls)
+# -> [{'name': 'add', 'args': {'a': 5, 'b': 7}, 'id': 'call_1', ...}]
+```
+
+**What's new:** the reply has **no answer** — it has a `tool_calls` list naming
+the function and the arguments it wants. The model asks; it never acts.
+
+### Step 3 — The round trip: run it, hand it back, ask again
+
+This is the step beginners miss. You run the tool, put both the model's request
+**and** your result into the history, then ask the model **again** — now it can
+answer:
+
+```python
+from langchain_core.messages import HumanMessage, ToolMessage
+
+messages = [HumanMessage(content="What's 5 + 7?")]
+reply = model.invoke(messages)
+messages.append(reply)                          # 1. keep its request
+
+for call in reply.tool_calls:
+    result = add.invoke(call["args"])           # 2. YOU run the tool
+    messages.append(ToolMessage(                # 3. hand the result back,
+        content=str(result), tool_call_id=call["id"]))   # keyed by id
+
+final = model.invoke(messages)                  # 4. ask again
+print(final.content)      # -> 5 + 7 is 12.
+```
+
+**What's new:** one tool use = **two model calls** (ask → answer) and the
+execution happens on *your* side. Forget to append the model's request first and
+the API rejects the orphaned result.
+
+### Step 4 — Two tools: the model chooses
+
+Give it a list, and the model picks the right one by the descriptions:
+
+```python
+@tool
+def get_weather(city: str) -> str:
+    """Get the current weather for a city."""
+    return f"{city}: 18C, cloudy"
+
+tools = [add, get_weather]
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools(tools)
+reply = model.invoke("What's the weather in Paris?")
+print(reply.tool_calls[0]["name"])   # -> get_weather
+```
+
+**What's new:** the only thing steering the choice is the descriptions. When two
+descriptions overlap, the choice gets unreliable — fix the description, not the
+model.
+
+### Step 5 — A tool fails: hand the error back, don't crash
+
+Tools fail (bad input, a down API). Never let that crash the program — catch it
+and return the failure **as the tool result**, so the model can react:
+
+```python
+registry = {"add": add, "get_weather": get_weather}
+
+for call in reply.tool_calls:
+    try:
+        result = str(registry[call["name"]].invoke(call["args"]))
+    except Exception as error:
+        result = f"Error: {call['name']} failed ({type(error).__name__})."
+    messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+```
+
+**What's new:** a failed tool becomes a normal result message, not an exception.
+The model reads "Error: ..." and can apologize or try another way.
+
+### You've seen the whole mechanism
+
+Steps 1-5 are a complete tool-using turn: **describe → bind → the model asks →
+you run and hand back → ask again**, with failures handled. Everything
+advanced in this document — forcing a tool (`tool_choice`), parallel calls,
+chaining across turns, and MCP (sharing tools over a protocol) — is this same
+loop, extended. Doc07 wraps these exact steps in a `while` loop and calls it an
+**agent**. Now do the Practice Exercises in this order:
+
+| You read | Now practice |
+|---|---|
+| Steps 1-3 (one tool, the round trip) | [Basic — your first working tool](#ex-first_tool_call) |
+| Step 4 (choosing between tools) | [Intermediate — watch the model choose](#ex-tool_selection_ambiguity) |
+| A real tool (an API call inside it) | [Real-world — a tool backed by a real API](#ex-real_api_tool) |
+| The argument contract failing | [Edge cases — a missing required argument](#ex-missing_argument_handling) |
+| Step 5 (a crashing tool, a bad description) | [Failure — a crashing tool](#ex-tool_error_and_description_fix) |
+
+The detailed Core Concepts below explain each piece more deeply (and then go on
+to parallelism, `tool_choice`, chaining, security, and MCP) — read them after
+you've run the five steps above.
 
 ## Core Concepts (read this first — everything you need is here)
 

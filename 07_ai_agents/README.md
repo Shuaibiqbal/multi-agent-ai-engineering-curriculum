@@ -18,7 +18,7 @@
   5. Use **Hint 1 or Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, explain out loud why every agent loop needs a hard limit on steps. If you can't, you're not done.
 
-**Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-project-2-tool-using-agent)
+**Jump to:** [Learn It in Order (start here)](#learn-it-in-order-build-the-agent-loop-step-by-step) · [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-project-2-tool-using-agent)
 
 ## The Story — what this document is actually building
 
@@ -27,6 +27,141 @@ Doc06 gave the model exactly one shot per turn — call a tool, get a result, do
 **First**, the ReAct loop is Doc06's five-step round trip, repeated: register the task and tools, the model asks for one, your code runs it, you hand the result back, you ask again — nothing new gets invented here, the "reasoning" is just the model seeing each step's real result before choosing the next one. **Second**, every request and result gets appended to a growing message list, the loop's own scratchpad — the model's next decision is only as good as what actually survives in that list, so a dropped or badly-written result makes the model effectively forget it happened. **Third**, the loop needs a hard stop that lives in *your* code, not the model's judgment, the same "a limit isn't optional" discipline Doc02 already taught you for retries. **Fourth**, once a loop runs many steps instead of one, the same handful of failures show up again and again: believable-but-wrong tool arguments, a tool error the model quietly ignores, and the infinite loop the step limit exists to prevent.
 
 That's the whole story: one repeated round, a scratchpad to remember it by, and a limit to stop it. The Build Task wires your Doc06 tool library into exactly this loop, because Project 2 *is* that loop doing real, multi-step work with tools you already built.
+
+## Learn It in Order — Build the Agent Loop Step by Step
+
+**New to agents? Start here.** An agent is Doc06's tool round-trip with **one** thing added — a loop. We build it one line at a time and run it, so you see there's no magic. Then the Core Concepts below go deeper, and the Practice Exercises are these exact steps.
+
+> Setup: same as Doc06 (`langchain`, `langchain-openai`, your key). `get_forecast` is a Doc06-style `@tool` function.
+
+### Step 0 — Doc06 did this **once**
+
+In Doc06, the model asked for a tool, you ran it, handed the result back, and it
+answered — exactly **one** round trip. That only works when one tool call is the
+whole job. Real tasks take several steps, and the next step depends on what the
+last one returned.
+
+### Step 1 — Add the loop: think → act → observe → repeat
+
+Wrap Doc06's round trip in a `for` loop. That one change is the whole agent:
+
+```python
+from langchain_core.messages import ToolMessage
+from langchain_openai import ChatOpenAI
+
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+model = model.bind_tools([get_forecast])
+registry = {"get_forecast": get_forecast}
+
+
+def run_agent(task, max_steps=6):
+    messages = [{"role": "user", "content": task}]
+    for step in range(max_steps):
+        reply = model.invoke(messages)             # THINK
+        messages.append(reply)                     # the request goes in FIRST
+        if not reply.tool_calls:                   # no tool wanted -> done
+            return reply.content
+        for call in reply.tool_calls:              # ACT (every call)
+            result = registry[call["name"]].invoke(call["args"])
+            messages.append(ToolMessage(           # OBSERVE
+                content=str(result), tool_call_id=call["id"]))
+    return "Stopped: too many steps."
+
+
+print(run_agent("Should I bring an umbrella in Lahore tomorrow?"))
+# turn 1: model asks get_forecast(Lahore, tomorrow) -> "60% chance of rain"
+# turn 2: model answers -> "Yes, bring an umbrella - 60% rain in Lahore."
+```
+
+**What's new:** only the `for step in range(...)` loop. Everything inside it is
+Doc06. The model decides one step at a time; it stops when its reply has no more
+`tool_calls`. That's "ReAct" — reason, act, observe, repeat.
+
+### Step 2 — The hard stop lives in **your** code
+
+Notice `max_steps` and the `"Stopped: too many steps."` return. That limit is not
+optional — it's the same "a limit isn't a nice-to-have" rule as Doc02's retries.
+If the model keeps asking for tools forever (a real failure mode), **your**
+counter is the only thing that stops it. Never trust the model to stop itself:
+
+```python
+# a model that never stops asking for a tool still terminates:
+print(run_agent("...", max_steps=3))   # -> Stopped: too many steps.
+```
+
+**What's new:** the loop always ends — either the model stops asking, or your
+counter runs out. In a real project you'd `raise MaxIterationsExceeded` here so
+the caller knows it didn't finish.
+
+### Step 3 — The scratchpad is just the `messages` list
+
+The growing `messages` list **is** the agent's memory of its own run — every
+think, act, and observe is appended to it. The model API is stateless, so you
+re-send the whole list every turn, and the model's next decision is only as good
+as what's in it. Drop or garble a result and the agent effectively forgets that
+step happened.
+
+**What's new:** no special "memory" object — the agent remembers by reading back
+its own message history each turn.
+
+### Step 4 — A tool fails mid-loop: hand it back, keep going
+
+A tool failing is not a special case — catch it and turn it into an observation,
+exactly like Doc06, so the model can read the error and try another way:
+
+```python
+for call in reply.tool_calls:
+    try:
+        result = str(registry[call["name"]].invoke(call["args"]))
+    except Exception as error:
+        result = f"Error: {call['name']} failed ({type(error).__name__})."
+    messages.append(ToolMessage(content=result, tool_call_id=call["id"]))
+```
+
+**What's new:** the failure becomes a normal `tool` message. The loop continues,
+and next turn the model sees "Error: ..." and can recover.
+
+### Step 5 — `create_agent`: the same loop, in one line
+
+Once you've built the loop by hand, the library writes it for you —
+`create_agent` compiles the identical loop into a small LangGraph graph:
+
+```python
+from langchain.agents import create_agent
+
+agent = create_agent(
+    model="gpt-4o-mini",
+    tools=[get_forecast],
+    system_prompt="You are a helpful weather assistant.",
+)
+result = agent.invoke(
+    {"messages": [{"role": "user", "content": task}]},
+    config={"recursion_limit": 14},     # ~2 graph steps per ReAct turn
+)
+```
+
+**What's new:** nothing — it's your Step 1-4 loop with the wiring hidden. Build
+it by hand once (you just did); reach for `create_agent` only when you know what
+it's hiding. `recursion_limit` is its version of your `max_steps`.
+
+### You've built an agent, zero to advanced
+
+An agent is a `while`/`for` loop around Doc06's round trip, a `messages` list for
+memory, and a step limit to stop it. Everything else in this document (the
+scratchpad strategies, planning, memory between calls, when *not* to use an
+agent, evaluation) makes that loop smarter or safer. Now the Practice Exercises,
+in order:
+
+| You read | Now practice |
+|---|---|
+| The loop on paper, before coding | [Basic — trace the loop on paper first](#ex-trace_loop_by_hand) |
+| Steps 1-4 (build the loop yourself) | [Intermediate — build the loop yourself](#ex-build_react_loop) |
+| Step 5 (hand-built vs `create_agent`) | [Real-world — compare your loop to the library's](#ex-agent_executor_comparison) |
+| A task that needs no tool at all | [Edge cases — a task that needs no tool](#ex-no_tool_needed) |
+| Step 2 (the limit, and looping's cost) | [Failure — watch it loop, measure the cost](#ex-infinite_loop_cost) |
+
+The detailed Core Concepts below explain the loop, the scratchpad, and the step
+limit in depth — read them after you've run the steps above.
 
 ## Core Concepts (read this first — everything you need is here)
 

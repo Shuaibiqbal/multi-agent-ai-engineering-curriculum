@@ -22,7 +22,7 @@
   5. Use **Hint 1 → Hint 2** only after really trying. Ask for the full solution only if you say **"Show me the solution."**
   6. Before moving on, explain out loud when you'd pick LangChain over the raw SDK for a new task, and why. If you can't, you're not done.
 
-**Jump to:** [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-reusable-chain-module)
+**Jump to:** [Learn It in Order (start here)](#learn-it-in-order-one-chain-built-step-by-step) · [Core Concepts](#core-concepts-read-this-first-everything-you-need-is-here) · [Practice Exercises](#practice-exercises) · [Build Task](#build-task-reusable-chain-module)
 
 ## The Story — what this document is actually building
 
@@ -32,9 +32,273 @@ This document is about a library, LangChain, that takes exactly that repeated pl
 
 That's the whole story: each Core Concept below is one interchangeable piece, and LCEL is the glue that snaps them together. The Build Task at the end asks you to build exactly that — one small, reusable chain module — and prove, side by side, that it gives the same answer as Doc04's raw version, so you can actually explain, not just guess, when the extra layer is worth its cost.
 
+## Learn It in Order — One Chain, Built Step by Step
+
+**New to all of this? Start here.** This is the whole document in one place: we build **one** small chain, adding **one** new piece at a time, and run it after every step so you *see* what changed. Type each step yourself and run it. Once this clicks, the detailed Core Concepts below are just the same five pieces explained more deeply — and the Practice Exercises are these exact steps, in this exact order.
+
+> Setup first (once): `pip install langchain langchain-openai langchain-core`, and make sure your `OPENAI_API_KEY` is in `.env` (same key as Doc04). Every snippet below is a complete, runnable file.
+
+### Step 0 — How you did it in Doc04 (the thing we're replacing)
+
+In Doc04 you called the model by hand, every time:
+
+```python
+from openai import OpenAI
+client = OpenAI()
+response = client.chat.completions.create(
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": "Say hello in one word."}],
+)
+print(response.choices[0].message.content)   # -> Hello
+```
+
+That works. But the `messages` list, the `create(...)` call, and digging the
+text out of `.choices[0].message.content` get rewritten in every script. The
+next five steps replace each of those with one reusable piece.
+
+### Step 1 — `ChatOpenAI`: the same call, a simpler shape
+
+```python
+from langchain_openai import ChatOpenAI
+
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0, timeout=30)
+reply = model.invoke("Say hello in one word.")
+print(reply.content)      # -> Hello
+```
+
+**What's new:** `.invoke(...)` instead of `client.chat.completions.create(...)`,
+and you read `reply.content` instead of `.choices[0].message.content`. Same
+model, same answer — just a shorter, standard shape. (`reply` is an
+`AIMessage`; always read `.content` for the text.)
+
+### Step 2 — Prompt template: write the fixed part once
+
+Most prompts have a fixed part and a changing part. A **template** keeps them
+separate — the fixed words written once, the changing part as a `{slot}`:
+
+```python
+from langchain_core.prompts import ChatPromptTemplate
+
+prompt = ChatPromptTemplate.from_template("Translate to French: {text}")
+
+messages = prompt.invoke({"text": "good morning"})   # fills the slot only
+print(messages)                                      # no API call, no cost yet
+
+reply = model.invoke(messages)                       # now call the model
+print(reply.content)      # -> Bonjour
+```
+
+**What's new:** `prompt.invoke({...})` only fills the blanks and returns
+messages — it does **not** call the model (so it's free to test). You still
+pass those messages to `model.invoke(...)` yourself. Step 3 removes that
+hand-off.
+
+### Step 3 — LCEL `|`: snap the pieces into one chain
+
+The `|` symbol connects pieces: it runs the left one, then feeds its output
+into the right one. So `prompt | model` is "fill the slots, then call the
+model" as a single object:
+
+```python
+chain = prompt | model
+reply = chain.invoke({"text": "thank you"})
+print(reply.content)      # -> Merci
+```
+
+**What's new:** one `chain.invoke({...})` now does both steps. The chain
+behaves like one piece — you can pass it around and reuse it everywhere.
+
+### Step 4 — Output parser: get clean text out of the end
+
+Right now `chain.invoke(...)` still returns an `AIMessage`, so you keep writing
+`.content`. Add a **parser** as the last link to get plain text straight out:
+
+```python
+from langchain_core.output_parsers import StrOutputParser
+
+chain = prompt | model | StrOutputParser()
+print(chain.invoke({"text": "please"}))   # -> S'il vous plaît   (plain text)
+```
+
+**What's new:** `StrOutputParser()` is the last step; now the chain hands you
+the text directly, no `.content` needed. This is the full three-piece shape —
+**`prompt | model | parser`** — that every LangChain chain is made of.
+
+### Step 5 — A typed object instead of text
+
+Often you don't want text — you want fields your code can use. Ask the model to
+fill a Pydantic shape with `.with_structured_output(...)`, and you get a real
+object back:
+
+```python
+from pydantic import BaseModel
+
+class Person(BaseModel):
+    name: str
+    age: int
+
+extractor = model.with_structured_output(Person)
+person = extractor.invoke("Sara Khan is 30 years old.")
+print(person.name, person.age)   # -> Sara Khan 30
+```
+
+**What's new:** the reply is a `Person` object (`person.name`, `person.age`),
+not text you have to parse yourself. This is the same "structured output" idea
+from Doc04, now one method call.
+
+---
+
+**Going further (advanced).** Steps 1-5 are everything you *need*. The next five
+steps are the pieces you'll reach for on real pipelines — a dynamic prompt, the
+different parser types, and the Runnables that let a chain branch, run in
+parallel, and route. Same running example, still one piece at a time.
+
+### Step 6 — Dynamic prompts: system rules + chat history
+
+A `from_template` prompt is **static** — one fixed message. A real chat needs a
+**dynamic** prompt: fixed system rules, the user's turn, and the past
+conversation. `from_messages` builds that, and `MessagesPlaceholder` holds a
+whole history:
+
+```python
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful {role}."),
+    MessagesPlaceholder("history"),
+    ("human", "{question}"),
+])
+messages = prompt.invoke({
+    "role": "tutor",
+    "history": [HumanMessage(content="My name is Sara.")],
+    "question": "What is my name?",
+})
+print([m.type for m in messages.to_messages()])   # ['system','human','human']
+```
+
+**What's new:** `from_messages` keeps the system rules separate from the user's
+text (safer — see Project 9), and `MessagesPlaceholder` drops the whole past
+chat into one slot. Static prompt = `from_template`; dynamic = `from_messages`.
+
+### Step 7 — The four kinds of output parser
+
+You've used `StrOutputParser` (text) and `.with_structured_output` (typed). In
+full, there are four ways to shape the output, from loosest to strictest:
+
+```python
+from langchain_core.output_parsers import JsonOutputParser
+
+# JSON parser: a loose dict, good for quick tools
+json_chain = (
+    ChatPromptTemplate.from_template(
+        "Reply with JSON keys city and country for: {place}")
+    | model | JsonOutputParser()
+)
+print(json_chain.invoke({"place": "the Eiffel Tower"}))
+# -> {'city': 'Paris', 'country': 'France'}   (a real dict)
+```
+
+**What's new — pick by how strict you need to be:**
+
+- `StrOutputParser` → plain text (`str`).
+- `JsonOutputParser` → a `dict`, no shape checking (quick, loose).
+- `PydanticOutputParser` → checks a shape **after** the model answers; raises
+  `OutputParserException` if it's wrong (works with any model).
+- `.with_structured_output(Model)` → shapes it **during** generation; fewest
+  errors, needs a provider that supports it (Step 5).
+
+### Step 8 — Runnables: put your own function in the chain
+
+Every piece you've connected with `|` is a **Runnable** (anything with
+`.invoke`). That means your *own* function can be a step too — wrap it in
+`RunnableLambda`:
+
+```python
+from langchain_core.runnables import RunnableLambda
+
+shout = RunnableLambda(lambda text: text.upper())
+chain = prompt_fr | model | StrOutputParser() | shout
+print(chain.invoke({"text": "thank you"}))   # -> MERCI
+```
+
+**What's new:** `RunnableLambda` turns any function into a chain step, so you can
+reshape data between the model and the next piece — no special LangChain class
+needed.
+
+### Step 9 — Run things in parallel, and keep the input
+
+A `dict` of Runnables (`RunnableParallel`) runs its branches **at the same
+time** and returns a dict of results; `RunnablePassthrough` carries the original
+input forward unchanged:
+
+```python
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+
+french = ChatPromptTemplate.from_template("French for: {text}") | model \
+    | StrOutputParser()
+pipeline = RunnableParallel(french=french, original=RunnablePassthrough())
+print(pipeline.invoke({"text": "hello"}))
+# -> {'french': 'Bonjour', 'original': {'text': 'hello'}}
+```
+
+**What's new:** parallel branches are faster than one-after-another, and
+`RunnablePassthrough` is how RAG (Doc08) keeps the user's question next to the
+retrieved text.
+
+### Step 10 — Conditional chains: route by the input (`RunnableBranch`)
+
+The three chain shapes are **sequential** (`|`), **parallel** (Step 9), and
+**conditional** — pick a different chain based on the input. `RunnableBranch` is
+an if / elif / else inside a pipeline:
+
+```python
+from langchain_core.runnables import RunnableBranch
+
+to_fr = ChatPromptTemplate.from_template("French for: {text}") | model \
+    | StrOutputParser()
+to_es = ChatPromptTemplate.from_template("Spanish for: {text}") | model \
+    | StrOutputParser()
+echo = ChatPromptTemplate.from_template("Repeat: {text}") | model \
+    | StrOutputParser()
+
+router = RunnableBranch(
+    (lambda x: x["lang"] == "fr", to_fr),
+    (lambda x: x["lang"] == "es", to_es),
+    echo,                              # default, when nothing matched
+)
+print(router.invoke({"lang": "fr", "text": "good night"}))   # -> Bonne nuit
+```
+
+**What's new:** `RunnableBranch` routes to one of several chains by a condition —
+the LangChain way to branch. This is the shape a real support pipeline uses to
+send each ticket to the right handler (Project 6).
+
+### You've now seen it, zero to advanced
+
+The basics (Steps 1-5) and the advanced pieces (Steps 6-10) together are the
+whole of LangChain's fundamentals. Everything later (agents, RAG, LangGraph) is
+built from exactly these. Now do the Practice Exercises **in this same order** —
+each one is a step you just read, as a real, meaningful task:
+
+| You read | Now practice |
+|---|---|
+| Steps 1-4 (the three-piece chain) | [Basic — your first LCEL chain](#ex-lcel_chain_basics) |
+| Step 5 (typed output) | [Intermediate — swap in a structured parser](#ex-structured_parser_swap) |
+| Step 6 (dynamic prompts, system + human) | [Real-world — rebuild Doc04's extraction](#ex-lcel_vs_raw_sdk) |
+| Steps 1-7 together, vs. Doc04 | [Real-world — rebuild Doc04's extraction](#ex-lcel_vs_raw_sdk) |
+| Steps 8-10 (Runnable types + routing) | [Real-world — a support router](#ex-runnable_routing) |
+| Chain powers (parallel, fallback, stream) | [Real-world (part 2)](#ex-lcel_patterns) |
+| When a template slot is wrong | [Edge cases](#ex-template_variable_errors) |
+| Step 7 — when a parser fails | [Failure](#ex-parser_failure_handling) |
+
+The detailed Core Concepts below explain each piece more deeply (settings,
+traps, and when to use which) — read them after you've run the steps above and
+want the full picture.
+
 ## Core Concepts (read this first — everything you need is here)
 
-**Topics on this page:** [What a library gives you, and what it costs](#what-a-library-gives-you-and-what-it-costs) · [`ChatOpenAI`](#chatopenai-a-wrapper-not-a-different-model) · [Prompt templates](#prompt-templates-keeping-the-fixed-part-separate-from-the-changing-part) · [LCEL](#lcel-chaining-pieces-together-with) · [Output parsers](#output-parsers-turning-raw-text-into-a-real-python-object) · [The three LangChain packages](#the-three-langchain-packages-langchain-core-langchain-openai-langchain)
+**Topics on this page:** [What a library gives you, and what it costs](#what-a-library-gives-you-and-what-it-costs) · [`ChatOpenAI`](#chatopenai-a-wrapper-not-a-different-model) · [Prompt templates](#prompt-templates-keeping-the-fixed-part-separate-from-the-changing-part) · [Few-shot prompting](#few-shot-prompting-teaching-the-model-by-example) · [LCEL](#lcel-chaining-pieces-together-with) · [Output parsers](#output-parsers-turning-raw-text-into-a-real-python-object) · [The three LangChain packages](#the-three-langchain-packages-langchain-core-langchain-openai-langchain)
 
 ### What a library gives you, and what it costs
 A **library** is code someone else already wrote and tested, so you do not write it again. In Doc04 you built every request by hand: a `messages` list, `client.chat.completions.create(...)`, then reading `.choices[0].message.content` yourself, every single time. LangChain (`prompt | model | parser`) gives you that same shape as three interchangeable pieces you connect once. It is a toolbox, not a different way of thinking about the model — the model call underneath is unchanged.
@@ -139,6 +403,61 @@ A **prompt template** is a prompt with empty slots — fixed wording written onc
 - `MessagesPlaceholder("history")` for chat history.
 - Real braces in the text → double them: `{{` `}}`.
 - `prompt.invoke({...})` fills slots only — free, no API call.
+
+### Few-shot prompting: teaching the model by example
+
+Some tasks are hard to *describe* but easy to *show*. **Few-shot prompting** puts a handful of example input→output pairs right in the prompt, so the model copies the pattern instead of guessing from a description. ("Zero-shot" is no examples; "few-shot" is a few.) It's the cheapest way to pin down a fuzzy category, an exact output format, or a house style — before you reach for anything heavier like fine-tuning.
+
+**How it really works**
+
+- The raw way is just messages: put example turns — `("human", example_input)`, `("ai", example_output)` — into the list *before* the real question. The model treats them as "this is how it's done here."
+- The reusable way is `FewShotChatMessagePromptTemplate(examples, example_prompt)`: it expands a list of example `dict`s into those human/ai pairs, and you drop it into a `ChatPromptTemplate` between the system rules and the real input.
+- Examples are **re-sent on every call** — they cost input tokens each time (Doc03's cost rule). Keep them few (2-5) and representative; more is rarely better and sometimes worse.
+- Biased or lopsided examples bias the output — five positive examples and the model leans positive. Cover the real range, including an edge case or two.
+- Few-shot and structured output stack: show examples of the *shape* you want, and still validate with a parser (the model can copy a format and still get a value wrong).
+
+```python
+from langchain_core.prompts import (ChatPromptTemplate,
+    FewShotChatMessagePromptTemplate)
+
+examples = [
+    {"text": "I love it!", "label": "positive"},
+    {"text": "worst ever", "label": "negative"},
+]
+example_prompt = ChatPromptTemplate.from_messages(
+    [("human", "{text}"), ("ai", "{label}")])
+few_shot = FewShotChatMessagePromptTemplate(
+    examples=examples, example_prompt=example_prompt)
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "Classify the sentiment as positive or negative."),
+    few_shot,                         # expands into the 2 example pairs
+    ("human", "{text}"),
+])
+# prompt.invoke({"text": "this is great"}) -> system, 2 examples, then the human
+```
+
+| Situation | What to do | Why |
+|---|---|---|
+| A fuzzy category the model keeps missing | 2-5 labelled examples | Shows the boundary words can't |
+| An exact output format or style | Examples of that format | The model copies it reliably |
+| A clear instruction already works | No examples (zero-shot) | Examples cost tokens every call |
+| The task needs current/private data | RAG (Doc08), not examples | Few-shot teaches *pattern*, not *facts* |
+
+**Common mistakes:**
+
+- *Mistake:* 10+ examples "to be safe". → *Symptom:* every call is expensive and slower, with no better answers. → *Fix:* 2-5 representative examples; add one only if it fixes a real miss.
+- *Mistake:* all examples of one kind. → *Symptom:* the model leans that way on ambiguous input. → *Fix:* balance the examples across the real range.
+
+**Where you'll meet it:** the [Intermediate exercise](#ex-structured_parser_swap)'s classification is a natural place to add two examples and watch accuracy jump. [Doc11](../11_multi_agent_systems/)'s agents often carry a couple of examples in their system prompt so each specialist stays on-style.
+
+**Quick cheat sheet:**
+
+- Few-shot = show examples; zero-shot = describe only.
+- Raw: `("human", in)`, `("ai", out)` pairs before the real turn.
+- LangChain: `FewShotChatMessagePromptTemplate(examples, example_prompt)`.
+- 2-5 balanced examples; they cost tokens every call.
+- Teaches a *pattern*, not *facts* — for facts, use RAG.
 
 ### LCEL: chaining pieces together with `|`
 **LCEL** (LangChain Expression Language) connects pieces with the `|` symbol: `chain = prompt | model | parser`. Calling `chain.invoke(inputs)` runs each step in order, feeding one step's output straight into the next. Every piece — and the whole chain — is a `Runnable`: anything with `.invoke()`, `.stream()`, `.batch()`, and async versions ([Doc08b](../08b_async_prereq/)). So a three-step chain behaves exactly like one single step: you can pass it around, nest it inside a bigger chain, and bolt on retries in one line, instead of writing the same glue code for every new chain.
@@ -265,6 +584,7 @@ practice/
 ├── structured_output_practice.py    Intermediate + Failure (two sections)
 ├── lcel_vs_raw_sdk_practice.py      Real-world
 ├── lcel_patterns_practice.py        Real-world (part 2)
+├── runnable_routing_practice.py     Real-world (support router)
 ├── prompt_template_practice.py      Edge cases
 ├── chat_client.py                   copied from Doc04, unchanged
 ├── schemas.py                       copied from Doc04, unchanged
@@ -286,6 +606,7 @@ practice/
 - `chat_client.py` / `schemas.py` — Doc04's raw extraction, copied unchanged, so the Real-world exercise has a real version to compare against.
 - `lcel_vs_raw_sdk_practice.py` — the only way to actually compare LangChain vs. raw SDK is having both versions side by side.
 - `lcel_patterns_practice.py` — runs steps in parallel, falls back to a backup, and streams, once each, so none of them is new when Project 6 uses them.
+- `runnable_routing_practice.py` — a real routing pipeline: `RunnableBranch` sends each ticket to the matching reply chain, `RunnableLambda` post-processes — the exact shape Project 6 and every production LCEL pipeline use.
 - `prompt_template_practice.py` — knowing whether a broken template fails while building the prompt or only once the call goes out changes how fast you can debug it.
 - `build_task/chain.py` / `build_task/prompts.py` — the one chain module every later document imports instead of writing raw SDK calls again.
 - `build_task/compare_with_raw_sdk.py` — the Build Task's test file: proves the LCEL version and Doc04's raw version agree, and checks the two failure cases.
@@ -298,11 +619,12 @@ practice/
 - **Intermediate** (swap in a structured parser) and **Failure** (force the parser to actually fail) are both about structured-output parsing and its errors — save them together as `practice/structured_output_practice.py`, one section per level.
 - **Real-world** (rebuild Doc04's extraction, LCEL-style) is its own topic — save it as `practice/lcel_vs_raw_sdk_practice.py`.
 - **Real-world (part 2)** (run in parallel, fall back, and stream) is its own topic — save it as `practice/lcel_patterns_practice.py`.
+- **Real-world** (a support-reply router) is its own topic — save it as `practice/runnable_routing_practice.py`.
 - **Edge cases** (a template with the wrong variables) is its own topic — save it as `practice/prompt_template_practice.py`.
 
 Why group by topic instead of by level: if you save each exercise by difficulty level instead, the different versions of the same idea end up scattered across separate files, and you can never see how one topic grows from simple to harder in one place. Grouping by topic keeps that growth visible — open one file, and you see the whole journey for that one thing, from basic to advanced, side by side.
 
-**Jump to an exercise:** [Basic](#ex-lcel_chain_basics) · [Intermediate](#ex-structured_parser_swap) · [Real-world](#ex-lcel_vs_raw_sdk) · [Real-world (part 2)](#ex-lcel_patterns) · [Edge cases](#ex-template_variable_errors) · [Failure](#ex-parser_failure_handling) · [Build Task](#build-task-reusable-chain-module)
+**Jump to an exercise:** [Basic](#ex-lcel_chain_basics) · [Intermediate](#ex-structured_parser_swap) · [Real-world](#ex-lcel_vs_raw_sdk) · [Real-world (part 2)](#ex-lcel_patterns) · [Real-world (router)](#ex-runnable_routing) · [Edge cases](#ex-template_variable_errors) · [Failure](#ex-parser_failure_handling) · [Build Task](#build-task-reusable-chain-module)
 
 ### Basic — your first LCEL chain {: #ex-lcel_chain_basics }
 
@@ -343,6 +665,16 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 - **Builds on:** the [Basic exercise](#ex-lcel_chain_basics)'s `prompt | model | parser`, and Doc04's streaming exercise and error table.
 - **Used later by:** [Project 6](../project_6_langchainpro_lcel_patterns/) — its lookup step, its fallbacks and its streamed replies are these exact shapes.
 - **Stuck?** [Hint 1](hints_and_solutions/lcel_patterns_hints.md#hint-1) · [Hint 2](hints_and_solutions/lcel_patterns_hints.md#hint-2) · [Show me the solution](hints_and_solutions/lcel_patterns_solution.md)
+
+### Real-world — a support-reply router {: #ex-runnable_routing }
+
+- **What:** build a support desk that routes a ticket to the right reply chain by its category — `billing`, `technical`, or anything else — using `RunnableBranch`, then tags the reply with a `RunnableLambda`. A real routing pipeline, not a toy.
+- **Why:** this is the shape of almost every production LCEL pipeline (and Project 6): classify the input, send it to the matching chain, post-process the result. It ties together the three chain shapes (sequential `|`, branch, and your own function) in one meaningful task.
+- **How to code it:** three reply chains (`ChatPromptTemplate.from_messages([("system", ...), ("human", "{text}")]) | model | StrOutputParser()`), one per category — billing, technical, and a general default. Wrap them in `RunnableBranch((cond, chain), ..., default_chain)` keyed on `ticket["category"]`. Add a `RunnableLambda` final step that appends `"(auto-routed)"`. Then run one ticket per category — **including an unknown one** — and confirm the right branch (and the default) runs each time.
+- **Save as:** `practice/runnable_routing_practice.py`.
+- **Builds on:** the [Basic exercise](#ex-lcel_chain_basics)'s `prompt | model | parser`, Step 6's `from_messages`, and Steps 8-10's `RunnableLambda` / `RunnableBranch`.
+- **Used later by:** [Project 6](../project_6_langchainpro_lcel_patterns/)'s ticket-triage pipeline, which routes exactly this way, and [Doc11](../11_multi_agent_systems/)'s Supervisor, which is this routing idea one layer up.
+- **Stuck?** [Hint 1](hints_and_solutions/runnable_routing_hints.md#hint-1) · [Hint 2](hints_and_solutions/runnable_routing_hints.md#hint-2) · [Show me the solution](hints_and_solutions/runnable_routing_solution.md)
 
 ### Edge cases — a template with the wrong variables {: #ex-template_variable_errors }
 

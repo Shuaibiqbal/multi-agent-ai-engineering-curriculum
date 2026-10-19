@@ -61,6 +61,7 @@ Everything this project needs was taught in Docs 01-05 and Project 1:
 | A function that returns a `Runnable` | [Doc05 Build Task](../05_langchain_fundamentals/README.md#build-task-reusable-chain-module) | All steps |
 | `Literal` fields, "shape during" | [Doc04 — Structured output](../04_openai_api/README.md#structured-output-how-give-me-json-is-actually-guaranteed) | Step 1 |
 | A router that logs its reason | [Project 1 — Step 4](../project_1_supportdesk_chat_and_triage/READING_README.md#step-4-a-router-that-sends-each-message-to-the-right-agent-automatically-final-2-agents) | Step 1 |
+| Routing a ticket to the right reply chain (`RunnableBranch`) | [Doc05 — support router](../05_langchain_fundamentals/README.md#ex-runnable_routing) | Step 1 |
 | Functions and dicts as steps, `RunnableParallel` | [Doc05 — Real-world (part 2)](../05_langchain_fundamentals/README.md#ex-lcel_patterns) | Step 2 |
 | Reading a JSON file | [Doc02 — JSON](../02_apis_http_json/README.md#json-two-different-kinds-of-wrong) | Step 1 |
 | Which errors are transient | [Doc04 — Error types](../04_openai_api/README.md#error-types-and-which-doc02-rules-apply-to-each) | Step 3 |

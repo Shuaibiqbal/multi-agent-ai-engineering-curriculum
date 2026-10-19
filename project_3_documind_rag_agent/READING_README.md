@@ -57,6 +57,7 @@ Project 3's new ideas: a **graph** (saved, pausable state), **retrieval** from y
 | `Annotated[list, operator.add]` | [Doc09 Build Task](../09_langgraph/README.md#build-task-graph-skeleton-feeds-into-project-3) | Step 1 |
 | Checkpointers, `interrupt()`, `Command(resume=...)` | [Doc09 — interrupt and resume](../09_langgraph/README.md#ex-loop_limit_and_interrupt_resume) | Step 2 |
 | `SqliteSaver`, resuming in a new process | [Doc09 — interrupt and resume](../09_langgraph/README.md#ex-loop_limit_and_interrupt_resume) | Step 2 |
+| Loading documents from files (into `Document`s) | [Doc08 — document loaders](../08_rag/README.md#document-loaders-getting-text-out-of-real-files) | Step 3 |
 | Chunking, embeddings, Chroma, `retrieve()` | [Doc08 Build Task](../08_rag/README.md#build-task-retriever-module) | Step 3 |
 | Distance scores (lower = closer) | [Doc08 — similarity](../08_rag/README.md#ex-embedding_similarity) | Step 3 |
 | Conditional edges | [Doc09 — conditional routing](../09_langgraph/README.md#ex-conditional_routing) | Step 3 |
