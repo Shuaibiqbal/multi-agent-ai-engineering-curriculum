@@ -1,0 +1,6 @@
+django
+fastapi
+flask
+jinja2
+streamlit
+uvicorn[standard]

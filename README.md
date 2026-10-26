@@ -1,12 +1,12 @@
 # Multi-Agent AI Engineering Curriculum
 
-A self-study curriculum for building production-grade multi-agent AI systems — 19 documents, 13 projects, and 13 practice twins, from Python fundamentals to a deployed, tested, multi-agent platform.
+A self-study curriculum for building production-grade multi-agent AI systems — 20 documents, 13 core projects, 3 real-world example projects, and 16 practice twins, from Python fundamentals to a deployed, tested, multi-agent platform.
 
 This is not a theory course. Every document pairs its concepts with hands-on practice exercises (each with progressive hints and full worked solutions), and every project is real, runnable code you build yourself, step by step.
 
 ## How this curriculum is structured
 
-- **19 documents** (`01_python_foundations/` → `19_mlops_llmops/`) — each one teaches a topic through simple-English "Core Concepts," then a set of practice exercises with a 2-hint, 3-depth (Basic/Intermediate/Advanced) hint system and full solutions, then a Build Task that feeds directly into the projects below.
+- **20 documents** (`01_python_foundations/` → `20_web_frontends/`) — each one teaches a topic through simple-English "Core Concepts," then a set of practice exercises with a 2-hint, 3-depth (Basic/Intermediate/Advanced) hint system and full solutions, then a Build Task that feeds directly into the projects below.
 - **13 projects** (`project_1_supportdesk_chat_and_triage/` → `project_13_codeguard_pr_review/`) — real multi-agent systems you build across the documents, growing from a 2-agent terminal app to a tested, deployed, production-ready platform — each with a **practice twin** (a second build in a new story; see below).
 - Every document and project is delivered as both a `README.md` (source) and a matching `README.pdf` (for comfortable reading), with fully clickable internal links between exercises, hints, and solutions.
 
@@ -34,6 +34,7 @@ This is not a theory course. Every document pairs its concepts with hands-on pra
 | 17 | [Interview Preparation](17_interview_preparation/) | — |
 | 18 | [Final Production Multi-Agent Capstone](18_capstone/) | Project 5 |
 | 19 | [MLOps & LLMOps](19_mlops_llmops/) | — |
+| 20 | [Web Frontends for AI Apps (Streamlit, Flask, FastAPI, Django)](20_web_frontends/) | Any project's UI |
 
 ## Projects
 
@@ -55,6 +56,16 @@ This is not a theory course. Every document pairs its concepts with hands-on pra
 
 Agent count grows deliberately across the arc (2 → 2 → 3 → 5 → 5) — each project adds one new idea on top of the last, not several at once.
 
+## Real-World Example Projects
+
+Beyond the numbered arc, these are standalone **real-world example projects** — each a complete, step-by-step build of a job a real business has, reusing the exact skills from the documents (document loaders, structured output, RAG, multi-agent, validation). Each one also has a practice twin (below).
+
+| # | Project | Skills | Builds a |
+|---|---|---|---|
+| 14 | [InvoiceIQ — PDF Invoice Data Extraction & Validation](project_14_invoiceiq_document_extraction/) | Document loaders, structured output, Pydantic validation | Pipeline that extracts and *checks* invoice data |
+| 15 | [MeetingMind — Transcript to Decisions, Actions & Summary](project_15_meetingmind_transcript_intelligence/) | Multi-agent, `RunnableParallel`, structured output | Team of parallel extractors + a compiler |
+| 16 | [JobMatch — Resume to Job-Description Skill Matcher](project_16_jobmatch_resume_jd_matcher/) | RAG (semantic matching), structured output | Resume scorer that matches by meaning, not keywords |
+
 ## Practice Twins
 
 Each project has a **practice twin** — the same skills in a brand-new real-world story, delivered as a story only (no step-by-step walkthrough) plus hints and a complete worked solution. You build it yourself from the story, and check the hints or solution only if you get stuck. They're optional but are the fastest way to prove a pattern really stuck.
@@ -74,6 +85,9 @@ Each project has a **practice twin** — the same skills in a brand-new real-wor
 | Project 11 | [ClientLens — Multi-Agent Customer-360 Team Over MCP Services](project_11.1_clientlens_customer360_mcp_team/) | its story + solution |
 | Project 12 | [ComplyDesk — Policy-Checked Support Replies Behind One MCP Tool](project_12.1_complydesk_policy_checked_replies/) | its story + solution |
 | Project 13 | [DispatchGuard — Multi-Agent Outgoing-Message Review in One Pass](project_13.1_dispatchguard_outgoing_message_review/) | its story + solution |
+| Project 14 | [ReceiptRadar — Expense-Receipt Extraction & Policy Check](project_14.1_receiptradar_expense_policy_check/) | its story + solution |
+| Project 15 | [FeedbackLens — Customer-Feedback Batch Analyzer](project_15.1_feedbacklens_review_analyzer/) | its story + solution |
+| Project 16 | [CourseFit — Course Prerequisite Readiness Checker](project_16.1_coursefit_prerequisite_checker/) | its story + solution |
 
 ## How to use this
 
