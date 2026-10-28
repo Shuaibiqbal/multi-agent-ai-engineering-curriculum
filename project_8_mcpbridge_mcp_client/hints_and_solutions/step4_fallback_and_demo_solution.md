@@ -24,9 +24,6 @@ from mcp.client.stdio import stdio_client
 from src.tool_bridge import extract_text, mcp_tools_to_openai_schema
 from src.utils.logger import get_logger
 
-NAME_SEPARATOR = "__"
-
-
 class MCPServerPool:
     def __init__(self, servers, connect_timeout=10.0):
         self.servers = servers
@@ -71,7 +68,7 @@ class MCPServerPool:
             self.sessions[name] = session
             listed = await session.list_tools()
             for tool in listed.tools:
-                namespaced = name + NAME_SEPARATOR + tool.name
+                namespaced = name + "__" + tool.name
                 self.routing[namespaced] = (name, tool.name)
                 self.named_tools.append((namespaced, tool))
             self.logger.info(f"[{name}] connected, {len(listed.tools)} tools")
@@ -121,7 +118,6 @@ from src.utils.logger import get_logger
 TASK = ("Check my notes for anything about the deploy process, and also "
         "list the files in the project folder.")
 
-
 async def run_demo():
     logger = get_logger(__name__)
     try:
@@ -147,10 +143,8 @@ async def run_demo():
     finally:
         await pool.aclose()
 
-
 def main():
     asyncio.run(run_demo())
-
 
 if __name__ == "__main__":
     main()
@@ -178,7 +172,6 @@ Add the broken server and this case:
 ```python
 BROKEN = {"name": "broken", "command": "python",
           "args": ["servers/does_not_exist.py"]}
-
 
 async def test_fallback_when_server_down() -> None:
     config, client, pool = await connect([NOTES, BROKEN])

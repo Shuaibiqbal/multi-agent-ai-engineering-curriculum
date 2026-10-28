@@ -83,12 +83,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -97,7 +95,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -111,7 +108,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -133,12 +129,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -150,16 +143,13 @@ from typing import List
 
 from pydantic import BaseModel
 
-
 class SubTopics(BaseModel):
     sub_topics: List[str] = []
-
 
 class Section(BaseModel):
     sub_topic: str
     explanation: str
     source: str
-
 
 class Lesson(BaseModel):
     topic: str
@@ -172,7 +162,6 @@ class Lesson(BaseModel):
 # in - a RAG lookup in the pipeline, a fake one in tests - so the engine needs
 # no model or embeddings to test.
 from src.schemas import Section
-
 
 def build_sections(sub_topics, search) -> list:
     sections = []
@@ -190,10 +179,8 @@ def build_sections(sub_topics, search) -> list:
 # Sources are numbered in first-seen order and de-duplicated.
 from src.schemas import Lesson
 
-
 def compile_lesson(topic: str, sections) -> Lesson:
     return Lesson(topic=topic, sections=sections)
-
 
 def format_lesson(lesson: Lesson) -> str:
     sources = []
@@ -230,7 +217,6 @@ PLAN_PROMPT = (
     "Return just the sub-topics as short titles.\n\nTopic: {topic}"
 )
 
-
 def make_plan(model, topic: str) -> SubTopics:
     prompt = ChatPromptTemplate.from_template(PLAN_PROMPT)
     chain = prompt | model.with_structured_output(SubTopics)
@@ -246,11 +232,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chromadb
 
 COLLECTION_NAME = "library"
-LIBRARY_DIR = "data/library"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-
-def build_library_store(library_dir: str = LIBRARY_DIR):
+def build_library_store(library_dir: str = "data/library"):
     loader = DirectoryLoader(library_dir, glob="**/*.md",
                              loader_cls=TextLoader)
     documents = loader.load()
@@ -281,7 +265,6 @@ def build_library_store(library_dir: str = LIBRARY_DIR):
 # src/rag/search.py
 from src.rag.library_store import EMBEDDINGS
 
-
 def make_search(collection):
     def search(query: str):
         if collection.count() == 0:
@@ -310,7 +293,6 @@ from src.rag.search import make_search
 from src.schemas import Lesson
 from src.utils.logger import get_logger
 
-
 def run_lesson(model, topic: str) -> Lesson:
     logger = get_logger(__name__)
     plan = make_plan(model, topic).sub_topics
@@ -332,7 +314,6 @@ from src.lesson import format_lesson
 from src.models.llm import get_model
 from src.pipeline import run_lesson
 
-
 def main():
     if len(sys.argv) < 2:
         print('usage: python main.py "your topic"')
@@ -343,7 +324,6 @@ def main():
     lesson = run_lesson(model, topic)
     print()
     print(format_lesson(lesson))
-
 
 if __name__ == "__main__":
     main()
@@ -361,7 +341,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "LESSONFORGE_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -371,7 +350,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -379,7 +357,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -398,7 +375,6 @@ TABLE = [
     ("embedding", ("Embeddings turn text into vectors.", "rag_basics.md")),
 ]
 
-
 def fake_search(query: str):
     lowered = query.lower()
     for key, value in TABLE:
@@ -406,12 +382,10 @@ def fake_search(query: str):
             return value
     return ("No information found.", "none")
 
-
 def build_lesson():
     plan = ["What is RAG?", "How does chunking work?", "What is an embedding?"]
     sections = build_sections(plan, fake_search)
     return compile_lesson("RAG", sections)
-
 
 def test_sections_appear() -> None:
     text = format_lesson(build_lesson())
@@ -419,7 +393,6 @@ def test_sections_appear() -> None:
     if "Chunking splits documents" not in text:
         result = "WRONG"
     print(f"case 1 (sections in lesson)      -> {result}")
-
 
 def test_citations_dedup() -> None:
     text = format_lesson(build_lesson())
@@ -429,7 +402,6 @@ def test_citations_dedup() -> None:
     if text.count("[1]") < 2:          # RAG and embedding share rag_basics.md
         result = "WRONG"
     print(f"case 2 (citations numbered/dedup) -> {result}")
-
 
 if __name__ == "__main__":
     test_sections_appear()
@@ -445,7 +417,6 @@ from src.lesson import format_lesson
 from src.models.llm import get_model
 from src.pipeline import run_lesson
 
-
 def test_lesson_has_cited_sections() -> None:
     config = load_config()
     model = get_model(config)
@@ -453,7 +424,6 @@ def test_lesson_has_cited_sections() -> None:
     text = format_lesson(lesson)
     ok = len(lesson.sections) >= 2 and "[1]" in text and "Sources:" in text
     print(f"case 1 (several cited sections) -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     test_lesson_has_cited_sections()

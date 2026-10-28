@@ -90,13 +90,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     match_cutoff: float
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -105,7 +103,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -120,7 +117,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -142,12 +138,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -159,10 +152,8 @@ from typing import List
 
 from pydantic import BaseModel
 
-
 class RequiredPrereqs(BaseModel):
     prereqs: List[str] = []
-
 
 class ReadinessReport(BaseModel):
     score: int
@@ -177,10 +168,7 @@ class ReadinessReport(BaseModel):
 # passed in, so the decision is testable with no model or embeddings.
 from src.schemas import ReadinessReport
 
-DEFAULT_CUTOFF = 0.8
-
-
-def check_prereqs(required, distance, cutoff: float = DEFAULT_CUTOFF):
+def check_prereqs(required, distance, cutoff: float = 0.8):
     met = []
     missing = []
     for prereq in required:
@@ -207,7 +195,6 @@ import chromadb
 
 COLLECTION_NAME = "background"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
-
 
 def build_background_store(background_text: str):
     splitter = RecursiveCharacterTextSplitter(
@@ -238,7 +225,6 @@ from src.rag.background_store import EMBEDDINGS
 
 NO_MATCH_DISTANCE = 2.0
 
-
 def best_distance(collection, prereq: str) -> float:
     if collection.count() == 0:
         return NO_MATCH_DISTANCE
@@ -263,7 +249,6 @@ PREREQS_PROMPT = (
     "if none are stated.\n\nCourse:\n{course}"
 )
 
-
 def extract_required_prereqs(model, course_text: str) -> RequiredPrereqs:
     prompt = ChatPromptTemplate.from_template(PREREQS_PROMPT)
     chain = prompt | model.with_structured_output(RequiredPrereqs)
@@ -280,7 +265,6 @@ from src.rag.background_store import build_background_store
 from src.rag.retriever import best_distance
 from src.schemas import ReadinessReport
 from src.utils.logger import get_logger
-
 
 def run_check(model, background_text: str, course_text: str,
               cutoff: float = 0.8) -> ReadinessReport:
@@ -309,7 +293,6 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import run_check
 
-
 def main():
     if len(sys.argv) < 3:
         print("usage: python main.py <background-file> <course-file>")
@@ -333,7 +316,6 @@ def main():
     for prereq in report.missing:
         print(f"  - {prereq}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -350,7 +332,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "COURSEFIT_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -360,7 +341,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -368,7 +348,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -380,12 +359,8 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_matcher
 from src.matcher import check_prereqs
 
-COVERED = {"linear algebra": 0.2, "python": 0.1}
-
-
 def fake_distance(prereq: str) -> float:
-    return COVERED.get(prereq.lower(), 1.5)
-
+    return {"linear algebra": 0.2, "python": 0.1}.get(prereq.lower(), 1.5)
 
 def test_met_and_missing() -> None:
     required = ["Linear algebra", "Python", "Statistics"]
@@ -397,7 +372,6 @@ def test_met_and_missing() -> None:
         result = "WRONG"
     print(f"case 1 (2 met, 1 missing)  -> {result}")
 
-
 def test_score_is_a_percentage() -> None:
     required = ["Linear algebra", "Python", "Statistics"]
     report = check_prereqs(required, fake_distance, cutoff=0.8)
@@ -406,14 +380,12 @@ def test_score_is_a_percentage() -> None:
         result = "WRONG"
     print(f"case 2 (score = 67)        -> {result}")
 
-
 def test_no_prereqs_is_ready() -> None:
     report = check_prereqs([], fake_distance)
     result = "OK"
     if report.score != 100:
         result = "WRONG"
     print(f"case 3 (no prereqs -> 100) -> {result}")
-
 
 if __name__ == "__main__":
     test_met_and_missing()
@@ -434,14 +406,12 @@ BACKGROUND = (
 )
 COURSE = "Prerequisites: linear algebra, Python, and intro statistics."
 
-
 def test_meets_most_and_finds_gap() -> None:
     config = load_config()
     model = get_model(config)
     report = run_check(model, BACKGROUND, COURSE, config.match_cutoff)
     ok = report.score >= 50 and "Statistics" in report.missing
     print(f"case 1 (meets most, stats gap) -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     test_meets_most_and_finds_gap()

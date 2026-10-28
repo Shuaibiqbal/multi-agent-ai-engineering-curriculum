@@ -55,12 +55,10 @@ from pipeline import analyze
 
 app = FastAPI()
 
-ALLOWED = (".txt", ".md")
-
 @app.post("/upload")
 async def upload(file: UploadFile):
     name = (file.filename or "").lower()
-    if not name.endswith(ALLOWED):
+    if not name.endswith((".txt", ".md")):
         return {"error": "only .txt/.md supported here"}
     data = await file.read()
     return {"filename": file.filename, "result": analyze(data.decode())}

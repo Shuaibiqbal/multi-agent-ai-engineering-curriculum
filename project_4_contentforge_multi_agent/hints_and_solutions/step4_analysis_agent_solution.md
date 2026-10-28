@@ -56,8 +56,6 @@ from src.config import load_config
 from src.exceptions import MissingConfigError
 from src.utils.logger import get_logger
 
-MAX_REVISIONS = 3
-
 def write_with_review(findings: str) -> dict:
     logger = get_logger(__name__)
     result = {
@@ -67,7 +65,7 @@ def write_with_review(findings: str) -> dict:
         "revision_count": 0,
     }
     feedback = ""
-    for round_number in range(1, MAX_REVISIONS + 1):
+    for round_number in range(1, 3 + 1):
         result["draft"] = run_writer(findings, feedback)
         verdict = run_reviewer(findings, result["draft"])
         logger.info(f"round {round_number}: score {verdict.score}")
@@ -133,14 +131,12 @@ FINDINGS = (
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-
 def test_writer_keeps_sources() -> None:
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:
         result = "WRONG"
     print(f"case 1 (writer keeps sources) -> {result}")
-
 
 def test_reviewer_rejects_weak_draft() -> None:
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
@@ -149,14 +145,12 @@ def test_reviewer_rejects_weak_draft() -> None:
         result = "WRONG"
     print(f"case 2 (weak draft fails)     -> {result}")
 
-
 def test_research_keeps_sources() -> None:
     notes = run_research("electric bikes")
     result = "OK"
     if notes.count("[") < 5:
         result = "WRONG"
     print(f"case 3 (known topic sourced)  -> {result}")
-
 
 def test_research_unknown_topic() -> None:
     notes = run_research("deep sea mining")
@@ -165,7 +159,6 @@ def test_research_unknown_topic() -> None:
         result = "WRONG"
     print(f"case 4 (unknown topic empty)  -> {result}")
 
-
 def test_analysis_keeps_every_fact() -> None:
     notes = run_research("electric bikes")
     findings = run_analysis(notes)
@@ -173,7 +166,6 @@ def test_analysis_keeps_every_fact() -> None:
     if findings.count("[") != notes.count("["):
         result = "WRONG"
     print(f"case 5 (analysis keeps facts) -> {result}")
-
 
 if __name__ == "__main__":
     load_config()

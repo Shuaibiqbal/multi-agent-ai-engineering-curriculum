@@ -16,11 +16,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
 from langchain_openai import ChatOpenAI
 
-# why: fall back only on errors that pass on their own — a bug in your
-# own code (a KeyError) must still fail loudly
-TRANSIENT_ERRORS = (openai.APIConnectionError, openai.RateLimitError)
-BACKUP_TEXT = "Sorry, the assistant is busy. Please try again soon."
-
 def get_weather(inputs: dict) -> str:
     # why: the sleep stands in for a slow network call
     time.sleep(1)
@@ -36,13 +31,15 @@ def build_lookup_step() -> Runnable:
     return RunnableParallel({"weather": get_weather, "news": get_news})
 
 def backup_reply(inputs: dict) -> str:
-    return BACKUP_TEXT
+    return "Sorry, the assistant is busy. Please try again soon."
 
 def with_backup(chain: Runnable) -> Runnable:
-    # how: RunnableLambda turns a plain function into a step that
-    # .with_fallbacks() accepts; the backup runs only on these errors
+    # how: RunnableLambda wraps the backup; fall back only on errors that
+    # pass on their own, so a bug in your code (a KeyError) still fails loudly
     return chain.with_fallbacks(
-        [RunnableLambda(backup_reply)], exceptions_to_handle=TRANSIENT_ERRORS
+        [RunnableLambda(backup_reply)],
+        exceptions_to_handle=(openai.APIConnectionError,
+                              openai.RateLimitError),
     )
 
 def stream_text(chain: Runnable, inputs: dict) -> str:
@@ -75,7 +72,7 @@ def main() -> None:
     )
     broken_chain = with_backup(prompt | broken_model | StrOutputParser())
     reply = broken_chain.invoke({"city": "Lahore"})
-    print(f"case 2 (outage)        -> backup used: {reply == BACKUP_TEXT}")
+    print(f"case 2 (outage)        -> backup used: {reply.startswith('Sorry')}")
 
     bug_chain = with_backup(RunnableLambda(buggy_step))
     try:

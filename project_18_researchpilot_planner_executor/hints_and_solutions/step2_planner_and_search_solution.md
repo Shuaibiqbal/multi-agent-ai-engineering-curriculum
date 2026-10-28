@@ -20,7 +20,6 @@ PLAN_PROMPT = (
     "Research question: {question}"
 )
 
-
 def make_plan(model, question: str) -> SubQuestions:
     prompt = ChatPromptTemplate.from_template(PLAN_PROMPT)
     chain = prompt | model.with_structured_output(SubQuestions)
@@ -40,11 +39,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import chromadb
 
 COLLECTION_NAME = "sources"
-SOURCES_DIR = "data/sources"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-
-def build_source_store(sources_dir: str = SOURCES_DIR):
+def build_source_store(sources_dir: str = "data/sources"):
     loader = DirectoryLoader(sources_dir, glob="**/*.md",
                              loader_cls=TextLoader)
     documents = loader.load()
@@ -79,7 +76,6 @@ def build_source_store(sources_dir: str = SOURCES_DIR):
 # make_search returns a search(q) -> (text, source) closure over the collection.
 # The executor calls this once per sub-question - it doesn't know about Chroma.
 from src.rag.source_store import EMBEDDINGS
-
 
 def make_search(collection):
     def search(query: str):

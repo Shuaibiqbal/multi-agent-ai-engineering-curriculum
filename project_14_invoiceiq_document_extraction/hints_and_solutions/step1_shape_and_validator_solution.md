@@ -16,7 +16,6 @@ class MissingConfigError(Exception):
     """A required setting is missing from the environment."""
     pass
 
-
 class UnsupportedFileError(Exception):
     """The invoice file type is not supported."""
     pass
@@ -29,12 +28,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -43,7 +40,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -57,7 +53,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -79,12 +74,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -99,12 +91,10 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-
 class LineItem(BaseModel):
     description: str
     quantity: int
     unit_price: float
-
 
 class Invoice(BaseModel):
     vendor: Optional[str] = None
@@ -122,15 +112,11 @@ class Invoice(BaseModel):
 # it's fully testable with hand-made Invoice objects - no model needed.
 from src.schemas import Invoice
 
-TOLERANCE = 0.01
-
-
 def compute_subtotal(invoice: Invoice) -> float:
     subtotal = 0.0
     for item in invoice.line_items:
         subtotal += item.quantity * item.unit_price
     return round(subtotal, 2)
-
 
 def validate_invoice(invoice: Invoice) -> list:
     problems = []
@@ -144,7 +130,7 @@ def validate_invoice(invoice: Invoice) -> list:
         problems.append("missing total")
     else:
         computed = compute_subtotal(invoice)
-        if abs(computed - invoice.total) > TOLERANCE:
+        if abs(computed - invoice.total) > 0.01:
             problems.append(
                 f"total mismatch: line items sum to {computed}, "
                 f"invoice says {invoice.total}"
@@ -164,7 +150,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "INVOICEIQ_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -174,7 +159,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -182,7 +166,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -195,7 +178,6 @@ if __name__ == "__main__":
 from src.schemas import Invoice, LineItem
 from src.validator import compute_subtotal, validate_invoice
 
-
 def good_invoice() -> Invoice:
     return Invoice(
         vendor="Acme", invoice_number="INV-1001",
@@ -206,20 +188,17 @@ def good_invoice() -> Invoice:
         total=40.0,
     )
 
-
 def has_problem(problems, text: str) -> bool:
     for problem in problems:
         if text in problem:
             return True
     return False
 
-
 def test_clean_invoice_has_no_problems() -> None:
     result = "OK"
     if validate_invoice(good_invoice()) != []:
         result = "WRONG"
     print(f"case 1 (clean invoice -> no problems) -> {result}")
-
 
 def test_total_mismatch_is_caught() -> None:
     invoice = good_invoice()
@@ -229,7 +208,6 @@ def test_total_mismatch_is_caught() -> None:
         result = "WRONG"
     print(f"case 2 (wrong total -> flagged)       -> {result}")
 
-
 def test_missing_number_is_caught() -> None:
     invoice = good_invoice()
     invoice.invoice_number = None
@@ -238,13 +216,11 @@ def test_missing_number_is_caught() -> None:
         result = "WRONG"
     print(f"case 3 (missing number -> flagged)    -> {result}")
 
-
 def test_subtotal_adds_up() -> None:
     result = "OK"
     if compute_subtotal(good_invoice()) != 40.0:
         result = "WRONG"
     print(f"case 4 (subtotal = 40.0)              -> {result}")
-
 
 if __name__ == "__main__":
     test_clean_invoice_has_no_problems()

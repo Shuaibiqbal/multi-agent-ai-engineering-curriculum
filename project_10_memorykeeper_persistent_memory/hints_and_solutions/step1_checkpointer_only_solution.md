@@ -25,12 +25,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -39,7 +37,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -53,7 +50,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -71,11 +67,9 @@ def get_logger(name: str) -> logging.Logger:
 
 ```python
 # src/utils/prompts.py
-PROMPTS_DIR = "src/prompts"
-
 
 def load_prompt(name: str) -> str:
-    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+    with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
 
@@ -85,12 +79,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -104,7 +95,6 @@ def get_model(config: Config) -> ChatOpenAI:
 from typing import Annotated, TypedDict
 
 from langgraph.graph.message import add_messages
-
 
 class ChatState(TypedDict):
     messages: Annotated[list, add_messages]
@@ -130,7 +120,6 @@ from langchain_core.messages import SystemMessage
 
 from src.utils.prompts import load_prompt
 
-
 def make_chat_node(model):
     def chat_node(state):
         recalled = state.get("recalled") or "nothing yet"
@@ -151,7 +140,6 @@ from langgraph.graph import END, START, StateGraph
 
 from src.nodes import make_chat_node
 from src.state import ChatState
-
 
 def build_graph(model, store, checkpointer):
     graph = StateGraph(ChatState)
@@ -180,10 +168,6 @@ from src.exceptions import MissingConfigError
 from src.graph import build_graph
 from src.models.llm import get_model
 
-THREAD_ID = "demo-thread"
-DB_PATH = "memorykeeper.sqlite"
-
-
 def main():
     try:
         config = load_config()
@@ -192,10 +176,10 @@ def main():
         sys.exit(1)
     model = get_model(config)
     store = InMemoryStore()
-    with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
+    with SqliteSaver.from_conn_string("memorykeeper.sqlite") as checkpointer:
         app = build_graph(model, store, checkpointer)
         print("MemoryKeeper — type a message, or /quit to exit.")
-        run_config = {"configurable": {"thread_id": THREAD_ID}}
+        run_config = {"configurable": {"thread_id": "demo-thread"}}
         while True:
             text = input("You: ").strip()
             if text == "/quit":
@@ -208,7 +192,6 @@ def main():
                 run_config,
             )
             print("MemoryKeeper:", result["messages"][-1].content)
-
 
 if __name__ == "__main__":
     main()
@@ -226,7 +209,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MEMORYKEEPER_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -235,7 +217,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -246,7 +227,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -254,7 +234,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()

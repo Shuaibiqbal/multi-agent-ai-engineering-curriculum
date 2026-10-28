@@ -79,10 +79,8 @@ Answer general questions and small talk about the service.
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live
 # in text files instead of Python strings.
 
-PROMPTS_DIR = "src/prompts"
-
 def load_prompt(name: str) -> str:
-    path = PROMPTS_DIR + "/" + name + ".txt"
+    path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -95,13 +93,11 @@ def load_prompt(name: str) -> str:
 # its size (about 4 characters per token), and trim_history() drops the
 # oldest turns — never the system prompt.
 
-CHARS_PER_TOKEN = 4
-
 def estimate_tokens(history: list[dict]) -> int:
     total_chars = 0
     for message in history:
         total_chars = total_chars + len(message["content"])
-    return total_chars // CHARS_PER_TOKEN
+    return total_chars // 4
 
 def trim_history(history: list[dict], max_tokens: int) -> list[dict]:
     while estimate_tokens(history) > max_tokens and len(history) > 2:
@@ -133,7 +129,6 @@ from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
 # new in Step 2
-MAX_HISTORY_TOKENS = 3000
 
 def main() -> None:
     try:
@@ -160,7 +155,7 @@ def main() -> None:
         if message == "":
             continue
 
-        trim_history(history, MAX_HISTORY_TOKENS)
+        trim_history(history, 3000)
         logger.debug(f"Sending {len(history)} earlier messages")
         print("Assistant: ", end="", flush=True)
         stream_message(client, history, message)
@@ -178,7 +173,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_history
 from src.utils.history import estimate_tokens, trim_history
 
-
 def test_estimate_tokens() -> None:
     history = [
         {"role": "system", "content": "a" * 20},
@@ -188,7 +182,6 @@ def test_estimate_tokens() -> None:
     if estimate_tokens(history) != 10:
         result = "WRONG"
     print(f"case 1 (40 characters = 10 tokens) -> {result}")
-
 
 def test_short_history_untouched() -> None:
     history = [
@@ -201,7 +194,6 @@ def test_short_history_untouched() -> None:
         result = "WRONG"
     print(f"case 2 (short chat not trimmed)    -> {result}")
 
-
 def test_long_history_trimmed() -> None:
     history = [{"role": "system", "content": "be nice"}]
     for number in range(1, 6):
@@ -213,7 +205,6 @@ def test_long_history_trimmed() -> None:
     if history[-1]["content"] != "5" * 400:
         result = "WRONG"
     print(f"case 3 (long chat trimmed)         -> {result}")
-
 
 if __name__ == "__main__":
     test_estimate_tokens()
@@ -249,7 +240,6 @@ from src.models.llm import (
     send_message,
 )
 
-
 def test_first_reply(client: OpenAI) -> None:
     reply = send_message(client, [], "What's 2+2?")
     result = "OK"
@@ -257,14 +247,12 @@ def test_first_reply(client: OpenAI) -> None:
         result = "WRONG"
     print(f"case 1 (first reply) -> {result}: {reply}")
 
-
 def test_bad_key() -> None:
     bad_client = OpenAI(api_key="sk-fake-key-123")
     result = "OK"
     if check_api_key_at_startup(bad_client):
         result = "WRONG"
     print(f"case 2 (bad key)     -> {result}")
-
 
 # new in Step 2
 def test_memory(client: OpenAI) -> None:
@@ -276,7 +264,6 @@ def test_memory(client: OpenAI) -> None:
     if "4471" not in reply:
         result = "WRONG"
     print(f"case 3 (memory)      -> {result}: {reply}")
-
 
 if __name__ == "__main__":
     config = load_config()

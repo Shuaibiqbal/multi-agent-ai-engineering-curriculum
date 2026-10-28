@@ -42,8 +42,6 @@ class TaskResponse(BaseModel):
 import sqlite3
 from datetime import datetime, timezone
 
-DB_PATH = "runs.db"
-
 CREATE_RUNS_TABLE = """
     CREATE TABLE IF NOT EXISTS runs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +54,7 @@ CREATE_RUNS_TABLE = """
 """
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect("runs.db", check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute(CREATE_RUNS_TABLE)
     return conn

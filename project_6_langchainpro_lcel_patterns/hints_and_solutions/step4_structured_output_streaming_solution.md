@@ -110,10 +110,8 @@ from src.schemas import TicketRecord
 from src.services.pipeline import handle_ticket
 from src.utils.logger import get_logger
 
-SAMPLES_PATH = "data/sample/tickets.json"
-
 def load_samples() -> list[dict]:
-    with open(SAMPLES_PATH) as samples_file:
+    with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
 
 def print_record(record: TicketRecord) -> None:
@@ -159,10 +157,8 @@ if __name__ == "__main__":
 from src.schemas import TicketCategory
 from src.services.pipeline import review_reasons
 
-
 def make_category(sure: bool) -> TicketCategory:
     return TicketCategory(category="billing", reason="test", sure=sure)
-
 
 def test_clear_ticket() -> None:
     reasons = review_reasons(make_category(True), False)
@@ -171,7 +167,6 @@ def test_clear_ticket() -> None:
         ok = "WRONG"
     print(f"case 1 (sure, no fallback) -> {ok}")
 
-
 def test_unsure_ticket() -> None:
     reasons = review_reasons(make_category(False), False)
     ok = "OK"
@@ -179,14 +174,12 @@ def test_unsure_ticket() -> None:
         ok = "WRONG"
     print(f"case 2 (unsure flagged)   -> {ok}")
 
-
 def test_fallback_used() -> None:
     reasons = review_reasons(make_category(True), True)
     ok = "OK"
     if len(reasons) != 1:
         ok = "WRONG"
     print(f"case 3 (fallback flagged) -> {ok}")
-
 
 if __name__ == "__main__":
     test_clear_ticket()
@@ -207,11 +200,9 @@ from src.chains.classifier import classify_ticket
 from src.config import load_config
 from src.services.pipeline import handle_ticket
 
-
 def load_samples() -> list[dict]:
     with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
-
 
 def test_billing_classified(samples: list[dict]) -> None:
     result = classify_ticket(samples[0]["ticket"])
@@ -220,14 +211,12 @@ def test_billing_classified(samples: list[dict]) -> None:
         ok = "WRONG"
     print(f"case 1 (billing)   -> {ok} ({result.category})")
 
-
 def test_technical_classified(samples: list[dict]) -> None:
     result = classify_ticket(samples[1]["ticket"])
     ok = "OK"
     if result.category != "technical":
         ok = "WRONG"
     print(f"case 2 (technical) -> {ok} ({result.category})")
-
 
 def test_general_classified(samples: list[dict]) -> None:
     result = classify_ticket(samples[2]["ticket"])
@@ -236,14 +225,12 @@ def test_general_classified(samples: list[dict]) -> None:
         ok = "WRONG"
     print(f"case 3 (general)   -> {ok} ({result.category})")
 
-
 def test_full_pipeline(samples: list[dict]) -> None:
     record = handle_ticket(samples[0]["ticket"], samples[0]["customer_id"])
     ok = "OK"
     if record.category != "billing" or record.reply == "":
         ok = "WRONG"
     print(f"case 4 (full pipeline) -> {ok}")
-
 
 # new in Step 4
 def test_unclear_flagged(samples: list[dict]) -> None:
@@ -252,7 +239,6 @@ def test_unclear_flagged(samples: list[dict]) -> None:
     if not record.needs_human_review:
         ok = "WRONG"
     print(f"case 5 (unclear flagged) -> {ok}")
-
 
 if __name__ == "__main__":
     load_config()

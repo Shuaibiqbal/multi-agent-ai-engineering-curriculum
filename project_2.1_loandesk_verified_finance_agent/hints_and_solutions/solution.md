@@ -95,16 +95,13 @@ class MissingConfigError(Exception):
     """A required setting is missing from the environment."""
     pass
 
-
 class TransientHTTPError(Exception):
     """A retryable HTTP failure (timeout, 429, 5xx)."""
     pass
 
-
 class PermanentHTTPError(Exception):
     """A non-retryable HTTP failure (most 4xx)."""
     pass
-
 
 class MaxIterationsExceeded(Exception):
     """The Worker ran more steps than its hard limit."""
@@ -120,12 +117,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -134,7 +129,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -148,7 +142,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -166,11 +159,9 @@ def get_logger(name: str) -> logging.Logger:
 
 ```python
 # src/utils/prompts.py
-PROMPTS_DIR = "src/prompts"
-
 
 def load_prompt(name: str) -> str:
-    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+    with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
 
@@ -185,12 +176,8 @@ import requests
 from src.exceptions import PermanentHTTPError, TransientHTTPError
 from src.utils.logger import get_logger
 
-RETRY_STATUS = (429, 500, 502, 503, 504)
-
-
 def compute_backoff_delay(attempt: int) -> float:
     return min(2 ** attempt, 8)
-
 
 def request_with_retry(method, url, max_attempts=5, **kwargs):
     logger = get_logger(__name__)
@@ -204,7 +191,7 @@ def request_with_retry(method, url, max_attempts=5, **kwargs):
             continue
         if response.status_code < 400:
             return response.json()
-        if response.status_code in RETRY_STATUS:
+        if response.status_code in (429, 500, 502, 503, 504):
             logger.warning(f"status {response.status_code}, retrying")
             time.sleep(compute_backoff_delay(attempt))
             continue
@@ -218,12 +205,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -243,7 +227,6 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from src.utils.prompts import load_prompt
 
-
 def build_direct_chain(model):
     prompt = ChatPromptTemplate.from_template(load_prompt("direct"))
     return prompt | model | StrOutputParser()
@@ -255,7 +238,6 @@ def build_direct_chain(model):
 # src/tools/calculator.py
 # Pure-logic tool: the exact amortized monthly loan payment. No network.
 from langchain_core.tools import tool
-
 
 @tool
 def monthly_payment(principal: float, annual_rate_percent: float,
@@ -279,7 +261,6 @@ from langchain_core.tools import tool
 from src.utils.http_client import request_with_retry
 
 FX_URL = "https://api.frankfurter.app/latest"
-
 
 @tool
 def get_exchange_rate(amount: float, base: str, quote: str) -> str:
@@ -307,10 +288,8 @@ POLICIES = {
                     "period.",
 }
 
-
 class FlakyToolState:
     call_count = 0
-
 
 @tool
 def search_policies(query: str) -> str:
@@ -360,19 +339,16 @@ from src.utils.prompts import load_prompt
 
 ALL_TOOLS = [monthly_payment, get_exchange_rate, search_policies]
 
-
 @dataclass
 class AgentResult:
     final_answer: str
     steps: list
-
 
 def find_tool(tools, name):
     for tool in tools:
         if tool.name == name:
             return tool
     return None
-
 
 def run_tool(call, tools):
     tool = find_tool(tools, call["name"])
@@ -383,7 +359,6 @@ def run_tool(call, tools):
     except Exception as e:
         return None, f"Error: {e}"
     return str(result), None
-
 
 def run_worker(model, task, max_iterations=6):
     logger = get_logger(__name__)
@@ -421,7 +396,6 @@ def run_worker(model, task, max_iterations=6):
 # src/schemas.py
 from pydantic import BaseModel
 
-
 class VerifierVerdict(BaseModel):
     approved: bool
     reason: str
@@ -453,11 +427,9 @@ from src.schemas import VerifierVerdict
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-
 def build_verifier_chain(model):
     prompt = ChatPromptTemplate.from_template(load_prompt("verifier"))
     return prompt | model.with_structured_output(VerifierVerdict)
-
 
 def collect_evidence(steps) -> str:
     lines = []
@@ -465,7 +437,6 @@ def collect_evidence(steps) -> str:
         if not str(step["result"]).startswith("Error"):
             lines.append(f"{step['tool']}: {step['result']}")
     return "\n".join(lines)
-
 
 def verify(chain, question, result):
     logger = get_logger(__name__)
@@ -488,7 +459,6 @@ def verify(chain, question, result):
 from src.agents.verifier import verify
 from src.agents.worker import run_worker
 from src.utils.logger import get_logger
-
 
 def answer_task(model, verifier_chain, task, max_iterations=6):
     logger = get_logger(__name__)
@@ -519,11 +489,9 @@ from src.exceptions import MaxIterationsExceeded, MissingConfigError
 from src.models.llm import get_model
 from src.services.finance_service import answer_task
 
-
 def print_steps(steps):
     for step in steps:
         print(f"  -> {step['tool']} {step['args']} => {step['result']}")
-
 
 def main():
     try:
@@ -557,7 +525,6 @@ def main():
         mark = "verified" if verdict.approved else "NOT verified"
         print(f"Answer ({mark}): {result.final_answer}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -587,22 +554,18 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.services.finance_service import answer_task
 
-TASKS_PATH = "data/sample/tasks.json"
-
-
 def main():
     config = load_config()
     model = get_model(config)
     direct = build_direct_chain(model)
     verifier_chain = build_verifier_chain(model)
-    with open(TASKS_PATH) as tasks_file:
+    with open("data/sample/tasks.json") as tasks_file:
         tasks = json.loads(tasks_file.read())["tasks"]
     for task in tasks:
         print(f"\nTask: {task}")
         print(f"  guess:   {direct.invoke({'question': task})}")
         result, verdict = answer_task(model, verifier_chain, task)
         print(f"  checked: {result.final_answer} (approved={verdict.approved})")
-
 
 if __name__ == "__main__":
     main()
@@ -620,7 +583,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "LOANDESK_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -629,7 +591,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -640,7 +601,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -648,7 +608,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -666,7 +625,6 @@ from pydantic import ValidationError
 from src.tools.calculator import monthly_payment
 from src.tools.policy_search import FlakyToolState, search_policies
 
-
 def test_payment_math() -> None:
     value = monthly_payment.invoke(
         {"principal": 20000, "annual_rate_percent": 7, "months": 36}
@@ -675,7 +633,6 @@ def test_payment_math() -> None:
     if round(value, 2) != 617.54:
         result = "WRONG"
     print(f"case 1 (20000 @7% /36 = 617.54) -> {result}")
-
 
 def test_payment_rejects_bad_arg() -> None:
     result = "WRONG"
@@ -686,7 +643,6 @@ def test_payment_rejects_bad_arg() -> None:
     except ValidationError:
         result = "OK"
     print(f"case 2 (bad principal refused)  -> {result}")
-
 
 def test_policy_search_recovers() -> None:
     FlakyToolState.call_count = 0
@@ -702,7 +658,6 @@ def test_policy_search_recovers() -> None:
         result = "WRONG"
     print(f"case 3 (fails once, then works) -> {result}")
 
-
 if __name__ == "__main__":
     test_payment_math()
     test_payment_rejects_bad_arg()
@@ -716,20 +671,17 @@ if __name__ == "__main__":
 from src.agents.verifier import collect_evidence
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-
 def test_find_known_tool() -> None:
     result = "OK"
     if find_tool(ALL_TOOLS, "monthly_payment") is None:
         result = "WRONG"
     print(f"case 1 (known tool found)      -> {result}")
 
-
 def test_find_unknown_tool() -> None:
     result = "OK"
     if find_tool(ALL_TOOLS, "send_money") is not None:
         result = "WRONG"
     print(f"case 2 (unknown tool is None)  -> {result}")
-
 
 def test_run_tool_good_call() -> None:
     call = {"name": "monthly_payment", "id": "1",
@@ -741,7 +693,6 @@ def test_run_tool_good_call() -> None:
         result = "WRONG"
     print(f"case 3 (good call -> result)   -> {result}")
 
-
 def test_run_tool_unknown() -> None:
     call = {"name": "send_money", "id": "1", "args": {}}
     value, error = run_tool(call, ALL_TOOLS)
@@ -749,7 +700,6 @@ def test_run_tool_unknown() -> None:
     if value is not None or error is None:
         result = "WRONG"
     print(f"case 4 (unknown -> error)      -> {result}")
-
 
 def test_collect_evidence_drops_errors() -> None:
     steps = [
@@ -761,7 +711,6 @@ def test_collect_evidence_drops_errors() -> None:
     if "Error" in evidence or "good data" not in evidence:
         result = "WRONG"
     print(f"case 5 (evidence drops errors) -> {result}")
-
 
 if __name__ == "__main__":
     test_find_known_tool()
@@ -781,13 +730,11 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.services.finance_service import answer_task
 
-
 def tools_used(result):
     names = []
     for step in result.steps:
         names.append(step["tool"])
     return names
-
 
 def test_payment_uses_calculator(model) -> None:
     result = run_worker(
@@ -796,18 +743,15 @@ def test_payment_uses_calculator(model) -> None:
     ok = "monthly_payment" in tools_used(result)
     print(f"case 1 (calc used)          -> {'OK' if ok else 'WRONG'}")
 
-
 def test_fx_uses_rate_tool(model) -> None:
     result = run_worker(model, "What is 500 EUR in USD today?")
     ok = "get_exchange_rate" in tools_used(result)
     print(f"case 2 (fx tool used)       -> {'OK' if ok else 'WRONG'}")
 
-
 def test_policy_recovers(model) -> None:
     result = run_worker(model, "Does policy allow early repayment fee-free?")
     ok = "search_policies" in tools_used(result)
     print(f"case 3 (policy recovered)   -> {'OK' if ok else 'WRONG'}")
-
 
 def test_verifier_rejects_wrong(model) -> None:
     chain = build_verifier_chain(model)
@@ -818,7 +762,6 @@ def test_verifier_rejects_wrong(model) -> None:
     print(f"case 4 (wrong answer rejected) -> "
           f"{'OK' if not verdict.approved else 'WRONG'}")
 
-
 def test_full_handoff(model) -> None:
     chain = build_verifier_chain(model)
     result, verdict = answer_task(
@@ -826,7 +769,6 @@ def test_full_handoff(model) -> None:
     )
     ok = verdict.approved and "monthly_payment" in tools_used(result)
     print(f"case 5 (full handoff approves) -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     config = load_config()

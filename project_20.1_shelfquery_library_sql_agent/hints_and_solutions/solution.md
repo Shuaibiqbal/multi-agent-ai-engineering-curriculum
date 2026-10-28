@@ -24,7 +24,6 @@ class MissingConfigError(Exception):
     """A required setting is missing from the environment."""
     pass
 
-
 class UnsafeQueryError(Exception):
     """The generated SQL was not a safe, single read-only SELECT."""
     pass
@@ -37,13 +36,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     db_path: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -52,7 +49,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -67,7 +63,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -89,12 +84,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -112,7 +104,6 @@ FORBIDDEN_WORDS = [
     "insert", "update", "delete", "drop", "alter",
     "create", "replace", "truncate", "attach", "pragma",
 ]
-
 
 def is_safe_select(sql: str) -> bool:
     cleaned = sql.strip().rstrip(";").strip()
@@ -149,7 +140,6 @@ LOANS = [
     (3, 1, "alan", 1),
 ]
 
-
 def build_sample_db(db_path: str) -> None:
     if os.path.exists(db_path):
         return
@@ -185,7 +175,6 @@ def build_sample_db(db_path: str) -> None:
 # needs the schema to know which tables and columns it can use.
 import sqlite3
 
-
 def schema_text(db_path: str) -> str:
     connection = sqlite3.connect(db_path)
     try:
@@ -208,7 +197,6 @@ def schema_text(db_path: str) -> str:
 # has approved the query.
 import sqlite3
 
-
 def run_select(db_path: str, sql: str) -> list:
     connection = sqlite3.connect(db_path)
     try:
@@ -224,7 +212,6 @@ def run_select(db_path: str, sql: str) -> list:
 ```python
 # src/schemas.py
 from pydantic import BaseModel, Field
-
 
 class SQLQuery(BaseModel):
     sql: str = Field(
@@ -247,7 +234,6 @@ SQL_PROMPT = (
     "Schema:\n{schema}\n\nQuestion: {question}"
 )
 
-
 def generate_sql(model, schema: str, question: str) -> str:
     prompt = ChatPromptTemplate.from_template(SQL_PROMPT)
     chain = prompt | model.with_structured_output(SQLQuery)
@@ -267,7 +253,6 @@ ANSWER_PROMPT = (
     "rows below. If the rows are empty, say no matching data was found.\n\n"
     "Question: {question}\nRows: {rows}"
 )
-
 
 def summarize_answer(model, question: str, rows) -> str:
     prompt = ChatPromptTemplate.from_template(ANSWER_PROMPT)
@@ -290,7 +275,6 @@ from src.exceptions import UnsafeQueryError
 from src.guard import is_safe_select
 from src.sql_agent import generate_sql
 from src.utils.logger import get_logger
-
 
 def ask(model, db_path: str, question: str):
     logger = get_logger(__name__)
@@ -316,7 +300,6 @@ from src.exceptions import UnsafeQueryError
 from src.models.llm import get_model
 from src.pipeline import ask
 
-
 def main():
     if len(sys.argv) < 2:
         print('usage: python main.py "your question"')
@@ -336,7 +319,6 @@ def main():
     print(f"\nSQL:\n  {sql}")
     print(f"\nAnswer:\n  {answer}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -353,7 +335,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "SHELFQUERY_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -363,7 +344,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -371,7 +351,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -383,12 +362,10 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_guard
 from src.guard import is_safe_select
 
-
 def test_plain_select_passes() -> None:
     sql = "SELECT count(*) FROM loans WHERE returned = 0"
     result = "OK" if is_safe_select(sql) else "WRONG"
     print(f"case 1 (plain SELECT allowed)     -> {result}")
-
 
 def test_writes_are_rejected() -> None:
     bad = [
@@ -403,7 +380,6 @@ def test_writes_are_rejected() -> None:
         if is_safe_select(sql):
             result = "WRONG"
     print(f"case 2 (writes/chained rejected)  -> {result}")
-
 
 if __name__ == "__main__":
     test_plain_select_passes()
@@ -420,7 +396,6 @@ from src.db.runner import run_select
 from src.db.schema import schema_text
 from src.db.seed import build_sample_db
 
-
 def test_seed_and_select() -> None:
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_library.db")
@@ -434,7 +409,6 @@ def test_seed_and_select() -> None:
         result = "WRONG"
     print(f"case 1 (2 books on loan)      -> {result}")
 
-
 def test_schema_has_tables() -> None:
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_library.db")
@@ -445,7 +419,6 @@ def test_schema_has_tables() -> None:
     if "books" not in schema or "loans" not in schema:
         result = "WRONG"
     print(f"case 2 (schema lists tables)  -> {result}")
-
 
 if __name__ == "__main__":
     test_seed_and_select()
@@ -478,7 +451,6 @@ from src.db.seed import build_sample_db
 from src.models.llm import get_model
 from src.pipeline import ask
 
-
 def test_counts_books_on_loan() -> None:
     config = load_config()
     build_sample_db(config.db_path)
@@ -489,7 +461,6 @@ def test_counts_books_on_loan() -> None:
     status = "OK" if ok else "WRONG"
     print(f"case 1 (books on loan counted) -> {status}")
 
-
 def test_lists_an_author() -> None:
     config = load_config()
     build_sample_db(config.db_path)
@@ -499,7 +470,6 @@ def test_lists_an_author() -> None:
     ok = "earthsea" in answer.lower() or "dispossessed" in answer.lower()
     status = "OK" if ok else "WRONG"
     print(f"case 2 (author books listed)   -> {status}")
-
 
 if __name__ == "__main__":
     test_counts_books_on_loan()

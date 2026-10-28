@@ -25,12 +25,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -39,7 +37,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -53,7 +50,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -75,12 +71,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -91,7 +84,6 @@ def get_model(config: Config) -> ChatOpenAI:
 # One review finding. severity is high/medium/low; category is which reviewer
 # raised it; message is the human-readable issue.
 from pydantic import BaseModel
-
 
 class Finding(BaseModel):
     severity: str
@@ -114,7 +106,6 @@ def parse_diff(text: str) -> list:
             if current is not None:
                 current["added"].append(line[1:])
     return files
-
 
 def categorize(path: str) -> str:
     if path.endswith((".md", ".rst", ".txt")):
@@ -147,7 +138,6 @@ UNSAFE_PATTERNS = [
     (r"subprocess\.\w+\([^)]*shell\s*=\s*True", "subprocess with shell=True"),
     (r"pickle\.loads\(", "unsafe pickle.loads()"),
 ]
-
 
 def run_security(files) -> list:
     findings = []
@@ -187,7 +177,6 @@ CLEAN = """--- a/app.py
 +return total
 """
 
-
 def main():
     for label, diff in [("dirty", DIRTY), ("clean", CLEAN)]:
         findings = run_security(parse_diff(diff))
@@ -196,7 +185,6 @@ def main():
             print("  no security findings")
         for finding in findings:
             print(f"  [{finding.severity}] {finding.message}")
-
 
 if __name__ == "__main__":
     main()
@@ -214,7 +202,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "CODEGUARD_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -223,7 +210,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -234,7 +220,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -242,7 +227,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -263,7 +247,6 @@ DIFF = """--- a/app.py
 -removed line
 """
 
-
 def test_parses_added_lines_only() -> None:
     files = parse_diff(DIFF)
     result = "OK"
@@ -272,7 +255,6 @@ def test_parses_added_lines_only() -> None:
     if files[0]["added"] != ["added line one", "added line two"]:
         result = "WRONG"
     print(f"case 1 (added lines only) -> {result}")
-
 
 def test_categorize() -> None:
     result = "OK"
@@ -283,7 +265,6 @@ def test_categorize() -> None:
     if categorize("app.py") != "code":
         result = "WRONG"
     print(f"case 2 (categorize paths) -> {result}")
-
 
 if __name__ == "__main__":
     test_parses_added_lines_only()
@@ -306,7 +287,6 @@ CLEAN = """--- a/app.py
 +total = price * quantity
 """
 
-
 def test_flags_secret_and_eval() -> None:
     findings = run_security(parse_diff(DIRTY))
     messages = " ".join(f.message for f in findings)
@@ -315,14 +295,12 @@ def test_flags_secret_and_eval() -> None:
         result = "WRONG"
     print(f"case 1 (secret + eval flagged) -> {result}")
 
-
 def test_clean_diff_no_findings() -> None:
     findings = run_security(parse_diff(CLEAN))
     result = "OK"
     if findings != []:
         result = "WRONG"
     print(f"case 2 (clean diff -> none)    -> {result}")
-
 
 if __name__ == "__main__":
     test_flags_secret_and_eval()

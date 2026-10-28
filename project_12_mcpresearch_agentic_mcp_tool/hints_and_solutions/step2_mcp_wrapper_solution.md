@@ -24,11 +24,9 @@ from src.pipeline import run_pipeline
 from src.utils.logger import get_logger
 
 CONFIG = load_config()
-MODEL = get_model(CONFIG)
 logger = get_logger(__name__)
 
 mcp = MCPServer("deep-research-service")
-
 
 @mcp.tool()
 def deep_research(topic: str) -> str:
@@ -36,9 +34,8 @@ def deep_research(topic: str) -> str:
     return a verified summary. One call runs a Researcher and a Fact-Checker
     until the summary is approved or a round cap is reached."""
     logger.info(f"deep_research: {topic}")
-    result = run_pipeline(MODEL, topic, CONFIG.max_revision_rounds)
+    result = run_pipeline(get_model(CONFIG), topic, CONFIG.max_revision_rounds)
     return result.final_summary
-
 
 if __name__ == "__main__":
     print("deep-research service starting", file=sys.stderr)

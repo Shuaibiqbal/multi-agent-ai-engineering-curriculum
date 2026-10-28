@@ -103,7 +103,6 @@ class MissingConfigError(Exception):
     """A required setting is missing from the environment."""
     pass
 
-
 class UnsupportedFileError(Exception):
     """The receipt file type is not supported."""
     pass
@@ -116,12 +115,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -130,7 +127,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -144,7 +140,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -166,12 +161,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -186,7 +178,6 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-
 class Receipt(BaseModel):
     merchant: Optional[str] = None
     amount: Optional[float] = None
@@ -199,7 +190,6 @@ class Receipt(BaseModel):
 # Read a receipt file into plain text. .txt/.md are read directly; .pdf uses a
 # document loader (Doc08). The model only ever sees this text.
 from src.exceptions import UnsupportedFileError
-
 
 def load_receipt_text(path: str) -> str:
     lower = path.lower()
@@ -224,8 +214,6 @@ def load_receipt_text(path: str) -> str:
 from src.schemas import Receipt
 
 NOTE_THRESHOLD = 75.0
-BANNED_CATEGORIES = ("alcohol", "gift", "gifts")
-
 
 def check_policy(receipt: Receipt) -> list:
     problems = []
@@ -240,7 +228,7 @@ def check_policy(receipt: Receipt) -> list:
                 f"note threshold and has no note"
             )
     if receipt.category is not None:
-        if receipt.category.lower() in BANNED_CATEGORIES:
+        if receipt.category.lower() in ("alcohol", "gift", "gifts"):
             problems.append(
                 f"category '{receipt.category}' is not reimbursable"
             )
@@ -268,18 +256,15 @@ EXTRACT_PROMPT = (
     "it empty - never invent a value.\n\nReceipt text:\n{text}"
 )
 
-
 @dataclass
 class Result:
     receipt: Receipt
     problems: list
 
-
 def extract_receipt(model, text: str) -> Receipt:
     prompt = ChatPromptTemplate.from_template(EXTRACT_PROMPT)
     chain = prompt | model.with_structured_output(Receipt)
     return chain.invoke({"text": text})
-
 
 def process_receipt(model, path: str) -> Result:
     logger = get_logger(__name__)
@@ -299,7 +284,6 @@ import sys
 from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import process_receipt
-
 
 def main():
     if len(sys.argv) < 2:
@@ -323,7 +307,6 @@ def main():
         for problem in result.problems:
             print(f"  - {problem}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -340,7 +323,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "RECEIPTRADAR_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -350,7 +332,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -358,7 +339,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -374,13 +354,11 @@ no key**, using hand-made `Receipt` objects:
 from src.policy import check_policy
 from src.schemas import Receipt
 
-
 def has_problem(problems, text: str) -> bool:
     for problem in problems:
         if text in problem:
             return True
     return False
-
 
 def test_small_receipt_is_approved() -> None:
     receipt = Receipt(merchant="Cafe", amount=12.0, category="meals")
@@ -389,14 +367,12 @@ def test_small_receipt_is_approved() -> None:
         result = "WRONG"
     print(f"case 1 (small receipt -> approved)   -> {result}")
 
-
 def test_over_limit_no_note_is_flagged() -> None:
     receipt = Receipt(merchant="Hotel", amount=200.0, category="lodging")
     result = "OK"
     if not has_problem(check_policy(receipt), "note threshold"):
         result = "WRONG"
     print(f"case 2 (over limit, no note -> flag) -> {result}")
-
 
 def test_over_limit_with_note_is_ok() -> None:
     receipt = Receipt(merchant="Hotel", amount=200.0, category="lodging",
@@ -406,14 +382,12 @@ def test_over_limit_with_note_is_ok() -> None:
         result = "WRONG"
     print(f"case 3 (over limit, with note -> ok) -> {result}")
 
-
 def test_banned_category_is_flagged() -> None:
     receipt = Receipt(merchant="Pub", amount=30.0, category="Alcohol")
     result = "OK"
     if not has_problem(check_policy(receipt), "not reimbursable"):
         result = "WRONG"
     print(f"case 4 (banned category -> flagged)  -> {result}")
-
 
 if __name__ == "__main__":
     test_small_receipt_is_approved()
@@ -430,7 +404,6 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import process_receipt
 
-
 def test_approved_receipt_clears() -> None:
     config = load_config()
     model = get_model(config)
@@ -439,7 +412,6 @@ def test_approved_receipt_clears() -> None:
     if result.problems:
         status = "WRONG"
     print(f"case 1 (approved receipt clears) -> {status}")
-
 
 def test_over_limit_is_flagged() -> None:
     config = load_config()
@@ -453,7 +425,6 @@ def test_over_limit_is_flagged() -> None:
     if not flagged:
         status = "WRONG"
     print(f"case 2 (over limit is flagged)   -> {status}")
-
 
 if __name__ == "__main__":
     test_approved_receipt_clears()

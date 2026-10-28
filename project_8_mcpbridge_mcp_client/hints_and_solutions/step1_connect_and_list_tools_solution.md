@@ -15,11 +15,9 @@ class MissingConfigError(Exception):
     """Raised when a required setting is missing from the environment."""
     pass
 
-
 class ServerUnreachableError(Exception):
     """Raised when an MCP server cannot be connected to in time."""
     pass
-
 
 class MaxIterationsExceeded(Exception):
     """Raised when the ReAct loop runs more steps than its hard limit."""
@@ -36,14 +34,12 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     connect_timeout: float
     max_iterations: int
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -52,7 +48,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -77,7 +72,6 @@ def load_config() -> Config:
 import logging
 import os
 import sys
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -111,7 +105,6 @@ NOTES = {
     "n2": "Deploy process: run deploy.sh after the staging check passes.",
 }
 
-
 @mcp.tool()
 def search_notes(query: str) -> str:
     """Search notes by a keyword; return matching note ids."""
@@ -123,14 +116,12 @@ def search_notes(query: str) -> str:
         return "No matching notes."
     return "\n".join(hits)
 
-
 @mcp.tool()
 def read_note(note_id: str) -> str:
     """Read the full text of one note by its id."""
     if note_id not in NOTES:
         return f"Error: no note with id {note_id}"
     return NOTES[note_id]
-
 
 if __name__ == "__main__":
     print("notes server starting", file=sys.stderr)
@@ -165,9 +156,6 @@ from mcp.client.stdio import stdio_client
 
 from src.utils.logger import get_logger
 
-NAME_SEPARATOR = "__"
-
-
 class MCPServerPool:
     def __init__(self, servers, connect_timeout=10.0):
         self.servers = servers
@@ -198,7 +186,7 @@ class MCPServerPool:
             self.sessions[name] = session
             listed = await session.list_tools()
             for tool in listed.tools:
-                namespaced = name + NAME_SEPARATOR + tool.name
+                namespaced = name + "__" + tool.name
                 self.routing[namespaced] = (name, tool.name)
                 self.named_tools.append((namespaced, tool))
             self.logger.info(f"[{name}] connected, {len(listed.tools)} tools")
@@ -222,7 +210,6 @@ from src.exceptions import MissingConfigError
 from src.server_pool import MCPServerPool
 from src.servers_config import SERVERS
 
-
 async def run_demo():
     try:
         load_config()
@@ -242,10 +229,8 @@ async def run_demo():
     finally:
         await pool.aclose()
 
-
 def main():
     asyncio.run(run_demo())
-
 
 if __name__ == "__main__":
     main()
@@ -280,7 +265,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MCPBRIDGE_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -289,7 +273,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -300,7 +283,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -310,7 +292,6 @@ def test_config_loads() -> None:
     if config.max_iterations <= 0:
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()

@@ -17,9 +17,6 @@ from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 
-MAX_REVISIONS = 3
-
-
 # ---- Part 1: a loop that won't converge, and a useful "why" report ----
 class LoopState(TypedDict):
     draft: str
@@ -27,11 +24,9 @@ class LoopState(TypedDict):
     converged: bool
     rejection_history: list
 
-
 def writer(state: LoopState) -> Command:
     draft = f"[draft attempt {state['revision_count'] + 1}]"
     return Command(update={"draft": draft}, goto="critic")
-
 
 def critic(state: LoopState) -> Command:
     # impossible criteria on purpose: nothing here could ever pass
@@ -43,7 +38,7 @@ def critic(state: LoopState) -> Command:
         return Command(update={"converged": True}, goto=END)
 
     new_count = state["revision_count"] + 1
-    if new_count >= MAX_REVISIONS:
+    if new_count >= 3:
         return Command(
             update={
                 "revision_count": new_count,
@@ -56,7 +51,6 @@ def critic(state: LoopState) -> Command:
         update={"revision_count": new_count, "rejection_history": history},
         goto="writer",
     )
-
 
 def run_loop() -> None:
     builder = StateGraph(LoopState)
@@ -80,7 +74,6 @@ def run_loop() -> None:
     for reason in result["rejection_history"]:
         print(f"  - {reason}")
 
-
 # ---- Part 2: a cost-cutting pass, proven safe ----
 # Each stage is (name, tokens). A real run measures tokens from
 # response.usage; here they're fixed so the comparison is reproducible.
@@ -89,7 +82,6 @@ def total_tokens(stages: list) -> int:
     for name, tokens in stages:
         total = total + tokens
     return total
-
 
 def cut_most_expensive(stages: list) -> list:
     most = 0
@@ -104,7 +96,6 @@ def cut_most_expensive(stages: list) -> list:
         cut.append((name, tokens))
     return cut
 
-
 def compare_cost() -> None:
     before = [("plan", 200), ("research", 1200), ("write", 400)]
     after = cut_most_expensive(before)
@@ -113,7 +104,6 @@ def compare_cost() -> None:
     saved = (before_cost - after_cost) * 100 // before_cost
     print(f"before: {before_cost} tokens, after: {after_cost} tokens")
     print(f"saved {saved}% by halving the 'research' prompt")
-
 
 if __name__ == "__main__":
     run_loop()

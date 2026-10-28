@@ -53,10 +53,8 @@ from src.schemas import TicketRecord
 from src.services.pipeline import handle_ticket
 from src.utils.logger import get_logger
 
-SAMPLES_PATH = "data/sample/tickets.json"
-
 def load_samples() -> list[dict]:
-    with open(SAMPLES_PATH) as samples_file:
+    with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
 
 def print_record(record: TicketRecord) -> None:
@@ -265,7 +263,6 @@ from langchain_openai import ChatOpenAI
 
 from src.chains.fallback import FALLBACK_REPLY, with_canned_reply
 
-
 def build_broken_chain():
     # nothing listens on port 9, so every call fails at once; max_retries=0
     # skips the client's 2 retries, so it's instant
@@ -278,14 +275,11 @@ def build_broken_chain():
     prompt = ChatPromptTemplate.from_template("Reply to: {ticket}")
     return prompt | model | StrOutputParser()
 
-
 def working_step(inputs: dict) -> str:
     return "A real reply."
 
-
 def buggy_step(inputs: dict) -> str:
     return inputs["no_such_key"]
-
 
 def test_outage_uses_fallback() -> None:
     chain = with_canned_reply(build_broken_chain())
@@ -295,7 +289,6 @@ def test_outage_uses_fallback() -> None:
         ok = "WRONG"
     print(f"case 1 (outage falls back) -> {ok}")
 
-
 def test_working_chain_skips_fallback() -> None:
     chain = with_canned_reply(RunnableLambda(working_step))
     reply = chain.invoke({"ticket": "Hi"})
@@ -303,7 +296,6 @@ def test_working_chain_skips_fallback() -> None:
     if reply != "A real reply.":
         ok = "WRONG"
     print(f"case 2 (working, no fallback) -> {ok}")
-
 
 def test_bug_is_not_hidden() -> None:
     chain = with_canned_reply(RunnableLambda(buggy_step))
@@ -313,7 +305,6 @@ def test_bug_is_not_hidden() -> None:
     except KeyError:
         ok = "OK"
     print(f"case 3 (bug still raises) -> {ok}")
-
 
 if __name__ == "__main__":
     test_outage_uses_fallback()

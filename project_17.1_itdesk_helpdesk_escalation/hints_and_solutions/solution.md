@@ -88,13 +88,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     confidence_cutoff: float
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -103,7 +101,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -118,7 +115,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -140,12 +136,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -161,11 +154,9 @@ from langchain_openai import OpenAIEmbeddings
 import chromadb
 
 COLLECTION_NAME = "it_kb"
-KB_DIR = "data/kb"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-
-def build_kb_store(kb_dir: str = KB_DIR):
+def build_kb_store(kb_dir: str = "data/kb"):
     loader = DirectoryLoader(kb_dir, glob="**/*.md", loader_cls=TextLoader)
     documents = loader.load()
     texts = []
@@ -193,7 +184,6 @@ from src.rag.kb_store import EMBEDDINGS
 
 NO_MATCH_DISTANCE = 2.0
 
-
 def best_match(collection, question: str):
     if collection.count() == 0:
         return "", NO_MATCH_DISTANCE
@@ -210,10 +200,8 @@ def best_match(collection, question: str):
 ```python
 # src/confidence.py
 # The whole bot turns on this: is the best KB match close enough to answer from?
-DEFAULT_CUTOFF = 0.8
 
-
-def is_confident(distance: float, cutoff: float = DEFAULT_CUTOFF) -> bool:
+def is_confident(distance: float, cutoff: float = 0.8) -> bool:
     return distance <= cutoff
 ```
 
@@ -223,14 +211,12 @@ def is_confident(distance: float, cutoff: float = DEFAULT_CUTOFF) -> bool:
 # src/state.py
 from typing import TypedDict
 
-
 class SupportState(TypedDict):
     question: str
     context: str
     best_distance: float
     answer: str
     escalated: bool
-
 
 def start_state(question: str) -> SupportState:
     return {
@@ -256,7 +242,6 @@ ANSWER_PROMPT = (
     "below. Be brief and add nothing not in it.\n\nArticle:\n{context}\n\n"
     "Question: {question}"
 )
-
 
 def build_graph(model, collection, cutoff: float = 0.8):
     def retrieve_node(state):
@@ -307,7 +292,6 @@ from src.models.llm import get_model
 from src.rag.kb_store import build_kb_store
 from src.state import start_state
 
-
 def main():
     if len(sys.argv) < 2:
         print('usage: python main.py "your question"')
@@ -332,7 +316,6 @@ def main():
     else:
         print(f"ITDesk: {result['answer']}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -349,7 +332,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "ITDESK_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -359,7 +341,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -367,7 +348,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -379,13 +359,11 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_confidence
 from src.confidence import is_confident
 
-
 def test_small_distance_is_confident() -> None:
     result = "OK"
     if not is_confident(0.2, cutoff=0.8):
         result = "WRONG"
     print(f"case 1 (small -> confident)   -> {result}")
-
 
 def test_large_distance_is_not() -> None:
     result = "OK"
@@ -393,13 +371,11 @@ def test_large_distance_is_not() -> None:
         result = "WRONG"
     print(f"case 2 (large -> escalate)    -> {result}")
 
-
 def test_cutoff_itself_is_confident() -> None:
     result = "OK"
     if not is_confident(0.8, cutoff=0.8):
         result = "WRONG"
     print(f"case 3 (== cutoff -> confident) -> {result}")
-
 
 if __name__ == "__main__":
     test_small_distance_is_confident()
@@ -420,7 +396,6 @@ from src.models.llm import get_model
 from src.rag.kb_store import build_kb_store
 from src.state import start_state
 
-
 def build_app():
     config = load_config()
     model = get_model(config)
@@ -428,14 +403,12 @@ def build_app():
     graph = build_graph(model, collection, config.confidence_cutoff)
     return graph.compile(checkpointer=MemorySaver())
 
-
 def test_covered_is_answered() -> None:
     app = build_app()
     thread = {"configurable": {"thread_id": "t-answer"}}
     result = app.invoke(start_state("How do I connect to the VPN?"), thread)
     ok = not app.get_state(thread).next and "vpn" in result["answer"].lower()
     print(f"case 1 (covered answered) -> {'OK' if ok else 'WRONG'}")
-
 
 def test_sensitive_escalates() -> None:
     app = build_app()
@@ -446,7 +419,6 @@ def test_sensitive_escalates() -> None:
     ok = paused and result["escalated"] is True
     status = "OK" if ok else "WRONG"
     print(f"case 2 (sensitive escalates + resumes) -> {status}")
-
 
 if __name__ == "__main__":
     test_covered_is_answered()

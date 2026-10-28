@@ -138,8 +138,6 @@ def retrieve(collection, query: str, k: int = 3) -> list[dict]:
 # then reuses it — not at import time, not once per question.
 from src.rag.ingest import build_vector_store
 
-DOCS_FOLDER = "data/docs"
-
 class StoreHolder:
     def __init__(self) -> None:
         self.collection = None
@@ -148,7 +146,7 @@ store = StoreHolder()
 
 def get_collection():
     if store.collection is None:
-        store.collection = build_vector_store(DOCS_FOLDER)
+        store.collection = build_vector_store("data/docs")
     return store.collection
 ```
 
@@ -205,7 +203,6 @@ dollars a month. Both plans can be cancelled at any time.
 Paying yearly gives two months free. Prices include tax for customers
 in the European Union.
 ```
-
 
 **Story — `agents/reasoner_agent.py`:** the Reasoner's file and node, starting as simply as possible: `reason_node` answers with the best excerpt, word for word, plus its file name — no model yet. Step 4 keeps this node and upgrades what's inside it. **If not:** a model-written answer would arrive at the same time as the search, and a bad answer couldn't be pinned on either one.
 
@@ -374,7 +371,6 @@ def build_graph(checkpointer=None):
 # Run from the repo root: python -m tests.unit.test_chunking
 from src.rag.chunking import chunk_by_chars, chunk_by_paragraph
 
-
 def test_chunk_by_chars() -> None:
     lengths = []
     for chunk in chunk_by_chars("a" * 650, chunk_size=300):
@@ -384,7 +380,6 @@ def test_chunk_by_chars() -> None:
         result = "WRONG"
     print(f"case 1 (650 chars, size 300) -> {result}: {lengths}")
 
-
 def test_chunk_by_paragraph() -> None:
     text = "First paragraph.\n\n\n\nSecond paragraph.\n\n   \n\n"
     chunks = chunk_by_paragraph(text)
@@ -392,7 +387,6 @@ def test_chunk_by_paragraph() -> None:
     if chunks != ["First paragraph.", "Second paragraph."]:
         result = "WRONG"
     print(f"case 2 (empty pieces dropped) -> {result}: {chunks}")
-
 
 if __name__ == "__main__":
     test_chunk_by_chars()
@@ -410,47 +404,38 @@ from src.agents.retriever_agent import (
     route_search,
 )
 
-
 def show(case: str, passed: bool) -> None:
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}")
 
-
 def test_document_question_searches() -> None:
     task = {"task": "What is the refund policy?"}
     show("case 1 (refund question searches) ", route_search(task) == "search")
-
 
 def test_general_question_skips() -> None:
     task = {"task": "What is the capital of France?"}
     show("case 2 (general question skips)   ", route_search(task) == "skip")
 
-
 def test_close_match_is_relevant() -> None:
     sources = [{"score": 1.6}, {"score": 0.4}]
     show("case 3 (best score 0.4 counts)    ", is_relevant(sources))
-
 
 def test_far_match_is_not_relevant() -> None:
     sources = [{"score": 1.7}, {"score": 1.9}]
     show("case 4 (best score 1.7 doesn't)   ", not is_relevant(sources))
 
-
 def test_nothing_found() -> None:
     show("case 5 (no sources at all)        ", not is_relevant([]))
-
 
 def test_grounded_goes_to_reasoner() -> None:
     choice = has_grounding({"grounded": True})
     show("case 6 (grounded -> reason)       ", choice == "reason")
 
-
 def test_not_grounded_says_so() -> None:
     choice = has_grounding({"grounded": False})
     show("case 7 (not grounded -> honest no)", choice == "no_grounding")
-
 
 if __name__ == "__main__":
     test_document_question_searches()
@@ -480,7 +465,6 @@ from src.state import start_state
 
 ACTION_TASK = "What is the refund policy? Send it to the customer."
 
-
 def run(
     graph, thread_id: str, task: str, decision: str | None = "yes"
 ) -> dict:
@@ -490,36 +474,30 @@ def run(
         outcome = graph.invoke(Command(resume=decision), config)
     return outcome
 
-
 def show(case: str, passed: bool, outcome: dict) -> None:
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}: {outcome.get('path')}")
 
-
 def test_general_question(graph) -> None:
     outcome = run(graph, "t1", "What is the capital of France?")
     passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
     show("case 1 (general question)", passed, outcome)
 
-
 def test_action_pauses(graph) -> None:
     outcome = run(graph, "t2", ACTION_TASK, decision=None)
     show("case 2 (pauses)          ", "__interrupt__" in outcome, outcome)
-
 
 def test_human_says_yes(graph) -> None:
     outcome = run(graph, "t3", ACTION_TASK, "yes")
     passed = outcome["approved"] and "human_approved" in outcome["path"]
     show("case 3 (human: yes)      ", passed, outcome)
 
-
 def test_human_says_no(graph) -> None:
     outcome = run(graph, "t4", ACTION_TASK, "no")
     passed = outcome["answer"].startswith("Not approved")
     show("case 4 (human: no)       ", passed, outcome)
-
 
 # new in Step 3
 def test_grounded_answer(graph) -> None:
@@ -527,13 +505,11 @@ def test_grounded_answer(graph) -> None:
     passed = outcome["grounded"] and "retrieve_node" in outcome["path"]
     show("case 5 (grounded)        ", passed, outcome)
 
-
 # new in Step 3
 def test_not_in_documents(graph) -> None:
     outcome = run(graph, "t6", "What is the policy on remote work?")
     passed = outcome["path"][-1] == "no_grounding_node"
     show("case 6 (not found)       ", passed, outcome)
-
 
 if __name__ == "__main__":
     load_config()

@@ -16,7 +16,6 @@ class MissingConfigError(Exception):
     """A required setting is missing from the environment."""
     pass
 
-
 class UnsafeQueryError(Exception):
     """The generated SQL was not a safe, single read-only SELECT."""
     pass
@@ -29,13 +28,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     db_path: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -44,7 +41,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -59,7 +55,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -81,12 +76,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -112,7 +104,6 @@ ORDERS = [
     (4, 3, 45.0, "completed"),
     (5, 3, 80.0, "cancelled"),
 ]
-
 
 def build_sample_db(db_path: str) -> None:
     if os.path.exists(db_path):
@@ -148,7 +139,6 @@ def build_sample_db(db_path: str) -> None:
 # needs the schema to know which tables and columns it can use.
 import sqlite3
 
-
 def schema_text(db_path: str) -> str:
     connection = sqlite3.connect(db_path)
     try:
@@ -171,7 +161,6 @@ def schema_text(db_path: str) -> str:
 # has approved the query.
 import sqlite3
 
-
 def run_select(db_path: str, sql: str) -> list:
     connection = sqlite3.connect(db_path)
     try:
@@ -193,7 +182,6 @@ FORBIDDEN_WORDS = [
     "insert", "update", "delete", "drop", "alter",
     "create", "replace", "truncate", "attach", "pragma",
 ]
-
 
 def is_safe_select(sql: str) -> bool:
     cleaned = sql.strip().rstrip(";").strip()
@@ -220,7 +208,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "SQLSAGE_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -230,7 +217,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -238,7 +224,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -250,12 +235,10 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_guard
 from src.guard import is_safe_select
 
-
 def test_plain_select_passes() -> None:
     sql = "SELECT count(*) FROM orders WHERE status = 'completed'"
     result = "OK" if is_safe_select(sql) else "WRONG"
     print(f"case 1 (plain SELECT allowed)     -> {result}")
-
 
 def test_writes_are_rejected() -> None:
     bad = [
@@ -270,7 +253,6 @@ def test_writes_are_rejected() -> None:
         if is_safe_select(sql):
             result = "WRONG"
     print(f"case 2 (writes/chained rejected)  -> {result}")
-
 
 if __name__ == "__main__":
     test_plain_select_passes()
@@ -287,7 +269,6 @@ from src.db.runner import run_select
 from src.db.schema import schema_text
 from src.db.seed import build_sample_db
 
-
 def test_seed_and_select() -> None:
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_shop.db")
@@ -301,7 +282,6 @@ def test_seed_and_select() -> None:
         result = "WRONG"
     print(f"case 1 (3 completed orders)   -> {result}")
 
-
 def test_schema_has_tables() -> None:
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_shop.db")
@@ -312,7 +292,6 @@ def test_schema_has_tables() -> None:
     if "customers" not in schema or "orders" not in schema:
         result = "WRONG"
     print(f"case 2 (schema lists tables)  -> {result}")
-
 
 if __name__ == "__main__":
     test_seed_and_select()

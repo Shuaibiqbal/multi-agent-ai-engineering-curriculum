@@ -61,7 +61,6 @@ ORDERS = {
              "#1042 USB-C Dock $150 - shipped"],
 }
 
-
 @mcp.tool()
 def get_orders(customer_id: str) -> str:
     """Get a customer's recent orders by their customer id."""
@@ -69,7 +68,6 @@ def get_orders(customer_id: str) -> str:
     if not orders:
         return "No orders for this customer."
     return "\n".join(orders)
-
 
 if __name__ == "__main__":
     print("orders server starting", file=sys.stderr)
@@ -88,7 +86,6 @@ TICKETS = {
              "T-50 CLOSED: refund issued for late delivery"],
 }
 
-
 @mcp.tool()
 def get_tickets(customer_id: str) -> str:
     """Get a customer's support tickets by their customer id."""
@@ -96,7 +93,6 @@ def get_tickets(customer_id: str) -> str:
     if not tickets:
         return "No tickets for this customer."
     return "\n".join(tickets)
-
 
 if __name__ == "__main__":
     print("tickets server starting", file=sys.stderr)
@@ -119,13 +115,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     connect_timeout: float
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -134,7 +128,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -150,7 +143,6 @@ def load_config() -> Config:
 import logging
 import os
 import sys
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -171,7 +163,6 @@ def get_logger(name: str) -> logging.Logger:
 from openai import OpenAI
 
 from src.config import Config
-
 
 def create_client(config: Config) -> OpenAI:
     return OpenAI(api_key=config.openai_api_key)
@@ -194,8 +185,6 @@ from mcp.client.stdio import stdio_client
 from src.utils.logger import get_logger
 
 MODEL = "gpt-4o-mini"
-MAX_STEPS = 5
-
 
 def _openai_tools(tools):
     schemas = []
@@ -209,7 +198,6 @@ def _openai_tools(tools):
             },
         })
     return schemas
-
 
 async def run_specialist(client, command, args, system, task,
                          connect_timeout=10.0):
@@ -227,7 +215,7 @@ async def run_specialist(client, command, args, system, task,
                     {"role": "system", "content": system},
                     {"role": "user", "content": task},
                 ]
-                for _ in range(MAX_STEPS):
+                for _ in range(5):
                     reply = client.chat.completions.create(
                         model=MODEL, messages=messages, tools=tools
                     ).choices[0].message
@@ -251,7 +239,6 @@ async def run_specialist(client, command, args, system, task,
         logger.warning(f"specialist for {args} unavailable: {e}")
         return "", True
 
-
 def _calls_as_dicts(tool_calls):
     out = []
     for call in tool_calls:
@@ -272,7 +259,6 @@ from src.mcp_client import run_specialist
 ORDERS_SYSTEM = ("You are the Orders specialist. Use the orders tool to pull "
                  "the customer's recent orders. Report only what you found.")
 
-
 async def run_orders_agent(client, task, connect_timeout=10.0):
     return await run_specialist(
         client, "python", ["servers/orders_server.py"],
@@ -287,7 +273,6 @@ from src.mcp_client import run_specialist
 TICKETS_SYSTEM = ("You are the Tickets specialist. Use the tickets tool to "
                   "pull the customer's support tickets. Report only what you "
                   "found.")
-
 
 async def run_tickets_agent(client, task, args=None, connect_timeout=10.0):
     if args is None:
@@ -305,16 +290,13 @@ from langgraph.types import Command
 
 from src.utils.logger import get_logger
 
-
 def needs_orders(task: str) -> bool:
     lowered = task.lower()
     return "order" in lowered or "360" in lowered or "summary" in lowered
 
-
 def needs_tickets(task: str) -> bool:
     lowered = task.lower()
     return "ticket" in lowered or "support" in lowered or "360" in lowered
-
 
 def decide_next(state) -> str:
     task = state["task"]
@@ -324,7 +306,6 @@ def decide_next(state) -> str:
             and not state["tickets_unavailable"]:
         return "tickets"
     return "writer"
-
 
 def supervisor(state):
     logger = get_logger(__name__)
@@ -347,7 +328,6 @@ WRITER_SYSTEM = (
     "together - do not just list them. If a source is marked unavailable, say "
     "so plainly; never pretend it was checked."
 )
-
 
 def run_writer(client, task, orders, tickets, tickets_unavailable):
     logger = get_logger(__name__)
@@ -375,7 +355,6 @@ def run_writer(client, task, orders, tickets, tickets_unavailable):
 # src/state.py
 from typing import TypedDict
 
-
 class TeamState(TypedDict):
     task: str
     orders: str
@@ -383,7 +362,6 @@ class TeamState(TypedDict):
     tickets_unavailable: bool
     report: str
     routing_log: list
-
 
 def start_state(task: str) -> TeamState:
     return {
@@ -405,7 +383,6 @@ from src.agents.supervisor import supervisor
 from src.agents.tickets_agent import run_tickets_agent
 from src.agents.writer_agent import run_writer
 from src.state import TeamState
-
 
 def build_graph(client, connect_timeout=10.0, tickets_args=None):
     async def orders_node(state):
@@ -454,7 +431,6 @@ from src.state import start_state
 TASK = ("Give me a customer-360 for c-42: their orders and support tickets, "
         "as one summary.")
 
-
 async def run_demo():
     try:
         config = load_config()
@@ -467,10 +443,8 @@ async def run_demo():
     print("Routing:", final["routing_log"])
     print("\n" + final["report"])
 
-
 def main():
     asyncio.run(run_demo())
-
 
 if __name__ == "__main__":
     main()
@@ -488,7 +462,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "CLIENTLENS_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -497,7 +470,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -508,7 +480,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -516,7 +487,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -533,18 +503,15 @@ from src.state import start_state
 
 T = "Give me a customer-360 for c-42: orders and support tickets."
 
-
 def test_fresh_routes_to_orders() -> None:
     print(f"case 1 (fresh -> orders)    -> "
           f"{'OK' if decide_next(start_state(T)) == 'orders' else 'WRONG'}")
-
 
 def test_orders_done_routes_to_tickets() -> None:
     state = start_state(T)
     state["orders"] = "found"
     print(f"case 2 (orders done -> tickets) -> "
           f"{'OK' if decide_next(state) == 'tickets' else 'WRONG'}")
-
 
 def test_both_done_routes_to_writer() -> None:
     state = start_state(T)
@@ -553,14 +520,12 @@ def test_both_done_routes_to_writer() -> None:
     print(f"case 3 (both done -> writer) -> "
           f"{'OK' if decide_next(state) == 'writer' else 'WRONG'}")
 
-
 def test_tickets_down_skips() -> None:
     state = start_state(T)
     state["orders"] = "found"
     state["tickets_unavailable"] = True
     print(f"case 4 (tickets down -> writer) -> "
           f"{'OK' if decide_next(state) == 'writer' else 'WRONG'}")
-
 
 if __name__ == "__main__":
     test_fresh_routes_to_orders()
@@ -583,7 +548,6 @@ from src.state import start_state
 TASK = ("Give me a customer-360 for c-42: their orders and support tickets, "
         "as one summary.")
 
-
 async def test_both_services(client) -> None:
     final = await build_graph(client).ainvoke(start_state(TASK))
     used = final["routing_log"]
@@ -593,7 +557,6 @@ async def test_both_services(client) -> None:
         ok = False
     print(f"case 1 (both services -> one 360)       -> "
           f"{'OK' if ok else 'WRONG'}")
-
 
 async def test_tickets_down(client) -> None:
     app = build_graph(client, tickets_args=["servers/does_not_exist.py"])
@@ -607,12 +570,10 @@ async def test_tickets_down(client) -> None:
     print(f"case 2 (tickets down -> honest 360)     -> "
           f"{'OK' if ok else 'WRONG'}")
 
-
 async def main() -> None:
     client = create_client(load_config())
     await test_both_services(client)
     await test_tickets_down(client)
-
 
 if __name__ == "__main__":
     asyncio.run(main())

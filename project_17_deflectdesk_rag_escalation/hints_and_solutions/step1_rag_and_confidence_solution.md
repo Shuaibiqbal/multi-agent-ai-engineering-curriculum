@@ -24,13 +24,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     confidence_cutoff: float
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -39,7 +37,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -54,7 +51,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -76,12 +72,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -99,11 +92,9 @@ from langchain_openai import OpenAIEmbeddings
 import chromadb
 
 COLLECTION_NAME = "help_docs"
-HELP_DIR = "data/help_docs"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-
-def build_help_store(help_dir: str = HELP_DIR):
+def build_help_store(help_dir: str = "data/help_docs"):
     loader = DirectoryLoader(help_dir, glob="**/*.md", loader_cls=TextLoader)
     documents = loader.load()
     texts = []
@@ -132,7 +123,6 @@ from src.rag.help_store import EMBEDDINGS
 
 NO_MATCH_DISTANCE = 2.0
 
-
 def best_match(collection, question: str):
     if collection.count() == 0:
         return "", NO_MATCH_DISTANCE
@@ -152,10 +142,8 @@ def best_match(collection, question: str):
 # src/confidence.py
 # The whole bot turns on this: is the best match close enough to answer from?
 # Deterministic, so it's testable with no model.
-DEFAULT_CUTOFF = 0.8
 
-
-def is_confident(distance: float, cutoff: float = DEFAULT_CUTOFF) -> bool:
+def is_confident(distance: float, cutoff: float = 0.8) -> bool:
     return distance <= cutoff
 ```
 
@@ -171,7 +159,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DEFLECTDESK_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -181,7 +168,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -189,7 +175,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -201,13 +186,11 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_confidence
 from src.confidence import is_confident
 
-
 def test_small_distance_is_confident() -> None:
     result = "OK"
     if not is_confident(0.2, cutoff=0.8):
         result = "WRONG"
     print(f"case 1 (small distance -> confident)  -> {result}")
-
 
 def test_large_distance_is_not() -> None:
     result = "OK"
@@ -215,13 +198,11 @@ def test_large_distance_is_not() -> None:
         result = "WRONG"
     print(f"case 2 (large distance -> escalate)   -> {result}")
 
-
 def test_cutoff_itself_is_confident() -> None:
     result = "OK"
     if not is_confident(0.8, cutoff=0.8):
         result = "WRONG"
     print(f"case 3 (distance == cutoff -> confident) -> {result}")
-
 
 if __name__ == "__main__":
     test_small_distance_is_confident()

@@ -120,12 +120,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -134,7 +132,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -148,7 +145,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -166,11 +162,9 @@ def get_logger(name: str) -> logging.Logger:
 
 ```python
 # src/utils/prompts.py
-PROMPTS_DIR = "src/prompts"
-
 
 def load_prompt(name: str) -> str:
-    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+    with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
 
@@ -180,12 +174,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -212,7 +203,6 @@ import chromadb
 
 COLLECTION_NAME = "hr_policies"
 
-
 def get_collection(embedding_function=None):
     client = chromadb.Client()
     try:
@@ -235,10 +225,7 @@ import os
 from src.rag.chunking import chunk_by_paragraph
 from src.utils.logger import get_logger
 
-POLICIES_DIR = "data/policies"
-
-
-def build_vector_store(collection, policies_dir: str = POLICIES_DIR):
+def build_vector_store(collection, policies_dir: str = "data/policies"):
     logger = get_logger(__name__)
     ids = []
     documents = []
@@ -280,7 +267,6 @@ def retrieve(collection, query: str, k: int = 3) -> list:
 # src/state.py
 from typing import TypedDict
 
-
 class DocState(TypedDict):
     question: str
     kind: str          # "question" | "action"
@@ -288,7 +274,6 @@ class DocState(TypedDict):
     answer: str
     approved: bool
     result: str
-
 
 def start_state(question: str) -> DocState:
     return {
@@ -315,17 +300,14 @@ is kept only so the prompts folder documents every role.)
 from src.rag.retriever import retrieve
 from src.utils.logger import get_logger
 
-ACTION_WORDS = ["file", "submit", "request", "book", "cancel", "apply"]
 MAX_DISTANCE = 1.2   # squared-L2; above this a chunk isn't really relevant
-
 
 def classify_kind(question: str) -> str:
     lowered = question.lower()
-    for word in ACTION_WORDS:
+    for word in ["file", "submit", "request", "book", "cancel", "apply"]:
         if word in lowered:
             return "action"
     return "question"
-
 
 def search(collection, question: str) -> list:
     logger = get_logger(__name__)
@@ -362,14 +344,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-NOT_FOUND = "That isn't covered in the HR policies."
-
-
 def answer_grounded(model, question: str, passages: list) -> str:
     logger = get_logger(__name__)
     if len(passages) == 0:
         logger.info("no passages -> not found")
-        return NOT_FOUND
+        return "That isn't covered in the HR policies."
     lines = []
     for passage in passages:
         lines.append(f"[{passage['source']}] {passage['text']}")
@@ -383,7 +362,6 @@ def answer_grounded(model, question: str, passages: list) -> str:
 # The approval role: build a human checklist of the action, then PAUSE the
 # graph with interrupt() and wait. A separate run resumes with yes/no.
 from src.utils.logger import get_logger
-
 
 def build_checklist(question: str) -> str:
     return (
@@ -407,7 +385,6 @@ from src.agents.approval_agent import build_checklist
 from src.agents.reasoner_agent import answer_grounded
 from src.agents.retriever_agent import classify_kind, search
 from src.state import DocState
-
 
 def build_graph(model, collection, checkpointer=None):
     def retrieve_node(state):
@@ -459,7 +436,6 @@ from src.rag.ingest import build_vector_store
 from src.rag.store import get_collection
 from src.state import start_state
 
-
 def main():
     try:
         config = load_config()
@@ -489,7 +465,6 @@ def main():
         else:
             print(f"{result['answer']}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -511,7 +486,6 @@ from src.state import start_state
 DB_PATH = "policypal_state.sqlite"
 THREAD = {"configurable": {"thread_id": "demo"}}
 
-
 def main():
     config = load_config()
     model = get_model(config)
@@ -522,7 +496,6 @@ def main():
         paused = app.get_state(THREAD)
         print("Paused at:", paused.next)
         print(paused.values.get("question"))
-
 
 if __name__ == "__main__":
     main()
@@ -544,7 +517,6 @@ from src.rag.store import get_collection
 DB_PATH = "policypal_state.sqlite"
 THREAD = {"configurable": {"thread_id": "demo"}}
 
-
 def main():
     config = load_config()
     model = get_model(config)
@@ -553,7 +525,6 @@ def main():
         app = build_graph(model, collection, checkpointer=checkpointer)
         final = app.invoke(Command(resume="yes"), THREAD)
         print("Resumed:", final["result"])
-
 
 if __name__ == "__main__":
     main()
@@ -571,7 +542,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "POLICYPAL_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -580,7 +550,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -591,7 +560,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -599,7 +567,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -612,7 +579,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_chunking
 from src.rag.chunking import chunk_by_paragraph
 
-
 def test_splits_paragraphs() -> None:
     chunks = chunk_by_paragraph("one\n\ntwo\n\nthree")
     result = "OK"
@@ -620,14 +586,12 @@ def test_splits_paragraphs() -> None:
         result = "WRONG"
     print(f"case 1 (splits on blank lines) -> {result}")
 
-
 def test_drops_empty() -> None:
     chunks = chunk_by_paragraph("one\n\n\n\n   \n\ntwo")
     result = "OK"
     if chunks != ["one", "two"]:
         result = "WRONG"
     print(f"case 2 (drops empty blocks)    -> {result}")
-
 
 if __name__ == "__main__":
     test_splits_paragraphs()
@@ -640,20 +604,17 @@ if __name__ == "__main__":
 #   python -m tests.unit.test_routing
 from src.agents.retriever_agent import classify_kind
 
-
 def test_question_routes_to_question() -> None:
     result = "OK"
     if classify_kind("How many paid leave days do I get?") != "question":
         result = "WRONG"
     print(f"case 1 (plain question) -> {result}")
 
-
 def test_action_routes_to_action() -> None:
     result = "OK"
     if classify_kind("File a leave request for Monday") != "action":
         result = "WRONG"
     print(f"case 2 (action request) -> {result}")
-
 
 if __name__ == "__main__":
     test_question_routes_to_question()
@@ -678,7 +639,6 @@ from src.rag.store import get_collection
 VOCAB = ["leave", "paid", "days", "remote", "work", "hours", "wifi",
          "password", "berlin"]
 
-
 class KeywordEmbedding(EmbeddingFunction):
     def __call__(self, texts):
         vectors = []
@@ -691,11 +651,9 @@ class KeywordEmbedding(EmbeddingFunction):
             vectors.append([value / norm for value in counts])
         return vectors
 
-
 def build():
     collection = get_collection(embedding_function=KeywordEmbedding())
     return build_vector_store(collection)
-
 
 def test_relevant_question_retrieves() -> None:
     passages = search(build(), "how many paid leave days")
@@ -706,14 +664,12 @@ def test_relevant_question_retrieves() -> None:
         result = "WRONG"
     print(f"case 1 (leave question -> leave_policy.md) -> {result}")
 
-
 def test_offtopic_is_not_found() -> None:
     passages = search(build(), "wifi password berlin")
     result = "OK"
     if len(passages) != 0:
         result = "WRONG"
     print(f"case 2 (off-topic -> nothing relevant)     -> {result}")
-
 
 if __name__ == "__main__":
     test_relevant_question_retrieves()
@@ -725,7 +681,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_approval_checks
 from src.agents.approval_agent import build_checklist
 
-
 def test_checklist_names_the_action() -> None:
     text = build_checklist("File a leave request for Monday")
     result = "OK"
@@ -734,7 +689,6 @@ def test_checklist_names_the_action() -> None:
     if "Approve?" not in text:
         result = "WRONG"
     print(f"case 1 (checklist shows the action) -> {result}")
-
 
 if __name__ == "__main__":
     test_checklist_names_the_action()
@@ -754,31 +708,26 @@ from src.rag.ingest import build_vector_store
 from src.rag.store import get_collection
 from src.state import start_state
 
-
 def build_app():
     config = load_config()
     model = get_model(config)
     collection = build_vector_store(get_collection())
     return build_graph(model, collection, checkpointer=MemorySaver())
 
-
 def run(app, question, thread):
     cfg = {"configurable": {"thread_id": thread}}
     result = app.invoke(start_state(question), cfg)
     return app, cfg, result
-
 
 def test_grounded_answer_cites_source() -> None:
     app, cfg, result = run(build_app(), "How many paid leave days?", "g")
     ok = "20" in result["answer"] and "leave_policy.md" in result["answer"]
     print(f"case 1 (grounded + cited)   -> {'OK' if ok else 'WRONG'}")
 
-
 def test_not_found() -> None:
     app, cfg, result = run(build_app(), "What's the Berlin wifi password?", "n")
     ok = "isn't covered" in result["answer"]
     print(f"case 2 (not found)          -> {'OK' if ok else 'WRONG'}")
-
 
 def test_action_approved() -> None:
     app = build_app()
@@ -788,7 +737,6 @@ def test_action_approved() -> None:
     ok = final["approved"] and "Recorded" in final["result"]
     print(f"case 3 (action approved)    -> {'OK' if ok else 'WRONG'}")
 
-
 def test_action_rejected() -> None:
     app = build_app()
     cfg = {"configurable": {"thread_id": "r"}}
@@ -796,7 +744,6 @@ def test_action_rejected() -> None:
     final = app.invoke(Command(resume="no"), cfg)
     ok = (not final["approved"]) and "cancelled" in final["result"]
     print(f"case 4 (action rejected)    -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     test_grounded_answer_cites_source()

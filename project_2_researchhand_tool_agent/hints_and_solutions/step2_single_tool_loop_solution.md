@@ -161,8 +161,6 @@ from src.exceptions import MaxIterationsExceeded, MissingConfigError
 from src.models.llm import get_model
 from src.utils.logger import get_logger
 
-MAX_ITERATIONS = 5
-
 def print_steps(steps: list[dict]) -> None:
     for step in steps:
         if step["error"] is None:
@@ -191,7 +189,7 @@ def main() -> None:
             continue
 
         try:
-            result = run_worker(model, task, MAX_ITERATIONS)
+            result = run_worker(model, task, 5)
         except MaxIterationsExceeded as e:
             print(f"Gave up: {e}")
             print_steps(e.steps)
@@ -223,13 +221,11 @@ from pydantic import ValidationError
 
 from src.tools.converter import celsius_to_fahrenheit
 
-
 def test_converter() -> None:
     result = "OK"
     if celsius_to_fahrenheit.invoke({"celsius": 18}) != 64.4:
         result = "WRONG"
     print(f"case 1 (18°C is 64.4°F)           -> {result}")
-
 
 def test_converter_rejects_bad_arguments() -> None:
     result = "WRONG"
@@ -238,7 +234,6 @@ def test_converter_rejects_bad_arguments() -> None:
     except ValidationError:
         result = "OK"
     print(f"case 2 (celsius='hot' refused)    -> {result}")
-
 
 if __name__ == "__main__":
     test_converter()
@@ -254,20 +249,17 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_agents
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-
 def test_find_known_tool() -> None:
     result = "OK"
     if find_tool(ALL_TOOLS, "celsius_to_fahrenheit") is None:
         result = "WRONG"
     print(f"case 1 (known tool found)          -> {result}")
 
-
 def test_find_unknown_tool() -> None:
     result = "OK"
     if find_tool(ALL_TOOLS, "send_email") is not None:
         result = "WRONG"
     print(f"case 2 (unknown tool gives None)   -> {result}")
-
 
 def test_run_good_call() -> None:
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
@@ -277,7 +269,6 @@ def test_run_good_call() -> None:
         result = "WRONG"
     print(f"case 3 (good call gives 32.0)      -> {result}")
 
-
 def test_run_unknown_tool() -> None:
     call = {"name": "send_email", "args": {}}
     output, error = run_tool(call, ALL_TOOLS)
@@ -286,7 +277,6 @@ def test_run_unknown_tool() -> None:
         result = "WRONG"
     print(f"case 4 (unknown tool gives error)  -> {result}")
 
-
 def test_run_bad_arguments() -> None:
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
     output, error = run_tool(call, ALL_TOOLS)
@@ -294,7 +284,6 @@ def test_run_bad_arguments() -> None:
     if output is not None or error is None:
         result = "WRONG"
     print(f"case 5 (bad arguments give error)  -> {result}")
-
 
 if __name__ == "__main__":
     test_find_known_tool()
@@ -324,7 +313,6 @@ from src.config import load_config
 from src.exceptions import MaxIterationsExceeded
 from src.models.llm import get_model
 
-
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
@@ -333,14 +321,12 @@ def test_direct_answer(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 1 (direct answer)  -> {result}: {answer}")
 
-
 # new in Step 2
 def tools_used(outcome: AgentResult) -> list[str]:
     names = []
     for step in outcome.steps:
         names.append(step["tool"])
     return names
-
 
 # new in Step 2
 def test_conversion_uses_tool(model: ChatOpenAI) -> None:
@@ -351,7 +337,6 @@ def test_conversion_uses_tool(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 2 (conversion)     -> {result}: {used}")
 
-
 # new in Step 2
 def test_no_tool_needed(model: ChatOpenAI) -> None:
     outcome = run_worker(model, "What is the capital of France?", 5)
@@ -359,7 +344,6 @@ def test_no_tool_needed(model: ChatOpenAI) -> None:
     if len(outcome.steps) != 0:
         result = "WRONG"
     print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
-
 
 # new in Step 2
 def test_step_limit(model: ChatOpenAI) -> None:
@@ -370,7 +354,6 @@ def test_step_limit(model: ChatOpenAI) -> None:
     except MaxIterationsExceeded:
         result = "OK"
     print(f"case 4 (step limit)     -> {result}")
-
 
 if __name__ == "__main__":
     config = load_config()

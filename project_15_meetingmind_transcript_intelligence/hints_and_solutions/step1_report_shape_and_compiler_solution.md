@@ -24,12 +24,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -38,7 +36,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -52,7 +49,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -74,12 +70,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -94,19 +87,15 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-
 class ActionItem(BaseModel):
     task: str
     owner: Optional[str] = None
 
-
 class ActionItems(BaseModel):
     items: List[ActionItem] = []
 
-
 class Decisions(BaseModel):
     decisions: List[str] = []
-
 
 class MeetingReport(BaseModel):
     summary: str
@@ -122,14 +111,12 @@ class MeetingReport(BaseModel):
 # human. Plain Python, so it's fully testable with hand-made parts - no model.
 from src.schemas import MeetingReport
 
-
 def compile_report(parts) -> MeetingReport:
     return MeetingReport(
         summary=parts["summary"],
         decisions=parts["decisions"].decisions,
         action_items=parts["actions"].items,
     )
-
 
 def format_report(report: MeetingReport) -> str:
     lines = ["Summary:", "  " + report.summary, "", "Decisions:"]
@@ -157,7 +144,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MEETINGMIND_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -167,7 +153,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -175,7 +160,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -188,7 +172,6 @@ if __name__ == "__main__":
 from src.report import compile_report, format_report
 from src.schemas import ActionItem, ActionItems, Decisions
 
-
 def sample_parts():
     return {
         "summary": "Agreed to ship v2 and retire the legacy API.",
@@ -200,7 +183,6 @@ def sample_parts():
         ]),
     }
 
-
 def test_report_lists_decisions_and_actions() -> None:
     text = format_report(compile_report(sample_parts()))
     result = "OK"
@@ -210,14 +192,12 @@ def test_report_lists_decisions_and_actions() -> None:
         result = "WRONG"
     print(f"case 1 (report lists both)        -> {result}")
 
-
 def test_unassigned_action_reads_unassigned() -> None:
     text = format_report(compile_report(sample_parts()))
     result = "OK"
     if "Write the migration guide (unassigned)" not in text:
         result = "WRONG"
     print(f"case 2 (no owner -> unassigned)   -> {result}")
-
 
 if __name__ == "__main__":
     test_report_lists_decisions_and_actions()

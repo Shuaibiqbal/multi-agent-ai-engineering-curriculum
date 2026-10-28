@@ -191,7 +191,6 @@ from src.evals.tasks import SOURCE_RULE, TITLE_RULE
 
 load_config()
 
-TOPIC = "electric bikes"
 RULES = [TITLE_RULE, SOURCE_RULE]
 
 # answers where YOU already know the right verdict — a judge that approves
@@ -209,7 +208,7 @@ CALIBRATION_SET = [
 
 def test_judge_calibration():
     for case in CALIBRATION_SET:
-        result = score_with_judge(TOPIC, case["output"], RULES)
+        result = score_with_judge("electric bikes", case["output"], RULES)
         assert result.verdict == case["expected_verdict"], result.reason
 ```
 

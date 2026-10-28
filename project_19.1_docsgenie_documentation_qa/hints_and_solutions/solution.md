@@ -71,13 +71,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     docs_dir: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -86,7 +84,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -101,7 +98,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -123,12 +119,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -148,7 +141,6 @@ def build_context(passages) -> str:
     for passage in passages:
         blocks.append(f"# Page: {passage['page']}\n{passage['text']}")
     return "\n\n".join(blocks)
-
 
 def cited_pages(passages) -> list:
     pages = []
@@ -173,7 +165,6 @@ import chromadb
 
 COLLECTION_NAME = "documentation"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
-
 
 def build_docs_store(docs_dir: str):
     loader = DirectoryLoader(docs_dir, glob="**/*.md", loader_cls=TextLoader)
@@ -205,7 +196,6 @@ def build_docs_store(docs_dir: str):
 # src/rag/retriever.py
 # Return the doc passages closest to a question, each with its page name.
 from src.rag.docs_store import EMBEDDINGS
-
 
 def retrieve_passages(collection, question: str, k: int = 4) -> list:
     if collection.count() == 0:
@@ -239,7 +229,6 @@ ANSWER_PROMPT = (
     "{context}\n\nQuestion: {question}"
 )
 
-
 def answer_question(model, question: str, context: str) -> str:
     prompt = ChatPromptTemplate.from_template(ANSWER_PROMPT)
     chain = prompt | model
@@ -270,7 +259,6 @@ from src.rag.docs_store import build_docs_store
 from src.rag.retriever import retrieve_passages
 from src.utils.logger import get_logger
 
-
 def run_query(model, docs_dir: str, question: str):
     logger = get_logger(__name__)
     collection = build_docs_store(docs_dir)
@@ -292,7 +280,6 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import run_query
 
-
 def main():
     if len(sys.argv) < 2:
         print('usage: python main.py "your question"')
@@ -307,7 +294,6 @@ def main():
     print("\nCited pages:")
     for page in pages:
         print(f"  - {page}")
-
 
 if __name__ == "__main__":
     main()
@@ -325,7 +311,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DOCSGENIE_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -335,7 +320,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -343,7 +327,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -361,7 +344,6 @@ PASSAGES = [
     {"page": "authentication.md", "text": "Create keys in the dashboard."},
 ]
 
-
 def test_every_passage_has_a_page_header() -> None:
     context = build_context(PASSAGES)
     result = "OK"
@@ -371,14 +353,12 @@ def test_every_passage_has_a_page_header() -> None:
         result = "WRONG"
     print(f"case 1 (page headers in context) -> {result}")
 
-
 def test_cited_pages_are_deduped() -> None:
     pages = cited_pages(PASSAGES)
     result = "OK"
     if pages != ["authentication.md", "billing.md"]:
         result = "WRONG"
     print(f"case 2 (cited pages deduped)     -> {result}")
-
 
 if __name__ == "__main__":
     test_every_passage_has_a_page_header()
@@ -406,7 +386,6 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import run_query
 
-
 def test_answers_from_the_docs() -> None:
     config = load_config()
     model = get_model(config)
@@ -415,7 +394,6 @@ def test_answers_from_the_docs() -> None:
     ok = "key" in answer.lower() and "authentication.md" in pages
     status = "OK" if ok else "WRONG"
     print(f"case 1 (auth answered, page cited) -> {status}")
-
 
 def test_offtopic_says_unknown() -> None:
     config = load_config()
@@ -426,7 +404,6 @@ def test_offtopic_says_unknown() -> None:
     ok = "don't know" in lowered or "not" in lowered
     status = "OK" if ok else "WRONG"
     print(f"case 2 (off-topic -> unknown)      -> {status}")
-
 
 if __name__ == "__main__":
     test_answers_from_the_docs()

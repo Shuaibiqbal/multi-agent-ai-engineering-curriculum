@@ -67,11 +67,10 @@ reply = "".join(pieces)
 `.stream()` works through the fallback too — if the model fails, the canned `RunnableLambda` streams its one string. Then flag for a human whenever the classifier wasn't sure **or** the message carries an urgent signal:
 
 ```python
-URGENT_WORDS = ["today", "locked out", "dropped", "urgent", "immediately"]
 reasons = []
 if not category.sure:
     reasons.append("classifier was not sure")
-for word in URGENT_WORDS:
+for word in ["today", "locked out", "dropped", "urgent", "immediately"]:
     if word in message.lower():
         reasons.append(f"urgent signal: {word}")
 needs_human_review = len(reasons) > 0

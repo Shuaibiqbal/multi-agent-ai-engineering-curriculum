@@ -19,10 +19,9 @@ Graph shape: `START → retrieve`; `retrieve` returns `Command(goto="reason" or 
 Chroma's distance is **squared-L2: lower = closer**. `retrieve` returns each hit's `distance` and its source file. The "not found" behaviour is just a cutoff:
 
 ```python
-MAX_DISTANCE = 1.2      # calibrated for Chroma's default embeddings
 def search(collection, question):
     return [p for p in retrieve(collection, question)
-            if p["distance"] <= MAX_DISTANCE]   # (write as a plain loop)
+            if p["distance"] <= 1.2]   # (write as a plain loop)
 ```
 
 Anything above the cutoff isn't relevant, so an off-topic question yields an **empty** list — which the reasoner turns into the honest refusal. Store each chunk's source file in its metadata at ingest time, so the answer can cite it.
@@ -34,10 +33,9 @@ Anything above the cutoff isn't relevant, so an off-topic question yields an **e
 The reasoner answers from the passages only, and refuses *without* a model call when there's nothing to ground on:
 
 ```python
-NOT_FOUND = "That isn't covered in the HR policies."
 def answer_grounded(model, question, passages):
     if len(passages) == 0:
-        return NOT_FOUND
+        return "That isn't covered in the HR policies."
     lines = [f"[{p['source']}] {p['text']}" for p in passages]  # plain loop
     chain = prompt | model | StrOutputParser()
     return chain.invoke({"question": question, "passages": "\n".join(lines)})

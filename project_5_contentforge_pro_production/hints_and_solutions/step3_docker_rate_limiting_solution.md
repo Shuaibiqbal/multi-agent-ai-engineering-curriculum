@@ -31,7 +31,6 @@ conn = get_connection()
 
 # new in Step 3: the rate limiter
 RATE_LIMIT = 5             # max requests per caller...
-RATE_WINDOW_SECONDS = 60   # ...inside this many seconds
 # LIMITATION: in-memory only. It resets on every restart, and each
 # worker/container keeps its own separate counts — so 3 containers
 # really allow 3 x RATE_LIMIT. A shared store (like Redis) fixes that.
@@ -45,7 +44,7 @@ def check_rate_limit(caller_key: str) -> None:
     old_times = request_times.get(caller_key, [])
     recent = []
     for t in old_times:
-        if now - t < RATE_WINDOW_SECONDS:
+        if now - t < 60:
             recent.append(t)
     if len(recent) >= RATE_LIMIT:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")

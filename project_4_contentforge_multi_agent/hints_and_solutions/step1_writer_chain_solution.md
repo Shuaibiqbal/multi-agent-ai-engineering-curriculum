@@ -80,10 +80,9 @@ def get_logger(name: str) -> logging.Logger:
 # src/utils/prompts.py
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live in text
 # files instead of Python strings. (Project 1's file.)
-PROMPTS_DIR = "src/prompts"
 
 def load_prompt(name: str) -> str:
-    path = PROMPTS_DIR + "/" + name + ".txt"
+    path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -104,10 +103,8 @@ Also create empty `__init__.py` files in `src/utils/`, `src/models/` and `src/ag
 # OPENAI_API_KEY from the environment, filled by load_config().
 from langchain_openai import ChatOpenAI
 
-MODEL_NAME = "gpt-4o-mini"
-
 def get_model() -> ChatOpenAI:
-    return ChatOpenAI(model=MODEL_NAME, temperature=0)
+    return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
 **Story — `prompts/writer.txt`:** the Writer's rules: a titled 150-250-word article, **only** the given findings, and keep each fact's `[source]` tag. **If not:** the article could quietly mix in facts nobody researched.
@@ -205,7 +202,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "CONTENTFORGE_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -214,7 +210,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -225,7 +220,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -233,7 +227,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -256,14 +249,12 @@ FINDINGS = (
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-
 def test_writer_keeps_sources() -> None:
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:
         result = "WRONG"
     print(f"case 1 (writer keeps sources) -> {result}")
-
 
 if __name__ == "__main__":
     load_config()

@@ -94,12 +94,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -108,7 +106,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -122,7 +119,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -140,11 +136,9 @@ def get_logger(name: str) -> logging.Logger:
 
 ```python
 # src/utils/prompts.py
-PROMPTS_DIR = "src/prompts"
-
 
 def load_prompt(name: str) -> str:
-    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+    with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
 
@@ -154,12 +148,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -174,12 +165,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 class TicketCategory(BaseModel):
     category: Literal["enrollment", "financial_aid", "it_support"]
     reason: str
     sure: bool = True
-
 
 class TicketRecord(BaseModel):
     student: str
@@ -209,7 +198,6 @@ CANNED_REPLY = (
     "staff member will follow up with you shortly."
 )
 
-
 def _unsure_category(_inputs) -> TicketCategory:
     return TicketCategory(
         category="it_support",
@@ -217,14 +205,11 @@ def _unsure_category(_inputs) -> TicketCategory:
         sure=False,
     )
 
-
 def with_unsure_category(classifier_chain):
     return classifier_chain.with_fallbacks([RunnableLambda(_unsure_category)])
 
-
 def _canned(_inputs) -> str:
     return CANNED_REPLY
-
 
 def with_canned_reply(reply_chain):
     return reply_chain.with_fallbacks([RunnableLambda(_canned)])
@@ -254,12 +239,10 @@ from src.schemas import TicketCategory
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-
 def build_classifier_chain(model):
     prompt = ChatPromptTemplate.from_template(load_prompt("classifier"))
     structured = prompt | model.with_structured_output(TicketCategory)
     return with_unsure_category(structured)
-
 
 def classify_ticket(model, message: str) -> TicketCategory:
     logger = get_logger(__name__)
@@ -279,13 +262,9 @@ import json
 
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 
-STUDENTS_PATH = "data/students.json"
-
-
 def _load_students() -> dict:
-    with open(STUDENTS_PATH) as students_file:
+    with open("data/students.json") as students_file:
         return json.loads(students_file.read())
-
 
 def _field(field_name):
     def lookup(payload) -> str:
@@ -295,7 +274,6 @@ def _field(field_name):
             return "unknown"
         return record.get(field_name, "unknown")
     return lookup
-
 
 def build_lookup_step():
     return RunnableParallel(
@@ -327,7 +305,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.chains.fallback import with_canned_reply
 from src.utils.prompts import load_prompt
 
-
 def build_reply_chain(model):
     prompt = ChatPromptTemplate.from_template(load_prompt("reply"))
     chain = prompt | model | StrOutputParser()
@@ -348,19 +325,15 @@ from src.chains.replies import build_reply_chain
 from src.schemas import TicketRecord
 from src.utils.logger import get_logger
 
-URGENT_WORDS = ["today", "locked out", "dropped", "urgent", "immediately"]
-
-
 def review_reasons(category, message: str) -> list:
     reasons = []
     if not category.sure:
         reasons.append("classifier was not sure")
     lowered = message.lower()
-    for word in URGENT_WORDS:
+    for word in ["today", "locked out", "dropped", "urgent", "immediately"]:
         if word in lowered:
             reasons.append(f"urgent signal: {word}")
     return reasons
-
 
 def draft_reply(model, category: str, message: str, context: dict) -> tuple:
     chain = build_reply_chain(model)
@@ -374,7 +347,6 @@ def draft_reply(model, category: str, message: str, context: dict) -> tuple:
     reply = "".join(pieces)
     used_fallback = reply.strip() == CANNED_REPLY
     return reply, used_fallback
-
 
 def handle_ticket(model, student: str, message: str) -> TicketRecord:
     logger = get_logger(__name__)
@@ -412,7 +384,6 @@ QUEUE = [
     ("s-1001", "I'm locked out of the student portal."),
 ]
 
-
 def main():
     try:
         config = load_config()
@@ -432,7 +403,6 @@ def main():
         print(f"  -> {record.category} | fallback={record.used_fallback} "
               f"| {flag} {record.review_reasons}")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -445,11 +415,9 @@ import time
 
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 
-
 def slow(_inputs):
     time.sleep(0.3)
     return "done"
-
 
 def main():
     start = time.time()
@@ -463,7 +431,6 @@ def main():
     start = time.time()
     parallel.invoke({})
     print(f"in parallel:       {time.time() - start:.2f}s")
-
 
 if __name__ == "__main__":
     main()
@@ -493,7 +460,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "CAMPUSDESK_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -502,7 +468,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -513,7 +478,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -521,7 +485,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -536,14 +499,12 @@ from pydantic import ValidationError
 
 from src.schemas import TicketCategory, TicketRecord
 
-
 def test_category_builds() -> None:
     category = TicketCategory(category="enrollment", reason="adds a class")
     result = "OK"
     if category.sure is not True:
         result = "WRONG"
     print(f"case 1 (good category, sure defaults True) -> {result}")
-
 
 def test_category_rejects_unknown() -> None:
     result = "WRONG"
@@ -552,7 +513,6 @@ def test_category_rejects_unknown() -> None:
     except ValidationError:
         result = "OK"
     print(f"case 2 (unknown category rejected)         -> {result}")
-
 
 def test_record_builds_with_defaults() -> None:
     record = TicketRecord(student="s-1", message="m", category="it_support",
@@ -563,7 +523,6 @@ def test_record_builds_with_defaults() -> None:
     if record.review_reasons != []:
         result = "WRONG"
     print(f"case 3 (record defaults are safe)          -> {result}")
-
 
 if __name__ == "__main__":
     test_category_builds()
@@ -581,7 +540,6 @@ from langchain_core.runnables import RunnableLambda, RunnableParallel
 
 from src.chains.lookups import build_lookup_step
 
-
 def test_merges_three_fields() -> None:
     out = build_lookup_step().invoke({"student": "s-1001"})
     result = "OK"
@@ -591,14 +549,12 @@ def test_merges_three_fields() -> None:
         result = "WRONG"
     print(f"case 1 (merges three lookups)   -> {result}")
 
-
 def test_unknown_student_is_safe() -> None:
     out = build_lookup_step().invoke({"student": "nobody"})
     result = "OK"
     if out["status"] != "unknown":
         result = "WRONG"
     print(f"case 2 (unknown student -> safe) -> {result}")
-
 
 def test_runs_in_parallel() -> None:
     def slow(_inputs):
@@ -614,7 +570,6 @@ def test_runs_in_parallel() -> None:
     if elapsed > 0.6:
         result = "WRONG"
     print(f"case 3 (3x0.3s runs under 0.6s) -> {result}")
-
 
 if __name__ == "__main__":
     test_merges_three_fields()
@@ -634,10 +589,8 @@ from src.chains.fallback import (
     with_unsure_category,
 )
 
-
 def _boom(_inputs):
     raise RuntimeError("model down")
-
 
 def test_canned_reply_on_failure() -> None:
     chain = with_canned_reply(RunnableLambda(_boom))
@@ -647,7 +600,6 @@ def test_canned_reply_on_failure() -> None:
         result = "WRONG"
     print(f"case 1 (reply fails -> canned)      -> {result}")
 
-
 def test_unsure_category_on_failure() -> None:
     chain = with_unsure_category(RunnableLambda(_boom))
     category = chain.invoke({"message": "x"})
@@ -655,7 +607,6 @@ def test_unsure_category_on_failure() -> None:
     if category.sure is not False:
         result = "WRONG"
     print(f"case 2 (classify fails -> unsure)   -> {result}")
-
 
 if __name__ == "__main__":
     test_canned_reply_on_failure()
@@ -669,14 +620,11 @@ if __name__ == "__main__":
 from src.schemas import TicketCategory
 from src.services.pipeline import review_reasons
 
-
 def sure_category():
     return TicketCategory(category="enrollment", reason="r", sure=True)
 
-
 def unsure_category():
     return TicketCategory(category="it_support", reason="r", sure=False)
-
 
 def test_clean_message_no_flag() -> None:
     reasons = review_reasons(sure_category(), "How do I add a class?")
@@ -685,7 +633,6 @@ def test_clean_message_no_flag() -> None:
         result = "WRONG"
     print(f"case 1 (clean message -> no flag)   -> {result}")
 
-
 def test_urgent_message_flagged() -> None:
     reasons = review_reasons(sure_category(), "Tuition is due today!")
     result = "OK"
@@ -693,14 +640,12 @@ def test_urgent_message_flagged() -> None:
         result = "WRONG"
     print(f"case 2 (urgent word -> flagged)     -> {result}")
 
-
 def test_unsure_flagged() -> None:
     reasons = review_reasons(unsure_category(), "a normal message")
     result = "OK"
     if len(reasons) == 0:
         result = "WRONG"
     print(f"case 3 (unsure -> flagged)          -> {result}")
-
 
 if __name__ == "__main__":
     test_clean_message_no_flag()
@@ -716,12 +661,10 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.services.pipeline import handle_ticket
 
-
 def test_routes_enrollment(model) -> None:
     record = handle_ticket(model, "s-1001", "How do I add a class?")
     ok = record.category == "enrollment"
     print(f"case 1 (enrollment routed) -> {'OK' if ok else 'WRONG'}")
-
 
 def test_urgent_is_flagged(model) -> None:
     record = handle_ticket(
@@ -729,7 +672,6 @@ def test_urgent_is_flagged(model) -> None:
     )
     ok = record.needs_human_review
     print(f"case 2 (urgent flagged)    -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     config = load_config()

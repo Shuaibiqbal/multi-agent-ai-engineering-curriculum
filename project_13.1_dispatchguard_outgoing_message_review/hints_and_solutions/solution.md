@@ -122,12 +122,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -136,7 +134,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -150,7 +147,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -172,7 +168,6 @@ import os
 
 PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "prompts")
 
-
 def load_prompt(name: str) -> str:
     path = os.path.join(PROMPTS_DIR, f"{name}.txt")
     with open(path) as prompt_file:
@@ -185,12 +180,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -201,7 +193,6 @@ def get_model(config: Config) -> ChatOpenAI:
 # One review finding. severity is high/medium/low; category is which
 # reviewer raised it; message is the human-readable issue.
 from pydantic import BaseModel
-
 
 class Finding(BaseModel):
     severity: str
@@ -215,16 +206,13 @@ class Finding(BaseModel):
 # [internal] / [transactional] / [marketing] tag; no tag means marketing.
 import re
 
-TYPES = ("internal", "transactional", "marketing")
-
-
 def parse_message(text: str) -> dict:
     match = re.match(r"\s*\[(\w+)\]\s*", text)
     message_type = "marketing"
     body = text
     if match is not None:
         tag = match.group(1).lower()
-        if tag in TYPES:
+        if tag in ("internal", "transactional", "marketing"):
             message_type = tag
             body = text[match.end():]
     return {"type": message_type, "body": body}
@@ -258,7 +246,6 @@ RISKY_PATTERNS = [
     (r"(?i)\bi (guarantee|promise)\b", "unauthorized promise"),
 ]
 
-
 def run_safety(message) -> list:
     findings = []
     body = message["body"]
@@ -288,7 +275,6 @@ import chromadb
 
 COLLECTION_NAME = "voice_guide"
 
-
 def get_collection(embedding_function=None):
     client = chromadb.Client()
     try:
@@ -310,7 +296,6 @@ import os
 
 VOICE_GUIDE_PATH = "data/voice_guide.md"
 
-
 def load_rules(path: str = VOICE_GUIDE_PATH) -> list:
     with open(path) as guide_file:
         text = guide_file.read()
@@ -320,7 +305,6 @@ def load_rules(path: str = VOICE_GUIDE_PATH) -> list:
         if cleaned.startswith("Rule"):
             rules.append(cleaned)
     return rules
-
 
 def build_voice_store(collection, path: str = VOICE_GUIDE_PATH):
     rules = load_rules(path)
@@ -368,15 +352,12 @@ from src.rag.retriever import retrieve_rules
 from src.schemas import Finding
 from src.utils.prompts import load_prompt
 
-
 class BrandFindings(BaseModel):
     findings: list
-
 
 class _BrandItem(BaseModel):
     line: str
     rule: str
-
 
 def run_brand(model, collection, message) -> list:
     body = message["body"]
@@ -408,16 +389,14 @@ import re
 
 from src.schemas import Finding
 
-PROMO_WORDS = ("sale", "% off", "discount", "promo", "offer")
 END_DATE = r"(?i)(ends|until|through|expires)"
-
 
 def run_completeness(message) -> list:
     findings = []
     body = message["body"]
     lower = body.lower()
     mentions_promo = False
-    for word in PROMO_WORDS:
+    for word in ("sale", "% off", "discount", "promo", "offer"):
         if word in lower:
             mentions_promo = True
     if mentions_promo and not re.search(END_DATE, body):
@@ -447,7 +426,6 @@ from src.utils.logger import get_logger
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
-
 def choose_reviewers(message) -> list:
     reviewers = ["safety"]
     message_type = message["type"]
@@ -460,13 +438,11 @@ def choose_reviewers(message) -> list:
         reviewers.append("completeness")
     return reviewers
 
-
 def decide_next(state) -> str:
     for reviewer in state["reviewers"]:
         if reviewer not in state["done"]:
             return reviewer
     return "compile"
-
 
 def compile_review(findings) -> str:
     seen = set()
@@ -485,7 +461,6 @@ def compile_review(findings) -> str:
                      f"({finding.category}) {finding.message}")
     return "\n".join(lines)
 
-
 def supervisor(state):
     logger = get_logger(__name__)
     target = decide_next(state)
@@ -503,7 +478,6 @@ from typing import TypedDict
 from src.agents.supervisor import choose_reviewers
 from src.message import parse_message
 
-
 class ReviewState(TypedDict):
     raw: str
     message: dict
@@ -512,7 +486,6 @@ class ReviewState(TypedDict):
     findings: list
     review: str
     routing_log: list
-
 
 def start_state(raw: str) -> ReviewState:
     message = parse_message(raw)
@@ -541,7 +514,6 @@ from src.agents.completeness_reviewer import run_completeness
 from src.agents.safety_reviewer import run_safety
 from src.agents.supervisor import compile_review, supervisor
 from src.state import ReviewState
-
 
 def build_graph(model, voice_collection):
     def safety_node(state):
@@ -595,7 +567,6 @@ MESSAGE = (
     "email me at bob@acme.com for 50% off."
 )
 
-
 def main():
     config = load_config()
     model = get_model(config)
@@ -604,7 +575,6 @@ def main():
     final = app.invoke(start_state(MESSAGE))
     print("Routing:", final["routing_log"])
     print(final["review"])
-
 
 if __name__ == "__main__":
     main()
@@ -622,7 +592,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DISPATCHGUARD_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -631,7 +600,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -642,7 +610,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -650,7 +617,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -663,7 +629,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_message
 from src.message import parse_message
 
-
 def test_tagged() -> None:
     message = parse_message("[internal] secret plan")
     result = "OK"
@@ -673,14 +638,12 @@ def test_tagged() -> None:
         result = "WRONG"
     print(f"case 1 (tagged type + body) -> {result}")
 
-
 def test_default_marketing() -> None:
     message = parse_message("Big summer sale!")
     result = "OK"
     if message["type"] != "marketing":
         result = "WRONG"
     print(f"case 2 (no tag -> marketing) -> {result}")
-
 
 if __name__ == "__main__":
     test_tagged()
@@ -698,7 +661,6 @@ DIRTY = parse_message(
 )
 CLEAN = parse_message("[marketing] Thanks for being a customer this year.")
 
-
 def test_flags_pii_and_claim() -> None:
     findings = run_safety(DIRTY)
     text = " ".join(f.message for f in findings)
@@ -707,14 +669,12 @@ def test_flags_pii_and_claim() -> None:
         result = "WRONG"
     print(f"case 1 (email + claim flagged) -> {result}")
 
-
 def test_clean_message_no_findings() -> None:
     findings = run_safety(CLEAN)
     result = "OK"
     if findings != []:
         result = "WRONG"
     print(f"case 2 (clean message -> none) -> {result}")
-
 
 if __name__ == "__main__":
     test_flags_pii_and_claim()
@@ -727,14 +687,12 @@ if __name__ == "__main__":
 from src.agents.supervisor import choose_reviewers
 from src.message import parse_message
 
-
 def test_marketing_runs_all() -> None:
     reviewers = set(choose_reviewers(parse_message("[marketing] hi")))
     result = "OK"
     if reviewers != {"safety", "brand", "completeness"}:
         result = "WRONG"
     print(f"case 1 (marketing -> all three)   -> {result}")
-
 
 def test_internal_safety_only() -> None:
     reviewers = choose_reviewers(parse_message("[internal] hi"))
@@ -743,14 +701,12 @@ def test_internal_safety_only() -> None:
         result = "WRONG"
     print(f"case 2 (internal -> safety only)  -> {result}")
 
-
 def test_transactional_skips_brand() -> None:
     reviewers = choose_reviewers(parse_message("[transactional] hi"))
     result = "OK"
     if "brand" in reviewers:
         result = "WRONG"
     print(f"case 3 (transactional -> no brand) -> {result}")
-
 
 if __name__ == "__main__":
     test_marketing_runs_all()
@@ -763,7 +719,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_compile
 from src.agents.supervisor import compile_review
 from src.schemas import Finding
-
 
 def test_dedup_and_sort() -> None:
     findings = [
@@ -779,14 +734,12 @@ def test_dedup_and_sort() -> None:
         result = "WRONG"
     print(f"case 1 (dedup + severity sort) -> {result}")
 
-
 def test_empty_is_clean() -> None:
     out = compile_review([])
     result = "OK"
     if "cleared to send" not in out:
         result = "WRONG"
     print(f"case 2 (no findings -> cleared) -> {result}")
-
 
 if __name__ == "__main__":
     test_dedup_and_sort()
@@ -810,13 +763,11 @@ DIRTY = (
 )
 INTERNAL = "[internal] confidential roadmap - do not share"
 
-
 def build_app():
     config = load_config()
     model = get_model(config)
     collection = build_voice_store(get_collection())
     return build_graph(model, collection)
-
 
 def test_full_review() -> None:
     final = build_app().invoke(start_state(DIRTY))
@@ -824,12 +775,10 @@ def test_full_review() -> None:
     ok = "email" in review and "end date" in review and "b-1" in review
     print(f"case 1 (full review, all 3)      -> {'OK' if ok else 'WRONG'}")
 
-
 def test_internal_skips_brand() -> None:
     final = build_app().invoke(start_state(INTERNAL))
     ok = "brand" not in final["routing_log"]
     print(f"case 2 (internal skips brand)    -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     test_full_review()

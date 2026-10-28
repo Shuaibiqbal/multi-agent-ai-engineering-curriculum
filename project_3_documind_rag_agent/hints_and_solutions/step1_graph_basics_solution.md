@@ -92,10 +92,8 @@ Also create empty `__init__.py` files in `src/utils/` and `src/models/`.
 # OPENAI_API_KEY from the environment, filled by load_config().
 from langchain_openai import ChatOpenAI
 
-MODEL_NAME = "gpt-4o-mini"
-
 def get_model() -> ChatOpenAI:
-    return ChatOpenAI(model=MODEL_NAME, temperature=0)
+    return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
 **Story — `state.py`:** the graph's whole public surface in one typed shape (Doc09). `path` uses `operator.add`, so each node *appends* its name — the graph keeps its own log of what ran. `start_state()` gives every field a known starting value. **If not:** field names would drift between nodes, and you'd need print statements to see the route taken.
@@ -131,10 +129,9 @@ Question: {task}
 # src/utils/prompts.py
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live
 # in text files instead of Python strings.
-PROMPTS_DIR = "src/prompts"
 
 def load_prompt(name: str) -> str:
-    path = PROMPTS_DIR + "/" + name + ".txt"
+    path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -267,7 +264,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DOCUMIND_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -276,7 +272,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -287,7 +282,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -295,7 +289,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -313,7 +306,6 @@ if __name__ == "__main__":
 from src.nodes import clean_task
 from src.state import start_state
 
-
 def test_clean_task() -> None:
     update = clean_task({"task": "  What is a refund?  "})
     result = "OK"
@@ -323,7 +315,6 @@ def test_clean_task() -> None:
         result = "WRONG"
     print(f"case 1 (clean_task tidies the task) -> {result}")
 
-
 def test_start_state() -> None:
     state = start_state("hello")
     result = "OK"
@@ -332,7 +323,6 @@ def test_start_state() -> None:
     if state["answer"] != "":
         result = "WRONG"
     print(f"case 2 (start_state starts empty)   -> {result}")
-
 
 if __name__ == "__main__":
     test_clean_task()
@@ -350,11 +340,9 @@ from src.config import load_config
 from src.graph import build_graph
 from src.state import start_state
 
-
 def run(graph, thread_id: str, task: str) -> dict:
     config = {"configurable": {"thread_id": thread_id}}
     return graph.invoke(start_state(task), config)
-
 
 def show(case: str, passed: bool, outcome: dict) -> None:
     result = "OK"
@@ -362,12 +350,10 @@ def show(case: str, passed: bool, outcome: dict) -> None:
         result = "WRONG"
     print(f"{case} -> {result}: {outcome.get('path')}")
 
-
 def test_general_question(graph) -> None:
     outcome = run(graph, "t1", "What is the capital of France?")
     passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
     show("case 1 (general question)", passed, outcome)
-
 
 if __name__ == "__main__":
     load_config()

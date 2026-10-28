@@ -61,12 +61,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -75,7 +73,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -89,7 +86,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -107,11 +103,9 @@ def get_logger(name: str) -> logging.Logger:
 
 ```python
 # src/utils/prompts.py
-PROMPTS_DIR = "src/prompts"
-
 
 def load_prompt(name: str) -> str:
-    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+    with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
 
@@ -121,12 +115,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -137,7 +128,6 @@ def get_model(config: Config) -> ChatOpenAI:
 from typing import Annotated, TypedDict
 
 from langgraph.graph.message import add_messages
-
 
 class ChatState(TypedDict):
     messages: Annotated[list, add_messages]
@@ -153,14 +143,11 @@ class ChatState(TypedDict):
 # independent of any conversation. Keyed by user_id. Same key = update.
 from langgraph.store.memory import InMemoryStore
 
-
 def build_store():
     return InMemoryStore()
 
-
 def namespace_for(user_id: str) -> tuple:
     return ("fitness", user_id)
-
 
 def recall_facts(store, user_id: str) -> list:
     facts = []
@@ -168,10 +155,8 @@ def recall_facts(store, user_id: str) -> list:
         facts.append(item.value["fact"])
     return facts
 
-
 def save_fact(store, user_id: str, key: str, fact: str) -> None:
     store.put(namespace_for(user_id), key, {"fact": fact})
-
 
 def forget_user(store, user_id: str) -> int:
     namespace = namespace_for(user_id)
@@ -191,12 +176,10 @@ from pydantic import BaseModel
 
 from src.utils.prompts import load_prompt
 
-
 class MemoryDecision(BaseModel):
     should_remember: bool
     key: str
     fact: str
-
 
 def decide_memory(model, message: str) -> MemoryDecision:
     prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
@@ -238,11 +221,9 @@ from src.memory.store import recall_facts, save_fact
 from src.memory.writer import decide_memory
 from src.utils.prompts import load_prompt
 
-
 def recall_node(state, *, store: BaseStore):
     facts = recall_facts(store, state["user_id"])
     return {"recalled": "; ".join(facts)}
-
 
 def make_chat_node(model):
     def chat_node(state):
@@ -252,7 +233,6 @@ def make_chat_node(model):
         reply = model.invoke(messages)
         return {"messages": [reply]}
     return chat_node
-
 
 def make_write_back_node(model):
     def write_back_node(state, *, store: BaseStore):
@@ -287,7 +267,6 @@ from langgraph.graph import END, START, StateGraph
 from src.nodes import make_chat_node, make_write_back_node, recall_node
 from src.state import ChatState
 
-
 def build_graph(model, store, checkpointer):
     graph = StateGraph(ChatState)
     graph.add_node("recall", recall_node)
@@ -316,9 +295,6 @@ from src.memory.store import build_store, forget_user
 from src.models.llm import get_model
 
 USER = "me"
-THREAD_ID = "session-1"
-DB_PATH = "fitpal.sqlite"
-
 
 def main():
     try:
@@ -328,10 +304,10 @@ def main():
         sys.exit(1)
     model = get_model(config)
     store = build_store()
-    with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
+    with SqliteSaver.from_conn_string("fitpal.sqlite") as checkpointer:
         app = build_graph(model, store, checkpointer)
         print("FitPal — tell me your goals, or /quit. Type forget_me to wipe.")
-        run_config = {"configurable": {"thread_id": THREAD_ID}}
+        run_config = {"configurable": {"thread_id": "session-1"}}
         while True:
             text = input("You: ").strip()
             if text == "/quit":
@@ -349,7 +325,6 @@ def main():
             )
             print("FitPal:", result["messages"][-1].content)
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -366,7 +341,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "FITPAL_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -375,7 +349,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -386,7 +359,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -394,7 +366,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -413,7 +384,6 @@ from src.memory.store import (
     save_fact,
 )
 
-
 def test_save_then_recall() -> None:
     store = build_store()
     save_fact(store, "me", "goal", "Goal is a 10k")
@@ -422,7 +392,6 @@ def test_save_then_recall() -> None:
         result = "WRONG"
     print(f"case 1 (save then recall)       -> {result}")
 
-
 def test_recall_is_per_user() -> None:
     store = build_store()
     save_fact(store, "me", "goal", "Goal is a 10k")
@@ -430,7 +399,6 @@ def test_recall_is_per_user() -> None:
     if recall_facts(store, "someone_else") != []:
         result = "WRONG"
     print(f"case 2 (another user sees none)  -> {result}")
-
 
 def test_same_key_updates() -> None:
     store = build_store()
@@ -441,7 +409,6 @@ def test_same_key_updates() -> None:
         result = "WRONG"
     print(f"case 3 (same key updates)        -> {result}")
 
-
 def test_forget_removes_all() -> None:
     store = build_store()
     save_fact(store, "me", "goal", "Goal is a 10k")
@@ -451,7 +418,6 @@ def test_forget_removes_all() -> None:
     if removed != 2 or recall_facts(store, "me") != []:
         result = "WRONG"
     print(f"case 4 (forget removes all)      -> {result}")
-
 
 if __name__ == "__main__":
     test_save_then_recall()
@@ -474,13 +440,11 @@ from src.models.llm import get_model
 
 USER = "me"
 
-
 def fresh_app():
     config = load_config()
     model = get_model(config)
     store = build_store()
     return build_graph(model, store, MemorySaver()), store
-
 
 def say(app, text, thread):
     out = app.invoke(
@@ -489,7 +453,6 @@ def say(app, text, thread):
         {"configurable": {"thread_id": thread}},
     )
     return out["messages"][-1].content
-
 
 def test_recalls_injury_in_new_session() -> None:
     app, store = fresh_app()
@@ -501,7 +464,6 @@ def test_recalls_injury_in_new_session() -> None:
         result = "WRONG"
     print(f"case 1 (recalls injury, new session) -> {result}")
 
-
 def test_chatter_not_saved() -> None:
     app, store = fresh_app()
     say(app, "I felt a bit tired today.", "s1")
@@ -509,7 +471,6 @@ def test_chatter_not_saved() -> None:
     if recall_facts(store, USER) != []:
         result = "WRONG"
     print(f"case 2 (chatter not remembered)      -> {result}")
-
 
 def test_goal_updates() -> None:
     app, store = fresh_app()
@@ -525,7 +486,6 @@ def test_goal_updates() -> None:
         result = "WRONG"
     print(f"case 3 (goal updates, not dup)       -> {result}")
 
-
 def test_forget_leaves_nothing() -> None:
     app, store = fresh_app()
     say(app, "My goal is a 10k and I have dumbbells.", "s1")
@@ -534,7 +494,6 @@ def test_forget_leaves_nothing() -> None:
     if recall_facts(store, USER) != []:
         result = "WRONG"
     print(f"case 4 (forget -> nothing left)      -> {result}")
-
 
 if __name__ == "__main__":
     test_recalls_injury_in_new_session()

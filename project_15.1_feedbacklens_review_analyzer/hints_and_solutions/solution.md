@@ -82,12 +82,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -96,7 +94,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -110,7 +107,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -132,12 +128,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -152,14 +145,11 @@ from typing import List
 
 from pydantic import BaseModel
 
-
 class Praises(BaseModel):
     items: List[str] = []
 
-
 class Complaints(BaseModel):
     items: List[str] = []
-
 
 class FeedbackReport(BaseModel):
     summary: str
@@ -173,14 +163,12 @@ class FeedbackReport(BaseModel):
 # human. Plain Python, fully testable with hand-made parts - no model.
 from src.schemas import FeedbackReport
 
-
 def compile_report(parts) -> FeedbackReport:
     return FeedbackReport(
         summary=parts["summary"],
         praises=parts["praises"].items,
         complaints=parts["complaints"].items,
     )
-
 
 def format_report(report: FeedbackReport) -> str:
     lines = ["Overall mood:", "  " + report.summary, "", "Praised:"]
@@ -207,7 +195,6 @@ PRAISES_PROMPT = (
     "Reviews:\n{reviews}"
 )
 
-
 def build_praises_chain(model):
     prompt = ChatPromptTemplate.from_template(PRAISES_PROMPT)
     return prompt | model.with_structured_output(Praises)
@@ -225,7 +212,6 @@ COMPLAINTS_PROMPT = (
     "Reviews:\n{reviews}"
 )
 
-
 def build_complaints_chain(model):
     prompt = ChatPromptTemplate.from_template(COMPLAINTS_PROMPT)
     return prompt | model.with_structured_output(Complaints)
@@ -240,7 +226,6 @@ SUMMARY_PROMPT = (
     "In 1-2 plain sentences, describe the overall mood across the customer "
     "reviews below.\n\nReviews:\n{reviews}"
 )
-
 
 def build_summary_chain(model):
     prompt = ChatPromptTemplate.from_template(SUMMARY_PROMPT)
@@ -262,14 +247,12 @@ from src.report import compile_report
 from src.schemas import FeedbackReport
 from src.utils.logger import get_logger
 
-
 def build_pipeline(model):
     return RunnableParallel(
         summary=build_summary_chain(model),
         praises=build_praises_chain(model),
         complaints=build_complaints_chain(model),
     )
-
 
 def run_analysis(model, reviews: str) -> FeedbackReport:
     logger = get_logger(__name__)
@@ -293,7 +276,6 @@ from src.models.llm import get_model
 from src.pipeline import run_analysis
 from src.report import format_report
 
-
 def main():
     if len(sys.argv) < 2:
         print("usage: python main.py <reviews-file>")
@@ -307,7 +289,6 @@ def main():
     report = run_analysis(model, reviews)
     print()
     print(format_report(report))
-
 
 if __name__ == "__main__":
     main()
@@ -325,7 +306,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "FEEDBACKLENS_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -335,7 +315,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -343,7 +322,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -356,7 +334,6 @@ if __name__ == "__main__":
 from src.report import compile_report, format_report
 from src.schemas import Complaints, Praises
 
-
 def sample_parts():
     return {
         "summary": "Mostly positive — great hardware, rough setup.",
@@ -364,7 +341,6 @@ def sample_parts():
         "complaints": Complaints(items=["Setup is confusing",
                                         "Price is too high"]),
     }
-
 
 def test_report_lists_both() -> None:
     text = format_report(compile_report(sample_parts()))
@@ -375,14 +351,12 @@ def test_report_lists_both() -> None:
         result = "WRONG"
     print(f"case 1 (praises + complaints) -> {result}")
 
-
 def test_summary_is_shown() -> None:
     text = format_report(compile_report(sample_parts()))
     result = "OK"
     if "Mostly positive" not in text:
         result = "WRONG"
     print(f"case 2 (mood summary shown)   -> {result}")
-
 
 if __name__ == "__main__":
     test_report_lists_both()
@@ -402,14 +376,12 @@ REVIEWS = (
     "Love the screen. Too expensive though."
 )
 
-
 def test_finds_praise_and_complaint() -> None:
     config = load_config()
     model = get_model(config)
     report = run_analysis(model, REVIEWS)
     ok = len(report.praises) >= 1 and len(report.complaints) >= 1
     print(f"case 1 (>= 1 praise + complaint) -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     test_finds_praise_and_complaint()

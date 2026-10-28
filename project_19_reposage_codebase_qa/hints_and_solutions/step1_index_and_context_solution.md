@@ -24,13 +24,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     repo_dir: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -39,7 +37,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -54,7 +51,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -76,12 +72,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -99,7 +92,6 @@ import chromadb
 
 COLLECTION_NAME = "code"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
-
 
 def build_code_store(repo_dir: str):
     loader = DirectoryLoader(repo_dir, glob="**/*.py", loader_cls=TextLoader)
@@ -132,7 +124,6 @@ def build_code_store(repo_dir: str):
 # Return the code snippets closest to a question, each with its file path.
 from src.rag.code_store import EMBEDDINGS
 
-
 def retrieve_snippets(collection, question: str, k: int = 4) -> list:
     if collection.count() == 0:
         return []
@@ -163,7 +154,6 @@ def build_context(snippets) -> str:
         blocks.append(f"# File: {snippet['file']}\n{snippet['code']}")
     return "\n\n".join(blocks)
 
-
 def cited_files(snippets) -> list:
     files = []
     for snippet in snippets:
@@ -184,7 +174,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "REPOSAGE_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -194,7 +183,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -202,7 +190,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -220,7 +207,6 @@ SNIPPETS = [
     {"file": "auth.py", "code": "def logout(user):\n    session.clear()"},
 ]
 
-
 def test_every_snippet_has_a_file_header() -> None:
     context = build_context(SNIPPETS)
     result = "OK"
@@ -230,14 +216,12 @@ def test_every_snippet_has_a_file_header() -> None:
         result = "WRONG"
     print(f"case 1 (file headers in context) -> {result}")
 
-
 def test_cited_files_are_deduped() -> None:
     files = cited_files(SNIPPETS)
     result = "OK"
     if files != ["auth.py", "db.py"]:
         result = "WRONG"
     print(f"case 2 (cited files deduped)     -> {result}")
-
 
 if __name__ == "__main__":
     test_every_snippet_has_a_file_header()

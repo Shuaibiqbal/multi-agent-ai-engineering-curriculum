@@ -57,8 +57,6 @@ import requests
 from src.exceptions import PermanentHTTPError, TransientHTTPError
 from src.utils.logger import get_logger
 
-DEFAULT_TIMEOUT = (3, 10)
-
 def compute_backoff_delay(attempt: int) -> float:
     return (2 ** attempt) + random.uniform(0, 1)
 
@@ -73,7 +71,7 @@ def request_with_retry(
         logger.debug(f"attempt {attempt}: {method} {url}")
         try:
             response = requests.request(
-                method, url, timeout=DEFAULT_TIMEOUT, **kwargs
+                method, url, timeout=(3, 10), **kwargs
             )
         except (
             requests.exceptions.Timeout,
@@ -310,13 +308,11 @@ from src.tools.converter import celsius_to_fahrenheit
 from src.tools.docs_search import search_docs, search_state
 from src.tools.weather import build_weather_params
 
-
 def test_converter() -> None:
     result = "OK"
     if celsius_to_fahrenheit.invoke({"celsius": 18}) != 64.4:
         result = "WRONG"
     print(f"case 1 (18°C is 64.4°F)           -> {result}")
-
 
 def test_converter_rejects_bad_arguments() -> None:
     result = "WRONG"
@@ -326,7 +322,6 @@ def test_converter_rejects_bad_arguments() -> None:
         result = "OK"
     print(f"case 2 (celsius='hot' refused)    -> {result}")
 
-
 # new in Step 3
 def test_weather_params_known_city() -> None:
     params = build_weather_params("Lahore")
@@ -335,14 +330,12 @@ def test_weather_params_known_city() -> None:
         result = "WRONG"
     print(f"case 3 (Lahore coordinates)       -> {result}")
 
-
 # new in Step 3
 def test_weather_params_unknown_city() -> None:
     result = "OK"
     if build_weather_params("Atlantis") is not None:
         result = "WRONG"
     print(f"case 4 (unknown city gives None)  -> {result}")
-
 
 # new in Step 3
 def test_search_fails_then_recovers() -> None:
@@ -356,7 +349,6 @@ def test_search_fails_then_recovers() -> None:
     if "30 days" not in second:
         result = "WRONG"
     print(f"case 5 (fails once, then works)   -> {result}")
-
 
 if __name__ == "__main__":
     test_converter()
@@ -385,7 +377,6 @@ from src.models.llm import get_model
 # new in Step 3
 from src.tools.docs_search import search_state
 
-
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
@@ -394,13 +385,11 @@ def test_direct_answer(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 1 (direct answer)  -> {result}: {answer}")
 
-
 def tools_used(outcome: AgentResult) -> list[str]:
     names = []
     for step in outcome.steps:
         names.append(step["tool"])
     return names
-
 
 def test_conversion_uses_tool(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
@@ -410,14 +399,12 @@ def test_conversion_uses_tool(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 2 (conversion)     -> {result}: {used}")
 
-
 def test_no_tool_needed(model: ChatOpenAI) -> None:
     outcome = run_worker(model, "What is the capital of France?", 5)
     result = "OK"
     if len(outcome.steps) != 0:
         result = "WRONG"
     print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
-
 
 def test_step_limit(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
@@ -428,7 +415,6 @@ def test_step_limit(model: ChatOpenAI) -> None:
         result = "OK"
     print(f"case 4 (step limit)     -> {result}")
 
-
 # new in Step 3
 def test_weather_uses_tool(model: ChatOpenAI) -> None:
     task = "What's the weather in Lahore right now?"
@@ -437,7 +423,6 @@ def test_weather_uses_tool(model: ChatOpenAI) -> None:
     if "get_weather" not in used:
         result = "WRONG"
     print(f"case 5 (weather task)   -> {result}: {used}")
-
 
 # new in Step 3
 def test_tool_failure_recovery(model: ChatOpenAI) -> None:
@@ -455,7 +440,6 @@ def test_tool_failure_recovery(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 6 (recovery)       -> {result}: {failed} failed, "
           f"{succeeded} succeeded")
-
 
 if __name__ == "__main__":
     config = load_config()

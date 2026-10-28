@@ -171,10 +171,9 @@ def get_logger(name: str) -> logging.Logger:
 # src/utils/prompts.py
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live in text
 # files instead of Python strings.
-PROMPTS_DIR = "src/prompts"
 
 def load_prompt(name: str) -> str:
-    with open(PROMPTS_DIR + "/" + name + ".txt") as prompt_file:
+    with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
 
@@ -183,13 +182,12 @@ def load_prompt(name: str) -> str:
 # Keeps a chat under the model's limit: estimate_tokens() guesses its size
 # (about 4 characters per token), and trim_history() drops the oldest turns
 # — never the system prompt.
-CHARS_PER_TOKEN = 4
 
 def estimate_tokens(history: list) -> int:
     total = 0
     for message in history:
         total = total + len(message["content"])
-    return total // CHARS_PER_TOKEN
+    return total // 4
 
 def trim_history(history: list, max_tokens: int) -> list:
     while estimate_tokens(history) > max_tokens and len(history) > 2:
@@ -311,13 +309,11 @@ from src.models.llm import stream_message
 from src.utils.history import trim_history
 from src.utils.prompts import load_prompt
 
-MAX_HISTORY_TOKENS = 3000
-
 def start_history() -> list:
     return [{"role": "system", "content": load_prompt("concierge")}]
 
 def concierge_agent(client: OpenAI, history: list, message: str) -> str:
-    trim_history(history, MAX_HISTORY_TOKENS)
+    trim_history(history, 3000)
     return stream_message(client, history, message)
 ```
 
@@ -542,7 +538,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "REPAIRDESK_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -551,7 +546,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -562,7 +556,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -570,7 +563,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -584,7 +576,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_history
 from src.utils.history import estimate_tokens, trim_history
 
-
 def test_estimate_tokens() -> None:
     history = [
         {"role": "system", "content": "a" * 20},
@@ -594,7 +585,6 @@ def test_estimate_tokens() -> None:
     if estimate_tokens(history) != 10:
         result = "WRONG"
     print(f"case 1 (40 chars = 10 tokens) -> {result}")
-
 
 def test_short_history_untouched() -> None:
     history = [
@@ -607,7 +597,6 @@ def test_short_history_untouched() -> None:
         result = "WRONG"
     print(f"case 2 (short chat not trimmed) -> {result}")
 
-
 def test_long_history_trimmed() -> None:
     history = [{"role": "system", "content": "be nice"}]
     for number in range(1, 6):
@@ -619,7 +608,6 @@ def test_long_history_trimmed() -> None:
     if history[-1]["content"] != "5" * 400:
         result = "WRONG"
     print(f"case 3 (long chat trimmed)     -> {result}")
-
 
 if __name__ == "__main__":
     test_estimate_tokens()
@@ -636,7 +624,6 @@ from pydantic import ValidationError
 
 from src.schemas import RepairTicket, RouteDecision
 
-
 def test_ticket_without_a_name() -> None:
     ticket = RepairTicket(
         customer_name=None, device="laptop", urgency="medium",
@@ -647,7 +634,6 @@ def test_ticket_without_a_name() -> None:
         result = "WRONG"
     print(f"case 1 (no name allowed) -> {result}")
 
-
 def test_ticket_rejects_unknown_device() -> None:
     result = "WRONG"
     try:
@@ -657,7 +643,6 @@ def test_ticket_rejects_unknown_device() -> None:
         result = "OK"
     print(f"case 2 (bad device)      -> {result}")
 
-
 def test_route_rejects_unknown_agent() -> None:
     result = "WRONG"
     try:
@@ -665,7 +650,6 @@ def test_route_rejects_unknown_agent() -> None:
     except ValidationError:
         result = "OK"
     print(f"case 3 (bad agent name)  -> {result}")
-
 
 if __name__ == "__main__":
     test_ticket_without_a_name()
@@ -693,14 +677,12 @@ from src.models.llm import (
 
 SAMPLES_PATH = "data/sample/messages.json"
 
-
 def test_first_reply(client: OpenAI) -> None:
     reply = send_message(client, [], "Hello")
     result = "OK"
     if not reply:
         result = "WRONG"
     print(f"case 1 (first reply) -> {result}")
-
 
 def test_bad_key() -> None:
     bad_client = OpenAI(api_key="sk-fake-key-123")
@@ -709,11 +691,9 @@ def test_bad_key() -> None:
         result = "WRONG"
     print(f"case 2 (bad key)     -> {result}")
 
-
 def load_samples() -> dict:
     with open(SAMPLES_PATH) as samples_file:
         return json.loads(samples_file.read())
-
 
 def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
     result = "OK"
@@ -722,7 +702,6 @@ def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
             result = "WRONG"
     print(f"case 3 (tickets)     -> {result}")
 
-
 def test_no_invented_name(client: OpenAI, samples: dict) -> None:
     ticket = intake_agent(client, samples["intake"][1])
     result = "OK"
@@ -730,14 +709,12 @@ def test_no_invented_name(client: OpenAI, samples: dict) -> None:
         result = "WRONG"
     print(f"case 4 (no name)     -> {result}")
 
-
 def test_routing(client: OpenAI, samples: dict) -> None:
     result = "OK"
     for case in samples["routing"]:
         if decide(client, case["message"]).agent != case["expected"]:
             result = "WRONG"
     print(f"case 5 (routing)     -> {result}")
-
 
 if __name__ == "__main__":
     config = load_config()

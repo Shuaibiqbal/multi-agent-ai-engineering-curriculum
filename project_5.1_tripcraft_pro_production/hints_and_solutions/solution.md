@@ -93,13 +93,11 @@ from src.utils.logger import get_logger
 
 _APP = None
 
-
 def _get_app(config):
     global _APP
     if _APP is None:
         _APP = build_graph(get_model(config))
     return _APP
-
 
 def run_pipeline(config, destination: str) -> dict:
     logger = get_logger(__name__)
@@ -123,7 +121,6 @@ def run_pipeline(config, destination: str) -> dict:
 # One saved run's shape.
 from dataclasses import dataclass
 
-
 @dataclass
 class RunRecord:
     id: int
@@ -143,12 +140,10 @@ from src.db.models import RunRecord
 
 DB_PATH = "tripcraft.sqlite"
 
-
 def connect(db_path: str = DB_PATH):
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection
-
 
 def init_db(db_path: str = DB_PATH) -> None:
     connection = connect(db_path)
@@ -159,7 +154,6 @@ def init_db(db_path: str = DB_PATH) -> None:
     )
     connection.commit()
     connection.close()
-
 
 def save_run(result: dict, db_path: str = DB_PATH) -> int:
     connection = connect(db_path)
@@ -174,7 +168,6 @@ def save_run(result: dict, db_path: str = DB_PATH) -> int:
     run_id = cursor.lastrowid
     connection.close()
     return run_id
-
 
 def get_run(run_id: int, db_path: str = DB_PATH):
     connection = connect(db_path)
@@ -196,10 +189,8 @@ def get_run(run_id: int, db_path: str = DB_PATH):
 # src/api/schemas.py
 from pydantic import BaseModel
 
-
 class ItineraryRequest(BaseModel):
     destination: str
-
 
 class ItineraryResponse(BaseModel):
     id: int
@@ -222,11 +213,9 @@ from src.db.database import get_run, save_run
 
 router = APIRouter()
 
-
 @router.get("/health")
 def health():
     return {"status": "ok"}
-
 
 @router.post("/itineraries", response_model=ItineraryResponse)
 def create_itinerary(request: ItineraryRequest):
@@ -234,7 +223,6 @@ def create_itinerary(request: ItineraryRequest):
     result = pipeline.run_pipeline(config, request.destination)
     run_id = save_run(result)
     return ItineraryResponse(id=run_id, **result)
-
 
 @router.get("/itineraries/{run_id}", response_model=ItineraryResponse)
 def read_itinerary(run_id: int):
@@ -316,11 +304,9 @@ JUDGE_PROMPT = (
     "Itinerary:\n{itinerary}\n\nReturn a score and one line of feedback."
 )
 
-
 class JudgeScore(BaseModel):
     score: int = Field(ge=1, le=10)
     feedback: str
-
 
 def score_itinerary(model, itinerary: str, checks: str) -> JudgeScore:
     prompt = ChatPromptTemplate.from_template(JUDGE_PROMPT)
@@ -339,9 +325,6 @@ from src.evals.tasks import EVAL_TASKS
 from src.models.llm import get_model
 from src.pipeline import run_pipeline
 
-PASS_BAR = 7
-
-
 def run_suite(model=None) -> float:
     config = load_config()
     if model is None:
@@ -351,12 +334,11 @@ def run_suite(model=None) -> float:
         result = run_pipeline(config, task["destination"])
         verdict = score_itinerary(model, result["itinerary"], task["checks"])
         print(f"{task['destination']}: score {verdict.score}")
-        if verdict.score >= PASS_BAR:
+        if verdict.score >= 7:
             passed = passed + 1
     pass_rate = passed / len(EVAL_TASKS)
     print(f"pass rate: {pass_rate:.2f}")
     return pass_rate
-
 
 if __name__ == "__main__":
     run_suite()
@@ -369,7 +351,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m src.evals.regression_check
 from src.evals.run_eval import run_suite
 from src.utils import prompts
-
 
 def main():
     good = run_suite()
@@ -391,7 +372,6 @@ def main():
     else:
         print("WRONG: the suite missed the regression")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -412,7 +392,6 @@ from src.db.database import init_db
 
 os.environ.setdefault("OPENAI_API_KEY", "sk-test")
 
-
 def fake_pipeline(config, destination):
     if destination == "Atlantis":
         return {"destination": destination, "status": "unknown",
@@ -420,20 +399,17 @@ def fake_pipeline(config, destination):
     return {"destination": destination, "status": "done",
             "itinerary": "Day 1: Eiffel Tower [source: paris.gov]"}
 
-
 def make_client():
     init_db()
     pipeline.run_pipeline = fake_pipeline
     from src.api.main import app
     return TestClient(app)
 
-
 def test_health():
     client = make_client()
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-
 
 def test_create_and_read():
     client = make_client()
@@ -447,13 +423,11 @@ def test_create_and_read():
     assert fetched.status_code == 200
     assert fetched.json()["destination"] == "Paris"
 
-
 def test_unknown_destination_is_stored():
     client = make_client()
     created = client.post("/itineraries", json={"destination": "Atlantis"})
     assert created.status_code == 200
     assert created.json()["status"] == "unknown"
-
 
 def test_missing_run_is_404():
     client = make_client()
@@ -467,7 +441,6 @@ def test_missing_run_is_404():
 from src.config import load_config
 from src.evals.judge import score_itinerary
 from src.models.llm import get_model
-
 
 def test_judge_scores_in_range():
     model = get_model(load_config())

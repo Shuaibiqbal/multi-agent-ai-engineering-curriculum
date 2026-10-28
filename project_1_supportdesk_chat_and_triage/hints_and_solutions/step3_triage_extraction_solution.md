@@ -117,8 +117,6 @@ from src.utils.history import trim_history
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-MAX_HISTORY_TOKENS = 3000
-
 def main() -> None:
     try:
         config = load_config()
@@ -154,7 +152,7 @@ def main() -> None:
                 else:
                     print_ticket(ticket)
             else:
-                trim_history(history, MAX_HISTORY_TOKENS)
+                trim_history(history, 3000)
                 print("Assistant: ", end="", flush=True)
                 stream_message(client, history, message)
         except openai.AuthenticationError:
@@ -236,7 +234,6 @@ from pydantic import ValidationError
 
 from src.schemas import SupportTicket
 
-
 def test_ticket_without_a_name() -> None:
     ticket = SupportTicket(
         customer_name=None,
@@ -248,7 +245,6 @@ def test_ticket_without_a_name() -> None:
     if ticket.customer_name is not None:
         result = "WRONG"
     print(f"case 1 (no name allowed)  -> {result}")
-
 
 def test_ticket_rejects_unknown_urgency() -> None:
     result = "WRONG"
@@ -262,7 +258,6 @@ def test_ticket_rejects_unknown_urgency() -> None:
     except ValidationError:
         result = "OK"
     print(f"case 2 (bad urgency)      -> {result}")
-
 
 if __name__ == "__main__":
     test_ticket_without_a_name()
@@ -295,7 +290,6 @@ from src.models.llm import (
 # new in Step 3
 SAMPLES_PATH = "data/sample/messages.json"
 
-
 def test_first_reply(client: OpenAI) -> None:
     reply = send_message(client, [], "What's 2+2?")
     result = "OK"
@@ -303,14 +297,12 @@ def test_first_reply(client: OpenAI) -> None:
         result = "WRONG"
     print(f"case 1 (first reply) -> {result}: {reply}")
 
-
 def test_bad_key() -> None:
     bad_client = OpenAI(api_key="sk-fake-key-123")
     result = "OK"
     if check_api_key_at_startup(bad_client):
         result = "WRONG"
     print(f"case 2 (bad key)     -> {result}")
-
 
 def test_memory(client: OpenAI) -> None:
     history = [{"role": "system", "content": "You are a helpful assistant."}]
@@ -322,12 +314,10 @@ def test_memory(client: OpenAI) -> None:
         result = "WRONG"
     print(f"case 3 (memory)      -> {result}: {reply}")
 
-
 # new in Step 3
 def load_samples() -> dict:
     with open(SAMPLES_PATH) as samples_file:
         return json.loads(samples_file.read())
-
 
 # new in Step 3
 def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
@@ -338,7 +328,6 @@ def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
         else:
             print("case 4 (ticket)      -> OK:", ticket.issue_category)
 
-
 # new in Step 3
 def test_no_invented_name(client: OpenAI, samples: dict) -> None:
     ticket = triage_agent(client, samples["triage"][1])
@@ -346,7 +335,6 @@ def test_no_invented_name(client: OpenAI, samples: dict) -> None:
     if ticket is None or ticket.customer_name is not None:
         result = "WRONG"
     print(f"case 5 (no name)     -> {result}")
-
 
 if __name__ == "__main__":
     config = load_config()

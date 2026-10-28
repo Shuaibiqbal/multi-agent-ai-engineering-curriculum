@@ -45,10 +45,8 @@ import json
 
 from langchain_core.tools import tool
 
-FACTS_PATH = "data/sample/facts.json"
-
 def load_facts() -> dict:
-    with open(FACTS_PATH) as facts_file:
+    with open("data/sample/facts.json") as facts_file:
         return json.loads(facts_file.read())
 
 @tool
@@ -128,8 +126,6 @@ from src.config import load_config
 from src.exceptions import MissingConfigError
 from src.utils.logger import get_logger
 
-MAX_REVISIONS = 3
-
 def write_with_review(findings: str) -> dict:
     logger = get_logger(__name__)
     result = {
@@ -139,7 +135,7 @@ def write_with_review(findings: str) -> dict:
         "revision_count": 0,
     }
     feedback = ""
-    for round_number in range(1, MAX_REVISIONS + 1):
+    for round_number in range(1, 3 + 1):
         result["draft"] = run_writer(findings, feedback)
         verdict = run_reviewer(findings, result["draft"])
         logger.info(f"round {round_number}: score {verdict.score}")
@@ -197,7 +193,6 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_lookup
 from src.tools.lookup import lookup_facts
 
-
 def test_known_topic() -> None:
     facts = lookup_facts.invoke({"topic": "Why Electric Bikes are popular"})
     lines = facts.strip().split("\n")
@@ -206,14 +201,12 @@ def test_known_topic() -> None:
         result = "WRONG"
     print(f"case 1 (known topic -> 5 facts) -> {result}")
 
-
 def test_unknown_topic() -> None:
     facts = lookup_facts.invoke({"topic": "deep sea mining"})
     result = "OK"
     if facts != "":
         result = "WRONG"
     print(f"case 2 (unknown topic -> empty) -> {result}")
-
 
 if __name__ == "__main__":
     test_known_topic()
@@ -237,14 +230,12 @@ FINDINGS = (
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-
 def test_writer_keeps_sources() -> None:
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:
         result = "WRONG"
     print(f"case 1 (writer keeps sources) -> {result}")
-
 
 def test_reviewer_rejects_weak_draft() -> None:
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
@@ -253,7 +244,6 @@ def test_reviewer_rejects_weak_draft() -> None:
         result = "WRONG"
     print(f"case 2 (weak draft fails)     -> {result}")
 
-
 def test_research_keeps_sources() -> None:
     notes = run_research("electric bikes")
     result = "OK"
@@ -261,14 +251,12 @@ def test_research_keeps_sources() -> None:
         result = "WRONG"
     print(f"case 3 (known topic sourced)  -> {result}")
 
-
 def test_research_unknown_topic() -> None:
     notes = run_research("deep sea mining")
     result = "OK"
     if notes != "":
         result = "WRONG"
     print(f"case 4 (unknown topic empty)  -> {result}")
-
 
 if __name__ == "__main__":
     load_config()

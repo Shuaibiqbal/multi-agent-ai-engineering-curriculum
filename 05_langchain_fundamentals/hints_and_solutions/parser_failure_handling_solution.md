@@ -21,7 +21,6 @@ class Rating(BaseModel):
 parser = PydanticOutputParser(pydantic_object=Rating)
 
 # why: no word about the shape — the model answers in a sentence
-BROKEN_TEMPLATE = "Rate {thing} from 1 to 10."
 # how: {format_instructions} is filled once with .partial(), so the
 # caller only passes {thing}
 FIXED_TEMPLATE = "Rate {thing} from 1 to 10.\n{format_instructions}"
@@ -43,7 +42,7 @@ def get_rating(chain: Runnable, thing: str) -> Rating | None:
         return None
 
 def main() -> None:
-    broken_chain = build_rating_chain(BROKEN_TEMPLATE)
+    broken_chain = build_rating_chain("Rate {thing} from 1 to 10.")
     print(f"case 1 (no instructions)   -> {get_rating(broken_chain, 'pizza')}")
 
     fixed_chain = build_rating_chain(FIXED_TEMPLATE)

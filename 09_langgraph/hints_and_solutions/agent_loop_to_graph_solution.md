@@ -15,16 +15,13 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 
-
 # Doc07's tools and tool-runner, inline so this file runs on its own.
 @tool
 def add(a: int, b: int) -> int:
     """Add two integers and return the result."""
     return a + b
 
-
 AGENT_TOOLS = [add]
-
 
 def run_tool(call: dict, tools: list):
     # find the tool by name and run it with the model's arguments
@@ -35,9 +32,6 @@ def run_tool(call: dict, tools: list):
             except Exception as error:
                 return None, str(error)
     return None, f"unknown tool: {call['name']}"
-
-
-RECURSION_LIMIT = 20
 
 class AgentState(TypedDict):
     messages: Annotated[list, operator.add]
@@ -83,7 +77,7 @@ def build_graph():
 def run_graph(graph, task: str) -> dict:
     start = {"messages": [{"role": "user", "content": task}], "steps": []}
     # why: the graph's version of Doc07's max_iterations
-    return graph.invoke(start, config={"recursion_limit": RECURSION_LIMIT})
+    return graph.invoke(start, config={"recursion_limit": 20})
 
 if __name__ == "__main__":
     graph = build_graph()

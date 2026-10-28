@@ -24,12 +24,10 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -38,7 +36,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -52,7 +49,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -74,12 +70,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -93,16 +86,13 @@ from typing import List
 
 from pydantic import BaseModel
 
-
 class SubQuestions(BaseModel):
     sub_questions: List[str] = []
-
 
 class Finding(BaseModel):
     sub_question: str
     answer: str
     source: str
-
 
 class Report(BaseModel):
     question: str
@@ -117,7 +107,6 @@ class Report(BaseModel):
 # passed in - a RAG lookup in the real pipeline, a fake one in tests - so this
 # engine needs no model or embeddings to test.
 from src.schemas import Finding
-
 
 def execute_plan(sub_questions, search) -> list:
     findings = []
@@ -138,10 +127,8 @@ def execute_plan(sub_questions, search) -> list:
 # from the same document share one citation number.
 from src.schemas import Report
 
-
 def compile_report(question: str, findings) -> Report:
     return Report(question=question, findings=findings)
-
 
 def format_report(report: Report) -> str:
     sources = []
@@ -175,7 +162,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "RESEARCHPILOT_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -185,7 +171,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -193,7 +178,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -213,7 +197,6 @@ TABLE = [
     ("embedding", ("Embeddings turn text into vectors.", "rag.md")),
 ]
 
-
 def fake_search(query: str):
     lowered = query.lower()
     for key, value in TABLE:
@@ -221,12 +204,10 @@ def fake_search(query: str):
             return value
     return ("No information found.", "none")
 
-
 def build_report():
     plan = ["What is RAG?", "What is an agent?", "What is an embedding?"]
     findings = execute_plan(plan, fake_search)
     return compile_report("RAG and agents", findings)
-
 
 def test_findings_appear() -> None:
     text = format_report(build_report())
@@ -234,7 +215,6 @@ def test_findings_appear() -> None:
     if "An agent is an LLM in a loop." not in text:
         result = "WRONG"
     print(f"case 1 (findings in report)      -> {result}")
-
 
 def test_citations_dedup_sources() -> None:
     text = format_report(build_report())
@@ -245,7 +225,6 @@ def test_citations_dedup_sources() -> None:
     if "[1] rag.md" not in text or "[2] agents.md" not in text:
         result = "WRONG"
     print(f"case 2 (citations numbered/dedup) -> {result}")
-
 
 if __name__ == "__main__":
     test_findings_appear()

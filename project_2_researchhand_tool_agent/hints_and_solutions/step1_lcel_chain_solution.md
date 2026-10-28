@@ -100,11 +100,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -125,10 +123,8 @@ Question: {question}
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live in
 # text files instead of Python strings. (Project 1's file.)
 
-PROMPTS_DIR = "src/prompts"
-
 def load_prompt(name: str) -> str:
-    path = PROMPTS_DIR + "/" + name + ".txt"
+    path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -233,7 +229,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "RESEARCHHAND_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -242,7 +237,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -253,7 +247,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -261,7 +254,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -283,7 +275,6 @@ from src.chains.direct_answer import build_direct_chain
 from src.config import load_config
 from src.models.llm import get_model
 
-
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
@@ -291,7 +282,6 @@ def test_direct_answer(model: ChatOpenAI) -> None:
     if "Paris" not in answer:
         result = "WRONG"
     print(f"case 1 (direct answer)  -> {result}: {answer}")
-
 
 if __name__ == "__main__":
     config = load_config()

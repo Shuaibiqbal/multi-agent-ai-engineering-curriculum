@@ -132,8 +132,6 @@ from src.models.llm import get_model
 from src.services.research_service import answer_task
 from src.utils.logger import get_logger
 
-MAX_ITERATIONS = 5
-
 def print_steps(steps: list[dict]) -> None:
     for step in steps:
         if step["error"] is None:
@@ -166,7 +164,7 @@ def main() -> None:
         try:
             # changed in Step 4: Worker + Verifier, instead of Worker alone
             result, verdict = answer_task(
-                model, verifier_chain, task, MAX_ITERATIONS
+                model, verifier_chain, task, 5
             )
         except MaxIterationsExceeded as e:
             print(f"Gave up: {e}")
@@ -205,20 +203,17 @@ if __name__ == "__main__":
 from src.agents.verifier import collect_evidence
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-
 def test_find_known_tool() -> None:
     result = "OK"
     if find_tool(ALL_TOOLS, "celsius_to_fahrenheit") is None:
         result = "WRONG"
     print(f"case 1 (known tool found)          -> {result}")
 
-
 def test_find_unknown_tool() -> None:
     result = "OK"
     if find_tool(ALL_TOOLS, "send_email") is not None:
         result = "WRONG"
     print(f"case 2 (unknown tool gives None)   -> {result}")
-
 
 def test_run_good_call() -> None:
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
@@ -228,7 +223,6 @@ def test_run_good_call() -> None:
         result = "WRONG"
     print(f"case 3 (good call gives 32.0)      -> {result}")
 
-
 def test_run_unknown_tool() -> None:
     call = {"name": "send_email", "args": {}}
     output, error = run_tool(call, ALL_TOOLS)
@@ -237,7 +231,6 @@ def test_run_unknown_tool() -> None:
         result = "WRONG"
     print(f"case 4 (unknown tool gives error)  -> {result}")
 
-
 def test_run_bad_arguments() -> None:
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
     output, error = run_tool(call, ALL_TOOLS)
@@ -245,7 +238,6 @@ def test_run_bad_arguments() -> None:
     if output is not None or error is None:
         result = "WRONG"
     print(f"case 5 (bad arguments give error)  -> {result}")
-
 
 # new in Step 4
 def test_evidence_skips_failed_steps() -> None:
@@ -260,14 +252,12 @@ def test_evidence_skips_failed_steps() -> None:
         result = "WRONG"
     print(f"case 6 (failed step left out)      -> {result}")
 
-
 # new in Step 4
 def test_evidence_with_no_steps() -> None:
     result = "OK"
     if collect_evidence([]) != "(no tools were used)":
         result = "WRONG"
     print(f"case 7 (no steps)                  -> {result}")
-
 
 if __name__ == "__main__":
     test_find_known_tool()
@@ -301,7 +291,6 @@ from src.exceptions import MaxIterationsExceeded
 from src.models.llm import get_model
 from src.tools.docs_search import search_state
 
-
 def test_direct_answer(model: ChatOpenAI) -> None:
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
@@ -310,13 +299,11 @@ def test_direct_answer(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 1 (direct answer)  -> {result}: {answer}")
 
-
 def tools_used(outcome: AgentResult) -> list[str]:
     names = []
     for step in outcome.steps:
         names.append(step["tool"])
     return names
-
 
 def test_conversion_uses_tool(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
@@ -326,14 +313,12 @@ def test_conversion_uses_tool(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 2 (conversion)     -> {result}: {used}")
 
-
 def test_no_tool_needed(model: ChatOpenAI) -> None:
     outcome = run_worker(model, "What is the capital of France?", 5)
     result = "OK"
     if len(outcome.steps) != 0:
         result = "WRONG"
     print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
-
 
 def test_step_limit(model: ChatOpenAI) -> None:
     task = "What is 25 degrees Celsius in Fahrenheit?"
@@ -344,7 +329,6 @@ def test_step_limit(model: ChatOpenAI) -> None:
         result = "OK"
     print(f"case 4 (step limit)     -> {result}")
 
-
 def test_weather_uses_tool(model: ChatOpenAI) -> None:
     task = "What's the weather in Lahore right now?"
     used = tools_used(run_worker(model, task, 5))
@@ -352,7 +336,6 @@ def test_weather_uses_tool(model: ChatOpenAI) -> None:
     if "get_weather" not in used:
         result = "WRONG"
     print(f"case 5 (weather task)   -> {result}: {used}")
-
 
 def test_tool_failure_recovery(model: ChatOpenAI) -> None:
     search_state.call_count = 0
@@ -370,7 +353,6 @@ def test_tool_failure_recovery(model: ChatOpenAI) -> None:
     print(f"case 6 (recovery)       -> {result}: {failed} failed, "
           f"{succeeded} succeeded")
 
-
 # new in Step 4
 def lahore_steps() -> list[dict]:
     return [
@@ -378,7 +360,6 @@ def lahore_steps() -> list[dict]:
          "error": None},
         {"tool": "celsius_to_fahrenheit", "result": "64.4", "error": None},
     ]
-
 
 # new in Step 4
 def test_verifier_rejects_wrong_answer(verifier_chain) -> None:
@@ -391,7 +372,6 @@ def test_verifier_rejects_wrong_answer(verifier_chain) -> None:
         result = "WRONG"
     print(f"case 7 (wrong answer)   -> {result}: {verdict.reason}")
 
-
 # new in Step 4
 def test_verifier_approves_right_answer(verifier_chain) -> None:
     right = AgentResult(
@@ -402,7 +382,6 @@ def test_verifier_approves_right_answer(verifier_chain) -> None:
     if not verdict.approved:
         result = "WRONG"
     print(f"case 8 (right answer)   -> {result}")
-
 
 if __name__ == "__main__":
     config = load_config()
@@ -448,14 +427,12 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.services.research_service import answer_task
 
-SAMPLES_PATH = "data/sample/tasks.json"
-
 def main() -> None:
     config = load_config()
     model = get_model(config)
     direct_chain = build_direct_chain(model)
     verifier_chain = build_verifier_chain(model)
-    with open(SAMPLES_PATH) as samples_file:
+    with open("data/sample/tasks.json") as samples_file:
         samples = json.loads(samples_file.read())
 
     for task in samples["tasks"]:

@@ -24,13 +24,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     match_cutoff: float
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -39,7 +37,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -54,7 +51,6 @@ def load_config() -> Config:
 # src/utils/logger.py
 import logging
 import os
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -76,12 +72,9 @@ from langchain_openai import ChatOpenAI
 
 from src.config import Config
 
-MODEL_NAME = "gpt-4o-mini"
-
-
 def get_model(config: Config) -> ChatOpenAI:
     return ChatOpenAI(
-        model=MODEL_NAME, temperature=0, api_key=config.openai_api_key
+        model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
 ```
 
@@ -95,10 +88,8 @@ from typing import List
 
 from pydantic import BaseModel
 
-
 class RequiredSkills(BaseModel):
     skills: List[str] = []
-
 
 class MatchReport(BaseModel):
     score: int
@@ -115,10 +106,7 @@ class MatchReport(BaseModel):
 # passed in, so this whole decision is testable with no model or embeddings.
 from src.schemas import MatchReport
 
-DEFAULT_CUTOFF = 0.8
-
-
-def match_skills(required, distance, cutoff: float = DEFAULT_CUTOFF):
+def match_skills(required, distance, cutoff: float = 0.8):
     matched = []
     missing = []
     for skill in required:
@@ -146,7 +134,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "JOBMATCH_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -156,7 +143,6 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -164,7 +150,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 2 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
@@ -179,10 +164,8 @@ from src.matcher import match_skills
 # a fake distance(): small for skills the "resume" covers, big otherwise
 COVERED = {"python": 0.1, "docker": 0.3, "aws": 0.4, "leadership": 0.5}
 
-
 def fake_distance(skill: str) -> float:
     return COVERED.get(skill.lower(), 1.5)
-
 
 def test_matched_and_missing() -> None:
     required = ["Python", "Docker", "AWS", "Kubernetes", "Leadership"]
@@ -194,7 +177,6 @@ def test_matched_and_missing() -> None:
         result = "WRONG"
     print(f"case 1 (4 matched, 1 missing) -> {result}")
 
-
 def test_score_is_a_percentage() -> None:
     required = ["Python", "Docker", "AWS", "Kubernetes", "Leadership"]
     report = match_skills(required, fake_distance, cutoff=0.8)
@@ -203,14 +185,12 @@ def test_score_is_a_percentage() -> None:
         result = "WRONG"
     print(f"case 2 (score = 80)           -> {result}")
 
-
 def test_no_required_skills_is_zero() -> None:
     report = match_skills([], fake_distance)
     result = "OK"
     if report.score != 0:
         result = "WRONG"
     print(f"case 3 (empty -> score 0)     -> {result}")
-
 
 if __name__ == "__main__":
     test_matched_and_missing()

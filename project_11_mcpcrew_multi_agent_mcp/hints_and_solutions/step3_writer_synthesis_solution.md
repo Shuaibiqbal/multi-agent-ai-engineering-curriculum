@@ -14,15 +14,12 @@
 # one report, and explicitly notes any source that was unavailable.
 from src.utils.logger import get_logger
 
-MODEL = "gpt-4o-mini"
-
 WRITER_SYSTEM = (
     "You are the Writer. Synthesize the specialists' findings into ONE short, "
     "coherent status report with a title and a few bullet points. Do not just "
     "concatenate the two sources - weave them together. If a source is marked "
     "unavailable, say so plainly in the report; never pretend it was checked."
 )
-
 
 def run_writer(client, task, notes_findings, web_findings, web_unavailable):
     logger = get_logger(__name__)
@@ -36,7 +33,7 @@ def run_writer(client, task, notes_findings, web_findings, web_unavailable):
         "Write the combined report."
     )
     reply = client.chat.completions.create(
-        model=MODEL,
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": WRITER_SYSTEM},
             {"role": "user", "content": user},

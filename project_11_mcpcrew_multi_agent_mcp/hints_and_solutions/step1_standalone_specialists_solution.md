@@ -24,13 +24,11 @@ NOTES = [
     "Atlas: design sign-off done; docs still pending.",
 ]
 
-
 @mcp.tool()
 def add_note(text: str) -> str:
     """Add a note to the notes store."""
     NOTES.append(text)
     return "Saved."
-
 
 @mcp.tool()
 def search_notes(query: str) -> str:
@@ -42,7 +40,6 @@ def search_notes(query: str) -> str:
     if not hits:
         return "No matching notes."
     return "\n".join(hits)
-
 
 if __name__ == "__main__":
     print("notes server starting", file=sys.stderr)
@@ -64,12 +61,10 @@ PAGES = {
         "two open risks (auth, docs).",
 }
 
-
 @mcp.tool()
 def fetch_page(url: str) -> str:
     """Fetch a known internal status page by URL."""
     return PAGES.get(url, "No content available for this URL.")
-
 
 if __name__ == "__main__":
     print("web server starting", file=sys.stderr)
@@ -92,13 +87,11 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 from src.exceptions import MissingConfigError
 
-
 @dataclass
 class Config:
     openai_api_key: str
     log_level: str
     connect_timeout: float
-
 
 def require_env(key: str) -> str:
     value = os.getenv(key)
@@ -107,7 +100,6 @@ def require_env(key: str) -> str:
             f"Required environment variable is missing: {key}"
         )
     return value
-
 
 def load_config() -> Config:
     load_dotenv()
@@ -123,7 +115,6 @@ def load_config() -> Config:
 import logging
 import os
 import sys
-
 
 def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
@@ -146,7 +137,6 @@ from openai import OpenAI
 from src.config import Config
 
 MODEL = "gpt-4o-mini"
-
 
 def create_client(config: Config) -> OpenAI:
     return OpenAI(api_key=config.openai_api_key)
@@ -171,8 +161,6 @@ from mcp.client.stdio import stdio_client
 from src.utils.logger import get_logger
 
 MODEL = "gpt-4o-mini"
-MAX_STEPS = 5
-
 
 def _openai_tools(tools):
     schemas = []
@@ -186,7 +174,6 @@ def _openai_tools(tools):
             },
         })
     return schemas
-
 
 async def run_specialist(client, command, args, system, task,
                          connect_timeout=10.0):
@@ -204,7 +191,7 @@ async def run_specialist(client, command, args, system, task,
                     {"role": "system", "content": system},
                     {"role": "user", "content": task},
                 ]
-                for _ in range(MAX_STEPS):
+                for _ in range(5):
                     reply = client.chat.completions.create(
                         model=MODEL, messages=messages, tools=tools
                     ).choices[0].message
@@ -228,7 +215,6 @@ async def run_specialist(client, command, args, system, task,
         logger.warning(f"specialist for {args} unavailable: {e}")
         return "", True
 
-
 def _calls_as_dicts(tool_calls):
     out = []
     for call in tool_calls:
@@ -249,7 +235,6 @@ from src.mcp_client import run_specialist
 NOTES_SYSTEM = ("You are the Notes specialist. Use the notes tools to answer "
                 "the task from the team's notes. Report only what you found.")
 
-
 async def run_notes_agent(client, task, connect_timeout=10.0):
     findings, unavailable = await run_specialist(
         client, "python", ["servers/notes_server.py"],
@@ -264,7 +249,6 @@ from src.mcp_client import run_specialist
 
 WEB_SYSTEM = ("You are the Web specialist. Use the fetch tool to get the "
               "relevant page and summarize it. Report only what you fetched.")
-
 
 async def run_web_agent(client, task, connect_timeout=10.0):
     findings, unavailable = await run_specialist(
@@ -287,7 +271,6 @@ from src.config import load_config
 from src.exceptions import MissingConfigError
 from src.models.llm import create_client
 
-
 async def run_demo():
     try:
         config = load_config()
@@ -305,10 +288,8 @@ async def run_demo():
     )
     print("\nWeb Agent:\n", web)
 
-
 def main():
     asyncio.run(run_demo())
-
 
 if __name__ == "__main__":
     main()
@@ -326,7 +307,6 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MCPCREW_TEST_SETTING"
 
-
 def test_missing_setting() -> None:
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
@@ -335,7 +315,6 @@ def test_missing_setting() -> None:
     except MissingConfigError:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
-
 
 def test_empty_setting() -> None:
     os.environ[TEST_SETTING] = ""
@@ -346,7 +325,6 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-
 def test_config_loads() -> None:
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
@@ -354,7 +332,6 @@ def test_config_loads() -> None:
     if config.openai_api_key != "sk-test-123":
         result = "WRONG"
     print(f"case 3 (config loads)    -> {result}")
-
 
 if __name__ == "__main__":
     test_missing_setting()
