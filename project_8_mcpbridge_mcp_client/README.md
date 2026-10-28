@@ -4,6 +4,10 @@
 
 **Tech:** Python · `mcp` (official MCP SDK) · OpenAI SDK (function calling) · asyncio · Pydantic  ·  **Type:** Single agent (ReAct over discovered MCP tools)  ·  **Level:** Intermediate–Advanced
 
+## Demo
+
+![MCPBridge — demo](assets/demo.png)
+
 ## Overview
 
 Every other agent in this curriculum has its tools written directly into its own code — a `@tool` function sitting in `tools.py` that the loop calls. MCPBridge doesn't. It connects to live **MCP servers**, asks each one *"what tools have you got?"*, and uses whatever comes back — the same think→act→observe loop, pointed at a **discovered** tool list instead of a written one.

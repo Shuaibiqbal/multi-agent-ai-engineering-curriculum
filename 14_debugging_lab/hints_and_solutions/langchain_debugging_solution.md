@@ -12,10 +12,6 @@ Every fix and test below goes in `practice/langchain_debugging_practice.py`, and
 - [Round 4: Multi-agent](#round-multi-agent)
 - [Real cause vs. symptom fix](#real-cause-vs-symptom-fix)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Hints](langchain_debugging_hints.md)
-
 ## Round: Basic {: #round-basic }
 
 **Real cause:** the prompt template declares one variable, `{question}`, but the caller invoked the chain with the key `"input"`. LangChain's error names the mismatch directly (`Expected: ['question'] Received: ['input']`) — it's easy to miss because `KeyError` makes it feel like a Python dictionary bug rather than a naming mismatch.
@@ -42,10 +38,6 @@ def test_prompt_accepts_the_question_key():
 ```
 Testing the prompt on its own catches every key mismatch for free, before the model is ever involved.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Hints](langchain_debugging_hints.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Real cause:** the prompt never tells the model what shape to write. `PydanticOutputParser` checks the reply against `Answer`, but the model has never seen `Answer` — so it guesses, and `"confidence": "high"` is a perfectly human guess. As Doc05 says, `PydanticOutputParser` needs `parser.get_format_instructions()` inserted into the prompt, or the model never learns the shape. The API call is fine; the bug is in the chain's prompt layer.
@@ -58,11 +50,9 @@ from pydantic import BaseModel
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-
 class Answer(BaseModel):
     summary: str
     confidence: float
-
 
 parser = PydanticOutputParser(pydantic_object=Answer)
 
@@ -86,17 +76,12 @@ def test_prompt_tells_the_model_the_answer_shape():
     assert "confidence" in rendered
     assert "number" in rendered
 
-
 def test_parser_accepts_the_shape_the_prompt_asks_for():
     reply = '{"summary": "Refunds within 30 days.", "confidence": 0.9}'
     result = parser.parse(reply)
     assert result.confidence == 0.9
 ```
 The first test checks that the instructions reach the prompt; the second checks that a reply in that shape parses. Neither needs a model call.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Hints](langchain_debugging_hints.md)
 
 ## Round: Real-world {: #round-real-world }
 
@@ -115,7 +100,6 @@ prompt = ChatPromptTemplate.from_messages([
     ("human", "{question}"),
 ])
 
-
 def build_answer_input(user_question):
     # how: the user's text is a VALUE — braces in it are just text
     return {"question": user_question}
@@ -130,10 +114,6 @@ def test_question_with_curly_braces_reaches_the_model_unchanged():
     assert messages[-1].content == tricky
 ```
 A test suite of clean, hand-typed questions never reaches this path — the test has to include a question with braces in it on purpose, the way real users eventually will.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Hints](langchain_debugging_hints.md)
 
 ## Round: Multi-agent {: #round-multi-agent }
 
@@ -151,7 +131,6 @@ VERIFY_PROMPT = ChatPromptTemplate.from_template(
     "Check this claim against the research findings:\n{findings}"
 )
 
-
 def verify_claim(state):
     # how: Research's text is passed as a value, never as template text
     chain = VERIFY_PROMPT | ChatOpenAI() | StrOutputParser()
@@ -167,10 +146,6 @@ def test_findings_with_json_snippets_reach_the_prompt_unchanged():
     assert findings in text
 ```
 The test feeds the Analysis agent's prompt the kind of text Research really produces — including a JSON snippet — without running the full 4-agent pipeline or calling a model.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Hints](langchain_debugging_hints.md)
 
 ## Real cause vs. symptom fix {: #real-cause-vs-symptom-fix }
 

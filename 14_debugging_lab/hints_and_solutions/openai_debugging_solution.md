@@ -12,10 +12,6 @@ Every fix and test below goes in `practice/openai_debugging_practice.py`, and ru
 - [Round 4: Multi-agent](#round-multi-agent)
 - [Real cause vs. symptom fix](#real-cause-vs-symptom-fix)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Hints](openai_debugging_hints.md)
-
 ## Round: Basic {: #round-basic }
 
 **Real cause:** asking a chat model to "reply with JSON" in a plain prompt is a request, not a guarantee — the model is still free to add a friendly sentence around it, and often does. `json.loads()` has no tolerance for anything before the first `{`.
@@ -29,10 +25,8 @@ from pydantic import BaseModel
 
 client = OpenAI()
 
-
 class Summary(BaseModel):
     summary: str
-
 
 def summarize(user_text: str) -> Summary:
     # why: structured output makes the model write this exact shape —
@@ -53,10 +47,6 @@ def test_summarize_returns_a_summary_object():
 ```
 Checking the *type* of the result, not just that the call didn't raise, catches both this bug and the "valid JSON, wrong shape" case Doc02 warns about.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Hints](openai_debugging_hints.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Real cause:** OpenAI's structured-output "strict" mode builds a JSON Schema straight from the Pydantic model, and strict mode does not allow `default` values in that schema — every field has to be required. `tags: list[str] = []` is a perfectly normal Pydantic model on its own, but its schema carries `"default": []`, so the API rejects the whole request before the model even runs.
@@ -66,7 +56,6 @@ Checking the *type* of the result, not just that the call didn't raise, catches 
 **The fix:**
 ```python
 from pydantic import BaseModel
-
 
 class Summary(BaseModel):
     summary: str
@@ -85,10 +74,6 @@ def test_summary_schema_has_no_defaults():
 ```
 This test catches the mistake before any API call — checking the schema you're about to send is faster and cheaper than waiting for a `BadRequestError`.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Hints](openai_debugging_hints.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Real cause:** nothing in the chatbot ever checks the running token count before sending. Every turn appends to history and resends the whole thing. No single message is the problem — the total quietly grows every turn until one turn tips it over 128,000 tokens.
@@ -101,10 +86,8 @@ import tiktoken
 
 enc = tiktoken.encoding_for_model("gpt-4o-mini")   # Doc03's exact count
 
-
 def count_tokens(message: dict) -> int:
     return len(enc.encode(message["content"]))
-
 
 def build_messages_within_budget(history, system_message, max_tokens):
     running_total = count_tokens(system_message)
@@ -128,14 +111,12 @@ def build_messages_within_budget(history, system_message, max_tokens):
 ```python
 SYSTEM_MESSAGE = {"role": "system", "content": "You are a support bot."}
 
-
 def build_fake_history(turn_count):
     history = []
     for i in range(turn_count):
         text = "This is turn number " + str(i) + " of a long chat. " * 20
         history.append({"role": "user", "content": text})
     return history
-
 
 def test_long_session_stays_within_token_budget():
     history = build_fake_history(turn_count=200)
@@ -151,10 +132,6 @@ def test_long_session_stays_within_token_budget():
 ```
 A small `max_tokens` (2,000 instead of 120,000) lets 200 fake turns overflow it quickly — same logic, a test that runs in a moment.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Hints](openai_debugging_hints.md)
-
 ## Round: Multi-agent {: #round-multi-agent }
 
 **Real cause:** every agent writing its full scratchpad into shared state means each later agent's prompt is built from everyone-before-it's raw reasoning, not their finished conclusions. This is the shared-state design mistake Doc11's Core Concepts names — too much in shared state buries what a later agent needs under noise, and sometimes pushes the request over the same token limit as Round 3, this time from 4 agents' scratchpads instead of one long chat.
@@ -166,23 +143,19 @@ A small `max_tokens` (2,000 instead of 120,000) lets 200 fake turns overflow it 
 from typing import TypedDict
 from langgraph.types import Command
 
-
 class SharedState(TypedDict):
     task: str
     research_findings: str   # Research agent's finished output only
     analysis: str            # Analysis agent's finished output only
     draft: str               # Writer agent's finished output only
 
-
 def run_research_tools(task):
     # stand-in: a long raw scratchpad, like real tool calls produce
     return "step: searched the web, got 10 results...\n" * 500
 
-
 def summarize_findings(raw_scratchpad):
     # stand-in for the Research agent's own summary call
     return "Refunds are allowed within 30 days of purchase."
-
 
 def research_node(state):
     raw_scratchpad = run_research_tools(state["task"])
@@ -204,10 +177,6 @@ def test_research_node_writes_only_its_finished_output():
     assert len(result.update["research_findings"]) < 1000
 ```
 The test runs the real node and checks exactly what it writes into shared state — its keys and its size — not only whether the pipeline finished without an error.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Hints](openai_debugging_hints.md)
 
 ## Real cause vs. symptom fix {: #real-cause-vs-symptom-fix }
 

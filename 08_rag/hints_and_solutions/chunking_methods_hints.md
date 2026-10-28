@@ -2,32 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-chunking_methods) · [Hint 1](chunking_methods_hints.md#hint-1) · [Hint 2](chunking_methods_hints.md#hint-2) · [Solution](chunking_methods_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, including how a real chunker handles text that doesn't cooperate). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-chunking_methods) · [Hint 1](chunking_methods_hints.md#hint-1) · [Hint 2](chunking_methods_hints.md#hint-2) · [Solution](chunking_methods_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-There isn't one correct way to split a document into pieces. You're going to try two different ways of splitting the *same* document, then ask the *same* question against both, and see whether the answer you actually get back changes.
-
-One way: cut the text into fixed-size pieces, just counting characters, without caring what word or sentence you happen to be in the middle of.
-
-Another way: cut the text wherever the document already has a natural paragraph break.
-
-Before writing any code, write down a guess: which of these two feels more likely to cut a fact in half by accident? You'll check whether you're right in a minute.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-chunking_methods) · [Hint 1](chunking_methods_hints.md#hint-1) · [Hint 2](chunking_methods_hints.md#hint-2) · [Solution](chunking_methods_solution.md)
-
-### Intermediate Version
 
 Same idea, as two functions: `chunk_by_chars()` and `chunk_by_paragraph()`, doing two different jobs on the same text.
 
@@ -55,92 +35,7 @@ The extra pieces:
 
 Sketch the overlapping version of `chunk_by_chars` yourself before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic assumes the test document behaves — tidy paragraphs, and no fact unlucky enough to sit exactly on a fixed-size boundary. Intermediate also asks what happens when a document doesn't cooperate: a wall of text with no paragraph breaks at all, or a fact that lands right on a cut point. The fixes — overlap, and a fallback when paragraph-splitting finds nothing to split on — are exactly the kind of thing that separates a chunker that works on your one test file from one that survives a folder of real, messy documents.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-chunking_methods) · [Hint 1](chunking_methods_hints.md#hint-1) · [Hint 2](chunking_methods_hints.md#hint-2) · [Solution](chunking_methods_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-write a test document: a few made-up paragraphs, all about one topic
-
-make chunk_by_chars(text, chunk_size):
-    cut text into pieces of chunk_size characters each, one after another
-
-make chunk_by_paragraph(text):
-    split text wherever there's a blank line
-    remove any empty pieces
-
-run both functions on the same test document
-    -> now you have two different lists of chunks for the same text
-
-pick one question whose answer lives inside one specific paragraph
-
-embed the question, and embed every chunk from both methods
-
-for each method:
-    compare the question to every chunk in that method's list
-    find the chunk with the highest similarity score
-
-print the top chunk (and its score) for each method
-
-compare: does one method's top chunk contain the whole answer,
-         while the other method's top chunk is cut off mid-sentence?
-```
-
-Here's almost the whole thing — try running it and reading it line by line:
-```python
-# chunking_practice.py — Intermediate section
-import math
-from openai import OpenAI
-
-client = OpenAI()
-
-def chunk_by_chars(text, chunk_size=200):
-    chunks = []
-    for i in range(0, len(text), chunk_size):
-        chunks.append(text[i:i+chunk_size])
-    return chunks
-
-def chunk_by_paragraph(text):
-    chunks = []
-    for piece in text.split("\n\n"):
-        stripped = piece.strip()
-        if stripped:
-            chunks.append(stripped)
-    return chunks
-
-def get_embedding(text):
-    response = client.embeddings.create(
-        model="text-embedding-3-small", input=text
-    )
-    return response.data[0].embedding
-
-def cosine_similarity(a, b):
-    dot = 0.0
-    for x, y in zip(a, b):
-        dot = dot + x * y
-    squares = 0.0
-    for x in a:
-        squares = squares + x * x
-    norm_a = math.sqrt(squares)
-    squares = 0.0
-    for x in b:
-        squares = squares + x * x
-    norm_b = math.sqrt(squares)
-    return dot / (norm_a * norm_b)
-```
-**Expected output if you run just this:** nothing yet — add your test document, question, and the comparison loop below it.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-chunking_methods) · [Hint 1](chunking_methods_hints.md#hint-1) · [Hint 2](chunking_methods_hints.md#hint-2) · [Solution](chunking_methods_solution.md)
-
-### Intermediate Version
 
 ```
 define:
@@ -164,7 +59,7 @@ main:
 ```
 
 ```python
-# chunking_practice.py — Intermediate section
+# chunking_practice.py
 def find_best_chunk(
     chunks: list[str], question_vector: list[float],
 ) -> tuple[str, float]:
@@ -202,7 +97,7 @@ function chunk_by_paragraph_safe(text):
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
-# chunking_practice.py — Intermediate section
+# chunking_practice.py
 def chunk_by_chars_with_overlap(
     text: str, chunk_size: int = 200, overlap: int = 40,
 ) -> list[str]:
@@ -216,7 +111,6 @@ def chunk_by_chars_with_overlap(
         ...
     return chunks
 
-
 def chunk_by_paragraph_safe(text: str) -> list[str]:
     pieces = chunk_by_paragraph(text)
     # your turn: if pieces has 1 item or fewer, the document had no real
@@ -229,7 +123,6 @@ Then pass the chunker in as a value:
 ```python
 from typing import Callable
 
-
 def best_chunk_for(
     chunk_fn: Callable[[str], list[str]],
     text: str,
@@ -240,11 +133,5 @@ def best_chunk_for(
 ```
 
 Fill in the overlap step, the fallback check and `best_chunk_for` yourself, then compare all of your finished versions against the [Solution](chunking_methods_solution.md).
-
-**Difference between Basic and Intermediate:** same two chunking ideas (fixed-size, paragraph-based) at 2 completeness levels. Basic produces non-overlapping chunks and trusts that the document actually has paragraph breaks to split on. Intermediate adds a `step` smaller than `chunk_size` so neighboring chunks share text at their edges, and a fallback that stops `chunk_by_paragraph` from silently returning "1 giant chunk" on a document with no blank lines at all — both of which only matter once you stop testing against the one tidy document you wrote for this exercise.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-chunking_methods) · [Hint 1](chunking_methods_hints.md#hint-1) · [Hint 2](chunking_methods_hints.md#hint-2) · [Solution](chunking_methods_solution.md)
 
 Full solution: [Show me the solution](chunking_methods_solution.md)

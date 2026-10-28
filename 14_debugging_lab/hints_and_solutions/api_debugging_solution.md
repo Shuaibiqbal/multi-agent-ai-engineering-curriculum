@@ -12,10 +12,6 @@ Every fix and test below goes in `practice/api_debugging_practice.py`, and runs 
 - [Round 4: Multi-agent](#round-multi-agent)
 - [Real cause vs. symptom fix](#real-cause-vs-symptom-fix)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Hints](api_debugging_hints.md)
-
 ## Round: Basic {: #round-basic }
 
 **Real cause:** in this copy, `max_attempts` and `timeout` are keyword-only (everything after the bare `*` in the signature). The caller passed `3` as a third *positional* argument, which Python won't accept — the function only takes 2 positional arguments (`method`, `url`).
@@ -27,7 +23,6 @@ Every fix and test below goes in `practice/api_debugging_practice.py`, and runs 
 def request_with_retry(method, url, *, max_attempts=3, timeout=(3, 5)):
     # stand-in body for practice — the real one is in http_client.py
     return {"method": method, "url": url, "max_attempts": max_attempts}
-
 
 def fetch(url):
     # why: the fix is at the call site — name the setting, so it
@@ -43,10 +38,6 @@ def test_fetch_calls_request_with_retry_correctly():
     assert result["max_attempts"] == 3
 ```
 The buggy `fetch()` fails this test with the same `TypeError`, with no network involved — the bug is in how the function is called, so that's what the test checks.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Hints](api_debugging_hints.md)
 
 ## Round: Intermediate {: #round-intermediate }
 
@@ -83,16 +74,11 @@ class FakeHtmlResponse:
     def json(self):
         raise ValueError("Expecting value: line 1 column 1 (char 0)")
 
-
 def test_error_body_survives_a_non_json_body():
     body = error_body_from(FakeHtmlResponse())
     assert body == "<html>Bad Gateway</html>"
 ```
 The test has to feed a non-JSON error body on purpose — a fake that always returns clean JSON, even for errors, can never reach this path.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Hints](api_debugging_hints.md)
 
 ## Round: Real-world {: #round-real-world }
 
@@ -103,7 +89,6 @@ The test has to feed a non-JSON error body on purpose — a fake that always ret
 **The fix:**
 ```python
 import random
-
 
 def backoff_seconds(attempt):
     base = 2 ** attempt
@@ -125,10 +110,6 @@ def test_backoff_seconds_is_not_identical_across_callers():
 ```
 One caller in isolation can't show this bug — it's about many callers at once, so the test checks that 20 "callers" don't all get the same wait.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Hints](api_debugging_hints.md)
-
 ## Round: Multi-agent {: #round-multi-agent }
 
 **Real cause:** a cap on attempt *count* doesn't limit total time when the backoff keeps growing — 5 attempts can still add up to 30+ seconds of silent waiting inside one tool call, which the graph's log can't see. From the Supervisor's log alone, that looks exactly like a stuck graph, which sends debugging to the wrong layer (LangGraph edges and state, when the real problem is inside the HTTP retry wrapper).
@@ -139,11 +120,9 @@ One caller in isolation can't show this bug — it's about many callers at once,
 ```python
 import time
 
-
 def out_of_time(start_time, max_total_seconds, now):
     # why: a hard ceiling on TOTAL wall-clock time, not just attempts
     return now - start_time > max_total_seconds
-
 
 def request_with_retry(method, url, *, max_attempts=3, timeout=(3, 5),
                        max_total_seconds=15):
@@ -169,15 +148,10 @@ def test_out_of_time_stops_a_long_retry():
     # 16 seconds after starting, with a 15-second ceiling
     assert out_of_time(start_time=0, max_total_seconds=15, now=16) is True
 
-
 def test_out_of_time_allows_a_quick_retry():
     assert out_of_time(start_time=0, max_total_seconds=15, now=4) is False
 ```
 Because the time rule is its own small function, the test gives it made-up times — no sleeping, no network, and it runs in milliseconds.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Hints](api_debugging_hints.md)
 
 ## Real cause vs. symptom fix {: #real-cause-vs-symptom-fix }
 

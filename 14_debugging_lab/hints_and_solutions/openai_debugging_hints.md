@@ -9,10 +9,6 @@ One scenario, followed across all 4 rounds: Project 1's structured-extraction fe
 - [Round 3: Real-world](#round-real-world)
 - [Round 4: Multi-agent](#round-multi-agent)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Solution](openai_debugging_solution.md)
-
 ## Round: Basic {: #round-basic }
 
 **Setup:** a first pass at Project 1's summary feature asks nicely for JSON in the prompt, instead of using OpenAI's structured-output feature:
@@ -52,10 +48,6 @@ Sure! Here's the summary you asked for:
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Solution](openai_debugging_solution.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Setup:** the feature now uses real structured outputs with a Pydantic model:
@@ -89,10 +81,6 @@ permitted.", 'type': 'invalid_request_error'}}
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Solution](openai_debugging_solution.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Setup:** the schema is fixed. The chatbot resends its whole conversation history on every turn (Doc04's "memory is just resent history"), with no trimming and no token counting anywhere.
@@ -115,10 +103,6 @@ Please reduce the length of the messages.", 'type': 'invalid_request_error'}}
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Solution](openai_debugging_solution.md)
-
 ## Round: Multi-agent {: #round-multi-agent }
 
 **Setup:** the chatbot trims history correctly now. Separately, in Project 4, each of the 4 agents appends its *entire* tool-call scratchpad — every intermediate thought, every raw tool result — into the pipeline's shared state, instead of writing just its finished output there (contrary to Doc11's Core Concepts on what belongs in shared state vs. what should stay private to one agent).
@@ -138,9 +122,5 @@ The "compliance concern" the Reviewer flagged was actually resolved in the Analy
 - Actual: by the time a request reaches the Reviewer (4th in line), its prompt has ballooned with three other agents' raw internal reasoning, degrading quality and occasionally tipping the whole request over the context limit — invisible in any test that hand-builds a small, clean fake state for the Reviewer alone.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-openai) · [Round 1: Basic](openai_debugging_hints.md#round-basic) · [Round 2: Intermediate](openai_debugging_hints.md#round-intermediate) · [Round 3: Real-world](openai_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](openai_debugging_hints.md#round-multi-agent) · [Solution](openai_debugging_solution.md)
 
 Full solution: [Show me the solution](openai_debugging_solution.md)

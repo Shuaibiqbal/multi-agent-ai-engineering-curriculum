@@ -941,4 +941,4 @@ practice/
 You can tell whether a bad RAG answer is a retrieval problem or a generation problem — that one skill is the whole point of this document. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-08-rag).
 
 ---
-Stuck? Ask for **Hint 1** or **Hint 2** (each has Basic/Intermediate depth). Ask for the full solution only if you say **"Show me the solution."**
+Stuck? Ask for **Hint 1** or **Hint 2**. Ask for the full solution only if you say **"Show me the solution."**

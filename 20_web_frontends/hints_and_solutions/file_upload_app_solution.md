@@ -57,7 +57,6 @@ app = FastAPI()
 
 ALLOWED = (".txt", ".md")
 
-
 @app.post("/upload")
 async def upload(file: UploadFile):
     name = (file.filename or "").lower()
@@ -78,7 +77,6 @@ from fastapi.testclient import TestClient
 
 from app_upload_fastapi import app
 
-
 def test_upload_and_reject() -> None:
     client = TestClient(app)
     good = client.post(
@@ -95,7 +93,6 @@ def test_upload_and_reject() -> None:
     if "error" not in bad:
         result = "WRONG"
     print(f"case 1 (accepts .txt, rejects .exe) -> {result}")
-
 
 if __name__ == "__main__":
     test_upload_and_reject()

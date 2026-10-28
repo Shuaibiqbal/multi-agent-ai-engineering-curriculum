@@ -4,6 +4,10 @@
 
 **Tech:** Python · LangGraph (`Command` routing) · LangChain · OpenAI API · Pydantic  ·  **Type:** Multi-agent (Supervisor + 4 specialists)  ·  **Level:** Upper-Intermediate
 
+## Demo
+
+![ContentForge — demo](assets/demo.png)
+
 ## Overview
 
 ContentForge turns a topic into a short, sourced, reviewed article. A **Supervisor** agent reads a shared state and decides which specialist works next. **Research** looks facts up with a tool, **Analysis** groups them into themes without dropping any, the **Writer** drafts only from those findings, and the **Reviewer** scores the draft against written criteria — sending it back with feedback until it passes or a revision limit is reached.

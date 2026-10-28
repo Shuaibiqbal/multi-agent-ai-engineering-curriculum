@@ -383,4 +383,4 @@ practice/
 You can guess, before running it, roughly how a prompt will behave and roughly what it will cost. Full details: [CURRICULUM.md §4](../CURRICULUM.md#document-03-llm-basics).
 
 ---
-Stuck? Ask for **Hint 1** or **Hint 2** (each has Basic/Intermediate depth). Ask for the full explanation only if you say **"Show me the solution."**
+Stuck? Ask for **Hint 1** or **Hint 2**. Ask for the full explanation only if you say **"Show me the solution."**

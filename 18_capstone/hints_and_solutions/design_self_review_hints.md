@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
 
-Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing — what to ask) and **Intermediate** (the real technique, in proper design-review vocabulary, then the senior-level judgment call — the trap in doing this review on your own work). Read Basic first even if you already know the technique — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own written design before reading ahead.
 
 - [Hint 1 — The idea, and the exact check](#hint-1)
 - [Hint 2 — The plan, and a worked example](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
-
 ## Hint 1 — The idea, and the exact check {: #hint-1 }
-
-### Basic Version
-
-You already wrote a design before this exercise — a list of agents, tools, and pieces you plan to build. This exercise asks you to go back through that list and, for each piece, ask one plain question: "what would break if I removed this?"
-
-If nothing you can name would actually break, that piece is probably there because it seemed like a good idea, not because the requirements needed it. That's the exact thing this exercise is meant to catch, before you spend time building it.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
-
-### Intermediate Version
 
 Doc16 frames this directly: "requirements → architecture is matching, not inspiration." The self-review technique is to build a **traceability table** — walk your design's component list and, for each one, force yourself to name the *specific* requirement (not a general good practice) it satisfies. Two failure patterns to watch for while doing this:
 
@@ -42,33 +26,7 @@ The real self-review question isn't just "can I name a requirement for this" —
 
 A concrete way to catch this: for your 2-3 most confident rows, try to state the requirement in a form you'd have written *before* seeing your own design — if you can't, or the wording suspiciously echoes your component's own name, treat that row as unverified until you check it against the actual written requirements document, not your memory of it.
 
-**Difference between Basic and Intermediate:** Basic asks "what would break if I removed this?" for each piece. Intermediate runs the full two-direction check — every component traces to a requirement, every requirement has something covering it — and then checks the requirement column itself for rows you reverse-engineered after choosing the component.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
-
 ## Hint 2 — The plan, and a worked example {: #hint-2 }
-
-### Basic Version
-
-```
-list every piece in your design (agents, tools, database, etc.)
-
-for each piece, write down:
-    which requirement made me add this?
-
-if you can't answer that:
-    is it "just in case" (overbuilt) or "fixing something that isn't
-    actually a risk here" (solving a problem you don't have)?
-    decide: cut it, or write down why you're keeping it anyway
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
-
-### Intermediate Version
 
 ```
 build a traceability table: Component | Requirement it satisfies
@@ -131,11 +89,5 @@ Verdict: CUT down to 3-4 charts tied to actual non-functional targets.
 ```
 
 Run the bias check against your own most confident row first — that's usually where a rationalization hides, precisely because it felt too obvious to question. Then check the [Solution](design_self_review_solution.md).
-
-**Difference between Basic and Intermediate:** Basic is a quick one-direction pass. Intermediate adds the reverse check that finds missing coverage, and a bias pass on the rows you filled in fastest and most confidently.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
 
 Full solution: [Show me the solution](design_self_review_solution.md)

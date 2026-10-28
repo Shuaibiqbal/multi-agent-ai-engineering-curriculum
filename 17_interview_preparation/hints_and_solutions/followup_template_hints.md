@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain answer a nervous first-timer would give) and **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format, then a tough pushback on your own fix, or a harder variant of the scenario). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried.
 
 - [Hint 1 — The scenario, and why the first answer isn't the point](#hint-1)
 - [Hint 2 — The follow-up plan, worked through](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
-
 ## Hint 1 — The scenario, and why the first answer isn't the point {: #hint-1 }
-
-### Basic Version
-
-Scenario question for this exercise: *"Your RAG agent's retriever is returning irrelevant chunks in production, but it looked fine in testing. Walk me through how you'd debug it."*
-
-Give your first answer to that before reading further — don't skip ahead to the follow-ups yet. That first answer only earns you the first 20% of an interview score. The rest comes from what happens next.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
-
-### Intermediate Version
 
 The point of this exercise isn't the first answer — it's proving you can anticipate the standing follow-up list yourself, *before* it's asked: **Why? Why not X? How? What happens underneath? What happens if it fails? How would you scale it? How would you cut its cost? How would you debug it?**
 
@@ -39,36 +23,7 @@ The real design question isn't "what's my fix" — it's "what would I actually s
 
 Try answering the pushback yourself before Hint 2.
 
-**Difference between Basic and Intermediate:** Basic gives the scenario and lets you answer once, cold. Intermediate adds the standing follow-up list on top of that first answer, and then goes one layer deeper — a follow-up *on your follow-up*, which is what happens once an interviewer digs into one specific part of your answer instead of moving down the checklist.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
-
 ## Hint 2 — The follow-up plan, worked through {: #hint-2 }
-
-### Basic Version
-
-Here's the plan written out in plain steps:
-
-```
-answer the scenario question first, plainly
-
-then ask yourself, one at a time:
-    what's actually happening underneath, in the retriever?
-    what's the very first thing I'd check?
-    is there a fallback if this happens again, or does it fail silently?
-    (bonus) how would this get worse at 100x the traffic?
-    (bonus) what's the cheap fix vs. the expensive fix?
-
-answer each one in a sentence or two, out loud
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
-
-### Intermediate Version
 
 The same plan, closer to interview structure, in the natural order for a debugging scenario:
 
@@ -119,11 +74,5 @@ your move:
 ```
 
 Try filling this in yourself for the confidence-threshold pushback, then compare against the [Solution](followup_template_solution.md).
-
-**Difference between Basic and Intermediate:** Basic walks the follow-up list in plain words. Intermediate names the specific mechanism behind each follow-up answer, and then defends your own fix when it's pushed on — naming its real cost instead of dodging or caving.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
 
 Full solution: [Show me the solution](followup_template_solution.md)

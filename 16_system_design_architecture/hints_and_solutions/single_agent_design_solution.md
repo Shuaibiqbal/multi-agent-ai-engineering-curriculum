@@ -4,35 +4,11 @@
 
 **Story — `single_agent_design.md`:** a one-sentence request is where most real AI features start, and the easiest mistake is building too much. Writing this design on paper first — assumptions, one agent, a handoff — trains sizing a design to the request. **If not:** your first real design conversation would be the first time you had to say what you're *not* building, and why.
 
-Write your own design first, in `practice/single_agent_design.md`. Read both depths — they're not "wrong, right," they're 2 real levels of the same design, with real differences in how well they hold up under review.
+Write your own design first, in `practice/single_agent_design.md`.
 
 The request: "answer questions about our product docs, hand off to a human if unsure."
 
-## Basic Version
-
-### Approach 1 — the direct way
-
-**Story:** the smallest design that answers the request — one agent, one search tool, one handoff rule — with its assumptions written at the top. **If not:** a multi-agent system for a one-agent job, and a reviewer asking why.
-
-A reasonable, working design:
-
-- **Agent:** one single agent (Doc11's simplest pattern — no supervisor or router needed for one clear task).
-- **Tool:** `search_docs(query)` → top matching chunks from the product documentation, via vector similarity search.
-- **State:** per-session conversation history, plus the most recent retrieval result.
-- **Routing:** if the top retrieved chunk's similarity score is below a fixed threshold, hand off to a human; otherwise, generate an answer using the retrieved text.
-- **Human handoff:** package the user's question, what was searched, and why it was flagged, and send it to the existing support queue.
-- **Failure handling:** if `search_docs` errors, treat it the same as "no good match" and hand off.
-- **Assumptions stated up front:** moderate traffic (not 500,000 users), a wrong answer is embarrassing but not dangerous (no medical/legal/financial claims), and "unsure" means nothing in the docs directly answers the question.
-
-This design answers the one-sentence request without adding anything it wasn't asked for — no multi-agent system, no elaborate scaling plan for traffic nobody mentioned.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — the same design, hardened for review
+## Solution
 
 **Story:** the same shape, hardened exactly where a reviewer will push: what "unsure" really means, what the human receives, and what happens when the search tool itself fails. **If not:** the bot would confidently answer from loosely related docs, and go silent the day search is down.
 

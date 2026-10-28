@@ -9,10 +9,6 @@ One scenario, followed across all 4 rounds: a teammate's modified copy of Doc02'
 - [Round 3: Real-world](#round-real-world)
 - [Round 4: Multi-agent](#round-multi-agent)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Solution](api_debugging_solution.md)
-
 ## Round: Basic {: #round-basic }
 
 **Setup:** a teammate changed the retry wrapper in their copy of `http_client.py`, making the retry/timeout settings keyword-only:
@@ -45,10 +41,6 @@ TypeError: request_with_retry() takes 2 positional arguments but 3 were given
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Solution](api_debugging_solution.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Setup:** the call-signature bug is fixed. Now Doc04's OpenAI wrapper calls through `request_with_retry()` too, since it's meant to be reused everywhere. When all retries are exhausted on a bad response, `request_with_retry()` tries to build a clear error message using the failed response's body:
@@ -80,10 +72,6 @@ json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Solution](api_debugging_solution.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Setup:** the error-message bug is fixed too. The teammate's copy wrote its own backoff line, instead of using Doc02's `compute_backoff_delay()`:
@@ -114,10 +102,6 @@ time.sleep(2 ** attempt)
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Solution](api_debugging_solution.md)
-
 ## Round: Multi-agent {: #round-multi-agent }
 
 **Setup:** jitter got added, and `request_with_retry()` now has a real max-attempt cap — but no cap on *total wait time* across all those attempts. In Project 4, the Research agent's search tool calls through this same `http_client.py`.
@@ -139,9 +123,5 @@ time.sleep(2 ** attempt)
 - Actual: `request_with_retry()`'s backoff runs its full course (1+2+4+8+16 = 31s) silently, inside one single tool call the Supervisor has no visibility into — a fixed retry-count cap did nothing to bound how long that felt like a hang, because it never bounded *total* time, only attempt count.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Solution](api_debugging_solution.md)
 
 Full solution: [Show me the solution](api_debugging_solution.md)

@@ -13,7 +13,6 @@ pieces so the web code is the focus:
 # practice/pipeline.py
 import time
 
-
 def stream_answer(text: str):
     reply = f"You said '{text}'. Here is a longer, streamed answer."
     for word in reply.split():
@@ -50,10 +49,8 @@ from pipeline import stream_answer
 
 app = FastAPI()
 
-
 class AskRequest(BaseModel):
     text: str
-
 
 @app.post("/stream")
 def stream(body: AskRequest):
@@ -72,7 +69,6 @@ from fastapi.testclient import TestClient
 
 from app_stream_fastapi import app
 
-
 def test_streamed_body() -> None:
     client = TestClient(app)
     response = client.post("/stream", json={"text": "hello"})
@@ -82,7 +78,6 @@ def test_streamed_body() -> None:
     if "hello" not in response.text:
         result = "WRONG"
     print(f"case 1 (streamed answer arrives) -> {result}")
-
 
 if __name__ == "__main__":
     test_streamed_body()

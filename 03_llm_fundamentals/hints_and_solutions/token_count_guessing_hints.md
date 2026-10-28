@@ -2,34 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried guessing first. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (a real estimation method, and why it works the way it does). Read Basic first even if you already feel confident — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried guessing first. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and a worked example](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-Don't count words. Count roughly how many groups of 4 letters the sentence has — that's closer to how tokens actually work.
-
-A short, plain sentence with normal English words will usually land close to "word count × 1.3" tokens (a little more tokens than words, not fewer), because some words split into two pieces.
-
-Things to use:
-
-- Character count ÷ 4 — one estimate.
-- Word count × 1.3 — a second, independent estimate.
-- [platform.openai.com/tokenizer](https://platform.openai.com/tokenizer) — where you check the real answer.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
-
-### Intermediate Version
 
 The rule of thumb from Core Concepts is: 1 token ≈ 4 characters ≈ ¾ of a word, for plain English. To estimate a sentence, count its characters (including spaces) and divide by 4 — or count its words and multiply by roughly 1.3.
 
@@ -47,37 +25,7 @@ Both estimates are describing the *average* behavior of a tokenizer built by fin
 
 There's a production-grade reason to care about getting this right beyond "will my prompt fit": **prompt caching** (previewed here, covered properly in Doc12) only reuses a cached prefix if the tokens match *exactly* — not the words, the tokens. Two prompts that look identical to a human but differ by one trailing space, one extra blank line, or a slightly different phrasing of the same instruction can tokenize differently and silently miss the cache, paying full price on every call instead of the cached, discounted rate.
 
-**Difference between Basic and Intermediate:** Basic gives you the plain estimation idea. Intermediate gives you two independent ways to *estimate* a token count, explains *which direction* the rule of thumb tends to be wrong in (it undercounts rare/long words, and is roughly accurate on common short words), and raises a case where "close enough" genuinely isn't good enough — a prompt resent on every call, where exact token-level identity determines whether prompt caching actually saves you money.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
-
 ## Hint 2 — The plan, and a worked example {: #hint-2 }
-
-### Basic Version
-
-```
-for each of your 5 sentences:
-    count the words
-    guess: words × 1.3, rounded
-    write the guess down
-
-then, one at a time:
-    paste the sentence into the tokenizer tool
-    write down the real number
-    compare — how far off were you?
-```
-
-A worked example: "The cat sat on the mat." → 6 words → guess: about 7-8 tokens. Real answer (check it yourself): close to that, because it's all short, common words.
-
-Now do the same process for your other 4 sentences — pick ones that are progressively less "easy" (longer, less common words, more punctuation) — before checking the Intermediate Version below.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
-
-### Intermediate Version
 
 ```
 sentences = [
@@ -104,11 +52,5 @@ compare: which estimate method was closer, and on which kind of sentence?
 A worked example, using both estimate methods: "The cat sat on the mat." → 26 characters (including spaces) → char-based guess: 26 ÷ 4 ≈ 7. Word-based guess: 6 words × 1.3 ≈ 8. Both estimates land close together here, because this sentence is exactly the case the rule of thumb was built for — short, common, plain English words.
 
 Now pick 4 more sentences that each break one assumption on purpose (uncommon words, heavy punctuation, a very short fragment, a longer paragraph) and repeat both estimates for each, then compare against the full [Solution](token_count_guessing_solution.md).
-
-**Difference between Basic and Intermediate:** Basic builds and checks a one-off token estimate for ordinary sentences. Intermediate does the same across a deliberately wider range of sentence types and explains why each gap happens.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
 
 Full solution: [Show me the solution](token_count_guessing_solution.md)

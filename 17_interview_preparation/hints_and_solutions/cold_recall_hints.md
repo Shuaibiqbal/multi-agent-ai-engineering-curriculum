@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried answering out loud or in writing first. Each hint has 2 depth levels: **Basic** (the plain answer a nervous first-timer would give) and **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format, then handling the curveball follow-up that lands the instant you stop talking). Read Basic first even if you already know the material — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried answering out loud or in writing first.
 
 - [Hint 1 — The idea, and the exact shape](#hint-1)
 - [Hint 2 — The plan, and almost the whole answer](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
-
 ## Hint 1 — The idea, and the exact shape {: #hint-1 }
-
-### Basic Version
-
-Pick one item from a finished document's "Interview Topics Preview" — for example, from Doc01: "why logging beats `print()` in production." Cold recall isn't about remembering every detail. It's about being able to say, quickly and clearly, what the thing is and why it matters, without notes.
-
-A nervous first answer wanders — it starts talking before it knows where it's going, and trails off. Try answering the Doc01 question in one sentence before reading further.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
-
-### Intermediate Version
 
 The skill being tested here isn't knowledge — it's **retrieval under time pressure with no scaffolding**. This is exactly what a real interviewer is checking in the first 10 minutes: not whether you can produce a correct answer given time to think, but whether the fact is actually consolidated in memory, not just recognizable when you see it written down.
 
@@ -43,40 +27,7 @@ The real design question isn't "what's my 30-second answer" — it's "what's the
 
 Sketch that next sentence yourself, for the logging topic, before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic gets the plain idea across for the tidy case where you get to finish talking. Intermediate gives it a proper shape — claim, mechanism, stop — tied to rung 1 of the Four-Depth Format, and then handles what actually happens most often: getting cut off by a follow-up, with your claim already built so the next rung follows naturally instead of a restart.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
-
 ## Hint 2 — The plan, and almost the whole answer {: #hint-2 }
-
-### Basic Version
-
-Here's the plan written out in plain steps:
-
-```
-pick one Interview Topics Preview item from a finished document
-set a 30-second timer
-say: "the plain fact is ___, because ___"
-stop talking
-check: did I stay under 30 seconds, and did I say the fact FIRST, not last
-```
-
-Almost the whole thing — try filling in your own topic before checking the Solution:
-
-```
-Claim: "___ is better than ___ because ___."
-(one more sentence backing it up, then stop)
-```
-
-What's missing: your actual topic, and reading it out loud to check it's really under 30 seconds.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
-
-### Intermediate Version
 
 The same plan, closer to how you'd actually rehearse it, tied to the Four-Depth Format:
 
@@ -119,11 +70,5 @@ your move:
 ```
 
 Try answering the curveball follow-up yourself, using your own claim from Hint 1 as the starting thread, then compare against the [Solution](cold_recall_solution.md).
-
-**Difference between Basic and Intermediate:** Basic assumes you get to finish your 30-second answer uninterrupted. Intermediate builds the claim/mechanism/stop shape on purpose, then covers the realistic case: the follow-up arrives early, and the skill is climbing exactly one rung of the Four-Depth Format at a time, anchored to what you already said.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-cold_recall) · [Hint 1](cold_recall_hints.md#hint-1) · [Hint 2](cold_recall_hints.md#hint-2) · [Solution](cold_recall_solution.md)
 
 Full solution: [Show me the solution](cold_recall_solution.md)

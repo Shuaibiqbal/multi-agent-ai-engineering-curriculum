@@ -2,26 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus the cases a real project has to handle).
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-After `search_node`, check what came back before letting the model answer. If there's nothing, route to a node that says honestly "I don't have grounding for this in my documents" instead of guessing. A truly empty result only comes from an empty store — build one from an empty folder, like Doc08's Build Task test.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
-
-### Intermediate Version
 
 The exact pieces:
 
@@ -31,29 +17,7 @@ The exact pieces:
 
 Then the common case: an off-topic question still gets the *closest* chunks back, so the list isn't empty. Doc08's `score` is a **distance** — the best match is the **smallest** score, and anything above a `MAX_DISTANCE` you tuned isn't real grounding. A middle band (close, but not close enough to cover everything) deserves its own honest answer: "partial".
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-search_node:      {"sources": retrieve(collection, task)}
-has_results:      "no_grounding" if sources is empty, else "reason"
-cant_answer_node: the honest "I don't have grounding" answer
-reason_node:      answer from the sources
-
-graph: START -> search -> (has_results) -> reason or cant_answer -> END
-test it against the empty store
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
-
-### Intermediate Version
 
 ```
 best_distance(sources): the smallest source["score"]
@@ -74,11 +38,5 @@ def best_distance(sources: list[dict]) -> float:
             best = source["score"]
     return best
 ```
-
-**Difference between Basic and Intermediate:** Basic catches an empty list. Intermediate catches the far more common "nothing *relevant*" case with a distance threshold, logs it, and adds an honest partial answer.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
 
 Full solution: [Show me the solution](empty_search_solution.md)

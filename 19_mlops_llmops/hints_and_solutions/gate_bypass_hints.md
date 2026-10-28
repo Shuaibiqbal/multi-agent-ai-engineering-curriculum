@@ -2,30 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, including how a real gate makes itself the only path to "live"). Read Basic first even if you already know Python — it's the fastest way to spot exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-First, prove the problem is real: open `live_version.txt` in a text editor (not through `deploy()`), type a version name that never passed the gate, and save it. Nothing stops you — it's just a text file.
-
-Then fix it: instead of a plain text file anyone can hand-edit and have it look completely normal, store something alongside the version name that only `deploy()` could have produced — so a hand-edited file looks obviously wrong instead of passing silently.
-
-Things to use:
-
-- `open("live_version.txt", "w").write(...)` — this is the exact bypass move; try it yourself first.
-- `hashlib.sha256(...)` — a way to produce a fingerprint tied to specific input.
-- A small JSON pointer file instead of one bare line of text, so you can store more than just the version name.
-
-### Intermediate Version
 
 The core problem: `live_version.txt` currently stores exactly one piece of information — the version name — and nothing distinguishes "this got here through `deploy()` after passing the gate" from "someone typed a name into a text file." You need to store a second piece of information that only `deploy()` can produce correctly, and check it every time anything reads "what's live."
 
@@ -52,64 +34,7 @@ The extra pieces needed:
 
 Sketch `get_live_version()` built this way yourself before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic proves the bypass is real and catches a careless edit with a plain hash. Intermediate signs the pointer with a secret from `.env` — and then asks whether a separate pointer file needs to exist at all, working out "what's live" from the version log instead.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-step 1 — prove the bypass:
-    open live_version.txt directly, write "v1" into it by hand
-    (v1 never passed the 0.9 threshold in the release_gate exercise)
-    read it back — nothing complained, "v1" is now "live"
-
-step 2 — fix it:
-    when deploy() succeeds, save as JSON:
-        {"version_name": ..., "check": a hash of the name}
-    when reading "what's live", recompute the hash and compare
-    if they don't match: treat it as untrusted, don't use it
-```
-
-Here's almost the whole thing — just try running it and reading it line by line:
-```python
-# release_gate_practice.py — Edge cases section
-import hashlib
-import json
-
-def deploy_and_save_pointer(version_name):
-    # imagine this only runs after deploy()'s score check passed
-    check = hashlib.sha256(version_name.encode()).hexdigest()
-    with open("live_version.json", "w") as f:
-        json.dump({"version_name": version_name, "check": check}, f)
-
-def get_live_version():
-    with open("live_version.json") as f:
-        pointer = json.load(f)
-    expected = hashlib.sha256(pointer["version_name"].encode()).hexdigest()
-    if pointer["check"] != expected:
-        print("Warning: live pointer looks tampered with!")
-        return None
-    return pointer["version_name"]
-
-deploy_and_save_pointer("v2")
-print(get_live_version())
-```
-**Expected output:**
-```
-v2
-```
-Now hand-edit `live_version.json`'s `"version_name"` field to `"v1"` *without* updating `"check"`, and call `get_live_version()` again — see for yourself whether it catches it.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
-
-### Intermediate Version
 
 ```
 SECRET = some string only this script knows
@@ -213,11 +138,5 @@ def get_live_version(path: str = "versions.json") -> str | None:
 ```
 
 Fill in `mark_passed` yourself, then compare all 3 of your finished versions against the [Solution](gate_bypass_solution.md).
-
-**Difference between Basic and Intermediate:** Basic uses a plain hash that anyone who reads the code can recompute. Intermediate uses an `hmac` signature that needs a secret, and then removes the separate pointer entirely so there's only one record to trust.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
 
 Full solution: [Show me the solution](gate_bypass_solution.md)

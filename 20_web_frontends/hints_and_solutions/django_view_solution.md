@@ -26,7 +26,6 @@ from django.http import JsonResponse
 
 from pipeline import classify
 
-
 def classify_view(request):
     try:
         body = json.loads(request.body)
@@ -58,7 +57,6 @@ is the same `classify_view`, just bootstrapped in one file:
 ```python
 # practice/django_app.py   —   python practice/django_app.py
 import json
-import sys
 
 from django.conf import settings
 
@@ -75,7 +73,6 @@ from django.urls import path
 
 from pipeline import classify
 
-
 def classify_view(request):
     try:
         body = json.loads(request.body)
@@ -86,9 +83,7 @@ def classify_view(request):
         return JsonResponse({"error": "empty text"}, status=400)
     return JsonResponse({"label": classify(text)})
 
-
 urlpatterns = [path("classify", classify_view)]
-
 
 def main():
     from django.test import Client
@@ -99,7 +94,6 @@ def main():
                         content_type="application/json")
     ok = good.json() == {"label": "positive"} and empty.status_code == 400
     print(f"case 1 (view + validation) -> {'OK' if ok else 'WRONG'}")
-
 
 if __name__ == "__main__":
     main()

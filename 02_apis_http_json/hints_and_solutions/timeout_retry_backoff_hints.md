@@ -2,35 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python — including how a real retry loop avoids making an outage worse). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-This has two separate parts. First, prove to yourself that a timeout actually works — point a call at an address that will never answer, and give it a short maximum wait time. Watch it fail on purpose, quickly, instead of hanging.
-
-Second, build a loop that tries a call multiple times, waiting longer between each failed attempt, and gives up after a fixed number of tries instead of forever.
-
-Things to use:
-
-- `requests.get(url, timeout=(3, 5))` — 3 seconds to connect, 5 seconds to read.
-- `except requests.exceptions.Timeout:` — catches specifically a timeout, not any other failure.
-- `for attempt in range(5):` — try up to 5 times.
-- `time.sleep(2 ** attempt)` — wait longer each time before retrying.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
-
-### Intermediate Version
 
 The exercise has two independent skills that later combine into one function: a **timeout**, and **retry with exponential backoff**.
 
@@ -56,51 +33,7 @@ The extra pieces:
 - `random.uniform(0, 1)` — adds a small random extra wait (jitter) on top of the exponential formula.
 - `compute_backoff_delay(attempt: int) -> float` as its own function, called by the retry loop but tested on its own — this is the shape the Build Task's `compute_backoff_delay` needs to have.
 
-**Difference between Basic and Intermediate:** Basic builds one loop that retries a single caller correctly. Intermediate goes further once you imagine *many* callers failing at the same moment (jitter, so they don't retry in lockstep) and asks how you'd actually verify the backoff math is right without a slow, flaky test that waits through real sleeps (pulling it into its own pure function).
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-part 1 - prove the timeout works:
-    try to call a URL that never answers, with a short timeout
-    catch the timeout error
-    print that it happened
-
-part 2 - retry loop:
-    try up to 5 times:
-        try the call
-        if it works: stop, use the result
-        if it fails: wait longer each time, then try again
-    if all 5 tries failed: give up, print a clear message
-```
-
-Here is almost the whole retry loop — just try running it and reading it line by line:
-```python
-# retry_backoff_practice.py — Intermediate section
-import time
-import requests
-
-for attempt in range(5):
-    try:
-        response = requests.get("http://10.255.255.1", timeout=(1, 2))
-        break
-    except requests.exceptions.Timeout:
-        print("attempt", attempt, "timed out")
-        time.sleep(2 ** attempt)
-```
-**Expected output if all 5 attempts fail:** 5 lines like `attempt 0 timed out` through `attempt 4 timed out`, each followed by a wait, then nothing — right now the loop just falls through silently once `range(5)` runs out. What's missing: what happens if all 5 attempts fail, and the separate small script proving a timeout fires on its own. Add those yourself, then check the Intermediate Version below.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
-
-### Intermediate Version
 
 ```
 part 1:
@@ -122,7 +55,7 @@ part 2:
 ```
 
 ```python
-# retry_backoff_practice.py — Intermediate section
+# retry_backoff_practice.py
 import logging
 import time
 import requests
@@ -164,16 +97,14 @@ function get_with_retry(url, max_attempts=5) -> Response:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
-# retry_backoff_practice.py — Intermediate section
+# retry_backoff_practice.py
 import random
 import time
 import requests
 
-
 def compute_backoff_delay(attempt: int) -> float:
     # your turn: 2 ** attempt, plus a small random amount of jitter
     ...
-
 
 def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
     last_error: Exception | None = None
@@ -189,11 +120,5 @@ def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
 **Expected output, once filled in and called against a real URL that will eventually succeed on attempt 0:** no timeout lines at all — `compute_backoff_delay` is never even called, since the first attempt returns immediately. You'll only see its effect by testing it directly: `print(compute_backoff_delay(3))` should print something a little over `8.0`.
 
 Fill in `compute_backoff_delay` yourself, then compare all of your finished versions against the [Solution](timeout_retry_backoff_solution.md) — its Approach 2 also explains exactly why this one function is worth pulling out on its own.
-
-**Difference between Basic and Intermediate:** same loop shape at 2 completeness levels — Basic proves the pieces work individually. Intermediate combines them into one loop that correctly gives up and re-raises after the limit (Approach 1), then adds jitter (so many failing callers don't retry in lockstep) and moves the backoff math into its own testable function, separate from the part of the code that actually sleeps and makes network calls (Approach 2) — which is exactly the shape the Build Task's `compute_backoff_delay(attempt: int) -> float` needs to have.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
 
 Full solution: [Show me the solution](timeout_retry_backoff_solution.md)

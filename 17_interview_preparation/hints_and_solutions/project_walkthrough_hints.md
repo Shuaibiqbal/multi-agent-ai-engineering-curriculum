@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain answer a nervous first-timer would give) and **Intermediate** (a properly structured senior-level answer, using this document's own Four-Depth Format, then defending the design under direct challenge, or walking through a project cold with zero warm-up). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried.
 
 - [Hint 1 — The idea, and the four beats](#hint-1)
 - [Hint 2 — The plan, and almost the whole walkthrough](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
-
 ## Hint 1 — The idea, and the four beats {: #hint-1 }
-
-### Basic Version
-
-For this hint, use Project 4 (ContentForge: Supervisor-Led Team) as the example, even if you'd normally pick your own — the idea transfers directly to whichever project you actually walk through.
-
-An interviewer who's never seen your project doesn't want a tour of every file. They want the shape of the thing: what problem it solves, what the pieces are, and why you built it that way instead of some other way. Before answering anything, decide on the *order* you'll present things in — problem, then design, then one interesting decision, then what you'd change. Don't start by describing code.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
-
-### Intermediate Version
 
 A project walkthrough is a different skill than answering a factual question — it's **narrative construction under the assumption of zero shared context**. The interviewer has never seen your README, your CURRICULUM.md, or your code. Every acronym or internal name (Doc11, "supervisor pattern") needs either a one-clause explanation or needs to be avoided in favor of a plain description.
 
@@ -43,41 +27,7 @@ The real design question isn't "do I know my project well" — it's "can I defen
 
 Try both before Hint 2: defend the supervisor-vs-fixed-pipeline decision under pushback, and outline a different project's four beats from memory, cold.
 
-**Difference between Basic and Intermediate:** Basic assumes a cooperative interviewer who lets you finish a prepared walkthrough. Intermediate structures it properly, and then covers what happens in a strong interview: someone pokes at your one defended decision with a real alternative, or asks about a project you didn't rehearse — which tests whether the four-beat structure is a habit or a script.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
-
 ## Hint 2 — The plan, and almost the whole walkthrough {: #hint-2 }
-
-### Basic Version
-
-Four things to cover, roughly in this order, using Project 4 as the example:
-
-```
-problem: "teams need short briefs researched, analysed, written and
-          reviewed, without one person doing every step by hand"
-
-shape: "one supervisor agent decides what happens next; specialist agents
-        do research, analysis, writing and review; the supervisor routes
-        between them based on what's already in shared state"
-
-one decision: "I used a supervisor instead of a fixed pipeline, because the
-               reviewer sometimes needs to send work BACK to the writer
-               — a fixed pipeline can't loop, a supervisor can decide that
-               (with a limit of 3 rejections)"
-
-one limitation: "the supervisor's rules always run research first, even
-                 when the task already has the facts — I'd let it skip
-                 stages that aren't needed"
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
-
-### Intermediate Version
 
 The same plan, at the level you'd deliver it live:
 
@@ -146,11 +96,5 @@ for ANY project, on demand:
 practice this shape against a SECOND project you didn't plan to discuss
 tonight, cold, before checking the Solution
 ```
-
-**Difference between Basic and Intermediate:** Basic gets all four beats said plainly. Intermediate gives each beat its real mechanism and trade-off, and then practices the two curveballs — a direct challenge to your decision, and a cold switch to another project — using the same four beats.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
 
 Full solution: [Show me the solution](project_walkthrough_solution.md)

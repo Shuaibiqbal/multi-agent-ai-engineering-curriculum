@@ -4,80 +4,7 @@
 
 **Story — `lcel_patterns_practice.py`:** the LCEL topic names three things every chain can do for free — run steps in parallel, fall back to a backup, and stream. This exercise uses each one once, on purpose, and proves it works. **If not:** Project 6's parallel lookups, fallbacks and streamed replies would be the first time you met `RunnableParallel`, `.with_fallbacks()` and `.stream()`.
 
-## Basic Version
-
-### Approach 1 — each tool once, inline
-
-```python
-# lcel_patterns_practice.py
-import time
-
-import openai
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnableParallel
-from langchain_openai import ChatOpenAI
-
-
-def get_weather(inputs: dict) -> str:
-    time.sleep(1)
-    return "sunny in " + inputs["city"]
-
-
-def get_news(inputs: dict) -> str:
-    time.sleep(1)
-    return "a new park opened in " + inputs["city"]
-
-
-def backup_reply(inputs: dict) -> str:
-    return "Sorry, the assistant is busy. Please try again soon."
-
-
-# part 1: two lookups at the same time
-lookups = RunnableParallel({"weather": get_weather, "news": get_news})
-start = time.time()
-result = lookups.invoke({"city": "Lahore"})
-seconds = time.time() - start
-print("keys:", sorted(result.keys()))
-print(f"took {seconds:.1f} s")
-
-# part 2: a backup when the model can't be reached
-prompt = ChatPromptTemplate.from_template("Write one sentence about {city}.")
-broken_model = ChatOpenAI(
-    model="gpt-4o-mini", base_url="http://127.0.0.1:9", max_retries=0
-)
-chain = prompt | broken_model | StrOutputParser()
-safe_chain = chain.with_fallbacks(
-    [RunnableLambda(backup_reply)],
-    exceptions_to_handle=(openai.APIConnectionError,),
-)
-print("fallback:", safe_chain.invoke({"city": "Lahore"}))
-
-# part 3: the reply in pieces, as it is written
-model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-live_chain = prompt | model | StrOutputParser()
-for chunk in live_chain.stream({"city": "Lahore"}):
-    print(chunk, end="", flush=True)
-print()
-```
-**Expected output** (the last line varies):
-
-```
-keys: ['news', 'weather']
-took 1.0 s
-fallback: Sorry, the assistant is busy. Please try again soon.
-Lahore is a busy, historic city in Pakistan.
-```
-
-All three work. But nothing checks them: you read "1.0 s" with your eyes, and nothing shows that a bug in your own code is *not* hidden by the backup.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-lcel_patterns) · [Hint 1](lcel_patterns_hints.md#hint-1) · [Hint 2](lcel_patterns_hints.md#hint-2) · [Solution](lcel_patterns_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — a named function per tool, each one proved
+## Solution
 
 ```python
 # lcel_patterns_practice.py
@@ -94,27 +21,22 @@ from langchain_openai import ChatOpenAI
 TRANSIENT_ERRORS = (openai.APIConnectionError, openai.RateLimitError)
 BACKUP_TEXT = "Sorry, the assistant is busy. Please try again soon."
 
-
 def get_weather(inputs: dict) -> str:
     # why: the sleep stands in for a slow network call
     time.sleep(1)
     return "sunny in " + inputs["city"]
 
-
 def get_news(inputs: dict) -> str:
     time.sleep(1)
     return "a new park opened in " + inputs["city"]
-
 
 def build_lookup_step() -> Runnable:
     # how: RunnableParallel gives every function the same input, runs
     # them at the same time, and returns a dict with the same keys
     return RunnableParallel({"weather": get_weather, "news": get_news})
 
-
 def backup_reply(inputs: dict) -> str:
     return BACKUP_TEXT
-
 
 def with_backup(chain: Runnable) -> Runnable:
     # how: RunnableLambda turns a plain function into a step that
@@ -122,7 +44,6 @@ def with_backup(chain: Runnable) -> Runnable:
     return chain.with_fallbacks(
         [RunnableLambda(backup_reply)], exceptions_to_handle=TRANSIENT_ERRORS
     )
-
 
 def stream_text(chain: Runnable, inputs: dict) -> str:
     # how: .stream() gives the reply in small pieces; print each one as
@@ -134,10 +55,8 @@ def stream_text(chain: Runnable, inputs: dict) -> str:
     print()
     return text
 
-
 def buggy_step(inputs: dict) -> str:
     return inputs["missing_key"]
-
 
 def main() -> None:
     lookups = build_lookup_step()
@@ -171,7 +90,6 @@ def main() -> None:
     full_text = stream_text(live_chain, {"city": "Lahore"})
     print(f"case 4 (full text)     -> {len(full_text)} characters")
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -185,7 +103,3 @@ case 3 (bug)           -> KeyError still raised
 case 4 (stream)        -> Lahore is a busy, historic city in Pakistan.
 case 4 (full text)     -> 44 characters
 ```
-
-**Difference from Basic:** each tool is a named function — `build_lookup_step()`, `with_backup()`, `stream_text()` — and each is proved: the timing, a real forced outage, a bug that still raises, and the joined text.
-
-**Which one should you actually write?** Intermediate's. Project 6 uses these exact shapes: a `RunnableParallel` lookup step, `.with_fallbacks()` only for transient errors, and a `stream_reply()` that prints and joins the pieces.

@@ -2,32 +2,15 @@
 
 > [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (the full suite, split into the suggested files). Read Basic first even if you already know the pattern — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 - [Solution](#solution)
 
-<hr class="page-break">
-
 > [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Hint 1 — What you're building, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-You're building three pieces that work together: a fixed list of test tasks, a judge that scores an answer against rules, and a runner that goes through every task and reports the result. Then you prove the whole thing works by making a prompt worse on purpose.
-
-Nothing here is new — every piece is one of this document's exercises:
-
-- **Exact tests with no model** → `chunking_unit_test` and `tool_test_no_llm`.
-- **A judge, and a check that the judge can be trusted** → `llm_judge_scoring`.
-- **Checking a short phrase, never the whole answer** → `flaky_test_fix`.
-- **Breaking the prompt on purpose and finding which tasks caught it** → `regression_catch`.
-
-Start with the task list. Don't write any code yet. Write down 10 real tasks you'd give Project 4, and for each one, how you'd know the answer was right — either one fact that must appear, or a few rules about meaning.
-
-### Intermediate Version
 
 Keep the pieces in separate files, one job each:
 
@@ -41,43 +24,9 @@ Keep the pieces in separate files, one job each:
 
 The one design choice worth making on purpose: give the writer one rule that code *and* the judge can both see break — here, "end every brief with a line that starts with `In short:`". Every judge task lists that rule, so deleting it from `writer_prompt.txt` must drop the score.
 
-**Difference between Basic and Intermediate:** Basic names the three pieces and maps each back to an exercise. Intermediate splits them into files with one job each, and plans the regression check from the start — a prompt read from a file, and a rule the tasks can see break.
-
-<hr class="page-break">
-
 > [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-one file, eval_all.py:
-    TASKS: a list of dicts — id, input, and "expected" or "rules"
-    run_project_4(task_input): writer prompt from a file + one model call
-    score_with_judge(task_input, output, rules): PASS/FAIL from a judge call
-
-    for each task:
-        output = run_project_4(task input)
-        if the task has "expected": passed = expected phrase is in output
-        else: passed = the judge says PASS
-        print the task id and PASS/FAIL
-    print how many passed
-```
-
-Here's the trickiest part — choosing a code check or the judge for each task:
-```python
-for task in TASKS:
-    output = run_project_4(task["input"])
-    if "expected" in task:
-        passed = task["expected"].lower() in output.lower()
-    else:
-        passed = score_with_judge(task["input"], output, task["rules"])
-    # your turn: print the result, and count how many passed
-    ...
-```
-
-### Intermediate Version
 
 ```
 tasks.py      TASKS — 4 "expected" tasks, 6 "rules" tasks
@@ -109,113 +58,9 @@ def run_one_task(task: dict) -> dict:
     return {"task_id": task["id"], "passed": passed, "reason": reason}
 ```
 
-<hr class="page-break">
-
 > [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Solution {: #solution }
-
-`run_project_4()` below is a small stand-in for Project 4's real multi-agent graph — one model call with the writer's prompt. Everything around it (tasks, judge, runner, regression check, unit tests) is what this Build Task is about, and doesn't change once you swap the real graph in. Every file lives in `practice/build_task/` and runs from inside that folder, with `OPENAI_API_KEY` in your `.env`.
-
-All versions use this prompt file:
-```
-# practice/build_task/writer_prompt.txt
-You are the writer agent in a content team.
-Write a short, factual brief (under 120 words) on the topic you are given.
-Do not invent statistics or sources.
-End every brief with a final line that starts with "In short:".
-```
-
-Read both depths — they're not "wrong, right," they're 2 real, valid ways to build the same suite, with real tradeoffs between them.
-
-### Basic Version
-
-#### Approach 1 — one file: tasks, judge and runner together
-
-**Story:** before splitting anything, get the whole loop — task in, Project 4 answer, code check or judge, PASS/FAIL out — working in one file you can read top to bottom. **If not:** a bug could be in any of five files at once, and you'd debug the layout instead of the logic.
-
-```python
-# practice/build_task/eval_all.py
-from openai import OpenAI
-
-client = OpenAI()
-
-TASKS = [
-    {"id": "boiling_point",
-     "input": "Write a brief on the boiling point of water at sea level.",
-     "expected": "100"},
-    {"id": "tea_history",
-     "input": "Write a brief on where tea drinking began.",
-     "rules": ["says tea drinking began in China",
-               'ends with a final line that starts with "In short:"']},
-    # ... 8 more tasks, mixing "expected" and "rules"
-]
-
-
-def call_model(system_prompt, user_text):
-    messages = []
-    if system_prompt != "":
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": user_text})
-    response = client.chat.completions.create(
-        model="gpt-4o-mini", temperature=0, messages=messages
-    )
-    return response.choices[0].message.content
-
-
-def run_project_4(task_input):
-    # stand-in for your real Project 4 graph
-    with open("writer_prompt.txt") as f:
-        writer_prompt = f.read()
-    return call_model(writer_prompt, task_input)
-
-
-def score_with_judge(task_input, output, rules):
-    rules_text = ""
-    for rule in rules:
-        rules_text = rules_text + "- " + rule + "\n"
-    prompt = (
-        "Task: " + task_input + "\n"
-        "Answer to check: " + output + "\n"
-        "Rules the answer must follow:\n" + rules_text +
-        "Reply with PASS or FAIL on the first line, "
-        "then one sentence explaining why."
-    )
-    reply = call_model("", prompt)
-    return reply.strip().split("\n")[0].strip().upper() == "PASS"
-
-
-passed_count = 0
-for task in TASKS:
-    output = run_project_4(task["input"])
-    if "expected" in task:
-        passed = task["expected"].lower() in output.lower()
-    else:
-        passed = score_with_judge(task["input"], output, task["rules"])
-    if passed:
-        print(task["id"], "PASS")
-        passed_count = passed_count + 1
-    else:
-        print(task["id"], "FAIL")
-
-print("Passed", passed_count, "of", len(TASKS))
-```
-**Expected output (with all 10 tasks filled in; which judge tasks pass can vary slightly between runs):**
-```
-boiling_point PASS
-tea_history PASS
-...
-Passed 10 of 10
-```
-This proves the loop works. It's still missing the unit layer, a saved report, the reason for each failure, a check of the judge itself, and the regression check — all below.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-test-suite-for-project-4) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Intermediate Version
-
-#### Approach 1 — the suite, split into the suggested files
 
 **Story — `tasks.py`:** the fixed test set, written before anything runs. Facts get a free `"expected"` check; meaning gets `"rules"` for the judge. **If not:** you'd write rules after reading the outputs, and they'd describe whatever the model said instead of what's correct.
 
@@ -271,13 +116,11 @@ from openai import OpenAI
 
 client = OpenAI()
 
-
 def load_writer_prompt() -> str:
     # why: read fresh on every call, so an edit to the file shows up
     # on the next run — this is what the regression check sabotages
     with open("writer_prompt.txt") as f:
         return f.read()
-
 
 def run_project_4(task_input: str) -> str:
     # stand-in for your real Project 4 graph — swap this body for
@@ -306,12 +149,10 @@ client = OpenAI()
 # prompt, change this name
 JUDGE_PROMPT_VERSION = "v1"
 
-
 @dataclass
 class JudgeResult:
     verdict: str
     reason: str
-
 
 def call_model(prompt: str) -> str:
     # how: temperature=0 — a judge should be steady, not creative
@@ -321,7 +162,6 @@ def call_model(prompt: str) -> str:
         messages=[{"role": "user", "content": prompt}],
     )
     return response.choices[0].message.content
-
 
 def build_judge_prompt(task_input: str, output: str, rules: list) -> str:
     rules_text = ""
@@ -334,7 +174,6 @@ def build_judge_prompt(task_input: str, output: str, rules: list) -> str:
         "Reply with PASS or FAIL on the first line, "
         "then one sentence explaining why."
     )
-
 
 def score_with_judge(task_input: str, output: str, rules: list):
     reply = call_model(build_judge_prompt(task_input, output, rules))
@@ -357,7 +196,6 @@ from judge import JUDGE_PROMPT_VERSION, score_with_judge
 from pipeline import run_project_4
 from tasks import TASKS
 
-
 def run_one_task(task: dict) -> dict:
     output = run_project_4(task["input"])
     # when: a task with "expected" gets a free code check;
@@ -370,7 +208,6 @@ def run_one_task(task: dict) -> dict:
         passed = judged.verdict == "PASS"
         reason = judged.reason
     return {"task_id": task["id"], "passed": passed, "reason": reason}
-
 
 def run_eval_suite() -> dict:
     results = []
@@ -406,7 +243,6 @@ def run_eval_suite() -> dict:
 
     return passed_by_id
 
-
 if __name__ == "__main__":
     run_eval_suite()
 ```
@@ -425,14 +261,12 @@ import pytest
 from chunking import chunk_by_paragraph
 from tools import add, flaky_lookup
 
-
 def test_chunk_by_paragraph():
     text = "Paragraph one.\n\nParagraph two.\n\nParagraph three."
     chunks = chunk_by_paragraph(text)
     assert len(chunks) == 3
     assert chunks[0] == "Paragraph one."
     assert chunks[-1] == "Paragraph three."
-
 
 @pytest.mark.parametrize(
     "text,expected_count",
@@ -445,16 +279,13 @@ def test_chunk_by_paragraph():
 def test_chunk_by_paragraph_count(text, expected_count):
     assert len(chunk_by_paragraph(text)) == expected_count
 
-
 def test_add_returns_the_sum():
     assert add.invoke({"a": 2, "b": 3}) == 5
     assert add.invoke({"a": -1, "b": 1}) == 0
 
-
 def test_flaky_lookup_success():
     result = flaky_lookup.invoke({"query": "refund policy"})
     assert result == "Result for refund policy"
-
 
 def test_flaky_lookup_failure():
     result = flaky_lookup.invoke(
@@ -462,7 +293,7 @@ def test_flaky_lookup_failure():
     )
     assert result == "Error: simulated failure"
 ```
-Copy Doc08's `chunking.py` and Doc06's `tools.py` (with `http_client.py`, `exceptions.py` and `logging_setup.py`) into `practice/build_task/` first, unchanged.
+The code under test — `chunk_by_paragraph` (Doc08) and the `add` / `flaky_lookup` tools (Doc06) — is included inline in the build-task files, so the suite runs on its own.
 
 **Expected output (`pytest test_unit_layer.py -q`):**
 ```
@@ -474,114 +305,3 @@ Copy Doc08's `chunking.py` and Doc06's `tools.py` (with `http_client.py`, `excep
 FAILED test_unit_layer.py::test_add_returns_the_sum - AssertionError: ...
 1 failed, 6 passed in 0.24s
 ```
-
-#### Approach 2 — prove the judge and the suite, on purpose
-
-**Story — `test_judge.py`:** `llm_judge_scoring`'s calibration set, pointed at this suite's judge. It must PASS a good brief and FAIL an off-topic one and a confidently wrong one. **If not:** a judge that approves everything would make every run look perfect.
-
-```python
-# practice/build_task/test_judge.py
-# Calls the real judge — run it whenever judge.py's prompt changes.
-from judge import score_with_judge
-
-TASK_INPUT = "Write a brief on where tea drinking began."
-RULES = [
-    "says tea drinking began in China",
-    'ends with a final line that starts with "In short:"',
-]
-
-# why: answers where YOU already know the right verdict
-CALIBRATION_SET = [
-    {"output": "Tea drinking began in ancient China, where it was "
-               "first used as a medicine.\nIn short: tea started "
-               "in China.",
-     "expected_verdict": "PASS"},
-    {"output": "I like pizza.",
-     "expected_verdict": "FAIL"},
-    {"output": "Tea drinking began in Brazil in the 1900s.\n"
-               "In short: tea is Brazilian.",
-     "expected_verdict": "FAIL"},
-]
-
-
-def test_judge_calibration():
-    for case in CALIBRATION_SET:
-        result = score_with_judge(TASK_INPUT, case["output"], RULES)
-        assert result.verdict == case["expected_verdict"], result.reason
-```
-**Expected output (`pytest test_judge.py -v`):**
-```
-test_judge.py::test_judge_calibration PASSED
-```
-
-**Story — `regression_check.py`:** `regression_catch`'s pass bar and per-task list, run against the real suite. **If not:** "the suite would catch a regression" would stay a belief, never a result.
-
-```python
-# practice/build_task/regression_check.py
-from run_eval import run_eval_suite
-
-# why: decided BEFORE sabotaging, so the result can't be
-# explained away afterwards
-PASS_BAR = 0.8
-
-
-def score(passed_by_id: dict) -> float:
-    passed = 0
-    for task_id in passed_by_id:
-        if passed_by_id[task_id]:
-            passed = passed + 1
-    return passed / len(passed_by_id)
-
-
-def find_newly_failed(baseline: dict, after: dict) -> list:
-    newly_failed = []
-    for task_id in baseline:
-        if baseline[task_id] and not after[task_id]:
-            newly_failed.append(task_id)
-    return newly_failed
-
-
-def run_regression_check() -> None:
-    print("--- baseline run ---")
-    baseline = run_eval_suite()
-    input('Delete the "In short:" line from writer_prompt.txt, save, '
-          "then press Enter...")
-    print("--- after sabotage ---")
-    after = run_eval_suite()
-
-    newly_failed = find_newly_failed(baseline, after)
-    print(f"score: {score(baseline):.2f} -> {score(after):.2f}")
-    if score(baseline) >= PASS_BAR and score(after) < PASS_BAR:
-        print("PASS: the suite caught it. Newly failing:")
-        for task_id in newly_failed:
-            print("  " + task_id)
-    else:
-        print("FAIL: the suite did NOT catch it. Tighten the rules.")
-
-
-if __name__ == "__main__":
-    run_regression_check()
-```
-**Expected output (`python regression_check.py`; the second run's `FAILED` lines are shortened here):**
-```
---- baseline run ---
-Passed 10/10 (score: 1.00)
-Delete the "In short:" line from writer_prompt.txt, save, then press Enter...
---- after sabotage ---
-Passed 4/10 (score: 0.40)
-  FAILED sleep_students: The brief does not end with an "In short:" line.
-  ...
-score: 1.00 -> 0.40
-PASS: the suite caught it. Newly failing:
-  sleep_students
-  remote_work
-  password_safety
-  solar_power
-  tea_history
-  recycling
-```
-The 4 fact tasks still pass — the sabotage didn't touch facts — and all 6 judge tasks fail on the one rule that was removed. Put the line back in `writer_prompt.txt` when you're done.
-
-**Difference from Basic:** Approach 1 splits the single file into one job per file, adds the reason for each failure and a saved `report.json`, and adds the unit layer that points at the exact broken function. Approach 2 proves the two things a green run can't: that the judge fails obviously bad answers, and that the whole suite drops when the prompt gets worse.
-
-**Which one should you actually write?** Basic Approach 1 first, to see the loop work end to end. Then Intermediate Approach 1 and 2 together — that's what the Requirements ask for. Run `pytest test_unit_layer.py` on every change (it's free), `python run_eval.py` before every prompt or model change, `test_judge.py` whenever `judge.py`'s prompt changes, and `regression_check.py` once per new rule you add — to prove the suite can see it break.

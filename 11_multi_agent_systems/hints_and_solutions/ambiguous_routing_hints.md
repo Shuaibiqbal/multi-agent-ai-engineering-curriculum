@@ -2,35 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, including how a real supervisor system handles genuinely ambiguous cases). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-`supervisor_compare` built a supervisor for a task where the right order was never actually in question — research always comes before write. This exercise deliberately builds the opposite: two specialists whose jobs genuinely overlap, so the supervisor has a real decision to make, and can get it wrong.
-
-Pick two specialists with descriptions that sound similar on purpose — for example a `research_agent` ("looks things up") and an `analysis_agent` ("figures out what data means"), where a prompt like "find out why sales dropped last quarter" could reasonably go to either one first.
-
-Things to use:
-
-- Two specialist node functions, each with a clearly written one-sentence description (this is what the supervisor's prompt will show the model).
-- An LLM-based supervisor (like `supervisor_compare`'s LLM-based variant), since an `if`-based router can't make a genuinely ambiguous call at all.
-- 5 test prompts, written to sit right on the boundary between the two specialists.
-- A log that records which specialist got picked for each prompt.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
-
-### Intermediate Version
 
 The two specialist descriptions are the entire experiment here — write them first, and write them so they genuinely overlap, not so one is obviously right:
 
@@ -59,42 +36,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic names the two overlapping specialists and the exact pieces (LLM-based router, 5 boundary prompts, a log) for a first working ambiguous-routing setup. Intermediate writes real, genuinely-overlapping descriptions, adds repeated runs to check consistency, then asks the harder question underneath "which one got picked" — what happens when the pick was the less useful one — and adds a guard-and-recover mechanism, which is the same "don't let a bad handoff silently produce a confident wrong answer" idea Core Concepts' Error propagation section names directly.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-research_agent: "Looks up facts and data relevant to the task."
-analysis_agent: "Interprets data and explains what it means."
-
-supervisor_node:
-    ask the model to pick research_agent or analysis_agent for the task,
-    given both descriptions
-    log the task and the pick
-
-5 test prompts, on purpose ambiguous, for example:
-    "find out why sales dropped last quarter"
-    "what does this survey data actually tell us"
-    "look into the causes of the outage"
-    "explain what happened to our conversion rate"
-    "dig into the reasons behind the delay"
-
-run all 5 through the supervisor, print the routing log
-```
-
-**Expected output if you run just this (nothing calls the graph yet):** nothing — a graph isn't invoked until you call `graph.invoke(...)` with a real prompt. Add a loop over the 5 prompts, invoking the graph for each one, to see the routing log fill in.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
-
-### Intermediate Version
 
 ```python
 # supervisor_routing_practice.py
@@ -107,11 +49,9 @@ SPECIALISTS = {
     "analysis_agent": "Interprets data and explains what it means.",
 }
 
-
 class RoutingState(TypedDict):
     task: str
     picked: str
-
 
 def supervisor(state: RoutingState) -> Command:
     lines = []
@@ -127,7 +67,6 @@ def supervisor(state: RoutingState) -> Command:
     response = model.invoke(prompt)
     picked = response.content.strip()
     return Command(update={"picked": picked}, goto=END)
-
 
 builder = StateGraph(RoutingState)
 builder.add_node("supervisor", supervisor)
@@ -175,7 +114,6 @@ class RoutingState(TypedDict):
     research_data: str
     misrouted: bool
 
-
 def analysis_agent(state: RoutingState) -> Command:
     if not state.get("research_data"):
         # this specialist was picked, but has nothing to analyze yet
@@ -186,7 +124,6 @@ def analysis_agent(state: RoutingState) -> Command:
     # ... do the real analysis here ...
     return Command(update={}, goto=END)
 
-
 def research_agent(state: RoutingState) -> Command:
     # your turn: fill in research_data, then decide where to go next --
     # if this run started as a misroute (state["misrouted"]), it should
@@ -195,11 +132,5 @@ def research_agent(state: RoutingState) -> Command:
 ```
 
 Fill in `research_agent` yourself, run the full tally across all 5 prompts x 3 attempts, then compare your written conclusion against the [Solution](ambiguous_routing_solution.md).
-
-**Difference between Basic and Intermediate:** the same underlying shape (2 overlapping specialist descriptions, an LLM decides, a log records the pick), at more completeness — Basic sketches the prompts and confirms nothing runs until invoked; Intermediate is a complete, working router you can run repeatedly to check consistency, plus the guard-and-recover mechanism that turns a misroute from a silent wrong answer into a visible, logged, recoverable second hop.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
 
 Full solution: [Show me the solution](ambiguous_routing_solution.md)

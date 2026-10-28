@@ -2,33 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, plus making the failure message actually useful). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-Take your Intermediate exercise's conditional edge and deliberately break the routing function so it sometimes returns a string that isn't one of the mapping's keys — like returning `"path_c"` when the mapping only knows `"path_a"` and `"path_b"`. Run it, and actually read the error LangGraph gives you, instead of guessing.
-
-The question this exercise is really asking: does an unrecognized routing value fail loudly and clearly (good — you'll notice immediately), or does it silently do something unexpected, like defaulting to some node anyway (bad — you'd never notice until something was already wrong)?
-
-Things to use:
-
-- Your Intermediate exercise's graph, with `route` changed to sometimes return an unmapped string.
-- A `try`/`except` around `graph.invoke(...)` so you can read the exception type and message without your script just crashing.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
-
-### Intermediate Version
 
 `add_conditional_edges("from_node", route, {"path_a": "node_a", "path_b": "node_b"})` builds, internally, a lookup: call `route(state)`, then look up whatever it returned in that mapping to find the real next node. A plain dict lookup with a missing key raises `KeyError` — and that's exactly what happens here too: LangGraph doesn't quietly fall through to some default node, it lets the lookup fail, which surfaces as an exception at the moment that branch actually runs (**not** when you call `compile()` — the mapping isn't checked until the routing function's return value is actually looked up during a real `invoke()`).
 
@@ -52,7 +31,6 @@ class UnhandledRouteError(Exception):
     """Raised when route() produces a value the graph's mapping
     doesn't handle."""
 
-
 def route(state: AgentState) -> str:
     if state["flag"] is None:
         result = "path_c"  # deliberately not in the mapping
@@ -72,53 +50,7 @@ def route(state: AgentState) -> str:
     return result
 ```
 
-**Difference between Basic and Intermediate:** Basic establishes the fact this exercise is testing for — an unmapped value fails loudly, via a `KeyError`-style lookup failure, at invoke time rather than compile time. Intermediate doesn't change *whether* it fails — it changes *how useful the failure is*, by adding your own explicit check that raises a named `UnhandledRouteError` with a message naming your routing function, the actual bad value, and the state that produced it, instead of relying on a generic error from several layers inside the library.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-reuse the conditional-routing graph from the Intermediate exercise
-
-change route so it can return "path_c"
-    -- a string the mapping doesn't know about
-
-wrap the invoke call in try/except
-
-run it once with a normal input (flag=True) -- confirm it still works
-run it once with the input that triggers "path_c" -- read the actual exception
-```
-
-Here's almost the whole thing — just try running it and reading it line by line:
-```python
-# conditional_routing_practice.py — Edge cases section
-def route(state):
-    if state["flag"] is None:
-        return "path_c"
-    if state["flag"]:
-        return "path_a"
-    return "path_b"
-
-# ... same graph wiring as conditional_routing,
-# mapping only has path_a/path_b ...
-
-try:
-    graph.invoke({"flag": None, "message": ""})
-except Exception as e:
-    print(type(e).__name__, "-", e)
-```
-**Expected output if you run just this:** nothing prints unless the exception actually gets raised — that only happens once `invoke` runs the broken branch. Run it and read exactly what type of exception you got and what its message says.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
-
-### Intermediate Version
 
 ```
 same graph as the Intermediate exercise (conditional_routing), but:
@@ -185,11 +117,5 @@ which one would actually help you debug this faster at 2am?
 ```
 
 Try writing this yourself, then compare your own message quality against the [Solution](unhandled_routing_value_solution.md).
-
-**Difference between Basic and Intermediate:** Basic confirms the fact — an unmapped routing value fails loudly, at invoke time, via whatever error LangGraph's internal lookup raises. Intermediate adds a check inside `route()` itself, raising a specific, named `UnhandledRouteError` so the failure carries a message written for a human debugging *your* graph, not a generic error from inside the library's branch-running code.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
 
 Full solution: [Show me the solution](unhandled_routing_value_solution.md)

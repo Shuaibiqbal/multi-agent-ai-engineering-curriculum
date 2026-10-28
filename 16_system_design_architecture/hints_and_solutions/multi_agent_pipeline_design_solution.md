@@ -4,33 +4,11 @@
 
 **Story — `multi_agent_pipeline_design.md`:** Project 4's shape, designed fresh from a request instead of followed from a guide — phases, pattern, state, and what happens when a check fails. **If not:** you'd only ever have built multi-agent systems someone else already designed.
 
-Write your own design first, in `practice/multi_agent_pipeline_design.md`. Read both depths — they're not "wrong, right," they're 2 real levels of the same design, with real differences in how well they hold up under review.
+Write your own design first, in `practice/multi_agent_pipeline_design.md`.
 
 The request: "research a topic, draft an article, fact-check it, only publish if fact-check passes."
 
-## Basic Version
-
-### Approach 1 — the direct way
-
-**Story:** get the phases and the loop-back right first — researcher, writer, fact-checker, and "send it back" on a failed check. **If not:** you'd argue about failure handling for a pipeline whose basic shape isn't settled yet.
-
-A reasonable, working design:
-
-- **Agents:** researcher → writer → fact-checker (Doc11's sequential pipeline pattern — this is a direct rehearsal of Project 4's shape).
-- **Tools:** researcher has a web/knowledge-base search tool; writer has none beyond the LLM itself; fact-checker has a tool to re-check claims against the researcher's sources.
-- **State:** the draft text and the fact-checker's notes, passed along the chain.
-- **Routing:** if fact-check passes, publish. If it fails, send the draft back to the writer with the fact-checker's notes, and try again.
-- **Failure handling:** none specified beyond "try again" — this is the gap the Intermediate version fixes.
-
-This gets the phases and the basic loop-back right, which is most of the exercise's point — designing the shape fresh instead of following steps that already decided it.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
-
-## Intermediate Version
-
-### Approach 1 — the same design, hardened for review
+## Solution
 
 **Story:** a loop without a limit, and a single "try again" for every kind of failure, are the two places this pipeline breaks for real. A cap, an escalation path, and two different loop-back targets fix both. **If not:** some articles would loop forever, and missing research would be sent to the writer to "fix" by rewording.
 

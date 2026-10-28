@@ -1,12 +1,12 @@
 # Multi-Agent AI Engineering Curriculum
 
-A self-study curriculum for building production-grade multi-agent AI systems — 20 documents, 13 core projects, 3 real-world example projects, and 16 practice twins, from Python fundamentals to a deployed, tested, multi-agent platform.
+A self-study curriculum for building production-grade multi-agent AI systems — 20 documents, 13 core projects, 7 real-world example projects, and 20 practice twins, from Python fundamentals to a deployed, tested, multi-agent platform.
 
 This is not a theory course. Every document pairs its concepts with hands-on practice exercises (each with progressive hints and full worked solutions), and every project is real, runnable code you build yourself, step by step.
 
 ## How this curriculum is structured
 
-- **20 documents** (`01_python_foundations/` → `20_web_frontends/`) — each one teaches a topic through simple-English "Core Concepts," then a set of practice exercises with a 2-hint, 3-depth (Basic/Intermediate/Advanced) hint system and full solutions, then a Build Task that feeds directly into the projects below.
+- **20 documents** (`01_python_foundations/` → `20_web_frontends/`) — each one teaches a topic through simple-English "Core Concepts," then a set of practice exercises, each with 2 progressive hints and one clear, worked solution, then a Build Task that feeds directly into the projects below.
 - **13 projects** (`project_1_supportdesk_chat_and_triage/` → `project_13_codeguard_pr_review/`) — real multi-agent systems you build across the documents, growing from a 2-agent terminal app to a tested, deployed, production-ready platform — each with a **practice twin** (a second build in a new story; see below).
 - Every document and project is delivered as both a `README.md` (source) and a matching `README.pdf` (for comfortable reading), with fully clickable internal links between exercises, hints, and solutions.
 
@@ -65,6 +65,10 @@ Beyond the numbered arc, these are standalone **real-world example projects** �
 | 14 | [InvoiceIQ — PDF Invoice Data Extraction & Validation](project_14_invoiceiq_document_extraction/) | Document loaders, structured output, Pydantic validation | Pipeline that extracts and *checks* invoice data |
 | 15 | [MeetingMind — Transcript to Decisions, Actions & Summary](project_15_meetingmind_transcript_intelligence/) | Multi-agent, `RunnableParallel`, structured output | Team of parallel extractors + a compiler |
 | 16 | [JobMatch — Resume to Job-Description Skill Matcher](project_16_jobmatch_resume_jd_matcher/) | RAG (semantic matching), structured output | Resume scorer that matches by meaning, not keywords |
+| 17 | [DeflectDesk — Support Bot With Confidence-Gated Human Escalation](project_17_deflectdesk_rag_escalation/) | RAG, LangGraph `interrupt` (human-in-the-loop) | Bot that answers when confident, escalates to a human when not |
+| 18 | [ResearchPilot — Planner-Executor Research Agent With Cited Reports](project_18_researchpilot_planner_executor/) | Plan-first agent, RAG, citations | Agent that plans sub-questions, researches each, cites sources |
+| 19 | [RepoSage — Codebase Q&A Assistant With File Citations](project_19_reposage_codebase_qa/) | RAG over code, file citations | Assistant that answers codebase questions from the source |
+| 20 | [SQLSage — Natural-Language-to-SQL Analytics Agent](project_20_sqlsage_nl_to_sql_agent/) | Structured output, deterministic safety guard, SQLite | Agent that answers plain-English questions with guarded read-only SQL |
 
 ## Practice Twins
 
@@ -88,6 +92,10 @@ Each project has a **practice twin** — the same skills in a brand-new real-wor
 | Project 14 | [ReceiptRadar — Expense-Receipt Extraction & Policy Check](project_14.1_receiptradar_expense_policy_check/) | its story + solution |
 | Project 15 | [FeedbackLens — Customer-Feedback Batch Analyzer](project_15.1_feedbacklens_review_analyzer/) | its story + solution |
 | Project 16 | [CourseFit — Course Prerequisite Readiness Checker](project_16.1_coursefit_prerequisite_checker/) | its story + solution |
+| Project 17 | [ITDesk — IT Helpdesk Bot With Human Escalation](project_17.1_itdesk_helpdesk_escalation/) | its story + solution |
+| Project 18 | [LessonForge — Topic to Cited Lesson-Plan Builder](project_18.1_lessonforge_lesson_builder/) | its story + solution |
+| Project 19 | [DocsGenie — Product-Documentation Q&A With Source-Page Citations](project_19.1_docsgenie_documentation_qa/) | its story + solution |
+| Project 20 | [ShelfQuery — Library-Catalog Q&A in Plain English (Read-Only SQL)](project_20.1_shelfquery_library_sql_agent/) | its story + solution |
 
 ## How to use this
 

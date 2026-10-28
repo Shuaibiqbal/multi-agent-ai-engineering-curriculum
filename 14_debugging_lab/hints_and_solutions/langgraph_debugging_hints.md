@@ -9,10 +9,6 @@ One scenario, followed across all 4 rounds: Doc09's Build Task graph (the one th
 - [Round 3: Real-world](#round-real-world)
 - [Round 4: Multi-agent](#round-multi-agent)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Solution](langgraph_debugging_solution.md)
-
 ## Round: Basic {: #round-basic }
 
 **Setup:**
@@ -45,10 +41,6 @@ KeyError: 'finish'
 - Actual: LangGraph raises immediately with a bare `KeyError: 'finish'` — no node name, no hint, just the one word it couldn't find.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Solution](langgraph_debugging_solution.md)
 
 ## Round: Intermediate {: #round-intermediate }
 
@@ -85,10 +77,6 @@ Both nodes can run in the same graph run, one after the other, when a task needs
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Solution](langgraph_debugging_solution.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Setup:** state merging is fixed. The routing function decides whether to search again or finish:
@@ -115,10 +103,6 @@ hitting a stop condition. You can increase the limit by setting the
 - Actual: for most questions it finishes quickly. For a specific kind of question — one where the search results are consistently a little relevant but never quite enough to push confidence above 0.5 — it loops all the way to the hard recursion limit before failing, wasting 25 rounds of tool calls first.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Solution](langgraph_debugging_solution.md)
 
 ## Round: Multi-agent {: #round-multi-agent }
 
@@ -155,9 +139,5 @@ graph.add_conditional_edges("reviewer", review_route, {
 - Actual: the loop has no revision cap at all — `review_route` only ever checks `review_passed`, with no counter anywhere in state — so if the Reviewer is asking for something the Writer structurally can't produce (because, as it happens, that "compliance detail" was never actually written into `research_findings` by the Research agent to begin with), the two agents can disagree forever, and nothing stops them.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Solution](langgraph_debugging_solution.md)
 
 Full solution: [Show me the solution](langgraph_debugging_solution.md)

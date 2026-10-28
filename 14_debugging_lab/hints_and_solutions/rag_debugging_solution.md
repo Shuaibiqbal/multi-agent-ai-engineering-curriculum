@@ -12,10 +12,6 @@ Every fix and test below goes in `practice/rag_debugging_practice.py`, and runs 
 - [Round 4: Multi-agent](#round-multi-agent)
 - [Real cause vs. symptom fix](#real-cause-vs-symptom-fix)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Hints](rag_debugging_hints.md)
-
 ## Round: Basic {: #round-basic }
 
 **Real cause:** `text[start:end - 1]` — the `- 1` is an off-by-one slicing mistake. Python slicing (`text[start:end]`) already stops one character before `end`; subtracting 1 again drops one more character from every chunk — here, the space at each boundary.
@@ -45,10 +41,6 @@ def test_chunk_by_chars_reproduces_the_original_text():
 ```
 "Joined chunks equal the input" is a strong, simple check for any chunker without overlap — it catches dropped characters, doubled characters and off-by-one errors in one line.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Hints](rag_debugging_hints.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Real cause:** documents were embedded with one model (`text-embedding-3-small`) and questions are now embedded with a different one (`text-embedding-3-large`). Different embedding models don't share the same number space — comparing a `-large` question vector with `-small` document vectors compares two unrelated coordinate systems, so every score comes back low and meaningless. Nothing raises an error, because both models return valid-looking vectors — which is why this first looks like a generation problem, not a config mismatch.
@@ -72,10 +64,6 @@ def test_index_and_query_use_the_same_embedding_model():
     assert INDEX_EMBED_MODEL == QUERY_EMBED_MODEL
 ```
 A one-line test, but it turns a silent quality drop into a loud, named failure the moment someone edits only one side.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Hints](rag_debugging_hints.md)
 
 ## Round: Real-world {: #round-real-world }
 
@@ -114,10 +102,6 @@ def test_answer_on_a_chunk_boundary_is_still_whole_in_one_chunk():
 ```
 With no overlap, the answer is split at character 100 and the test fails; with 50 characters of overlap, one chunk holds the whole sentence. This is Doc08's own `chunk_boundary_split` exercise, turned into a test.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Hints](rag_debugging_hints.md)
-
 ## Round: Multi-agent {: #round-multi-agent }
 
 **Real cause:** the Research agent writes only a plain-text summary into shared state, dropping the score and source the retriever returned. The Analysis agent's "flag unsourced claims" check works exactly as designed — it just never receives the sources it needs, because they were thrown away one node earlier. Retrieval and generation were both correct; the bug is in what one agent chose to write into shared state.
@@ -129,23 +113,19 @@ With no overlap, the answer is split at character 100 and the test fails; with 5
 from typing import TypedDict
 from langgraph.types import Command
 
-
 class SharedState(TypedDict):
     task: str
     research_findings: str
     research_sources: list   # [{"text": ..., "score": ..., "source": ...}]
-
 
 def retrieve(question, k):
     # stand-in for the real retriever from Doc08
     return [{"text": "Customers have 30 days to request a refund.",
              "score": 0.91, "source": "policy.md"}]
 
-
 def summarize_findings(results):
     # stand-in for the Research agent's own summary call
     return "Customers can request a refund within 30 days."
-
 
 def research_node(state):
     results = retrieve(state["task"], k=3)
@@ -174,10 +154,6 @@ def test_research_node_passes_sources_on_to_analysis():
     assert sources[0]["source"] == "policy.md"
 ```
 The test checks the Research node's shared-state *update*, not whether the retriever found the right chunk — that's exactly the part that was broken.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Hints](rag_debugging_hints.md)
 
 ## Real cause vs. symptom fix {: #real-cause-vs-symptom-fix }
 

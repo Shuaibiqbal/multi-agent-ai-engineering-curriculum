@@ -4,6 +4,10 @@
 
 **Tech:** Python · FastAPI · SQLite · Docker · pytest · LangGraph · OpenAI API  ·  **Type:** Multi-agent service (Supervisor + 4 specialists, behind an API)  ·  **Level:** Upper-Intermediate
 
+## Demo
+
+![ContentForge Pro — demo](assets/demo.png)
+
 ## Overview
 
 ContentForge Pro turns a topic into a short, sourced, reviewed article — over HTTP. A client sends `POST /run-task` with a topic; a supervisor-led team of agents (Research, Analysis, Writer, Reviewer) writes the article; the API returns it with whether the Reviewer approved it and why the run stopped.

@@ -4,6 +4,10 @@
 
 **Tech:** Python · official `mcp` SDK (MCPServer) · SQLite · MCP Inspector  ·  **Type:** MCP server + client (no LLM call inside)  ·  **Level:** Intermediate (bonus)
 
+## Demo
+
+![MCPForge — demo](assets/demo.png)
+
 ## Overview
 
 MCPForge exposes a small "Local Notes & Tasks" capability — add notes, search them, read them, summarize them — over one standard protocol instead of hardcoded into a single app. Any MCP-compatible client connects, discovers what the server offers at runtime (`list_tools` / `list_resources` / `list_prompts`), and calls whatever it needs by name, with no knowledge of the server's internals. There is no LLM call anywhere inside the server — this is about the protocol, and about getting the Tool / Resource / Prompt distinction right.

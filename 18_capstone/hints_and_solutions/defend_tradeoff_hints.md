@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
 
-Only 2 hints — work through them in order against your own design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing — how to pick a decision and find a real objection) and **Intermediate** (the real structure a defense needs, then the senior-level judgment call — defending it under a second, harder round of pushback, not just the first objection). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own design before reading ahead.
 
 - [Hint 1 — The idea, and finding a real objection](#hint-1)
 - [Hint 2 — The plan, and a worked defense](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
-
 ## Hint 1 — The idea, and finding a real objection {: #hint-1 }
-
-### Basic Version
-
-Pick a decision from your design that has a real, sensible alternative — not something that's obviously correct. "I used LangGraph" isn't debatable if the whole curriculum used LangGraph. "I gave the supervisor full control over routing instead of a fixed sequence" is debatable — a fixed sequence is simpler, and simpler is often better.
-
-Once you've picked one, write the strongest case *against* your own choice before you write your defense of it. This is the part people skip, and it's the part that actually makes the exercise work.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
-
-### Intermediate Version
 
 Doc16's framing of "defending a design when it's pushed on" applies here directly: the goal isn't to win the argument, it's to show you *actually weighed* the alternative, not just picked the first option you thought of. A defense that just restates the choice ("I did X because X is good") isn't a defense — it's a preference.
 
@@ -43,32 +27,7 @@ A second, related curveball worth rehearsing: the reviewer names a *different* d
 
 Try defending your chosen decision through two full rounds of pushback — first on the decision, then on your own mitigation — before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic states the decision, the strongest objection, and an honest answer. Intermediate names what the alternative would really have cost and the mitigation you built — and then holds up when the reviewer attacks the mitigation itself, or finds a second decision that conflicts with the first.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
-
 ## Hint 2 — The plan, and a worked defense {: #hint-2 }
-
-### Basic Version
-
-```
-pick a real, debatable decision from your design
-
-write the strongest objection to it (not a weak one)
-
-answer:
-    what would the alternative have actually cost me, for THIS system?
-    what does my choice cost me, that I'm accepting on purpose?
-    would I actually change my mind if pushed harder? if yes, say so.
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
-
-### Intermediate Version
 
 ```
 Decision: state it in one sentence, plainly.
@@ -136,11 +95,5 @@ Round 2 answer: fill this in yourself before checking the Solution --
 ```
 
 Write your own Round 2 answer, then compare against the [Solution](defend_tradeoff_solution.md).
-
-**Difference between Basic and Intermediate:** Basic plans one round of pushback. Intermediate plans for the second round too: separating what your fix covers from what it doesn't, and conceding a real gap with a prioritisation reason instead of inventing a justification.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
 
 Full solution: [Show me the solution](defend_tradeoff_solution.md)

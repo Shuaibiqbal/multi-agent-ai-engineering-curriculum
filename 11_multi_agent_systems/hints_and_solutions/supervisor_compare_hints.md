@@ -2,37 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, including how a real supervisor graph handles the messy edge cases). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-This is the same `research`/`write` task as `sequential_measure`, but now a small LangGraph graph with a supervisor node decides who runs, instead of your code calling the two functions directly in a fixed order.
-
-The two functions themselves don't need to change at all — reuse them exactly. What's new is a router in front of them, and a graph structure to run it through.
-
-Before coding, reread this document's "Every pattern" table's Supervisor row — the entire point of this exercise is to check whether its predicted trade-offs actually show up in real numbers.
-
-Things to use:
-
-- Your existing `research()` and `write()` functions from `sequential_measure`, unchanged.
-- `from langgraph.graph import StateGraph, START, END`
-- `from langgraph.types import Command` — the supervisor node returns one of these.
-- A shared state shape holding the task, the research result, the write result, and a routing log.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
-
-### Intermediate Version
 
 A minimal supervisor graph needs:
 
@@ -60,50 +35,13 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic names the reused functions and the exact LangGraph pieces (`Command`, `StateGraph`) for a first working supervisor. Intermediate builds a real, working router using cheap `if`-based logic, wires measurement into every node, then asks whether that cheap router is actually telling you the truth about the supervisor pattern's real cost — an LLM-based router is what production supervisor systems actually use, and only measuring that version tells you the real story `paper_design`'s prediction was trying to guess at.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-state has: task, research_text, summary, routing_log, tokens, seconds
-
-supervisor_node:
-    if no research_text yet -> go to research_node, log "routed to research"
-    else if no summary yet -> go to write_node, log "routed to write"
-    else -> done
-
-research_node:
-    run research(task), save result + tokens + seconds, go back to supervisor
-
-write_node:
-    run write(research_text), save result + tokens + seconds, go back
-    to supervisor
-
-run the same 3 topics through this graph and through
-sequential_measure's pipeline
-compare: total tokens, total seconds, routing_log length
-```
-
-**Expected output if you run just this (nothing calls the graph yet):** nothing — a graph isn't invoked until you call `graph.invoke(initial_state)` with a real starting state. Build the state dict and call it to see `routing_log` fill in as the graph runs.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
-
-### Intermediate Version
 
 ```python
 # architecture_comparison_practice.py — Real-world section
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
-
 
 class SupervisorState(TypedDict):
     task: str
@@ -113,7 +51,6 @@ class SupervisorState(TypedDict):
     total_tokens: int
     total_seconds: float
 
-
 def supervisor(state: SupervisorState) -> Command:
     if not state.get("research_text"):
         log = state["routing_log"] + ["research"]
@@ -122,7 +59,6 @@ def supervisor(state: SupervisorState) -> Command:
         log = state["routing_log"] + ["write"]
         return Command(update={"routing_log": log}, goto="write_node")
     return Command(goto=END)
-
 
 def research_node(state: SupervisorState) -> Command:
     result = research(state["task"])  # from sequential_measure
@@ -134,7 +70,6 @@ def research_node(state: SupervisorState) -> Command:
         },
         goto="supervisor",
     )
-
 
 def write_node(state: SupervisorState) -> Command:
     result = write(state["research_text"])  # from sequential_measure
@@ -203,11 +138,5 @@ def supervisor_llm(state: SupervisorState) -> Command:
 ```
 
 Fill in the mapping yourself, run both supervisor variants against the same 3 topics and against `sequential_measure`'s numbers, then compare your written conclusion against the [Solution](supervisor_compare_solution.md).
-
-**Difference between Basic and Intermediate:** the same underlying graph shape (state, supervisor, two specialist nodes, `Command` handoffs), at more completeness — Basic sketches the pseudocode and confirms nothing runs until you invoke the graph; Intermediate is a complete, working, free-routing supervisor with measurement wired into every node, plus a second supervisor variant that actually pays for its own routing decision with a real LLM call, which is the version that tells the truth about the pattern's full cost.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
 
 Full solution: [Show me the solution](supervisor_compare_solution.md)

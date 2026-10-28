@@ -4,6 +4,10 @@
 
 **Tech:** Python · OpenAI API · Pydantic · python-dotenv  ·  **Type:** Multi-agent (2 agents + router)  ·  **Level:** Beginner
 
+## Demo
+
+![SupportDesk AI — demo](assets/demo.png)
+
 ## Overview
 
 A 2-agent support desk that runs in your terminal. A **Concierge** agent chats naturally and remembers the conversation. A **Triage** agent turns a messy, free-text complaint into a clean, validated support ticket. A **router** decides, for every message, which agent should handle it — so the user never has to pick a mode.

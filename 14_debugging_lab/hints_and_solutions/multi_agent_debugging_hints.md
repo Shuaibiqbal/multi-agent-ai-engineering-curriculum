@@ -9,10 +9,6 @@ One scenario, followed across all 4 rounds: Doc11's Project 4 supervisor (`agent
 - [Round 3: Real-world](#round-real-world)
 - [Round 4: Multi-agent](#round-multi-agent)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Solution](multi_agent_debugging_solution.md)
-
 ## Round: Basic {: #round-basic }
 
 **Setup:** the supervisor node hands off to a specialist using `Command`:
@@ -45,10 +41,6 @@ unknown channel branch:to:Reserach, ignoring it.
 - Actual: LangGraph logs one warning line and ends the run quietly — nothing raises, so nothing in your `try/except` or your error alerts ever sees it.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Solution](multi_agent_debugging_solution.md)
 
 ## Round: Intermediate {: #round-intermediate }
 
@@ -88,10 +80,6 @@ class SharedState(TypedDict):
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Solution](multi_agent_debugging_solution.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Setup:** the field-name bug is fixed. The supervisor picks between two specialists using an LLM call, given each specialist's description:
@@ -126,10 +114,6 @@ SPECIALISTS = {
 - Actual: for tasks that genuinely need both "finding" and "interpreting," the supervisor's routing flips unpredictably between the two specialists depending on exact wording — because both specialist descriptions genuinely apply, and the supervisor has no tiebreaker.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Solution](multi_agent_debugging_solution.md)
 
 ## Round: Multi-agent {: #round-multi-agent }
 
@@ -181,9 +165,5 @@ def reviewer_node(state):
 - Actual: Research and Analysis were fixed to use `finding`, but the Reviewer still reads the old `research_findings` field — which nobody writes, so it's always empty — and its check treats empty findings as "the draft doesn't reflect the findings". So it rejects every draft. Neither pair test could catch this, because each one used whichever field name its own author picked.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Solution](multi_agent_debugging_solution.md)
 
 Full solution: [Show me the solution](multi_agent_debugging_solution.md)

@@ -4,6 +4,10 @@
 
 **Tech:** Python · LangGraph · LangChain · Chroma · OpenAI API · SQLite checkpoints  ·  **Type:** Multi-agent (Retriever + Reasoner + Approval)  ·  **Level:** Intermediate
 
+## Demo
+
+![DocuMind — demo](assets/demo.png)
+
 ## Overview
 
 DocuMind answers questions from **your own documents** — and only from them. A **Retriever** agent searches a local vector store and checks whether the best match is actually close enough to answer from. A **Reasoner** agent writes the answer using only the found excerpts, citing the file behind each fact. An **Approval** agent runs a checklist on every draft: safe, grounded, cited answers go straight out; anything that asks for an action, or fails a check, pauses for a person.

@@ -24,15 +24,12 @@ FORM = """
 </form>
 """
 
-
 class ClassifyRequest(BaseModel):
     text: str
-
 
 @app.get("/", response_class=HTMLResponse)
 def form():
     return FORM
-
 
 @app.post("/classify")
 def classify_route(body: ClassifyRequest):
@@ -55,7 +52,6 @@ from fastapi.testclient import TestClient
 
 from app_fastapi import app
 
-
 def test_api_and_form() -> None:
     client = TestClient(app)
     html = client.get("/")
@@ -67,7 +63,6 @@ def test_api_and_form() -> None:
     if api != {"label": "positive"} or missing != 422:
         result = "WRONG"
     print(f"case 1 (form + api + validation) -> {result}")
-
 
 if __name__ == "__main__":
     test_api_and_form()

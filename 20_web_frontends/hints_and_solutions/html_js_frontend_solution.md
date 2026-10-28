@@ -40,15 +40,12 @@ PAGE = """
 </html>
 """
 
-
 class ClassifyRequest(BaseModel):
     text: str
-
 
 @app.get("/", response_class=HTMLResponse)
 def page():
     return PAGE
-
 
 @app.post("/api/classify")
 def api(body: ClassifyRequest):
@@ -72,7 +69,6 @@ from fastapi.testclient import TestClient
 
 from app_frontend import app
 
-
 def test_page_and_api() -> None:
     client = TestClient(app)
     page = client.get("/")
@@ -83,7 +79,6 @@ def test_page_and_api() -> None:
     if api != {"label": "positive"}:
         result = "WRONG"
     print(f"case 1 (page served + api works) -> {result}")
-
 
 if __name__ == "__main__":
     test_page_and_api()

@@ -4,6 +4,10 @@
 
 **Tech:** Python · LangChain (LCEL) · OpenAI API · Pydantic  ·  **Type:** Single LCEL pipeline (no agent loop, no graph)  ·  **Level:** Intermediate
 
+## Demo
+
+![LangChainPro — demo](assets/demo.png)
+
 ## Overview
 
 LangChainPro processes a queue of support tickets. For each ticket it:

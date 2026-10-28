@@ -12,10 +12,6 @@ Every fix and test below goes in `practice/multi_agent_debugging_practice.py`, a
 - [Round 4: Multi-agent](#round-multi-agent)
 - [Real cause vs. symptom fix](#real-cause-vs-symptom-fix)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Hints](multi_agent_debugging_hints.md)
-
 ## Round: Basic {: #round-basic }
 
 **Real cause:** a plain typo — `"Reserach"` instead of `"research_agent"`. `Command(goto=...)` has no fuzzy matching, and a `goto` to a name that isn't a node doesn't raise: LangGraph logs a warning ("wrote to unknown channel branch:to:Reserach, ignoring it") and the run simply ends. That's why nothing crashed — and why the warning line in the log is the only clue.
@@ -30,7 +26,6 @@ RESEARCH = "research_agent"
 ANALYSIS = "analysis_agent"
 WRITER = "writer_agent"
 NODE_NAMES = [RESEARCH, ANALYSIS, WRITER]
-
 
 def decide_next_agent(state):
     if not state.get("research_findings"):
@@ -55,10 +50,6 @@ def test_supervisor_only_routes_to_real_node_names():
 ```
 The test walks the supervisor through each stage and checks every name it can return — the typo'd name fails here, loudly, instead of quietly in production.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Hints](multi_agent_debugging_hints.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Real cause:** `research_node` writes to a key (`finding`) that `SharedState` never declared — the schema has `research_findings`. LangGraph quietly ignores an update to an undeclared key, so the Research agent "succeeds" and the Analysis agent correctly reads an empty `research_findings`. Each is right about its own narrow view; the mismatch exists only between them.
@@ -70,18 +61,15 @@ The test walks the supervisor through each stage and checks every name it can re
 from typing import TypedDict
 from langgraph.types import Command
 
-
 class SharedState(TypedDict):
     task: str
     research_findings: str
     analysis: str
     draft: str
 
-
 def run_research_tools(task):
     # stand-in for the Research agent's real tool calls
     return "The refund policy allows returns within 30 days of purchase."
-
 
 def research_node(state):
     finding = run_research_tools(state["task"])
@@ -99,10 +87,6 @@ def test_research_node_writes_the_field_analysis_reads():
     assert "30 days" in result.update["research_findings"]
 ```
 Checking the *keys* a node writes catches silent naming drift that "did the pipeline finish without an error" never would.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Hints](multi_agent_debugging_hints.md)
 
 ## Round: Real-world {: #round-real-world }
 
@@ -128,16 +112,13 @@ SPECIALISTS = {
     ),
 }
 
-
 class RoutingDecision(BaseModel):
     next_agent: str
     reason: str
 
-
 router_model = ChatOpenAI(
     model="gpt-4o-mini", temperature=0
 ).with_structured_output(RoutingDecision)
-
 
 def supervisor_decide(state):
     descriptions = ""
@@ -167,10 +148,6 @@ def test_supervisor_routes_the_same_task_the_same_way():
 ```
 One wording per task can never show wording sensitivity — the test has to send several phrasings of the same task.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Hints](multi_agent_debugging_hints.md)
-
 ## Round: Multi-agent {: #round-multi-agent }
 
 **Real cause:** Round 2's bug was "fixed" by *adding* a field (`finding`) instead of renaming, leaving two fields that look alike: `finding` (written by Research, read by Analysis) and `research_findings` (still declared, still read by the Reviewer, written by nobody). Each pair test used whichever field its author picked, so both pairs passed — the disagreement only shows when all 4 agents share one real state.
@@ -183,7 +160,6 @@ from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Command
 
-
 class TeamState(TypedDict):
     task: str
     # why: ONE field name for Research's output — the extra
@@ -193,18 +169,15 @@ class TeamState(TypedDict):
     review_passed: bool
     revision_count: int
 
-
 def research_node(state):
     # stand-in for the real Research agent
     return {"research_findings": "Q1 revenue grew 12% year over year."}
-
 
 def writer_node(state):
     # stand-in for the real Writer: it uses the research findings
     draft = state["research_findings"] + " Growth came from new products."
     return {"draft": draft,
             "revision_count": state["revision_count"] + 1}
-
 
 def reviewer_node(state):
     findings = state["research_findings"]
@@ -213,7 +186,6 @@ def reviewer_node(state):
             return Command(goto=END, update={"review_passed": False})
         return Command(goto="writer", update={"review_passed": False})
     return Command(goto=END, update={"review_passed": True})
-
 
 def build_team_graph():
     graph = StateGraph(TeamState)
@@ -236,10 +208,6 @@ def test_full_pipeline_approves_an_accurate_draft():
     assert result["revision_count"] == 1
 ```
 This runs Research, Writer and Reviewer against one shared state, passed hand to hand — the only kind of test that sees two agents reading different fields. With the old two-field setup, it fails at once.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Hints](multi_agent_debugging_hints.md)
 
 ## Real cause vs. symptom fix {: #real-cause-vs-symptom-fix }
 

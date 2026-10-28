@@ -2,36 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, plus how state merging actually works once more than one field is involved). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-A graph is just: a shape for the data (the state), some functions that each do one small piece of work (nodes), and connections saying what runs after what (edges).
-
-For your first graph: one field in the state, two nodes that each change that field a little, one edge connecting node 1 to node 2. Then you compile the graph (turns it into something runnable) and invoke it (actually runs it, start to finish) with a starting value.
-
-Things to use:
-
-- `TypedDict` — defines the shape of your state.
-- `StateGraph(YourStateType)` — starts building a graph around that shape.
-- `graph.add_node("name", function)` — registers one node.
-- `graph.add_edge("from", "to")` — connects two nodes.
-- `graph.compile()` then `.invoke({...})` — makes it runnable, then runs it once.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
-
-### Intermediate Version
 
 Every LangGraph graph has the same 3 ingredients: a **state shape**, **nodes** (plain functions, state in, a small update out), and **edges** (what runs next). A `StateGraph` needs a real entry point and exit point too — `START` and `END`, both imported from `langgraph.graph`, are special markers, not nodes you write yourself.
 
@@ -53,60 +29,7 @@ The extra piece that answers that question:
 
 - **Reducers**, declared right in the state's type: `from typing import Annotated; import operator; log: Annotated[list[str], operator.add]`. Now, instead of overwriting `state["log"]` with whatever a node returns, LangGraph calls `operator.add(old_log, new_log)` — for lists, that's concatenation — so each node's returned `{"log": ["node_one ran"]}` *appends*, instead of replacing the whole history. Without a reducer, the default behavior is a plain overwrite, which is exactly right for a field like `message` but silently wrong for a field you meant to accumulate.
 
-**Difference between Basic and Intermediate:** Basic uses a single plain-`str` field, where "overwrite" is exactly the right, unsurprising behavior. Intermediate asks what happens the moment a second field needs the opposite behavior — accumulate instead of overwrite — and shows the one annotation (`Annotated[..., operator.add]`) that changes a field's merge behavior from "replace" to "combine," which becomes essential the moment your state needs to track a running history (a message list, a list of sources found) instead of a single current value.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-define a state shape with one field: message (text)
-
-make node_one: takes state, returns {"message": "Hello"}
-make node_two: takes state, returns {"message": state's message + ", World!"}
-
-build the graph:
-    start it with the state shape
-    add node_one, add node_two
-    connect: start -> node_one -> node_two -> end
-
-run it:
-    compile the graph
-    invoke it with a starting message
-    print what comes back --
-        trace by hand what "message" should be after each node
-```
-
-Here's almost the whole thing — just try running it and reading it line by line:
-```python
-# first_graph_practice.py
-from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
-
-class GraphState(TypedDict):
-    message: str
-
-def node_one(state):
-    return {"message": "Hello"}
-
-def node_two(state):
-    return {"message": state["message"] + ", World!"}
-
-builder = StateGraph(GraphState)
-builder.add_node("node_one", node_one)
-builder.add_node("node_two", node_two)
-```
-**Expected output if you run just this:** nothing — add the 3 `add_edge(...)` calls, `compile()`, and an `invoke({"message": "start"})` call with a `print(...)` to see `{'message': 'Hello, World!'}`.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
-
-### Intermediate Version
 
 ```
 from typing import TypedDict
@@ -161,25 +84,16 @@ from typing import TypedDict, Annotated
 import operator
 from langgraph.graph import StateGraph, START, END
 
-
 class GraphState(TypedDict):
     message: str
     log: Annotated[list[str], operator.add]
 
-
 def node_one(state: GraphState) -> dict:
     return {"message": "Hello", "log": ["node_one ran"]}
-
 
 def node_two(state: GraphState) -> dict:
     return {"message": state["message"] + ", World!", "log": ["node_two ran"]}
 ```
 Wire this into a full graph yourself (same edges as before), invoke it with `{"message": "start", "log": []}`, and confirm `result["log"]` has both entries in order — then compare against the [Solution](first_graph_solution.md).
-
-**Difference between Basic and Intermediate:** Basic's single `message` field only ever needs the default overwrite behavior. Intermediate adds a second field, `log`, that needs the opposite — declared with `Annotated[list[str], operator.add]` so each node's write combines with what's already there instead of replacing it, proving both merge behaviors side by side in the same state shape.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-first_graph) · [Hint 1](first_graph_hints.md#hint-1) · [Hint 2](first_graph_hints.md#hint-2) · [Solution](first_graph_solution.md)
 
 Full solution: [Show me the solution](first_graph_solution.md)

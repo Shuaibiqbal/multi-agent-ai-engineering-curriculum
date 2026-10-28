@@ -84,10 +84,8 @@ from pipeline import analyze
 
 app = FastAPI()
 
-
 class AnalyzeRequest(BaseModel):
     text: str
-
 
 @app.post("/analyze")
 def analyze_route(body: AnalyzeRequest):
@@ -105,7 +103,6 @@ from fastapi.testclient import TestClient
 from app_web import app
 from pipeline import analyze
 
-
 def test_same_result_and_edges() -> None:
     client = TestClient(app)
     text = "I love this but it is urgent"
@@ -118,7 +115,6 @@ def test_same_result_and_edges() -> None:
     if "error" not in empty:
         result = "WRONG"
     print(f"case 1 (both agree; empty handled) -> {result}")
-
 
 if __name__ == "__main__":
     test_same_result_and_edges()

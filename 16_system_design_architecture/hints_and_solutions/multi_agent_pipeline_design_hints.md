@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
 
-Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing) and **Intermediate** (the real architectural vocabulary and trade-offs, including the senior-level judgment call). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own written design before reading ahead.
 
 - [Hint 1 — What to ask, and the obvious first design](#hint-1)
 - [Hint 2 — The plan, and almost the whole design](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
-
 ## Hint 1 — What to ask, and the obvious first design {: #hint-1 }
-
-### Basic Version
-
-Before designing, ask: what happens if fact-check keeps failing — does it retry forever, or is there a limit? When it fails, does the feedback go back to the writer, or all the way back to research? Is there a human anywhere in this loop, or is it meant to run fully on its own? How many revision rounds are actually acceptable before this is someone's problem to look at by hand?
-
-The obvious first-draft design: three agents in a straight line — researcher → writer → fact-checker → publish (or reject).
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
-
-### Intermediate Version
 
 This starts as a **sequential pipeline** pattern from Doc11, but "only publish if fact-check passes" implies a loop-back, not a straight line. When fact-check fails, where does it send the work? Two real options, and the difference matters:
 
@@ -38,33 +22,7 @@ The naive design — loop fact-check → writer with no cap — can loop forever
 
 A stakeholder will likely push: "why not let the fact-checker just fix the article directly instead of sending it back?" The honest answer is a real trade-off, not a rule: separation of concerns keeps the fact-checker's job narrow and auditable (it flags, it doesn't rewrite), and rewriting is a different skill from checking — but the extra research→writer→fact-checker round trip costs latency and tokens. At small scale, where the round-trip cost is trivial, separation is worth it. At very high volume where every extra round trip is expensive, letting the fact-checker propose a direct, narrowly-scoped edit (not a full rewrite) is a defensible alternative — the point is to be able to say which one you chose and why, not to insist there's only one right answer.
 
-**Difference between Basic and Intermediate:** Basic asks the plain questions and sketches the straight-line pipeline most people draw first. Intermediate names the real pattern (sequential with a conditional loop-back), decides where failure feedback goes, caps the loop so it can't run forever, names the escalation path, and defends the choice between "fact-checker flags" and "fact-checker fixes".
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
-
 ## Hint 2 — The plan, and almost the whole design {: #hint-2 }
-
-### Basic Version
-
-```
-figure out:
-    does fact-check retry forever, or is there a limit?
-    does feedback go back to the writer, or all the way to research?
-    is a human ever involved?
-
-design:
-    researcher agent -> writer agent -> fact-checker agent
-    if fact-check passes: publish
-    if fact-check fails: send back to the writer with notes, try again
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
-
-### Intermediate Version
 
 ```
 Agents: researcher, writer, fact-checker (Doc11 — sequential pipeline
@@ -114,11 +72,5 @@ Monitoring:
     -- articles that consistently hit MAX_REVISIONS are a signal the
     topic or source material itself is the problem, not the writer
 ```
-
-**Difference between Basic and Intermediate:** Basic is the plan anyone sketches first — three agents, one feedback loop, no limit on it. Intermediate names the state every agent needs, then adds what the naive plan is missing: a hard cap with a named escalation path, and a way to tell "the wording was wrong" from "the research was wrong" so a failed article goes to the agent that can actually fix it.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
 
 Full solution: [Show me the solution](multi_agent_pipeline_design_solution.md)

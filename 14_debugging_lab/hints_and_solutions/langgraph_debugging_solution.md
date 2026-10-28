@@ -12,10 +12,6 @@ Every fix and test below goes in `practice/langgraph_debugging_practice.py`, and
 - [Round 4: Multi-agent](#round-multi-agent)
 - [Real cause vs. symptom fix](#real-cause-vs-symptom-fix)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Hints](langgraph_debugging_hints.md)
-
 ## Round: Basic {: #round-basic }
 
 **Real cause:** `route()` returns `"finish"`, but the mapping given to `add_conditional_edges()` only has the keys `"call_tool"` and `"done"`. LangGraph looks the returned word up in the mapping, doesn't find it, and raises `KeyError: 'finish'` — a plain naming mismatch between the routing function and its mapping. This is Doc09's own Edge cases exercise (`unhandled_routing_value`).
@@ -27,25 +23,20 @@ Every fix and test below goes in `practice/langgraph_debugging_practice.py`, and
 from typing import TypedDict
 from langgraph.graph import StateGraph, START, END
 
-
 class AgentState(TypedDict):
     needs_tool: bool
-
 
 def agent_node(state):
     return {}                        # stand-in for the real agent
 
-
 def tool_node(state):
     return {"needs_tool": False}     # stand-in: the tool ran, done now
-
 
 def route(state):
     if state["needs_tool"]:
         return "call_tool"
     # why: must be a key in the mapping below — "done", not "finish"
     return "done"
-
 
 def build_graph():
     graph = StateGraph(AgentState)
@@ -66,16 +57,11 @@ def test_graph_can_take_the_done_branch():
     result = build_graph().invoke({"needs_tool": False})
     assert result["needs_tool"] is False
 
-
 def test_graph_can_take_the_tool_branch_and_finish():
     result = build_graph().invoke({"needs_tool": True})
     assert result["needs_tool"] is False
 ```
 One test per branch: a suite that only ever tested the "keep going" branch would never reach the one with the typo.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Hints](langgraph_debugging_hints.md)
 
 ## Round: Intermediate {: #round-intermediate }
 
@@ -88,7 +74,6 @@ One test per branch: a suite that only ever tested the "keep going" branch would
 from typing import Annotated, TypedDict
 from langgraph.graph import StateGraph, START, END
 
-
 def merge_findings(current, update):
     # why: a reducer tells LangGraph HOW to combine old and new —
     # here, keep every key from both dicts
@@ -97,21 +82,17 @@ def merge_findings(current, update):
         merged[key] = update[key]
     return merged
 
-
 class FindingsState(TypedDict):
     task: str
     findings: Annotated[dict, merge_findings]
-
 
 def search_node(state):
     # stand-in for run_search(state["task"])
     return {"findings": {"search": {"refund_policy": "30 days"}}}
 
-
 def calculate_node(state):
     # stand-in for run_calculation(state["task"])
     return {"findings": {"calc": 42}}
-
 
 def build_findings_graph():
     graph = StateGraph(FindingsState)
@@ -132,10 +113,6 @@ def test_findings_from_both_nodes_are_kept():
 ```
 The test has to run both nodes through a real graph — only the graph applies the reducer. Calling the two node functions by hand and merging with `dict.update()` would skip the reducer and prove nothing.
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Hints](langgraph_debugging_hints.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Real cause:** `route()` only checks confidence against a fixed threshold — there's no counter of how many search rounds have happened. Most questions pass 0.5 within a couple of rounds. A certain kind of ambiguous question stays "somewhat relevant, never enough" forever, and with nothing else to stop it, the loop runs to LangGraph's hard recursion limit — the *symptom* (a recursion error) fires 25 steps after the *real cause* (a loop with only one way out) let it start.
@@ -146,12 +123,10 @@ The test has to run both nodes through a real graph — only the graph applies t
 ```python
 from typing import TypedDict
 
-
 class SearchState(TypedDict):
     task: str
     confidence: float
     search_rounds: int
-
 
 def route_search(state):
     if state["confidence"] >= 0.5:
@@ -169,16 +144,11 @@ def test_search_loop_gives_up_after_four_rounds():
     state = {"task": "x", "confidence": 0.3, "search_rounds": 4}
     assert route_search(state) == "give_up"
 
-
 def test_search_loop_keeps_going_before_the_limit():
     state = {"task": "x", "confidence": 0.3, "search_rounds": 1}
     assert route_search(state) == "search_again"
 ```
 The routing function is plain Python, so the "never confident" case can be tested with a hand-made state in milliseconds — no need to run 25 real search rounds.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Hints](langgraph_debugging_hints.md)
 
 ## Round: Multi-agent {: #round-multi-agent }
 
@@ -190,7 +160,6 @@ The routing function is plain Python, so the "never confident" case can be teste
 ```python
 from typing import TypedDict
 
-
 class ReviewState(TypedDict):
     task: str
     research_findings: str
@@ -198,11 +167,9 @@ class ReviewState(TypedDict):
     review_passed: bool
     revision_count: int
 
-
 def count_revision(state):
     # how: the Writer node adds this to its update on every draft
     return {"revision_count": state["revision_count"] + 1}
-
 
 def review_route(state):
     if state["review_passed"]:
@@ -221,17 +188,12 @@ def test_review_loop_gives_up_after_three_revisions():
              "review_passed": False, "revision_count": 3}
     assert review_route(state) == "give_up"
 
-
 def test_each_draft_counts_as_one_revision():
     state = {"task": "x", "research_findings": "", "draft": "d",
              "review_passed": False, "revision_count": 1}
     assert count_revision(state) == {"revision_count": 2}
 ```
 The first test proves the loop can end; the second proves the counter really moves, so the limit is actually reached.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Hints](langgraph_debugging_hints.md)
 
 ## Real cause vs. symptom fix {: #real-cause-vs-symptom-fix }
 

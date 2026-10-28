@@ -4,24 +4,7 @@
 
 **Story — `token_rule_exceptions_practice.md`:** the ¾-word rule works for plain English and breaks for code, other languages, and data. Finding the exceptions on purpose tells you when to count tokens properly. **If not:** a prompt full of JSON or Urdu text would cost and overflow far more than you planned.
 
-## Basic Version
-
-**Story:** a few kinds of text, the rule's guess, and the real count — the gap is the lesson. **If not:** you'd apply the rule to content it was never meant for.
-
-| Text | Word-count guess | Actual (tokenizer tool) |
-|---|---|---|
-| `print('hello world')` | ~3 tokens | usually 5-7 tokens |
-| "میں آج بازار جا رہا ہوں" (Urdu, "I am going to the market today") | ~7 tokens | often 15-20+ tokens |
-
-Code costs more than it looks like because punctuation (`(`, `'`, `)`) usually tokenizes as its own piece, not "for free" the way a space between English words is. Non-English text costs more because the tokenizer's vocabulary was built mostly from English training data — a script with less representation there gets broken into smaller, less efficient pieces to represent the same meaning.
-
-**The one-line rule to actually use:** if the content isn't plain English prose (code, another language, dense structured data like JSON), stop estimating and run it through the real tokenizer tool or `tiktoken`.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-token_rule_exceptions) · [Hint 1](token_rule_exceptions_hints.md#hint-1) · [Hint 2](token_rule_exceptions_hints.md#hint-2) · [Solution](token_rule_exceptions_solution.md)
-
-## Intermediate Version
+## Solution
 
 **Story:** the same cases with the reason behind the gap — how the tokenizer's vocabulary was built. **If not:** you'd memorise exceptions instead of being able to predict new ones.
 
@@ -40,8 +23,4 @@ actual                      : often 15-20+ tokens, sometimes more
 ```
 The mechanism: byte-pair-encoding-style tokenizers build their vocabulary from the most frequent character sequences in a training corpus. A corpus that's mostly English text produces a vocabulary rich in efficient whole-word and common-subword English tokens. A script underrepresented in that training data has few or no such efficient chunks reserved for it, so the tokenizer falls back to much smaller sub-word or even byte-level pieces to represent the same text.
 
-**Difference from Basic:** Basic gives you the numbers and the gap. Intermediate explains the mechanism (byte-pair encoding trained on a mostly-English corpus) that produces that gap for both code and non-English text — the same underlying cause, showing up as two different-looking symptoms.
-
 **Why this matters practically, beyond trivia:** a system prompt full of JSON-schema examples or embedded code tokenizes far worse than its word count suggests, inflating cost on every single call it's part of. A multilingual product priced the same per user regardless of language will quietly cost more per conversation for non-English users — worth knowing before you build a pricing model or a context-budget assumption around English-only testing.
-
-**Which one should you actually write?** For exploring a new content type once, use the browser tokenizer tool — it's fast and needs no code. For anything shipped in a real feature, call `tiktoken` directly wherever a prompt, template, or user-facing string is built, instead of relying on the ¾-word rule for content that isn't plain English prose.

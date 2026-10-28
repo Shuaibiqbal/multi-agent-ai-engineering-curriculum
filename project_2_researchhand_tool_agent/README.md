@@ -4,6 +4,10 @@
 
 **Tech:** Python · LangChain (LCEL, tools) · OpenAI API · Pydantic · Open-Meteo API  ·  **Type:** Multi-agent (Worker + Verifier)  ·  **Level:** Beginner–Intermediate
 
+## Demo
+
+![ResearchHand — demo](assets/demo.png)
+
 ## Overview
 
 ResearchHand answers questions with real lookups instead of guesses. A **Worker** agent runs a think → act → observe loop, calling tools for live weather, temperature conversions and company policy, with a hard step limit and recovery from tool failures. A separate **Verifier** agent then checks the answer against what the tools actually returned, and flags it if it doesn't hold up.

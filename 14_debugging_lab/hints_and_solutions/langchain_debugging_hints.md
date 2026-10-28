@@ -9,10 +9,6 @@ One scenario, followed across all 4 rounds: Doc05's `chain.py` — the reusable 
 - [Round 3: Real-world](#round-real-world)
 - [Round 4: Multi-agent](#round-multi-agent)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Solution](langchain_debugging_solution.md)
-
 ## Round: Basic {: #round-basic }
 
 **Setup:**
@@ -43,10 +39,6 @@ Expected: ['question'] Received: ['input'] ..."
 - Actual: it fails before ever calling the model — the prompt template can't find the value it needs.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Solution](langchain_debugging_solution.md)
 
 ## Round: Intermediate {: #round-intermediate }
 
@@ -84,10 +76,6 @@ confidence
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Solution](langchain_debugging_solution.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Setup:** the parser bug is fixed. To give each question its own system message, someone changed the code to build the prompt from the user's text on every call:
@@ -124,10 +112,6 @@ The failing question was: `Why does my config return {"status": "error"}?`
 
 **What do you think is wrong?** (And is escaping the braces the real fix, or a symptom fix?)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Solution](langchain_debugging_solution.md)
-
 ## Round: Multi-agent {: #round-multi-agent }
 
 **Setup:** the Round 3 bug is fixed in `qa.py`. Separately, in Project 4, the Analysis agent double-checks a claim by building its prompt from the Research agent's findings (plain text, read from shared state):
@@ -163,9 +147,5 @@ KeyError: 'Input to ChatPromptTemplate is missing variables {\'"error"\'}. ...'
 - Actual: it fails only when Research's findings contain curly braces — invisible when testing the Analysis agent alone with clean, hand-written findings.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Solution](langchain_debugging_solution.md)
 
 Full solution: [Show me the solution](langchain_debugging_solution.md)

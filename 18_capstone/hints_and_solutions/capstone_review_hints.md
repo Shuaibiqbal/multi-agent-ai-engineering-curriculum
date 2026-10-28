@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried this against your own finished capstone. Each hint has 2 depth levels: **Basic** (the plain framing — how this differs from a walkthrough) and **Intermediate** (the real technique — full-system coverage, not one prepared story, then the senior-level judgment call — knowing which choices are truly defensible versus which were just what you happened to build, and admitting the difference). Read Basic first even if you're confident — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried this against your own finished capstone.
 
 - [Hint 1 — The idea, and how this differs from Doc17](#hint-1)
 - [Hint 2 — The plan, and a worked example](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
-
 ## Hint 1 — The idea, and how this differs from Doc17 {: #hint-1 }
-
-### Basic Version
-
-Doc17's exercise let you pick the order — problem, then design, then one decision, then one limitation. This exercise doesn't. The interviewer picks what to ask about, can jump to any piece of your system at any time, and can push back on a choice you never flagged as debatable in the first place.
-
-Before you start, don't prepare a script. Instead, make sure you can talk about *every* major piece of your capstone, not just the one decision you're proudest of — because you don't get to choose which one comes up first.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
-
-### Intermediate Version
 
 This is Doc16's design defense and Doc17's project walkthrough, combined and then made harder in one specific way: **coverage**, not depth on one topic, is what's actually being tested. A cold reviewer with "full authority to challenge any decision" ranges freely across everything in this document's "What You'll Design and Build" list — agents, tools, workflow, state, RAG, database, APIs, login/permissions, testing, monitoring, deployment, cost — and can move between them in any order, including circling back to something you thought you'd already closed out.
 
@@ -41,33 +25,7 @@ There's a second, harder version of this same trap: two of your decisions can be
 
 Before Hint 2, go back through your own build list and mark each piece as either "genuine decision — I can name the specific requirement and the alternative's real cost" or "default — I'd reconsider this with more time." Being honest about which pile each piece belongs in is the actual preparation for this exercise.
 
-**Difference between Basic and Intermediate:** Basic answers whatever is asked, in whatever order, and admits defaults plainly. Intermediate ties every answer to a specific requirement or failure mode — and then handles the hardest move: a reviewer connecting two of your own answers that contradict each other.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
-
 ## Hint 2 — The plan, and a worked example {: #hint-2 }
-
-### Basic Version
-
-```
-before the interview:
-    list every major piece of your finished capstone (agents, state,
-    RAG, database, API/auth, testing, monitoring, deployment, cost)
-    for each piece, be ready to answer "why did you build it that way?"
-
-during the interview:
-    answer whatever's asked, in whatever order it comes
-    if you don't know something cold, say so plainly instead of
-    guessing out loud as if you were sure
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
-
-### Intermediate Version
 
 ```
 build a full-coverage table, one row per subsystem from the build list:
@@ -142,11 +100,5 @@ Your move: don't defend the deployment choice as if it were planned
 ```
 
 Try writing your own full-coverage table plus at least one honest "default, not genuine decision" row, and rehearse a reconciliation for wherever two of your own choices might be in tension, before checking the [Solution](capstone_review_solution.md).
-
-**Difference between Basic and Intermediate:** Basic plans answers piece by piece. Intermediate plans for cross-examination — the specific requirement behind each piece, the gaps you'll volunteer, and how to concede a real contradiction with a concrete fix.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
 
 Full solution: [Show me the solution](capstone_review_solution.md)

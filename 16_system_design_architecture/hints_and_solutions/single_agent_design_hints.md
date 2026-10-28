@@ -2,28 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
 
-Only 2 hints — work through them in order against your own written design before reading ahead. Each hint has 2 depth levels: **Basic** (the plain framing — what to ask, what the obvious first design looks like) and **Intermediate** (the real architectural vocabulary and trade-offs, including the senior-level judgment call — what a naive design gets wrong, and what a stakeholder would push back on). Read Basic first even if you already know the vocabulary — it's the fastest way to see exactly what each deeper level adds.
+Only 2 hints — work through them in order against your own written design before reading ahead.
 
 - [Hint 1 — What to ask, and the obvious first design](#hint-1)
 - [Hint 2 — The plan, and almost the whole design](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
-
 ## Hint 1 — What to ask, and the obvious first design {: #hint-1 }
-
-### Basic Version
-
-Before drawing anything, figure out three things: what happens when the bot gets it wrong (does a wrong answer cost money, embarrassment, or nothing much)? How many people will use it, and how often? And what does "unsure" actually mean — no docs found, a low-confidence guess, or a question that isn't even about the product?
-
-The obvious first-draft design: one agent that can search the product docs and answer, with a rule like "if it can't find a good answer, hand off to a human."
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
-
-### Intermediate Version
 
 This is a retrieval-augmented generation (RAG) design — Doc08 material — wrapped in a single tool-calling agent (Doc11's simplest pattern: one agent, one or more tools, no multi-agent routing needed for a task this size). The two real pieces:
 
@@ -43,33 +27,7 @@ A stakeholder will also ask "why hand off to a human at all instead of just sayi
 
 Cost/latency: RAG adds one retrieval step before generation. For a single-agent bot at modest traffic that's fine as-is. Caching repeated queries only becomes a justified addition once volume actually requires it — adding it now, for traffic nobody mentioned, is the exact "inspiration instead of matching" mistake Core Concepts warns about.
 
-**Difference between Basic and Intermediate:** Basic names the questions to ask and sketches one clean agent-plus-retrieval design. Intermediate supplies the real vocabulary, three concrete ways to implement "unsure" with their trade-offs, and the judgment call an interviewer is listening for: which "unsure" signal is trustworthy versus which only sounds trustworthy, and what the handoff must carry to be useful.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
-
 ## Hint 2 — The plan, and almost the whole design {: #hint-2 }
-
-### Basic Version
-
-```
-figure out:
-    what happens if the bot answers wrong?
-    how many users, how often?
-    what exactly counts as "unsure"?
-
-design:
-    one agent
-    one tool: search the product docs
-    rule: if no good match found in the docs, hand off to a human
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
-
-### Intermediate Version
 
 ```
 Agent: single support agent (Doc11's simplest pattern — no multi-agent
@@ -121,11 +79,5 @@ Monitoring:
 Scaling note (only if traffic actually requires it):
     cache repeated queries' retrieval results
 ```
-
-**Difference between Basic and Intermediate:** Basic is the one-paragraph plan anyone could sketch in two minutes. Intermediate names the actual pieces — tool signature, state, routing condition, handoff payload — and then hardens them: what happens when the search tool itself fails, a retry-then-escalate policy instead of endless retries, and escalations turned into a signal about gaps in the docs.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-single_agent_design) · [Hint 1](single_agent_design_hints.md#hint-1) · [Hint 2](single_agent_design_hints.md#hint-2) · [Solution](single_agent_design_solution.md)
 
 Full solution: [Show me the solution](single_agent_design_solution.md)

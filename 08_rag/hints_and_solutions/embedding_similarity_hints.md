@@ -2,30 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real embeddings pipeline avoids doing unnecessary work). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-An embedding is just a list of numbers that stands in for a piece of text. Two pieces of text with similar meaning end up with lists of numbers that are "close" to each other.
-
-You need to do three things: get the embeddings for 5 sentences, measure how close every pair of them is, and check that your 2 similar sentences score closest to each other.
-
-Pick your 5 sentences first, on paper, before writing any code: 2 that clearly mean almost the same thing, and 3 that are totally unrelated to those 2 and to each other.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
-
-### Intermediate Version
 
 The exercise has two separate pieces: calling an embeddings API, and computing **cosine similarity** between two vectors.
 
@@ -52,68 +34,7 @@ There's a second thing worth knowing, not just doing: OpenAI's embedding vectors
 
 The design question underneath both of these: **what's genuinely necessary work, versus work you're doing out of habit?** A general-purpose `cosine_similarity()` that handles any vector, from any model, is the safe default to write first. Once you know exactly which model you're using and that it always returns unit vectors, dropping the redundant normalization is a real, measurable optimization — not premature.
 
-**Difference between Basic and Intermediate:** Basic names the two things you're building (an embedding call, a similarity score) and the shape of a good test set. Intermediate gives the real formula and the exact API call, then asks what changes once this code runs on more than 5 sentences, in a program someone actually keeps running — batching every sentence into one API call instead of 5, and recognizing (and using) the fact that these particular vectors are already unit-length, instead of doing math that has no effect every single time.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-pick 5 sentences: sentence_1 and sentence_2 mean almost the same thing
-                   sentence_3, sentence_4, sentence_5 are all unrelated
-
-get an embedding (a list of numbers) for each sentence
-
-make a function cosine_similarity(a, b) that returns how close two
-    lists of numbers are
-
-for every pair of sentences:
-    compute cosine_similarity between their embeddings
-    print the pair and the score
-
-check: does the pair (sentence_1, sentence_2)
-    score higher than every other pair?
-```
-
-Here's almost the whole thing — just try running it and reading it line by line:
-```python
-# embedding_similarity_practice.py
-import math
-from openai import OpenAI
-
-client = OpenAI()
-
-def get_embedding(text):
-    response = client.embeddings.create(
-        model="text-embedding-3-small", input=text
-    )
-    return response.data[0].embedding
-
-def cosine_similarity(a, b):
-    dot = 0.0
-    for x, y in zip(a, b):
-        dot = dot + x * y
-    squares = 0.0
-    for x in a:
-        squares = squares + x * x
-    norm_a = math.sqrt(squares)
-    squares = 0.0
-    for x in b:
-        squares = squares + x * x
-    norm_b = math.sqrt(squares)
-    return dot / (norm_a * norm_b)
-```
-**Expected output if you run just this (nothing calls these functions yet):** nothing — defining a function doesn't run it. Add your 5 sentences and the comparison loop below it to see any scores print.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
-
-### Intermediate Version
 
 ```
 function get_embedding(text) -> list[float]:
@@ -200,7 +121,6 @@ SENTENCES: list[str] = [
     # your 5 sentences here
 ]
 
-
 def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
     response = client.embeddings.create(
         model="text-embedding-3-small", input=texts
@@ -210,12 +130,10 @@ def get_embeddings_batch(texts: list[str]) -> list[list[float]]:
         embeddings.append(item.embedding)
     return embeddings
 
-
 def fast_cosine_similarity(a: list[float], b: list[float]) -> float:
     # your turn: these vectors are already unit-length (verified below) --
     # just return the dot product, no norm() calls needed
     ...
-
 
 # one-time sanity check that the "already unit-length" assumption really holds
 # for this model, instead of trusting it blindly
@@ -228,11 +146,5 @@ def assert_unit_length(vector: list[float]) -> None:
 ```
 
 Fill in `fast_cosine_similarity`, embed `SENTENCES` in one batch call, run `assert_unit_length` on the first vector, then score every pair and compare all of your finished versions against the [Solution](embedding_similarity_solution.md).
-
-**Difference between Basic and Intermediate:** same underlying idea (embed, compare, sort by score) at 2 completeness levels. Basic calls the embeddings API once per sentence and uses the full cosine similarity formula every time, including the norm calculations. Intermediate also does the real work exactly once — one batched API call for all 5 sentences instead of 5 separate ones — and, having actually verified the vectors are unit-length instead of assuming it, drops the now-pointless norm division. Neither change affects the *answer* (the similar pair still scores highest) — they change how much unnecessary work the code does to get there, which only starts to matter once "5 sentences" becomes "5,000."
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
 
 Full solution: [Show me the solution](embedding_similarity_solution.md)

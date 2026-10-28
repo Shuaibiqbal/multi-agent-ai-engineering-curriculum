@@ -4,6 +4,10 @@
 
 **Tech:** Python · OpenAI SDK · Chroma · Pydantic  ·  **Type:** Single-agent RAG + tool-calling, hardened against prompt injection  ·  **Level:** Intermediate
 
+## Demo
+
+![PromptShield — demo](assets/demo.png)
+
 ## Overview
 
 A RAG system's knowledge base is content from somewhere other than the agent's author — an uploaded file, a wiki edit, a scraped page — and any one of those can hide an instruction aimed at the model, not the user. PromptShield defends against that, in layers, and proves the defense:

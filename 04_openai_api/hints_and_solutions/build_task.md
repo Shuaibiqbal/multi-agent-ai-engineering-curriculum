@@ -2,37 +2,15 @@
 
 > [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — What you're building, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 - [Solution](#solution)
 
-<hr class="page-break">
-
 > [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Hint 1 — What you're building, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-You're combining everything from the 6 practice exercises above into one small chatbot: memory (so it remembers earlier turns), streaming (so replies feel instant), and safe handling of the failure types you already saw (bad key, too-long input, a structured-output request that doesn't come back clean).
-
-Think of it as 3 files working together: one that talks to the model (`chat_client.py`), one that describes the shape of any structured answer you want back (`schemas.py`), and one that runs the actual terminal loop (`main.py`).
-
-Here are the exact pieces you need to look up and use:
-
-- `load_config()` and `get_logger()` from Doc01 — call them at the very top of `main.py`.
-- The multi-turn `history` list pattern from the conversation-memory exercise.
-- The streaming loop from the streaming-replies exercise.
-- The `ExtractedInfo` model and the `refusal` check from the structured-output exercise.
-- `try/except` blocks for `openai.AuthenticationError` and `openai.BadRequestError`, one each — not one shared catch-all.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Intermediate Version
 
 The Build Task is a synthesis, not new material — every function here is a small variation on something you already built in the 6 exercises above. `chat_client.py` should expose `create_client()`, `send_message(history, user_input) -> str`, and `stream_message(history, user_input)`, so `main.py` never touches the OpenAI SDK directly — it only calls your own, already-tested wrapper functions.
 
@@ -55,73 +33,9 @@ except openai.BadRequestError:
 
 Sketch the rest of `main.py`'s loop — the streaming call, the structured-output branch, and both `except` blocks — before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic describes the pieces in plain words. Intermediate wires them into typed `chat_client.py`/`schemas.py`/`main.py` files and makes the one Build-Task-specific decision none of the individual exercises could make on their own — what to do with `history` the moment it goes over the limit.
-
-<hr class="page-break">
-
 > [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-main.py:
-    load config and logger from Doc01
-
-    make the chat client
-    start history with a system message
-
-    loop forever:
-        get user input
-        try:
-            stream the reply, show it as it arrives
-            add both turns to history
-        except bad key:
-            print a clean message, stop
-        except too long:
-            print a clean message, drop the oldest turns, keep going
-
-    (separately, on request) call the structured-output mode:
-        try:
-            get a checked object back
-        except it doesn't validate:
-            print a clean "couldn't understand that" message
-```
-
-The trickiest part — the structured-output call and its own specific error handling:
-```python
-from pydantic import BaseModel, ValidationError
-
-class ExtractedInfo(BaseModel):
-    name: str | None
-    intent: str | None
-
-def get_structured_reply(client, user_input):
-    try:
-        completion = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": user_input}],
-            response_format=ExtractedInfo,
-        )
-    except ValidationError:
-        return None
-    message = completion.choices[0].message
-    if message.refusal:
-        return None
-    info = message.parsed
-    if info.name is None and info.intent is None:
-        # caller should print a clean "couldn't understand that" message
-        return None
-    return info
-```
-**Expected output if you run just this (nothing calls it yet):** nothing — try wiring the rest of `main.py`'s loop yourself before checking the Solution.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Intermediate Version
 
 ```
 chat_client.py:
@@ -159,11 +73,9 @@ EXTRACT_PROMPT = (
     "If there is no name or no request, use null — never guess."
 )
 
-
 class ExtractedInfo(BaseModel):
     name: str | None
     intent: str | None
-
 
 def get_structured_reply(
     client: OpenAI, user_input: str
@@ -190,79 +102,9 @@ def get_structured_reply(
 
 Wire this into `main.py` behind its own command (e.g. the user types `/extract ...`), with its own `if result is None:` branch printing a clean failure message. Try finishing the rest yourself, then compare against the [Solution](#solution).
 
-**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code prove the structured-output piece works in isolation. Intermediate wires that same piece into a typed `chat_client.py`/`main.py` structure with the 2 required `except` blocks.
-
-<hr class="page-break">
-
 > [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Solution {: #solution }
-
-Read both depths — they're not "wrong, right," they're 2 real, valid stages of building the same app, with real tradeoffs between them.
-
-### Basic Version
-
-#### Approach 1 — the direct way
-
-```python
-# chat_client.py
-from openai import OpenAI
-
-def create_client():
-    return OpenAI()
-
-def stream_message(client, history, user_input):
-    history.append({"role": "user", "content": user_input})
-    stream = client.chat.completions.create(
-        model="gpt-4o-mini", messages=history, stream=True
-    )
-    full_reply = ""
-    for chunk in stream:
-        piece = chunk.choices[0].delta.content
-        if piece:
-            print(piece, end="")
-            full_reply += piece
-    print()
-    history.append({"role": "assistant", "content": full_reply})
-    return full_reply
-```
-
-```python
-# main.py
-import openai
-from config import load_config
-from logging_setup import get_logger
-from chat_client import create_client, stream_message
-
-config = load_config()
-logger = get_logger("main")
-client = create_client()
-history = [{"role": "system", "content": "You are a helpful assistant."}]
-
-while True:
-    user_input = input("You: ")
-    try:
-        stream_message(client, history, user_input)
-    except openai.AuthenticationError:
-        print("Login failed — check your API key.")
-        break
-    except openai.BadRequestError:
-        print(
-            "That conversation got too long — forgetting the oldest messages."
-        )
-        history = [history[0]] + history[-4:]
-```
-**Expected output on a normal run:** each reply streams to the screen, and the conversation remembers earlier turns.
-
-This version works correctly and meets every Build Task requirement. It's missing type hints and the structured-output feature — both worth adding next.
-
-<hr class="page-break">
-
-> [Back to the Build Task](../README.md#build-task-project-1-beginner-llm-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
-
-### Intermediate Version
-
-#### Approach 1 — everything in `main.py`'s loop, minimal structure
 
 **Story — `chat_client.py`:** `main.py` shouldn't call the OpenAI SDK directly — it should call your own, already-tested wrapper functions instead. This is the same `stream_message()` shape you already built and understood in the streaming-replies exercise, now the one version every later document/project imports. **If not:** every file in this app (and later, Doc05/Doc06's rewrites of it) would each build their own slightly-different streaming loop, instead of sharing one tested version.
 
@@ -280,10 +122,8 @@ EXTRACT_PROMPT = (
     "If there is no name or no request, use null — never guess."
 )
 
-
 def create_client() -> OpenAI:
     return OpenAI()
-
 
 def send_message(client: OpenAI, history: list[dict], user_input: str) -> str:
     # why: a plain, non-streaming call — useful for tests, and for any
@@ -295,7 +135,6 @@ def send_message(client: OpenAI, history: list[dict], user_input: str) -> str:
     reply = response.choices[0].message.content
     history.append({"role": "assistant", "content": reply})
     return reply
-
 
 def stream_message(client: OpenAI, history: list[dict], user_input: str) -> str:
     # why: the one function every later document/project calls to send a
@@ -315,7 +154,6 @@ def stream_message(client: OpenAI, history: list[dict], user_input: str) -> str:
     print()
     history.append({"role": "assistant", "content": full_reply})
     return full_reply
-
 
 def get_structured_reply(
     client: OpenAI, user_input: str
@@ -352,7 +190,6 @@ def get_structured_reply(
 # schemas.py
 from pydantic import BaseModel
 
-
 class ExtractedInfo(BaseModel):
     # why: str | None, not str — a required field would force the model
     # to invent a name or a request when the message has none
@@ -369,7 +206,6 @@ import openai
 from config import load_config
 from logging_setup import get_logger
 from chat_client import create_client, get_structured_reply, stream_message
-
 
 def main() -> None:
     # why: loading config/logger first means a missing OPENAI_API_KEY fails
@@ -413,7 +249,6 @@ def main() -> None:
             print("That got too long — forgetting the oldest messages.")
             history = [history[0]] + history[-4:]
 
-
 if __name__ == "__main__":
     main()
 ```
@@ -430,7 +265,6 @@ from openai import OpenAI
 
 from chat_client import create_client, get_structured_reply, send_message
 
-
 def test_normal_conversation() -> None:
     # case 1: a normal 3-turn conversation should remember earlier turns
     client = create_client()
@@ -438,7 +272,6 @@ def test_normal_conversation() -> None:
     send_message(client, history, "My favorite color is teal.")
     reply = send_message(client, history, "What's my favorite color?")
     print(f"case 1 (3-turn memory)        -> {reply}")
-
 
 def test_bad_key() -> None:
     # case 2: a wrong API key should raise AuthenticationError, caught cleanly
@@ -449,7 +282,6 @@ def test_bad_key() -> None:
         send_message(bad_client, [], "hi")
     except openai.AuthenticationError:
         print("case 2 (bad key)              -> AuthenticationError caught")
-
 
 def test_context_limit() -> None:
     # case 3: a huge input should raise BadRequestError, not crash unhandled
@@ -462,20 +294,17 @@ def test_context_limit() -> None:
     except openai.BadRequestError:
         print("case 3 (context limit)        -> BadRequestError caught")
 
-
 def test_structured_clear() -> None:
     # case 4: a clear input should come back as a valid ExtractedInfo
     client = create_client()
     result = get_structured_reply(client, "Maria wants to reset her password")
     print(f"case 4 (clear structured)     -> {result}")
 
-
 def test_structured_unclear() -> None:
     # case 5: an unclear input should not silently produce a wrong answer
     client = create_client()
     result = get_structured_reply(client, "the sky is blue")
     print(f"case 5 (unclear structured)   -> {result}")
-
 
 if __name__ == "__main__":
     test_normal_conversation()
@@ -493,7 +322,3 @@ case 4 (clear structured)     -> name='Maria' intent='reset her password'
 case 5 (unclear structured)   -> None
 ```
 Case 5's `None` is expected, not a bug — "the sky is blue" has no name and no request, so the model fills both fields with `None` (the prompt and `str | None` allow that), and `get_structured_reply()` reports "nothing found" as `None`.
-
-**Difference from Basic:** full type hints throughout, a real `schemas.py` module, `send_message()` and `get_structured_reply()` pulled out as their own reusable, testable functions instead of logic inlined in `main()`, and a `test_chat_client.py` that actually proves all 5 Test Cases pass — none of which Basic's version has yet.
-
-**Which one should you actually write?** Intermediate's version already satisfies every Build Task requirement — full type hints, real memory, streaming, structured output, all 3 graceful-failure cases, and a test file that proves it. It's genuinely fine to ship as-is. A cached, explicitly-configured client (`OpenAI(max_retries=2, timeout=30.0)`, built once and reused) is worth adding once this code is meant to be imported and reused as a starting point for later projects — which is exactly what happens per this document's Goal — but it's a refinement, not a requirement.

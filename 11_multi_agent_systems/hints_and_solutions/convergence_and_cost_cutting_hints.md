@@ -2,37 +2,14 @@
 
 > [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, including how a real production system handles both problems). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 This exercise has two separate parts — a non-converging generator↔critic loop, and a cost-cutting pass on a working 4-agent run. Both hints cover both parts.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-**Part 1 — the non-converging loop.** Build a generator (writes something) and a critic (checks it, and can reject it) that hand off to each other, the same generator→critic→revision shape from Core Concepts. Then deliberately give the critic criteria nothing could ever satisfy — this isn't a bug you're chasing, it's a scenario you're building on purpose. The whole point is watching what happens when a loop that could run forever meets a real, hard limit.
-
-**Part 2 — the cost-cutting pass.** Take a working multi-agent run (reuse `supervisor_compare`'s supervisor graph, or Project 4's own 4-agent pipeline if you've started it) and find its single most expensive step. Then try to cut the total cost or time by 30%+ without breaking what the run actually produces.
-
-Things to use:
-
-- A `revision_count` field in state, and a `MAX_REVISIONS` constant — the hard limit.
-- A critic with criteria worded so nothing could pass (e.g. "reject unless the draft is under 10 words AND cites 3 sources").
-- Your `run_supervisor()`-style report from `sequential_measure`/`supervisor_compare`, reused to profile which stage costs the most.
-- One or two concrete cost-cutting levers: a shorter prompt, a cheaper model for one stage, or caching a repeated call.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
-
-### Intermediate Version
 
 **Part 1.** The loop itself is exactly the Generator → Critic → Revision pattern from Core Concepts: a `writer` node produces a draft, a `critic` node either accepts it (`goto=END`) or rejects it and sends it back (`goto="writer"`). What's different here is the critic's own acceptance check — make it genuinely unsatisfiable, and make the limit check happen in the loop itself, not as an afterthought:
 
@@ -58,42 +35,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic names both parts and the exact pieces — a revision counter and limit, an unsatisfiable critic, a profiling pass, and concrete cost levers. Intermediate shows exactly where the limit check goes in the loop, which levers to reach for first in order of how safe they are, and what makes each part's output actually trustworthy — a "couldn't converge" report detailed enough to diagnose, not just announce, and a cost cut proven against a real test set rather than assumed safe because the number went down — which is the difference between a report someone can act on and one that just says "it broke."
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-Part 1 -- non-converging loop:
-
-writer_node: writes a draft, goes to critic
-critic_node:
-    check draft against impossible criteria (always fails)
-    revision_count += 1
-    if revision_count >= MAX_REVISIONS: report "couldn't converge", stop
-    else: send back to writer_node
-
-Part 2 -- cost-cutting pass:
-
-run the working pipeline once, print each stage's tokens/seconds
-find the most expensive stage
-try one cut (shorter prompt / cheaper model / caching) on just that stage
-re-run the same test inputs, compare tokens/seconds AND outputs
-report: percent saved, and whether outputs still look right
-```
-
-**Expected output if you run just this (nothing calls the loop yet):** nothing — the loop only runs once you invoke the graph with a starting `revision_count` of 0. Add that call to see it actually hit the limit and stop.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
-
-### Intermediate Version
 
 ```python
 # convergence_and_cost_cutting_practice.py
@@ -103,18 +45,15 @@ from langgraph.types import Command
 
 MAX_REVISIONS = 3
 
-
 class LoopState(TypedDict):
     draft: str
     revision_count: int
     converged: bool
     last_rejection_reason: str
 
-
 def writer(state: LoopState) -> Command:
     draft = f"[draft attempt {state['revision_count'] + 1}]"
     return Command(update={"draft": draft}, goto="critic")
-
 
 def critic(state: LoopState) -> Command:
     # impossible criteria on purpose: rejects every draft, always
@@ -139,7 +78,6 @@ def critic(state: LoopState) -> Command:
         update={"revision_count": new_count, "last_rejection_reason": reason},
         goto="writer",
     )
-
 
 builder = StateGraph(LoopState)
 builder.add_node("writer", writer)
@@ -196,7 +134,6 @@ class LoopState(TypedDict):
     converged: bool
     rejection_history: list
 
-
 def critic(state: LoopState) -> Command:
     passed = False
     reason = "draft does not meet required standard (criteria cannot "
@@ -226,11 +163,5 @@ def critic(state: LoopState) -> Command:
 ```
 
 For Part 2, fill in a `compare_before_after(test_inputs, cut_fn)` function yourself: run the test set through both versions, print the cost delta as a percentage, and print each pair of outputs side by side so you can eyeball whether quality held. Then compare both of your finished pieces against the [Solution](convergence_and_cost_cutting_solution.md).
-
-**Difference between Basic and Intermediate:** the same two-part shape (a hard-limited loop, and a measured cost cut), at more completeness — Basic sketches both as pseudocode and confirms nothing runs until invoked; Intermediate is a complete, working non-converging loop with a real limit and the profile-then-cut mechanics, plus the diagnostic detail (full rejection history, not just the count) and the proof step (a real before/after test-set comparison, not a one-off measurement) that make both parts' final reports something a reader can actually trust and act on.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
 
 Full solution: [Show me the solution](convergence_and_cost_cutting_solution.md)

@@ -2,33 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-conditional_routing) · [Hint 1](conditional_routing_hints.md#hint-1) · [Hint 2](conditional_routing_hints.md#hint-2) · [Solution](conditional_routing_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper LangGraph, plus typing a routing function so a typo can't silently break it). Read Basic first even if you already know LangGraph — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conditional_routing) · [Hint 1](conditional_routing_hints.md#hint-1) · [Hint 2](conditional_routing_hints.md#hint-2) · [Solution](conditional_routing_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-A plain edge (`add_edge`) always sends the graph to the same next node — there's no decision involved. A **conditional edge** adds a decision: after a node runs, a small function looks at the current state and picks which node runs next, out of a set of named options.
-
-For this exercise: one node whose only job is deciding, a routing function that reads a `flag` field from state and returns a string naming a path, and two possible next nodes — one for each path.
-
-Things to use:
-
-- `graph.add_conditional_edges("from_node", routing_function, {"path_name": "target_node", ...})` — the mapping's keys are whatever strings your routing function can return; its values are the real node names to go to.
-- Your routing function takes the whole state and returns one of the mapping's keys as a plain string.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conditional_routing) · [Hint 1](conditional_routing_hints.md#hint-1) · [Hint 2](conditional_routing_hints.md#hint-2) · [Solution](conditional_routing_solution.md)
-
-### Intermediate Version
 
 `add_conditional_edges` takes 3 arguments: the node the decision happens after, a function that reads state and returns a string, and a dict mapping each possible returned string to the real node it should lead to. The routing function itself is **not** a node — it doesn't get registered with `add_node`, and it doesn't return a state update. Its only job is picking a destination.
 
@@ -50,75 +29,7 @@ The extra piece that helps:
 
 This is worth doing any time a routing function's return value has to exactly match a fixed set of dict keys somewhere else in the file — the two are only connected by string-matching, and `Literal` is the cheapest way to make that connection visible to your tools instead of silent.
 
-**Difference between Basic and Intermediate:** Basic writes `route` with a plain `-> str` return type, which is correct but gives no protection against a typo or an unhandled branch. Intermediate narrows that return type to `Literal["path_a", "path_b"]` — the exact set of keys the conditional edge's mapping actually understands — so a mismatch between what `route` can return and what the mapping can handle becomes a visible type error instead of a silent runtime surprise.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conditional_routing) · [Hint 1](conditional_routing_hints.md#hint-1) · [Hint 2](conditional_routing_hints.md#hint-2) · [Solution](conditional_routing_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-define a state shape: flag (true/false), message (text)
-
-make node_decide: takes state, returns nothing new (just a pass-through)
-make node_a: takes state, returns {"message": "went down path A"}
-make node_b: takes state, returns {"message": "went down path B"}
-
-make route(state): if state's flag is true, return "path_a";
-                   otherwise return "path_b"
-
-build the graph:
-    add node_decide, node_a, node_b
-    start -> node_decide
-    from node_decide, use a conditional edge with route:
-        "path_a" -> node_a
-        "path_b" -> node_b
-    node_a -> end
-    node_b -> end
-
-run it twice: once with flag=True, once with flag=False -- confirm
-each one prints the right message
-```
-
-Here's almost the whole thing — just try running it and reading it line by line:
-```python
-# conditional_routing_practice.py — Intermediate section
-from typing import TypedDict
-from langgraph.graph import StateGraph, START, END
-
-class GraphState(TypedDict):
-    flag: bool
-    message: str
-
-def node_decide(state):
-    return {}
-
-def node_a(state):
-    return {"message": "went down path A"}
-
-def node_b(state):
-    return {"message": "went down path B"}
-
-def route(state):
-    if state["flag"]:
-        return "path_a"
-    return "path_b"
-
-builder = StateGraph(GraphState)
-builder.add_node("node_decide", node_decide)
-builder.add_node("node_a", node_a)
-builder.add_node("node_b", node_b)
-```
-**Expected output if you run just this:** nothing — add the edges (including the conditional one), `compile()`, and two `invoke(...)` calls with `print(...)` to see each path's message.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conditional_routing) · [Hint 1](conditional_routing_hints.md#hint-1) · [Hint 2](conditional_routing_hints.md#hint-2) · [Solution](conditional_routing_solution.md)
-
-### Intermediate Version
 
 ```
 from typing import TypedDict
@@ -177,11 +88,5 @@ def route(state: GraphState) -> Literal["path_a", "path_b"]:
 ```
 
 Run a type checker (or just read carefully) over a *deliberately broken* version where the mapping only has `"path_a"` and `route` can still return `"path_b"` — confirm your editor or `mypy` flags the mismatch before you ever run the code. Then fix the mapping and confirm both branches still work exactly as before.
-
-**Difference between Basic and Intermediate:** Basic's `route` returns a plain `str` — correct, but nothing connects it to the specific keys `add_conditional_edges` actually understands except your own care. Intermediate narrows that to `Literal["path_a", "path_b"]`, turning a purely runtime connection (string-matching) into something your tools can check before the code ever runs.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-conditional_routing) · [Hint 1](conditional_routing_hints.md#hint-1) · [Hint 2](conditional_routing_hints.md#hint-2) · [Solution](conditional_routing_solution.md)
 
 Full solution: [Show me the solution](conditional_routing_solution.md)

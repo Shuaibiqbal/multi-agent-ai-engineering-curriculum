@@ -9,10 +9,6 @@ One scenario, followed across all 4 rounds: Project 1's chatbot history-handling
 - [Round 3: Real-world](#round-real-world)
 - [Round 4: Multi-agent](#round-multi-agent)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-python) · [Round 1: Basic](python_debugging_hints.md#round-basic) · [Round 2: Intermediate](python_debugging_hints.md#round-intermediate) · [Round 3: Real-world](python_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](python_debugging_hints.md#round-multi-agent) · [Solution](python_debugging_solution.md)
-
 ## Round: Basic {: #round-basic }
 
 **Setup:** Project 1's chatbot keeps its whole conversation in a list. Before every call to the model, a helper trims it down to the last `max_turns` messages:
@@ -42,10 +38,6 @@ TypeError: 'NoneType' object is not iterable
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-python) · [Round 1: Basic](python_debugging_hints.md#round-basic) · [Round 2: Intermediate](python_debugging_hints.md#round-intermediate) · [Round 3: Real-world](python_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](python_debugging_hints.md#round-multi-agent) · [Solution](python_debugging_solution.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Setup:** `trim_history()` got fixed. Now a different helper attaches a short debug note to each turn, so you can see what a session looked like later:
@@ -74,10 +66,6 @@ Session `abc123` only ever asked about resetting a password. The refund-policy l
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-python) · [Round 1: Basic](python_debugging_hints.md#round-basic) · [Round 2: Intermediate](python_debugging_hints.md#round-intermediate) · [Round 3: Real-world](python_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](python_debugging_hints.md#round-multi-agent) · [Solution](python_debugging_solution.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Setup:** a shared in-memory response cache (used by Doc02's `http_client.py` callers) has a cleanup function that drops expired entries:
@@ -105,10 +93,6 @@ RuntimeError: dictionary changed size during iteration
 - Actual: it works fine every time you tested it right after populating a fresh cache — because nothing had expired yet. It only fails once the cache genuinely has at least one expired entry at cleanup time, which in production happens constantly but almost never happened in your quick manual tests.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-python) · [Round 1: Basic](python_debugging_hints.md#round-basic) · [Round 2: Intermediate](python_debugging_hints.md#round-intermediate) · [Round 3: Real-world](python_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](python_debugging_hints.md#round-multi-agent) · [Solution](python_debugging_solution.md)
 
 ## Round: Multi-agent {: #round-multi-agent }
 
@@ -147,9 +131,5 @@ Request #5 was only ever "write a release blog post." The other four lines are r
 - Actual: it silently accumulates every request's task description, for the life of the running process — invisible in `test_route()`, because that test only ever calls `route()` once before the process (and the test) ends.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-python) · [Round 1: Basic](python_debugging_hints.md#round-basic) · [Round 2: Intermediate](python_debugging_hints.md#round-intermediate) · [Round 3: Real-world](python_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](python_debugging_hints.md#round-multi-agent) · [Solution](python_debugging_solution.md)
 
 Full solution: [Show me the solution](python_debugging_solution.md)

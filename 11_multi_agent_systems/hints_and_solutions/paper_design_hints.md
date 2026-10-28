@@ -2,37 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (a real, filled-in prediction, including the failure modes and hidden costs a first guess usually misses). Read Basic first even if you already feel confident about the patterns — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-Pick one concrete task, like "research a topic, then write a short summary of it." You're going to design it three separate ways, on paper, without writing a line of code.
-
-For each design, picture how the task would actually flow from start to finish, and who (which agent) does what, in what order.
-
-Before writing anything, just answer for yourself: which of the three designs do you already suspect will be fastest? Which will be most reliable? Write your gut guess down — you'll come back to it.
-
-Things to use:
-
-- One concrete task, written down in one sentence.
-- This document's Core Concepts "Every pattern" table — specifically the Single agent, Sequential, and Supervisor rows.
-- One paragraph per design, describing the flow in plain words.
-- One gut-guess prediction, written down before you reason it out carefully.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
-
-### Intermediate Version
 
 The three designs to sketch, using this document's Core Concepts table as your reference for what each one actually means:
 
@@ -64,42 +39,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic names the 3 designs and asks for a plain-language paragraph and a gut guess per design. Intermediate turns that gut guess into a structured, defensible prediction across cost/speed/reliability, using the document's own pattern table as the reference, then asks what a first guess usually misses — the routing call's own real cost, and each design's specific failure mode, not just its happy path — which is the difference between a guess you can be proud of and one that survives being questioned by someone skeptical.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-task: research a topic and write a short summary
-
-design 1 -- single agent:
-    one agent, has a research tool and just writes the summary itself
-    guess: cheapest, fastest, but summary quality depends on one prompt
-    doing two jobs well
-
-design 2 -- sequential:
-    agent A researches, hands text to agent B, agent B writes
-    guess: a bit more cost (2 calls), same speed order, more reliable
-    since each step is focused
-
-design 3 -- supervisor:
-    a router decides to call research agent, then write agent
-    guess: most cost (routing + 2 calls), slower (extra routing step),
-    same reliability as sequential plus a new risk: bad routing
-```
-
-**Expected output if you "run" just this:** nothing runs — this whole exercise is paper only. What you have here is a 3-way comparison sketch. The next exercises (`sequential_measure`, `supervisor_compare`) are where you'll actually build 2 of these 3 and find out if the guess above was right.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
-
-### Intermediate Version
 
 ```
 task: "research the top 3 causes of X, then write a 3-sentence summary"
@@ -170,11 +110,5 @@ supervisor (router decides who runs next):
 ```
 
 What's missing: your own task, filled in the same way including the "if it goes wrong" line, plus the follow-up commitment to actually build the sequential and supervisor versions in the next two exercises and compare against these guesses. Do that, then check the [Solution](paper_design_solution.md).
-
-**Difference between Basic and Intermediate:** Basic gives you the pseudocode shape and a filled example to imitate loosely. Intermediate fills that shape in with real reasoning per design, plus the piece a first guess almost always skips — a specific "if this goes wrong" line for each design, and the routing call counted as its own real cost rather than hand-waved away — which is what turns a guess into something you could actually defend out loud.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
 
 Full solution: [Show me the solution](paper_design_solution.md)

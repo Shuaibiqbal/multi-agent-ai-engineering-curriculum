@@ -24,7 +24,6 @@ PAGE = """
 {% if label %}<p>Result: <b>{{ label }}</b></p>{% endif %}
 """
 
-
 @app.route("/", methods=["GET", "POST"])
 def home():
     label = None
@@ -34,7 +33,6 @@ def home():
         if text.strip():
             label = classify(text)
     return render_template_string(PAGE, label=label, text=text)
-
 
 @app.post("/classify")
 def classify_api():
@@ -59,7 +57,6 @@ Flask's `test_client()` exercises the routes in-process — no running server, l
 # practice/test_flask.py   —   python -m practice.test_flask
 from app_flask import app
 
-
 def test_form_and_api() -> None:
     client = app.test_client()
     get_ok = client.get("/").status_code == 200
@@ -72,7 +69,6 @@ def test_form_and_api() -> None:
     if api != {"label": "negative"} or empty != 400:
         result = "WRONG"
     print(f"case 1 (form + api + empty) -> {result}")
-
 
 if __name__ == "__main__":
     test_form_and_api()

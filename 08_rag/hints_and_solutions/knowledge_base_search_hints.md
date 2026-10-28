@@ -2,32 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real knowledge base survives being rerun, and tells you when nothing good matched). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-Pick a topic you actually know something about — coffee brewing, your favorite hobby, whatever. Write 5-10 short files about it, a few sentences each, and save them as plain text files in a folder.
-
-Then turn each file into an embedding (a list of numbers that captures its meaning) and store those embeddings in a vector database. When you ask a question, you embed the question the same way, and ask the database which stored documents are the closest match.
-
-The whole point of writing the documents yourself is that you already know the right answer. If you ask "what grind size should I use for a French press?" and the search doesn't return your French press doc, you know immediately something's wrong — you don't need to guess.
-
-Then make it pickier: a real folder also holds files that aren't documents (an editor's temp file, say). Read only the `.txt` and `.md` files — `os.listdir(folder)` lists the names, `name.endswith(".txt")` checks the ending, `os.path.join(folder, name)` builds the path, and `with open(path, "r") as f:` reads it. Store each file's name next to its text (`metadatas=[{"source_file": name}]`), so a search result can say which file it came from.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
-
-### Intermediate Version
 
 Same idea, naming the exact pieces:
 
@@ -55,88 +35,7 @@ The extra pieces:
 
 Sketch what a `search(question, cutoff)` function's signature and return type should look like once it can return "nothing relevant" as a real, distinct case — not just an empty list that looks the same as "no documents at all."
 
-**Difference between Basic and Intermediate:** Basic assumes this script runs exactly once, against documents guaranteed to contain the answer to whatever you ask. Intermediate removes both assumptions: `get_or_create_collection` makes building the store safe to call more than once, from more than one place, and a score cutoff makes "nothing relevant was found" a real, checked outcome instead of 3 confidently-wrong results that look no different from a genuine match.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-pick a topic (coffee brewing at home)
-
-write 6 short files, a few sentences each, save them to a docs folder:
-    French press basics.txt
-    Pour-over basics.txt
-    Grind size guide.txt
-    Water temperature.txt
-    Coffee-to-water ratio.txt
-    Storing coffee beans.txt
-
-make a function called build_vector_store that takes a folder path:
-    start a chroma client
-    make a collection called "knowledge_base"
-    for each file in the folder:
-        read its full text
-        embed the text
-        add it to the collection, using the filename as the id
-    return the collection
-
-ask 3 real questions, one at a time:
-    embed the question
-    query the collection for the top 3 matches
-    print the matched ids and text
-    look at the results yourself and check: is this actually the right doc?
-```
-
-Here's almost the whole thing — try running it and reading it line by line:
-```python
-# knowledge_base_search_practice.py
-import chromadb
-from openai import OpenAI
-
-openai_client = OpenAI()
-
-def embed(text):
-    response = openai_client.embeddings.create(
-        model="text-embedding-3-small", input=text,
-    )
-    return response.data[0].embedding
-
-def build_vector_store(doc_folder):
-    chroma_client = chromadb.Client()
-    collection = chroma_client.create_collection(name="knowledge_base")
-    # loop over the files in doc_folder here, embed each one, and
-    # collection.add(...) it using the filename as the id
-    return collection
-```
-**Expected output if you run just this:** nothing yet — write the 6 sample files, fill in the loop, and add the part that asks 3 questions and prints the results.
-
-Then the pickier loop — fill in the `add` call yourself:
-```python
-def build_vector_store(doc_folder):
-    chroma_client = chromadb.Client()
-    collection = chroma_client.create_collection(name="knowledge_base")
-    for file_name in os.listdir(doc_folder):
-        if not (file_name.endswith(".txt") or file_name.endswith(".md")):
-            continue
-        path = os.path.join(doc_folder, file_name)
-        with open(path, "r") as f:
-            text = f.read()
-        # your turn: collection.add(...) with documents, embeddings,
-        # ids, and metadatas=[{"source_file": file_name}]
-        ...
-    return collection
-```
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
-
-### Intermediate Version
 
 ```
 define:
@@ -196,7 +95,6 @@ Here's almost the whole thing — fill in the missing piece yourself:
 # knowledge_base_search_practice.py
 SCORE_CUTOFF: float = 1.2
 
-
 def build_vector_store(doc_folder: str):
     chroma_client = chromadb.Client()
     collection = chroma_client.get_or_create_collection(name="knowledge_base")
@@ -205,7 +103,6 @@ def build_vector_store(doc_folder: str):
     # just return it instead of re-embedding and re-adding every file again
     ...
     return collection
-
 
 def search(
     collection, question: str, k: int = 3, cutoff: float = SCORE_CUTOFF,
@@ -248,11 +145,5 @@ define:
 ```
 
 Fill in the "already built" check and the cutoff filter yourself, then compare all of your finished versions against the [Solution](knowledge_base_search_solution.md).
-
-**Difference between Basic and Intermediate:** Basic builds the store once and trusts every query returns something worth using. Intermediate makes `build_vector_store` safe to call again without duplicating or crashing, and makes `search` capable of reporting "nothing relevant" as a real, distinct result instead of silently returning 3 weak matches with no way to tell they're weak.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
 
 Full solution: [Show me the solution](knowledge_base_search_solution.md)

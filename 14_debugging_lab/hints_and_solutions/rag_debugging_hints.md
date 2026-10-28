@@ -9,10 +9,6 @@ One scenario, followed across all 4 rounds: Doc08's retriever module (`chunking.
 - [Round 3: Real-world](#round-real-world)
 - [Round 4: Multi-agent](#round-multi-agent)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Solution](rag_debugging_solution.md)
-
 ## Round: Basic {: #round-basic }
 
 **Setup:** `chunk_by_chars()`, the simplest chunking method in `chunking.py`:
@@ -45,10 +41,6 @@ Each chunk is only 9 characters long, and joining them gives `'The quickbrown fo
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Solution](rag_debugging_solution.md)
-
 ## Round: Intermediate {: #round-intermediate }
 
 **Setup:** chunking is fixed. The retriever module embeds documents at index time with one embedding model, and a later config change updates the *query-time* embedding model without updating the indexing side to match:
@@ -78,10 +70,6 @@ Scores that used to reliably sit around 0.7-0.9 for genuinely relevant chunks ar
 
 **What do you think is wrong?**
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Solution](rag_debugging_solution.md)
-
 ## Round: Real-world {: #round-real-world }
 
 **Setup:** indexing and querying both use the same embedding model again. Documents are chunked with a fixed character count, same as Round 1 but now fixed and working correctly.
@@ -105,10 +93,6 @@ Scores that used to reliably sit around 0.7-0.9 for genuinely relevant chunks ar
 - Actual: the one sentence containing the fact ("Customers have 30 days...") got cut in half by a chunk boundary — the retriever does return both halves in its top results, but the generation step, looking at each retrieved chunk somewhat independently, never connects "Customers" (end of chunk 1) to "have 30 days..." (start of chunk 2) as one continuous sentence.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Solution](rag_debugging_solution.md)
 
 ## Round: Multi-agent {: #round-multi-agent }
 
@@ -136,9 +120,5 @@ Scores that used to reliably sit around 0.7-0.9 for genuinely relevant chunks ar
 - Actual: the retriever did its job correctly, but the source and score never made it past the Research agent's own node — Analysis, working only from the plain-text summary in shared state, has no way to tell a well-sourced fact from an unsourced guess, and downgrades it — invisible testing the retriever or the Research agent's tool call alone.
 
 **What do you think is wrong?**
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Solution](rag_debugging_solution.md)
 
 Full solution: [Show me the solution](rag_debugging_solution.md)

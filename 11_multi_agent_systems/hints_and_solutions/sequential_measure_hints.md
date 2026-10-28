@@ -2,37 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, including how a real measurement pipeline handles the messy edge cases). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-This exercise is the Basic exercise's "sequential" design, actually built — no new pattern, just two plain functions called one after the other, where the second one's input is the first one's output.
-
-Before writing code, go re-read your own Basic-exercise prediction for the sequential design. You're about to find out if you were right.
-
-Think about what "measuring" really means here: you need a number for cost (tokens or dollars), and a number for speed (seconds), for each stage separately and for the whole run.
-
-Things to use:
-
-- Two plain functions: `research(topic)` and `write(research_text)`, chained directly.
-- `time.time()` around each call, and around the whole thing.
-- Your model response's usage info — check `response.usage_metadata` (or your provider's equivalent) instead of guessing token counts.
-- A printed report at the end showing both stages and the total.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
-
-### Intermediate Version
 
 Two functions, chained directly — `write(research(topic))` — is the entire structure. There's no graph here yet; that's deliberate, since a fixed two-step pipeline doesn't need LangGraph to prove the pattern works. (You'll build the graph version of a similar pipeline as part of the supervisor comparison and Project 4.)
 
@@ -54,65 +29,7 @@ The extra pieces needed:
 
 Sketch this hardened version yourself before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic names the two functions and the exact tools (`time`, `usage_metadata`) for a first working measurement, returning three loose values per function and printing once. Intermediate explains why `perf_counter()` and real usage metadata matter, why the two stages' numbers need to stay separate rather than only totaled, and settles on the shape those numbers should actually live in — a typed per-stage result (`@dataclass`) and a dedicated `run_sequential()` report function — which is exactly the shape `supervisor_compare` needs to reuse for a fair, apples-to-apples comparison next.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-function research(topic):
-    start timer
-    call model to research the topic
-    stop timer
-    return text, tokens used, seconds taken
-
-function write(research_text):
-    start timer
-    call model to write a summary from research_text
-    stop timer
-    return text, tokens used, seconds taken
-
-main:
-    research_result = research(topic)
-    write_result = write(research_result.text)
-    print each stage's tokens and seconds
-    print the total tokens and total seconds
-    compare against your Basic-exercise guess
-```
-
-Here's almost the whole thing — just try running it and reading it line by line:
-```python
-# architecture_comparison_practice.py — Intermediate section
-import time
-
-def research(topic):
-    start = time.time()
-    prompt = "Research the top 3 causes of " + topic + ". List them briefly."
-    response = model.invoke(prompt)
-    seconds = time.time() - start
-    tokens = response.usage_metadata["total_tokens"]
-    return response.content, tokens, seconds
-
-def write(research_text):
-    start = time.time()
-    prompt = "Write a 3-sentence summary of this:\n\n" + research_text
-    response = model.invoke(prompt)
-    seconds = time.time() - start
-    tokens = response.usage_metadata["total_tokens"]
-    return response.content, tokens, seconds
-```
-**Expected output if you run just this (nothing calls the functions yet):** nothing — defining a function doesn't run it. Add `research_text, research_tokens, research_seconds = research("climate change")` below it, then call `write(research_text)` the same way, to see real numbers.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
-
-### Intermediate Version
 
 ```
 def research(topic: str) -> dict:
@@ -139,7 +56,7 @@ def write(research_text: str) -> dict:
 ```
 
 ```python
-# architecture_comparison_practice.py — Intermediate section
+# architecture_comparison_practice.py
 def main():
     topic = "climate change"
     total_start = time.perf_counter()
@@ -178,17 +95,15 @@ function run_sequential(topic) -> dict:
 
 Here's almost the whole thing — fill in the missing piece yourself:
 ```python
-# architecture_comparison_practice.py — Intermediate section
+# architecture_comparison_practice.py
 import time
 from dataclasses import dataclass
-
 
 @dataclass
 class StageResult:
     text: str
     tokens: int
     seconds: float
-
 
 def research(topic: str) -> StageResult:
     start = time.perf_counter()
@@ -198,11 +113,9 @@ def research(topic: str) -> StageResult:
     call_tokens = response.usage_metadata["total_tokens"]
     return StageResult(response.content, call_tokens, elapsed)
 
-
 def write(research_text: str) -> StageResult:
     # your turn: same shape as research() above, but for the write stage
     ...
-
 
 def run_sequential(topic: str) -> dict:
     total_start = time.perf_counter()
@@ -219,11 +132,5 @@ def run_sequential(topic: str) -> dict:
 ```
 
 Fill in `write()` yourself, then compare your written reflection ("was I right about which stage costs more?") against the [Solution](sequential_measure_solution.md).
-
-**Difference between Basic and Intermediate:** the same underlying shape (time it, call the model, read `usage_metadata`, report both stages and the total), at more completeness — Basic's version returns three loose values per function and prints once; Intermediate adds the type contract, a `main()` that separates "run" from "report," a `StageResult` type, and a dedicated `run_sequential()` function, which is the reusable shape `supervisor_compare` needs next for a fair, side-by-side comparison.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
 
 Full solution: [Show me the solution](sequential_measure_solution.md)

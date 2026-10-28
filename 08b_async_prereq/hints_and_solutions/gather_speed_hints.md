@@ -2,35 +2,12 @@
 
 > [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
 
-Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint has 2 depth levels: **Basic** (the plain idea) and **Intermediate** (proper Python, plus how a real caller would actually handle this). Read Basic first even if you already know Python — it's the fastest way to spot exactly what Intermediate adds.
+Only 2 hints — work through them in order, and don't jump ahead until you've genuinely tried. Each hint builds toward the full solution.
 
 - [Hint 1 — The idea, and the exact pieces](#hint-1)
 - [Hint 2 — The plan, and almost the whole thing](#hint-2)
 
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
-
 ## Hint 1 — The idea, and the exact pieces {: #hint-1 }
-
-### Basic Version
-
-You're going to run the same 3 slow tasks two different ways, and time both, so you can *see* the difference instead of just being told about it.
-
-First way: run task 1, wait for it to finish, then task 2, then task 3. That's "one after another" — the total time is the sum of all three. Second way: start all three at the same time and let them run together — the total time is roughly however long the *slowest* one takes, not the sum.
-
-Things to use:
-
-- `async def f1(): await asyncio.sleep(2)` — a slow task, times 3.
-- `time.perf_counter()` — start a stopwatch, then read it again later.
-- `await f1(); await f2(); await f3()` — one after another.
-- `await asyncio.gather(f1(), f2(), f3())` — all together.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
-
-### Intermediate Version
 
 The exercise is really about two `asyncio` features working together: `await` running things one at a time, and `asyncio.gather` running them together, with `time.perf_counter()` measuring the actual difference.
 
@@ -54,67 +31,7 @@ The extra piece that answers that question:
 
 Sketch what your `run_parallel` output would look like with one of the 3 tasks raising, with and without `return_exceptions=True`, before checking Hint 2.
 
-**Difference between Basic and Intermediate:** Basic assumes all 3 tasks succeed — it only ever proves the speed difference. Intermediate also asks what happens the moment one of them doesn't, which is the realistic case once these aren't `sleep()` calls but real network requests — and shows the one flag (`return_exceptions=True`) that decides whether one failure costs you every result, or just that one.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
-
 ## Hint 2 — The plan, and almost the whole thing {: #hint-2 }
-
-### Basic Version
-
-```
-make three slow functions f1, f2, f3:
-    each one waits 2 seconds, then is done
-
-make a function run_sequential:
-    start the stopwatch
-    wait for f1, then wait for f2, then wait for f3
-    print how much time passed (should be about 6 seconds)
-
-make a function run_parallel:
-    start the stopwatch
-    wait for f1, f2, and f3 all together, using gather
-    print how much time passed (should be about 2 seconds)
-
-run run_sequential
-run run_parallel
-compare the two printed times
-```
-
-Here's almost the whole thing — just try running it and reading it line by line:
-```python
-# gather_practice.py — Intermediate section
-import asyncio
-import time
-
-async def f1():
-    await asyncio.sleep(2)
-    return "f1 done"
-
-async def f2():
-    await asyncio.sleep(2)
-    return "f2 done"
-
-async def f3():
-    await asyncio.sleep(2)
-    return "f3 done"
-
-async def run_sequential():
-    start = time.perf_counter()
-    await f1()
-    await f2()
-    await f3()
-    print("sequential:", time.perf_counter() - start)
-```
-**Expected output if you run just this (nothing calls anything yet):** nothing — add `run_parallel()` and the two `asyncio.run(...)` calls to see the timings print.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
-
-### Intermediate Version
 
 ```
 define:
@@ -156,11 +73,10 @@ run gather(f1(), f2(), f3(), return_exceptions=True):
 ```
 
 ```python
-# gather_practice.py — Intermediate section
+# gather_practice.py
 async def f2_broken() -> str:
     await asyncio.sleep(2)
     raise ValueError("f2 failed on purpose")
-
 
 async def run_parallel_safe() -> None:
     results = await asyncio.gather(
@@ -173,11 +89,5 @@ async def run_parallel_safe() -> None:
             print("a task succeeded:", result)
 ```
 Wire this into a runnable script yourself — compare the output with and without `return_exceptions=True` — then check the [Solution](gather_speed_solution.md).
-
-**Difference between Basic and Intermediate:** Basic's pseudocode and near-complete code assume every task succeeds. Intermediate deliberately breaks one task and shows the two different outcomes `gather` can give you depending on `return_exceptions` — losing every result the moment one task fails (the default), versus getting every result back, successes and failures both labeled, in one list.
-
-<hr class="page-break">
-
-> [Back to the exercise](../README.md#ex-gather_speed) · [Hint 1](gather_speed_hints.md#hint-1) · [Hint 2](gather_speed_hints.md#hint-2) · [Solution](gather_speed_solution.md)
 
 Full solution: [Show me the solution](gather_speed_solution.md)
