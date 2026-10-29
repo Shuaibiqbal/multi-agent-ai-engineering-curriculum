@@ -49,19 +49,18 @@ import openai
 
 from src.config import load_config
 from src.exceptions import MissingConfigError
-from src.schemas import TicketRecord
 from src.services.pipeline import handle_ticket
 from src.utils.logger import get_logger
 
-def load_samples() -> list[dict]:
+def load_samples():
     with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
 
-def print_record(record: TicketRecord) -> None:
+def print_record(record):
     print(f"  category:      {record.category}")
     print(f"  used fallback: {record.used_fallback}")     # new in Step 3
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -102,7 +101,7 @@ if __name__ == "__main__":
 # failures that pass on their own; with_canned_reply/with_unsure_category
 # wrap a chain so a bad key or a code bug still fails loudly.
 import openai
-from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables import RunnableLambda
 
 from src.schemas import TicketCategory
 from src.utils.logger import get_logger
@@ -118,12 +117,12 @@ FALLBACK_REPLY = (
     "and a member of our team will reply within one business day."
 )
 
-def canned_reply(inputs: dict) -> str:
+def canned_reply(inputs):
     logger = get_logger(__name__)
     logger.warning("Reply chain failed - sending the fallback reply")
     return FALLBACK_REPLY
 
-def unsure_category(inputs: dict) -> TicketCategory:
+def unsure_category(inputs):
     logger = get_logger(__name__)
     logger.warning("Classifier failed - using general, marked unsure")
     return TicketCategory(
@@ -132,13 +131,13 @@ def unsure_category(inputs: dict) -> TicketCategory:
         sure=False,
     )
 
-def with_canned_reply(chain: Runnable) -> Runnable:
+def with_canned_reply(chain):
     backup = RunnableLambda(canned_reply)
     return chain.with_fallbacks(
         [backup], exceptions_to_handle=TRANSIENT_ERRORS
     )
 
-def with_unsure_category(chain: Runnable) -> Runnable:
+def with_unsure_category(chain):
     backup = RunnableLambda(unsure_category)
     return chain.with_fallbacks(
         [backup], exceptions_to_handle=TRANSIENT_ERRORS
@@ -154,7 +153,6 @@ def with_unsure_category(chain: Runnable) -> Runnable:
 # The classifier chain, now wrapped so a model outage falls back to
 # "general, not sure" instead of crashing the ticket.
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 from pydantic import ValidationError
 
 from src.chains.fallback import with_unsure_category     # new in Step 3
@@ -163,13 +161,13 @@ from src.schemas import TicketCategory
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def build_classifier_chain() -> Runnable:
+def build_classifier_chain():
     prompt = ChatPromptTemplate.from_template(load_prompt("classifier"))
     model = get_model().with_structured_output(TicketCategory)
     chain = prompt | model
     return with_unsure_category(chain)     # changed in Step 3: wrapped
 
-def classify_ticket(ticket: str) -> TicketCategory:
+def classify_ticket(ticket):
     logger = get_logger(__name__)
     chain = build_classifier_chain()
     try:
@@ -198,14 +196,13 @@ def classify_ticket(ticket: str) -> TicketCategory:
 # a transient model failure sends the canned reply instead of crashing.
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 
 from src.chains.fallback import with_canned_reply     # new in Step 3
 from src.chains.lookups import build_lookup_step
 from src.models.llm import get_model
 from src.utils.prompts import load_prompt
 
-def build_reply_chain(category: str) -> Runnable:
+def build_reply_chain(category):
     prompt = ChatPromptTemplate.from_template(load_prompt(category))
     chain = prompt | get_model() | StrOutputParser()
 
@@ -230,7 +227,7 @@ from src.chains.fallback import FALLBACK_REPLY     # new in Step 3
 from src.chains.replies import build_reply_chain
 from src.schemas import TicketRecord
 
-def handle_ticket(ticket: str, customer_id: str) -> TicketRecord:
+def handle_ticket(ticket, customer_id):
     category = classify_ticket(ticket)
     chain = build_reply_chain(category.category)
     inputs = {"ticket": ticket, "customer_id": customer_id}
@@ -275,13 +272,13 @@ def build_broken_chain():
     prompt = ChatPromptTemplate.from_template("Reply to: {ticket}")
     return prompt | model | StrOutputParser()
 
-def working_step(inputs: dict) -> str:
+def working_step(inputs):
     return "A real reply."
 
-def buggy_step(inputs: dict) -> str:
+def buggy_step(inputs):
     return inputs["no_such_key"]
 
-def test_outage_uses_fallback() -> None:
+def test_outage_uses_fallback():
     chain = with_canned_reply(build_broken_chain())
     reply = chain.invoke({"ticket": "Where is my invoice?"})
     ok = "OK"
@@ -289,7 +286,7 @@ def test_outage_uses_fallback() -> None:
         ok = "WRONG"
     print(f"case 1 (outage falls back) -> {ok}")
 
-def test_working_chain_skips_fallback() -> None:
+def test_working_chain_skips_fallback():
     chain = with_canned_reply(RunnableLambda(working_step))
     reply = chain.invoke({"ticket": "Hi"})
     ok = "OK"
@@ -297,7 +294,7 @@ def test_working_chain_skips_fallback() -> None:
         ok = "WRONG"
     print(f"case 2 (working, no fallback) -> {ok}")
 
-def test_bug_is_not_hidden() -> None:
+def test_bug_is_not_hidden():
     chain = with_canned_reply(RunnableLambda(buggy_step))
     ok = "WRONG"
     try:

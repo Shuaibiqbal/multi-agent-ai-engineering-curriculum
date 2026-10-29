@@ -173,7 +173,7 @@ Add the broken server and this case:
 BROKEN = {"name": "broken", "command": "python",
           "args": ["servers/does_not_exist.py"]}
 
-async def test_fallback_when_server_down() -> None:
+async def test_fallback_when_server_down():
     config, client, pool = await connect([NOTES, BROKEN])
     result = "OK"
     if "broken" in pool.sessions:

@@ -10,16 +10,19 @@
 # coroutine_basics_practice.py
 import asyncio
 
-async def wait_and_return() -> str:
+
+async def wait_and_return():
     await asyncio.sleep(1)
     return "done"
 
-if __name__ == "__main__":
-    unstarted = wait_and_return()
-    print(unstarted)   # <coroutine object wait_and_return at 0x...>
 
-    result: str = asyncio.run(wait_and_return())
-    print(result)       # "done"
+# Calling a coroutine function doesn't run it — you get a coroutine object.
+unstarted = wait_and_return()
+print(unstarted)   # <coroutine object wait_and_return at 0x...>
+
+# asyncio.run() actually runs it and hands back the result.
+result = asyncio.run(wait_and_return())
+print(result)       # "done"
 ```
 **Expected output:**
 ```

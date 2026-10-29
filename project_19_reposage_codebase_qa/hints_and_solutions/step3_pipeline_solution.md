@@ -58,7 +58,7 @@ from src.rag.retriever import retrieve_snippets
 from src.utils.logger import get_logger
 
 
-def run_query(model, repo_dir: str, question: str):
+def run_query(model, repo_dir, question):
     logger = get_logger(__name__)
     collection = build_code_store(repo_dir)
     snippets = retrieve_snippets(collection, question)
@@ -111,7 +111,7 @@ from src.models.llm import get_model
 from src.pipeline import run_query
 
 
-def test_answers_from_the_code() -> None:
+def test_answers_from_the_code():
     config = load_config()
     model = get_model(config)
     answer, files = run_query(model, config.repo_dir, "How is login handled?")
@@ -120,7 +120,7 @@ def test_answers_from_the_code() -> None:
     print(f"case 1 (login answered, auth.py cited) -> {status}")
 
 
-def test_offtopic_says_unknown() -> None:
+def test_offtopic_says_unknown():
     config = load_config()
     model = get_model(config)
     answer, files = run_query(

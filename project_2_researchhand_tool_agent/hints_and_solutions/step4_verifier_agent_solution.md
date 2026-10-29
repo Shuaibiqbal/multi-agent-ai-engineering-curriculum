@@ -46,18 +46,16 @@ Answer to check: {answer}
 # The Verifier agent: verify() checks the Worker's answer against the
 # evidence from its tool calls, and returns a VerifierVerdict.
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
-from src.agents.worker import AgentResult
 from src.schemas import VerifierVerdict
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def build_verifier_chain(model: ChatOpenAI):
+def build_verifier_chain(model):
     prompt = ChatPromptTemplate.from_template(load_prompt("verifier"))
     return prompt | model.with_structured_output(VerifierVerdict)
 
-def collect_evidence(steps: list[dict]) -> str:
+def collect_evidence(steps):
     evidence = ""
     for step in steps:
         if step["error"] is None:
@@ -67,9 +65,7 @@ def collect_evidence(steps: list[dict]) -> str:
         return "(no tools were used)"
     return evidence
 
-def verify(
-    verifier_chain, question: str, result: AgentResult
-) -> VerifierVerdict:
+def verify(verifier_chain, question, result):
     logger = get_logger(__name__)
     verdict = verifier_chain.invoke({
         "question": question,
@@ -86,16 +82,12 @@ def verify(
 # src/services/research_service.py
 # The flow between the agents: answer_task() runs the Worker, then the
 # Verifier, and on a rejection reruns the Worker once with the reason.
-from langchain_openai import ChatOpenAI
 
 from src.agents.verifier import verify
-from src.agents.worker import AgentResult, run_worker
-from src.schemas import VerifierVerdict
+from src.agents.worker import run_worker
 from src.utils.logger import get_logger
 
-def answer_task(
-    model: ChatOpenAI, verifier_chain, task: str, max_iterations: int
-) -> tuple[AgentResult, VerifierVerdict]:
+def answer_task(model, verifier_chain, task, max_iterations):
     logger = get_logger(__name__)
     result = run_worker(model, task, max_iterations)
     verdict = verify(verifier_chain, task, result)
@@ -132,7 +124,7 @@ from src.models.llm import get_model
 from src.services.research_service import answer_task
 from src.utils.logger import get_logger
 
-def print_steps(steps: list[dict]) -> None:
+def print_steps(steps):
     for step in steps:
         if step["error"] is None:
             outcome = step["result"]
@@ -141,7 +133,7 @@ def print_steps(steps: list[dict]) -> None:
         print(f"  step {step['step']}: {step['tool']}({step['arguments']})")
         print(f"          -> {outcome}")
 
-def main() -> None:
+def main():
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -203,19 +195,19 @@ if __name__ == "__main__":
 from src.agents.verifier import collect_evidence
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-def test_find_known_tool() -> None:
+def test_find_known_tool():
     result = "OK"
     if find_tool(ALL_TOOLS, "celsius_to_fahrenheit") is None:
         result = "WRONG"
     print(f"case 1 (known tool found)          -> {result}")
 
-def test_find_unknown_tool() -> None:
+def test_find_unknown_tool():
     result = "OK"
     if find_tool(ALL_TOOLS, "send_email") is not None:
         result = "WRONG"
     print(f"case 2 (unknown tool gives None)   -> {result}")
 
-def test_run_good_call() -> None:
+def test_run_good_call():
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
     output, error = run_tool(call, ALL_TOOLS)
     result = "OK"
@@ -223,7 +215,7 @@ def test_run_good_call() -> None:
         result = "WRONG"
     print(f"case 3 (good call gives 32.0)      -> {result}")
 
-def test_run_unknown_tool() -> None:
+def test_run_unknown_tool():
     call = {"name": "send_email", "args": {}}
     output, error = run_tool(call, ALL_TOOLS)
     result = "OK"
@@ -231,7 +223,7 @@ def test_run_unknown_tool() -> None:
         result = "WRONG"
     print(f"case 4 (unknown tool gives error)  -> {result}")
 
-def test_run_bad_arguments() -> None:
+def test_run_bad_arguments():
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
     output, error = run_tool(call, ALL_TOOLS)
     result = "OK"
@@ -240,7 +232,7 @@ def test_run_bad_arguments() -> None:
     print(f"case 5 (bad arguments give error)  -> {result}")
 
 # new in Step 4
-def test_evidence_skips_failed_steps() -> None:
+def test_evidence_skips_failed_steps():
     steps = [
         {"tool": "search_docs", "result": None, "error": "index down"},
         {"tool": "search_docs", "result": "Refunds within 30 days.",
@@ -253,7 +245,7 @@ def test_evidence_skips_failed_steps() -> None:
     print(f"case 6 (failed step left out)      -> {result}")
 
 # new in Step 4
-def test_evidence_with_no_steps() -> None:
+def test_evidence_with_no_steps():
     result = "OK"
     if collect_evidence([]) != "(no tools were used)":
         result = "WRONG"
@@ -280,7 +272,6 @@ if __name__ == "__main__":
 # adds cases. Each case prints OK or WRONG.
 # Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-from langchain_openai import ChatOpenAI
 
 # new in Step 4
 from src.agents.verifier import build_verifier_chain, verify
@@ -291,7 +282,7 @@ from src.exceptions import MaxIterationsExceeded
 from src.models.llm import get_model
 from src.tools.docs_search import search_state
 
-def test_direct_answer(model: ChatOpenAI) -> None:
+def test_direct_answer(model):
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
     result = "OK"
@@ -299,13 +290,13 @@ def test_direct_answer(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 1 (direct answer)  -> {result}: {answer}")
 
-def tools_used(outcome: AgentResult) -> list[str]:
+def tools_used(outcome):
     names = []
     for step in outcome.steps:
         names.append(step["tool"])
     return names
 
-def test_conversion_uses_tool(model: ChatOpenAI) -> None:
+def test_conversion_uses_tool(model):
     task = "What is 25 degrees Celsius in Fahrenheit?"
     used = tools_used(run_worker(model, task, 5))
     result = "OK"
@@ -313,14 +304,14 @@ def test_conversion_uses_tool(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 2 (conversion)     -> {result}: {used}")
 
-def test_no_tool_needed(model: ChatOpenAI) -> None:
+def test_no_tool_needed(model):
     outcome = run_worker(model, "What is the capital of France?", 5)
     result = "OK"
     if len(outcome.steps) != 0:
         result = "WRONG"
     print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
 
-def test_step_limit(model: ChatOpenAI) -> None:
+def test_step_limit(model):
     task = "What is 25 degrees Celsius in Fahrenheit?"
     result = "WRONG"
     try:
@@ -329,7 +320,7 @@ def test_step_limit(model: ChatOpenAI) -> None:
         result = "OK"
     print(f"case 4 (step limit)     -> {result}")
 
-def test_weather_uses_tool(model: ChatOpenAI) -> None:
+def test_weather_uses_tool(model):
     task = "What's the weather in Lahore right now?"
     used = tools_used(run_worker(model, task, 5))
     result = "OK"
@@ -337,7 +328,7 @@ def test_weather_uses_tool(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 5 (weather task)   -> {result}: {used}")
 
-def test_tool_failure_recovery(model: ChatOpenAI) -> None:
+def test_tool_failure_recovery(model):
     search_state.call_count = 0
     outcome = run_worker(model, "What is your refund policy?", 5)
     failed = 0
@@ -354,7 +345,7 @@ def test_tool_failure_recovery(model: ChatOpenAI) -> None:
           f"{succeeded} succeeded")
 
 # new in Step 4
-def lahore_steps() -> list[dict]:
+def lahore_steps():
     return [
         {"tool": "get_weather", "result": "Currently 18°C in Lahore",
          "error": None},
@@ -362,7 +353,7 @@ def lahore_steps() -> list[dict]:
     ]
 
 # new in Step 4
-def test_verifier_rejects_wrong_answer(verifier_chain) -> None:
+def test_verifier_rejects_wrong_answer(verifier_chain):
     wrong = AgentResult(
         final_answer="It is 90°F in Lahore.", steps=lahore_steps()
     )
@@ -373,7 +364,7 @@ def test_verifier_rejects_wrong_answer(verifier_chain) -> None:
     print(f"case 7 (wrong answer)   -> {result}: {verdict.reason}")
 
 # new in Step 4
-def test_verifier_approves_right_answer(verifier_chain) -> None:
+def test_verifier_approves_right_answer(verifier_chain):
     right = AgentResult(
         final_answer="It is 64.4°F in Lahore.", steps=lahore_steps()
     )
@@ -427,7 +418,7 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.services.research_service import answer_task
 
-def main() -> None:
+def main():
     config = load_config()
     model = get_model(config)
     direct_chain = build_direct_chain(model)

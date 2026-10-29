@@ -24,7 +24,7 @@ FILES = {
 
 
 @mcp.tool()
-def list_files(directory: str) -> str:
+def list_files(directory):
     """List the file names in a directory."""
     if directory not in FILES:
         return f"Error: no directory named {directory}"
@@ -32,7 +32,7 @@ def list_files(directory: str) -> str:
 
 
 @mcp.tool()
-def read_file(path: str) -> str:
+def read_file(path):
     """Read the text of one file by its path."""
     return f"(pretend contents of {path})"
 
@@ -142,7 +142,7 @@ FILES = {"name": "filesystem", "command": "python",
          "args": ["servers/files_server.py"]}
 
 
-async def test_routing_across_servers() -> None:
+async def test_routing_across_servers():
     config, client, pool = await connect([NOTES, FILES])
     task = ("Check my notes for anything about the deploy process, and also "
             "list the files in the project folder.")

@@ -62,11 +62,12 @@ def run_agent(task: str, max_iterations: int = 5) -> AgentResult:
     message = f"No answer after {max_iterations} steps"
     raise MaxIterationsExceeded(message, steps)
 
-if __name__ == "__main__":
-    result = run_agent("Add 1 + 2, then add 3 to that.")
-    print(f"Final answer: {result.final_answer}")
-    for step in result.steps:
-        print(step)
+
+# Run it on a task that needs two tool calls in a row.
+result = run_agent("Add 1 + 2, then add 3 to that.")
+print(f"Final answer: {result.final_answer}")
+for step in result.steps:
+    print(step)
 ```
 **Expected output** (model wording varies):
 

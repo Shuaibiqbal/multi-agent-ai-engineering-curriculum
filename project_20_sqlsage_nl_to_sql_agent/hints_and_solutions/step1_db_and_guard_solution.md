@@ -34,7 +34,7 @@ class Config:
     log_level: str
     db_path: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -42,7 +42,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -56,7 +56,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -74,9 +74,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -105,7 +103,7 @@ ORDERS = [
     (5, 3, 80.0, "cancelled"),
 ]
 
-def build_sample_db(db_path: str) -> None:
+def build_sample_db(db_path):
     if os.path.exists(db_path):
         return
     folder = os.path.dirname(db_path)
@@ -139,7 +137,7 @@ def build_sample_db(db_path: str) -> None:
 # needs the schema to know which tables and columns it can use.
 import sqlite3
 
-def schema_text(db_path: str) -> str:
+def schema_text(db_path):
     connection = sqlite3.connect(db_path)
     try:
         cursor = connection.execute(
@@ -161,7 +159,7 @@ def schema_text(db_path: str) -> str:
 # has approved the query.
 import sqlite3
 
-def run_select(db_path: str, sql: str) -> list:
+def run_select(db_path, sql):
     connection = sqlite3.connect(db_path)
     try:
         cursor = connection.execute(sql)
@@ -183,7 +181,7 @@ FORBIDDEN_WORDS = [
     "create", "replace", "truncate", "attach", "pragma",
 ]
 
-def is_safe_select(sql: str) -> bool:
+def is_safe_select(sql):
     cleaned = sql.strip().rstrip(";").strip()
     lowered = cleaned.lower()
     if not lowered.startswith("select"):
@@ -208,7 +206,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "SQLSAGE_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -217,7 +215,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -235,12 +233,12 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_guard
 from src.guard import is_safe_select
 
-def test_plain_select_passes() -> None:
+def test_plain_select_passes():
     sql = "SELECT count(*) FROM orders WHERE status = 'completed'"
     result = "OK" if is_safe_select(sql) else "WRONG"
     print(f"case 1 (plain SELECT allowed)     -> {result}")
 
-def test_writes_are_rejected() -> None:
+def test_writes_are_rejected():
     bad = [
         "DELETE FROM orders",
         "UPDATE orders SET amount = 0",
@@ -269,7 +267,7 @@ from src.db.runner import run_select
 from src.db.schema import schema_text
 from src.db.seed import build_sample_db
 
-def test_seed_and_select() -> None:
+def test_seed_and_select():
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_shop.db")
     build_sample_db(db_path)
@@ -282,7 +280,7 @@ def test_seed_and_select() -> None:
         result = "WRONG"
     print(f"case 1 (3 completed orders)   -> {result}")
 
-def test_schema_has_tables() -> None:
+def test_schema_has_tables():
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_shop.db")
     build_sample_db(db_path)

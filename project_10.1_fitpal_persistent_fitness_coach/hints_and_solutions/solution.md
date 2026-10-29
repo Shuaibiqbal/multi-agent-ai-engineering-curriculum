@@ -66,7 +66,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -74,7 +74,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -87,7 +87,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -104,7 +104,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/utils/prompts.py
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -113,9 +113,7 @@ def load_prompt(name: str) -> str:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -146,19 +144,19 @@ from langgraph.store.memory import InMemoryStore
 def build_store():
     return InMemoryStore()
 
-def namespace_for(user_id: str) -> tuple:
+def namespace_for(user_id):
     return ("fitness", user_id)
 
-def recall_facts(store, user_id: str) -> list:
+def recall_facts(store, user_id):
     facts = []
     for item in store.search(namespace_for(user_id)):
         facts.append(item.value["fact"])
     return facts
 
-def save_fact(store, user_id: str, key: str, fact: str) -> None:
+def save_fact(store, user_id, key, fact):
     store.put(namespace_for(user_id), key, {"fact": fact})
 
-def forget_user(store, user_id: str) -> int:
+def forget_user(store, user_id):
     namespace = namespace_for(user_id)
     deleted = 0
     for item in store.search(namespace):
@@ -181,7 +179,7 @@ class MemoryDecision(BaseModel):
     key: str
     fact: str
 
-def decide_memory(model, message: str) -> MemoryDecision:
+def decide_memory(model, message):
     prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
     chain = prompt | model.with_structured_output(MemoryDecision)
     return chain.invoke({"message": message})
@@ -215,13 +213,12 @@ User message: {message}
 # what new durable fact to save. The model is bound by closures; the store
 # is injected because recall/write_back declare a store parameter.
 from langchain_core.messages import HumanMessage, SystemMessage
-from langgraph.store.base import BaseStore
 
 from src.memory.store import recall_facts, save_fact
 from src.memory.writer import decide_memory
 from src.utils.prompts import load_prompt
 
-def recall_node(state, *, store: BaseStore):
+def recall_node(state, *, store):
     facts = recall_facts(store, state["user_id"])
     return {"recalled": "; ".join(facts)}
 
@@ -235,7 +232,7 @@ def make_chat_node(model):
     return chat_node
 
 def make_write_back_node(model):
-    def write_back_node(state, *, store: BaseStore):
+    def write_back_node(state, *, store):
         last_user = None
         for message in reversed(state["messages"]):
             if isinstance(message, HumanMessage):
@@ -341,7 +338,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "FITPAL_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -350,7 +347,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -359,7 +356,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -384,7 +381,7 @@ from src.memory.store import (
     save_fact,
 )
 
-def test_save_then_recall() -> None:
+def test_save_then_recall():
     store = build_store()
     save_fact(store, "me", "goal", "Goal is a 10k")
     result = "OK"
@@ -392,7 +389,7 @@ def test_save_then_recall() -> None:
         result = "WRONG"
     print(f"case 1 (save then recall)       -> {result}")
 
-def test_recall_is_per_user() -> None:
+def test_recall_is_per_user():
     store = build_store()
     save_fact(store, "me", "goal", "Goal is a 10k")
     result = "OK"
@@ -400,7 +397,7 @@ def test_recall_is_per_user() -> None:
         result = "WRONG"
     print(f"case 2 (another user sees none)  -> {result}")
 
-def test_same_key_updates() -> None:
+def test_same_key_updates():
     store = build_store()
     save_fact(store, "me", "goal", "Goal is a 10k")
     save_fact(store, "me", "goal", "Goal is a half-marathon")
@@ -409,7 +406,7 @@ def test_same_key_updates() -> None:
         result = "WRONG"
     print(f"case 3 (same key updates)        -> {result}")
 
-def test_forget_removes_all() -> None:
+def test_forget_removes_all():
     store = build_store()
     save_fact(store, "me", "goal", "Goal is a 10k")
     save_fact(store, "me", "injury", "Bad left knee")
@@ -454,7 +451,7 @@ def say(app, text, thread):
     )
     return out["messages"][-1].content
 
-def test_recalls_injury_in_new_session() -> None:
+def test_recalls_injury_in_new_session():
     app, store = fresh_app()
     say(app, "My left knee is bad - avoid deep squats. I only have dumbbells.",
         "s1")
@@ -464,7 +461,7 @@ def test_recalls_injury_in_new_session() -> None:
         result = "WRONG"
     print(f"case 1 (recalls injury, new session) -> {result}")
 
-def test_chatter_not_saved() -> None:
+def test_chatter_not_saved():
     app, store = fresh_app()
     say(app, "I felt a bit tired today.", "s1")
     result = "OK"
@@ -472,7 +469,7 @@ def test_chatter_not_saved() -> None:
         result = "WRONG"
     print(f"case 2 (chatter not remembered)      -> {result}")
 
-def test_goal_updates() -> None:
+def test_goal_updates():
     app, store = fresh_app()
     say(app, "My goal is a 10k.", "s1")
     say(app, "Actually my goal is a half-marathon now.", "s2")
@@ -486,7 +483,7 @@ def test_goal_updates() -> None:
         result = "WRONG"
     print(f"case 3 (goal updates, not dup)       -> {result}")
 
-def test_forget_leaves_nothing() -> None:
+def test_forget_leaves_nothing():
     app, store = fresh_app()
     say(app, "My goal is a 10k and I have dumbbells.", "s1")
     forget_user(store, USER)

@@ -13,23 +13,27 @@ import time
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
-from react_loop_practice import MaxIterationsExceeded
+
+class MaxIterationsExceeded(Exception):
+    def __init__(self, message, steps):
+        self.steps = steps          # partial log, to see why it stopped
+        super().__init__(message)
+
 
 @tool
 def always_ask_again(city: str) -> str:
     """Look up the weather for a city. Always call it again to check."""
     return "Not sure yet - call this tool again."
 
-def run_with_limits(
-    task: str, max_iterations: int, timeout_seconds: float
-) -> str:
-    # why: two limits, whichever comes first — steps AND a deadline
+
+# An agent loop with TWO safety limits: a step count AND a time deadline,
+# whichever comes first.
+def run_with_limits(task, max_iterations, timeout_seconds):
     model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     model_with_tools = model.bind_tools([always_ask_again])
     messages = [{"role": "user", "content": task}]
     deadline = time.time() + timeout_seconds
     steps = []
-
     for step in range(max_iterations):
         if time.time() > deadline:
             raise MaxIterationsExceeded("deadline passed", steps)
@@ -39,34 +43,30 @@ def run_with_limits(
             return response.content
         for call in response.tool_calls:
             result = always_ask_again.invoke(call["args"])
-            # how: usage_metadata is LangChain's name for Doc04's usage —
-            # each step keeps its own token count in the log
+            # usage_metadata is LangChain's name for Doc04's token usage
             tokens = response.usage_metadata["total_tokens"]
             steps.append({"step": step, "tool": call["name"], "tokens": tokens})
             messages.append(
                 {"role": "tool", "content": result, "tool_call_id": call["id"]}
             )
+    raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
 
-    message = f"No answer after {max_iterations} steps"
-    raise MaxIterationsExceeded(message, steps)
 
-def main() -> None:
-    try:
-        run_with_limits("What's the weather in Paris?", 5, 30)
-    except MaxIterationsExceeded as e:
-        loop_tokens = 0
-        for step in e.steps:
-            loop_tokens = loop_tokens + step["tokens"]
-        print(f"case 1 (step limit)  -> stopped after {len(e.steps)} steps")
-        print(f"case 1 (tokens used) -> {loop_tokens}")
+# case 1: the tool always asks again, so the loop runs until its limit.
+try:
+    run_with_limits("What's the weather in Paris?", 5, 30)
+except MaxIterationsExceeded as e:
+    loop_tokens = 0
+    for step in e.steps:
+        loop_tokens = loop_tokens + step["tokens"]
+    print(f"case 1 (step limit)  -> stopped after {len(e.steps)} steps")
+    print(f"case 1 (tokens used) -> {loop_tokens}")
 
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    direct = model.invoke("What's the capital of France?")
-    direct_tokens = direct.usage_metadata["total_tokens"]
-    print(f"case 2 (one call)    -> {direct_tokens} tokens")
-
-if __name__ == "__main__":
-    main()
+# case 2: a question that needs no tool costs a single call.
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+direct = model.invoke("What's the capital of France?")
+direct_tokens = direct.usage_metadata["total_tokens"]
+print(f"case 2 (one call)    -> {direct_tokens} tokens")
 ```
 **Expected output** (token counts vary by model and prompt):
 

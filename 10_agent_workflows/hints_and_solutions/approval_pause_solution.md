@@ -73,13 +73,13 @@ def run_with_approval(graph, task: str, decision, thread_id: str) -> dict:
     graph.invoke({"task": task}, config)
     return graph.invoke(Command(resume=decision), config)
 
-if __name__ == "__main__":
-    graph = build_graph()
-    task = "How hot should the water be when brewing?"
-    approved = run_with_approval(graph, task, "approved", "thread-yes")
-    print("approved run:", approved["answer"])
-    rejected = run_with_approval(graph, task, "rejected", "thread-no")
-    print("rejected run:", rejected["answer"])
+# Run the same task twice: once approving, once rejecting.
+graph = build_graph()
+task = "How hot should the water be when brewing?"
+approved = run_with_approval(graph, task, "approved", "thread-yes")
+print("approved run:", approved["answer"])
+rejected = run_with_approval(graph, task, "rejected", "thread-no")
+print("rejected run:", rejected["answer"])
 ```
 **Expected output:**
 ```

@@ -114,9 +114,9 @@ class Run(BaseModel):
 # The API routes. POST /run-task now saves a "started" run before the team
 # runs and "completed"/"failed" after; GET /runs/{run_id} reads one back or
 # returns 404; every log line carries the request id.
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
-from src.api.schemas import TaskRequest, TaskResponse
+from src.api.schemas import TaskResponse
 from src.db.database import get_connection, insert_started_run     # new
 from src.db.database import finish_run, fail_run, fetch_run        # new
 from src.db.models import Run                                      # new
@@ -129,12 +129,12 @@ conn = get_connection()   # new in Step 2: one connection for the app
 INTERNAL_ERROR = "Internal error. Please try again later."
 
 @router.get("/health")
-def health() -> dict:
+def health():
     return {"status": "ok"}
 
 @router.post("/run-task", response_model=TaskResponse)
 # changed in Step 2: + http_request, to read the request id
-def run_task(request: TaskRequest, http_request: Request) -> TaskResponse:
+def run_task(request, http_request):
     logger = get_logger(__name__)
     request_id = http_request.state.request_id   # new in Step 2
     if not request.topic.strip():
@@ -164,7 +164,7 @@ def run_task(request: TaskRequest, http_request: Request) -> TaskResponse:
 
 # new in Step 2: look one run up by id
 @router.get("/runs/{run_id}", response_model=Run)
-def get_run(run_id: int):
+def get_run(run_id):
     run = fetch_run(conn, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
@@ -179,7 +179,7 @@ def get_run(run_id: int):
 # on every request and returns it in the X-Request-ID header.
 import uuid                              # new in Step 2
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 
 from src.api.routes import router
 from src.config import load_config
@@ -191,7 +191,7 @@ app.include_router(router)
 
 # new in Step 2: one short id per request, set once for every route
 @app.middleware("http")
-async def add_request_id(request: Request, call_next):
+async def add_request_id(request, call_next):
     request_id = str(uuid.uuid4())[:8]
     request.state.request_id = request_id
     response = await call_next(request)
@@ -215,7 +215,7 @@ from src.api.main import app
 
 client = TestClient(app)
 
-def fake_run_pipeline(topic: str) -> dict:
+def fake_run_pipeline(topic):
     return {
         "article": "E-Bikes Explained\n\nUp to 100 km. [battery-review]",
         "accepted": True,
@@ -226,18 +226,18 @@ def fake_run_pipeline(topic: str) -> dict:
         ],
     }
 
-def broken_run_pipeline(topic: str) -> dict:
+def broken_run_pipeline(topic):
     raise RuntimeError("simulated internal failure")
 
-def use_fake_team(monkeypatch, fake) -> None:
+def use_fake_team(monkeypatch, fake):
     monkeypatch.setattr(routes, "run_pipeline", fake)
 
 # new in Step 2: count saved rows
-def row_count() -> int:
+def row_count():
     sql = "SELECT COUNT(*) FROM runs"
     return routes.conn.execute(sql).fetchone()[0]
 
-def failed_count() -> int:
+def failed_count():
     sql = "SELECT COUNT(*) FROM runs WHERE status = ?"
     return routes.conn.execute(sql, ("failed",)).fetchone()[0]
 

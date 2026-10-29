@@ -10,28 +10,18 @@
 # api_first_call_practice.py
 import requests
 
-def main() -> None:
-    # why: proves a real call/response round trip works before anything
-    # else in this document builds on top of it.
-    response = requests.get("https://api.github.com")
-    # how: the status code alone tells you the transport succeeded
-    print(f"status: {response.status_code}")
-    # how: .json() parses the response body — a separate step from the status
-    # check
-    print(f"body: {response.json()}")
+# A real call/response round trip, before anything else builds on it.
+response = requests.get("https://api.github.com")
+print(f"status: {response.status_code}")   # the transport succeeded
+print(f"body: {response.json()}")   # parsing the body is a separate step
 
-    try:
-        # when: a malformed URL fails before any network call even happens —
-        # this is a client-side mistake, not a server response.
-        requests.get("htp://broken")
-    except requests.exceptions.RequestException as e:
-        # how: catches only requests' own exception family, not every possible
-        # Exception — a bug elsewhere in a bigger try block still surfaces
-        # normally.
-        print(f"Caught a client-side request error: {type(e).__name__} - {e}")
-
-if __name__ == "__main__":
-    main()
+# A malformed URL fails before any network call happens — a client-side
+# mistake, not a server response.
+try:
+    requests.get("htp://broken")
+except requests.exceptions.RequestException as e:
+    # catch only requests' own errors, not every possible Exception
+    print(f"Caught a client-side request error: {type(e).__name__} - {e}")
 ```
 **Expected output:**
 ```

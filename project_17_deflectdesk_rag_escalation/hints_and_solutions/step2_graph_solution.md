@@ -10,9 +10,6 @@
 # src/state.py
 from typing import TypedDict
 
-from src.rag.help_store import build_help_store
-
-
 class SupportState(TypedDict):
     question: str
     context: str
@@ -20,8 +17,7 @@ class SupportState(TypedDict):
     answer: str
     escalated: bool
 
-
-def start_state(question: str) -> SupportState:
+def start_state(question):
     return {
         "question": question,
         "context": "",
@@ -52,7 +48,7 @@ ANSWER_PROMPT = (
 )
 
 
-def build_graph(model, collection, cutoff: float = 0.8):
+def build_graph(model, collection, cutoff=0.8):
     def retrieve_node(state):
         text, distance = best_match(collection, state["question"])
         return {"context": text, "best_distance": distance}

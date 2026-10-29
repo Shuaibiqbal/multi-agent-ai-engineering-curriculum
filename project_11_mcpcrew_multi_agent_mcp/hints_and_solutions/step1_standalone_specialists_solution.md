@@ -25,13 +25,13 @@ NOTES = [
 ]
 
 @mcp.tool()
-def add_note(text: str) -> str:
+def add_note(text):
     """Add a note to the notes store."""
     NOTES.append(text)
     return "Saved."
 
 @mcp.tool()
-def search_notes(query: str) -> str:
+def search_notes(query):
     """Search notes by keyword and return the matching lines."""
     hits = []
     for note in NOTES:
@@ -62,7 +62,7 @@ PAGES = {
 }
 
 @mcp.tool()
-def fetch_page(url: str) -> str:
+def fetch_page(url):
     """Fetch a known internal status page by URL."""
     return PAGES.get(url, "No content available for this URL.")
 
@@ -93,7 +93,7 @@ class Config:
     log_level: str
     connect_timeout: float
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -101,7 +101,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -116,7 +116,7 @@ import logging
 import os
 import sys
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -134,11 +134,9 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from openai import OpenAI
 
-from src.config import Config
-
 MODEL = "gpt-4o-mini"
 
-def create_client(config: Config) -> OpenAI:
+def create_client(config):
     return OpenAI(api_key=config.openai_api_key)
 ```
 
@@ -307,7 +305,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MCPCREW_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -316,7 +314,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -325,7 +323,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"

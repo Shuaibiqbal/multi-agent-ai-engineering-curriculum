@@ -9,46 +9,37 @@
 ```python
 # structured_output_practice.py
 from pydantic import BaseModel, ValidationError
-from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
 
+
 class Person(BaseModel):
-    # why: str | None, not str — Doc04's rule: a required field forces
-    # the model to invent a value when the text has none
+    # str | None, not str — a required field would force the model to
+    # invent a value when the text has none (Doc04's rule).
     name: str | None
     age: int | None
 
-def get_structured_model() -> Runnable:
-    # why: .with_structured_output(Person) is LangChain's version of the
-    # same constrained-decoding call Doc04 made with .parse()
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    return model.with_structured_output(Person)
 
-def extract_person(text: str) -> Person | None:
-    structured_model = get_structured_model()
+# .with_structured_output(Person) is LangChain's version of Doc04's
+# .parse(). This returns a Person, or None when nothing was found.
+def extract_person(text):
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    structured_model = model.with_structured_output(Person)
     try:
         person = structured_model.invoke(text)
     except ValidationError:
-        # when: rare with "shape during", but a reply can still fail the
-        # model — the caller gets None, not a crash
-        return None
-
-    # when: nothing found — "no person", not an object full of None
+        return None          # a bad reply gives None, not a crash
     if person.name is None and person.age is None:
-        return None
+        return None          # nothing found -> "no person", not all-None
     return person
 
-def main() -> None:
-    texts = [
-        "Extract: Maria is 34 years old.",
-        "Extract: the sky is blue today.",
-    ]
-    for text in texts:
-        person = extract_person(text)
-        print(f"{text} -> {person}")
 
-if __name__ == "__main__":
-    main()
+# Try it on a text with a person, and one without.
+texts = [
+    "Extract: Maria is 34 years old.",
+    "Extract: the sky is blue today.",
+]
+for text in texts:
+    print(f"{text} -> {extract_person(text)}")
 ```
 **Expected output:**
 

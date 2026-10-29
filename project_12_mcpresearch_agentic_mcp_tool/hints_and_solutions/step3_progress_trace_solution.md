@@ -12,7 +12,7 @@
 # src/formatting.py
 # Turn pipeline output into the string the MCP tool returns. Pure functions,
 # so they're unit-testable with no model.
-def format_result(result) -> str:
+def format_result(result):
     lines = [f"Deep research on: {result.topic}", "", "Revision trace:"]
     for entry in result.rounds:
         state = "approved" if entry["approved"] else "rejected"
@@ -32,7 +32,7 @@ def format_result(result) -> str:
     return "\n".join(lines)
 
 
-def format_partial(topic, progress) -> str:
+def format_partial(topic, progress):
     draft = progress.latest_draft or "(no draft produced yet)"
     return (
         f"Deep research on: {topic}\n\n"
@@ -53,7 +53,7 @@ from src.pipeline import Progress, run_pipeline
 # ...
 
 @mcp.tool()
-def deep_research(topic: str) -> str:
+def deep_research(topic):
     """Research a topic through a fact-checked, multi-round pipeline; returns
     a verified summary plus a short revision trace."""
     logger.info(f"deep_research: {topic}")
@@ -87,7 +87,7 @@ class FakeProgress:
         self.rounds = rounds
 
 
-def test_result_shows_trace() -> None:
+def test_result_shows_trace():
     result = FakeResult(
         "RAG", "RAG is from Meta AI, 2020.", True,
         [{"round": 1, "approved": False, "issues": ["wrong date"]},
@@ -102,7 +102,7 @@ def test_result_shows_trace() -> None:
           f"{'OK' if ok else 'WRONG'}")
 
 
-def test_cap_status() -> None:
+def test_cap_status():
     result = FakeResult(
         "blue", "draft", False,
         [{"round": 1, "approved": False, "issues": ["x"]},
@@ -114,7 +114,7 @@ def test_cap_status() -> None:
           f"{'OK' if ok else 'WRONG'}")
 
 
-def test_partial() -> None:
+def test_partial():
     progress = FakeProgress("a half-finished draft", [{"round": 1}])
     out = format_partial("slow topic", progress)
     ok = "PARTIAL" in out and "a half-finished draft" in out

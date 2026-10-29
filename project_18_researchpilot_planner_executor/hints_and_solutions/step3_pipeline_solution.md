@@ -37,11 +37,9 @@ from src.planner import make_plan
 from src.rag.search import make_search
 from src.rag.source_store import build_source_store
 from src.report import compile_report
-from src.schemas import Report
 from src.utils.logger import get_logger
 
-
-def run_research(model, question: str) -> Report:
+def run_research(model, question):
     logger = get_logger(__name__)
     plan = make_plan(model, question).sub_questions
     logger.info(f"planned {len(plan)} sub-question(s)")
@@ -94,7 +92,7 @@ from src.pipeline import run_research
 from src.report import format_report
 
 
-def test_report_has_cited_findings() -> None:
+def test_report_has_cited_findings():
     config = load_config()
     model = get_model(config)
     report = run_research(
@@ -104,7 +102,7 @@ def test_report_has_cited_findings() -> None:
     print(f"case 1 (several cited findings) -> {'OK' if ok else 'WRONG'}")
 
 
-def test_sources_are_real_files() -> None:
+def test_sources_are_real_files():
     config = load_config()
     model = get_model(config)
     report = run_research(model, "What is RAG and how does chunking affect it?")

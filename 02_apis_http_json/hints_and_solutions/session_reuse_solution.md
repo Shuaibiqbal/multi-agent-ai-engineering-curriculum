@@ -10,38 +10,31 @@
 # session_reuse_practice.py
 import requests
 
-def make_authenticated_session(token: str) -> requests.Session:
-    # why: one shared Session with the header set once, instead of passing
-    # the same headers dict to every call by hand where it can drift or get
-    # missed.
-    # when: call this once, at the start of the program — treat the
-    # returned session's headers as read-only after this point.
+
+# The one thing this exercise teaches: a reusable session with the auth
+# header set once, so no later call can forget it.
+def make_authenticated_session(token):
     session = requests.Session()
     session.headers.update({"Authorization": f"Bearer {token}"})
     return session
 
-def main() -> None:
-    session = make_authenticated_session("fake-token")
 
-    urls = [
-        "https://api.github.com",
-        "https://api.github.com/zen",
-        "https://api.github.com/octocat",
-    ]
+# Build the session once, then every call carries the header automatically.
+session = make_authenticated_session("fake-token")
 
-    for url in urls:
-        # how: session.get(...), not requests.get(...) — this is what makes
-        # the Authorization header go out automatically on every call.
-        response = session.get(url)
-        print(f"{url} -> {response.status_code}")
+urls = [
+    "https://api.github.com",
+    "https://api.github.com/zen",
+    "https://api.github.com/octocat",
+]
+for url in urls:
+    # session.get(...), not requests.get(...), is what sends the header
+    response = session.get(url)
+    print(f"{url} -> {response.status_code}")
 
-    # how: response.request.headers reads back what was actually sent over
-    # the wire, not just what's configured on the session object.
-    sent_header = response.request.headers.get("Authorization")
-    print(f"header actually sent on the last request: {sent_header}")
-
-if __name__ == "__main__":
-    main()
+# response.request.headers reads back what actually went over the wire
+sent_header = response.request.headers.get("Authorization")
+print(f"header actually sent on the last request: {sent_header}")
 ```
 **Expected output:**
 ```

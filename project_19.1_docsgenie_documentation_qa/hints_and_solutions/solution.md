@@ -77,7 +77,7 @@ class Config:
     log_level: str
     docs_dir: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -85,7 +85,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -99,7 +99,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -117,9 +117,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -136,13 +134,13 @@ embeddings.
 # Turn retrieved passages into one model-ready block (each under a # Page:
 # header) and the de-duplicated list of pages to cite. Plain Python, so
 # it's fully testable with hand-made passages - no model or embeddings.
-def build_context(passages) -> str:
+def build_context(passages):
     blocks = []
     for passage in passages:
         blocks.append(f"# Page: {passage['page']}\n{passage['text']}")
     return "\n\n".join(blocks)
 
-def cited_pages(passages) -> list:
+def cited_pages(passages):
     pages = []
     for passage in passages:
         if passage["page"] not in pages:
@@ -166,7 +164,7 @@ import chromadb
 COLLECTION_NAME = "documentation"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-def build_docs_store(docs_dir: str):
+def build_docs_store(docs_dir):
     loader = DirectoryLoader(docs_dir, glob="**/*.md", loader_cls=TextLoader)
     documents = loader.load()
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=60)
@@ -197,7 +195,7 @@ def build_docs_store(docs_dir: str):
 # Return the doc passages closest to a question, each with its page name.
 from src.rag.docs_store import EMBEDDINGS
 
-def retrieve_passages(collection, question: str, k: int = 4) -> list:
+def retrieve_passages(collection, question, k=4):
     if collection.count() == 0:
         return []
     results = collection.query(
@@ -229,7 +227,7 @@ ANSWER_PROMPT = (
     "{context}\n\nQuestion: {question}"
 )
 
-def answer_question(model, question: str, context: str) -> str:
+def answer_question(model, question, context):
     prompt = ChatPromptTemplate.from_template(ANSWER_PROMPT)
     chain = prompt | model
     reply = chain.invoke({"context": context, "question": question})
@@ -259,7 +257,7 @@ from src.rag.docs_store import build_docs_store
 from src.rag.retriever import retrieve_passages
 from src.utils.logger import get_logger
 
-def run_query(model, docs_dir: str, question: str):
+def run_query(model, docs_dir, question):
     logger = get_logger(__name__)
     collection = build_docs_store(docs_dir)
     passages = retrieve_passages(collection, question)
@@ -311,7 +309,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DOCSGENIE_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -320,7 +318,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -344,7 +342,7 @@ PASSAGES = [
     {"page": "authentication.md", "text": "Create keys in the dashboard."},
 ]
 
-def test_every_passage_has_a_page_header() -> None:
+def test_every_passage_has_a_page_header():
     context = build_context(PASSAGES)
     result = "OK"
     if context.count("# Page:") != 3:
@@ -353,7 +351,7 @@ def test_every_passage_has_a_page_header() -> None:
         result = "WRONG"
     print(f"case 1 (page headers in context) -> {result}")
 
-def test_cited_pages_are_deduped() -> None:
+def test_cited_pages_are_deduped():
     pages = cited_pages(PASSAGES)
     result = "OK"
     if pages != ["authentication.md", "billing.md"]:
@@ -386,7 +384,7 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import run_query
 
-def test_answers_from_the_docs() -> None:
+def test_answers_from_the_docs():
     config = load_config()
     model = get_model(config)
     answer, pages = run_query(
@@ -395,7 +393,7 @@ def test_answers_from_the_docs() -> None:
     status = "OK" if ok else "WRONG"
     print(f"case 1 (auth answered, page cited) -> {status}")
 
-def test_offtopic_says_unknown() -> None:
+def test_offtopic_says_unknown():
     config = load_config()
     model = get_model(config)
     answer, pages = run_query(

@@ -36,18 +36,17 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.models.llm import get_model
-from src.state import DocState
 from src.utils.prompts import load_prompt
 
 # new in Step 4
-def format_sources(sources: list[dict]) -> str:
+def format_sources(sources):
     text = ""
     for source in sources:
         text = text + f"[{source['source_file']}] {source['text']}\n\n"
     return text
 
 # changed in Step 4: same name and output, now written by the model
-def reason_node(state: DocState) -> dict:
+def reason_node(state):
     prompt = ChatPromptTemplate.from_template(load_prompt("reasoner"))
     chain = prompt | get_model() | StrOutputParser()
     answer = chain.invoke({
@@ -76,9 +75,7 @@ from src.state import start_state
 ACTION_TASK = "What is the refund policy? Send it to the customer."
 
 
-def run(
-    graph, thread_id: str, task: str, decision: str | None = "yes"
-) -> dict:
+def run(graph, thread_id, task, decision="yes"):
     config = {"configurable": {"thread_id": thread_id}}
     outcome = graph.invoke(start_state(task), config)
     if decision is not None and "__interrupt__" in outcome:
@@ -86,50 +83,50 @@ def run(
     return outcome
 
 
-def show(case: str, passed: bool, outcome: dict) -> None:
+def show(case, passed, outcome):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}: {outcome.get('path')}")
 
 
-def test_general_question(graph) -> None:
+def test_general_question(graph):
     outcome = run(graph, "t1", "What is the capital of France?")
     passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
     show("case 1 (general question)", passed, outcome)
 
 
-def test_action_pauses(graph) -> None:
+def test_action_pauses(graph):
     outcome = run(graph, "t2", ACTION_TASK, decision=None)
     show("case 2 (pauses)          ", "__interrupt__" in outcome, outcome)
 
 
-def test_human_says_yes(graph) -> None:
+def test_human_says_yes(graph):
     outcome = run(graph, "t3", ACTION_TASK, "yes")
     passed = outcome["approved"] and "human_approved" in outcome["path"]
     show("case 3 (human: yes)      ", passed, outcome)
 
 
-def test_human_says_no(graph) -> None:
+def test_human_says_no(graph):
     outcome = run(graph, "t4", ACTION_TASK, "no")
     passed = outcome["answer"].startswith("Not approved")
     show("case 4 (human: no)       ", passed, outcome)
 
 
-def test_grounded_answer(graph) -> None:
+def test_grounded_answer(graph):
     outcome = run(graph, "t5", "What is the refund policy?")
     passed = outcome["grounded"] and "retrieve_node" in outcome["path"]
     show("case 5 (grounded)        ", passed, outcome)
 
 
-def test_not_in_documents(graph) -> None:
+def test_not_in_documents(graph):
     outcome = run(graph, "t6", "What is the policy on remote work?")
     passed = outcome["path"][-1] == "no_grounding_node"
     show("case 6 (not found)       ", passed, outcome)
 
 
 # new in Step 4
-def test_answer_cites_its_file(graph) -> None:
+def test_answer_cites_its_file(graph):
     outcome = run(graph, "t7", "What is the refund policy?")
     passed = "[refund_policy.md]" in outcome["answer"]
     show("case 7 (cites its file)  ", passed, outcome)

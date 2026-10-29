@@ -39,7 +39,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -47,7 +47,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -63,7 +63,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
 
     if not logger.handlers:
@@ -98,9 +98,7 @@ Also create an empty `__init__.py` in `src/utils/`, so the folder is an importab
 # ChatOpenAI with the project's model name and the key from Config.
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -123,7 +121,7 @@ Question: {question}
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live in
 # text files instead of Python strings. (Project 1's file.)
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
@@ -137,11 +135,10 @@ def load_prompt(name: str) -> str:
 # prompt | model | parser — it answers from the model's memory only.
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
 from src.utils.prompts import load_prompt
 
-def build_direct_chain(model: ChatOpenAI):
+def build_direct_chain(model):
     prompt = ChatPromptTemplate.from_template(load_prompt("direct"))
     parser = StrOutputParser()
     return prompt | model | parser
@@ -163,7 +160,7 @@ from src.exceptions import MissingConfigError
 from src.models.llm import get_model
 from src.utils.logger import get_logger
 
-def main() -> None:
+def main():
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -229,7 +226,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "RESEARCHHAND_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -238,7 +235,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -247,7 +244,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -269,13 +266,12 @@ if __name__ == "__main__":
 # adds cases. Each case prints OK or WRONG.
 # Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-from langchain_openai import ChatOpenAI
 
 from src.chains.direct_answer import build_direct_chain
 from src.config import load_config
 from src.models.llm import get_model
 
-def test_direct_answer(model: ChatOpenAI) -> None:
+def test_direct_answer(model):
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
     result = "OK"

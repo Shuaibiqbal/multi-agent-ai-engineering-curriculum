@@ -13,15 +13,15 @@
 from src.schemas import Finding
 
 
-def is_code(path: str) -> bool:
+def is_code(path):
     return path.endswith((".py", ".js", ".ts"))
 
 
-def is_test(path: str) -> bool:
+def is_test(path):
     return "test" in path.lower()
 
 
-def run_coverage(files) -> list:
+def run_coverage(files):
     changed_paths = []
     for one_file in files:
         changed_paths.append(one_file["path"])
@@ -50,13 +50,12 @@ def run_coverage(files) -> list:
 # never does a review itself -- it only routes and compiles.
 from langgraph.types import Command
 
-from src.diff import categorize, parse_diff
+from src.diff import categorize
 from src.utils.logger import get_logger
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
-
-def choose_reviewers(files) -> list:
+def choose_reviewers(files):
     categories = set()
     for one_file in files:
         categories.add(categorize(one_file["path"]))
@@ -69,15 +68,13 @@ def choose_reviewers(files) -> list:
         reviewers.append("style")
     return reviewers
 
-
-def decide_next(state) -> str:
+def decide_next(state):
     for reviewer in state["reviewers"]:
         if reviewer not in state["done"]:
             return reviewer
     return "compile"
 
-
-def compile_review(findings) -> str:
+def compile_review(findings):
     seen = set()
     unique = []
     for finding in findings:
@@ -93,7 +90,6 @@ def compile_review(findings) -> str:
         lines.append(f"  [{finding.severity.upper()}] "
                      f"({finding.category}) {finding.message}")
     return "\n".join(lines)
-
 
 def supervisor(state):
     logger = get_logger(__name__)
@@ -123,7 +119,7 @@ class ReviewState(TypedDict):
     routing_log: list
 
 
-def start_state(diff: str) -> ReviewState:
+def start_state(diff):
     files = parse_diff(diff)
     return {
         "diff": diff,
@@ -235,7 +231,7 @@ DOCS = "--- a/README.md\n+++ b/README.md\n+docs line\n"
 CONFIG = "--- a/config.yaml\n+++ b/config.yaml\n+key: value\n"
 
 
-def test_code_runs_all() -> None:
+def test_code_runs_all():
     reviewers = set(choose_reviewers(parse_diff(CODE)))
     result = "OK"
     if reviewers != {"security", "coverage", "style"}:
@@ -243,7 +239,7 @@ def test_code_runs_all() -> None:
     print(f"case 1 (code -> all three)    -> {result}")
 
 
-def test_docs_only_style() -> None:
+def test_docs_only_style():
     reviewers = choose_reviewers(parse_diff(DOCS))
     result = "OK"
     if reviewers != ["style"]:
@@ -251,7 +247,7 @@ def test_docs_only_style() -> None:
     print(f"case 2 (docs-only -> style)   -> {result}")
 
 
-def test_config_skips_style() -> None:
+def test_config_skips_style():
     reviewers = choose_reviewers(parse_diff(CONFIG))
     result = "OK"
     if "style" in reviewers:
@@ -272,7 +268,7 @@ from src.agents.supervisor import compile_review
 from src.schemas import Finding
 
 
-def test_dedup_and_sort() -> None:
+def test_dedup_and_sort():
     findings = [
         Finding(severity="medium", category="security", message="x: eval"),
         Finding(severity="high", category="security", message="x: secret"),
@@ -287,7 +283,7 @@ def test_dedup_and_sort() -> None:
     print(f"case 1 (dedup + severity sort) -> {result}")
 
 
-def test_empty_is_clean() -> None:
+def test_empty_is_clean():
     out = compile_review([])
     result = "OK"
     if "no issues found" not in out:
@@ -327,14 +323,14 @@ def build_app():
     return build_graph(model, collection)
 
 
-def test_full_review() -> None:
+def test_full_review():
     final = build_app().invoke(start_state(DIRTY))
     review = final["review"].lower()
     ok = "secret" in review and "snake_case" in review and "test" in review
     print(f"case 1 (full review, all 3)    -> {'OK' if ok else 'WRONG'}")
 
 
-def test_docs_skips_security() -> None:
+def test_docs_skips_security():
     final = build_app().invoke(start_state(DOCS))
     ok = "security" not in final["routing_log"]
     print(f"case 2 (docs-only skips security) -> {'OK' if ok else 'WRONG'}")

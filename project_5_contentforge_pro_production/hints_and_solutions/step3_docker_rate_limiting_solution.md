@@ -17,9 +17,9 @@ After this step the project runs in a container: `docker build`, then `docker ru
 # is written next to it.
 import time                                                        # new
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
-from src.api.schemas import TaskRequest, TaskResponse
+from src.api.schemas import TaskResponse
 from src.db.database import get_connection, insert_started_run
 from src.db.database import finish_run, fail_run, fetch_run
 from src.db.models import Run
@@ -39,7 +39,7 @@ request_times = {}         # caller -> list of request timestamps
 INTERNAL_ERROR = "Internal error. Please try again later."
 
 # new in Step 3
-def check_rate_limit(caller_key: str) -> None:
+def check_rate_limit(caller_key):
     now = time.time()
     old_times = request_times.get(caller_key, [])
     recent = []
@@ -52,11 +52,11 @@ def check_rate_limit(caller_key: str) -> None:
     request_times[caller_key] = recent
 
 @router.get("/health")
-def health() -> dict:
+def health():
     return {"status": "ok"}
 
 @router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest, http_request: Request) -> TaskResponse:
+def run_task(request, http_request):
     logger = get_logger(__name__)
     request_id = http_request.state.request_id
     check_rate_limit(http_request.client.host)   # new in Step 3: checked first
@@ -84,7 +84,7 @@ def run_task(request: TaskRequest, http_request: Request) -> TaskResponse:
     )
 
 @router.get("/runs/{run_id}", response_model=Run)
-def get_run(run_id: int):
+def get_run(run_id):
     run = fetch_run(conn, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
@@ -142,7 +142,7 @@ from src.api.main import app
 
 client = TestClient(app)
 
-def fake_run_pipeline(topic: str) -> dict:
+def fake_run_pipeline(topic):
     return {
         "article": "E-Bikes Explained\n\nUp to 100 km. [battery-review]",
         "accepted": True,
@@ -153,19 +153,19 @@ def fake_run_pipeline(topic: str) -> dict:
         ],
     }
 
-def broken_run_pipeline(topic: str) -> dict:
+def broken_run_pipeline(topic):
     raise RuntimeError("simulated internal failure")
 
-def use_fake_team(monkeypatch, fake) -> None:
+def use_fake_team(monkeypatch, fake):
     monkeypatch.setattr(routes, "run_pipeline", fake)
     # new in Step 3: a fresh rate-limit memory per test
     monkeypatch.setattr(routes, "request_times", {})
 
-def row_count() -> int:
+def row_count():
     sql = "SELECT COUNT(*) FROM runs"
     return routes.conn.execute(sql).fetchone()[0]
 
-def failed_count() -> int:
+def failed_count():
     sql = "SELECT COUNT(*) FROM runs WHERE status = ?"
     return routes.conn.execute(sql, ("failed",)).fetchone()[0]
 

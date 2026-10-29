@@ -99,7 +99,7 @@ def _get_app(config):
         _APP = build_graph(get_model(config))
     return _APP
 
-def run_pipeline(config, destination: str) -> dict:
+def run_pipeline(config, destination):
     logger = get_logger(__name__)
     app = _get_app(config)
     final = app.invoke(start_state(destination))
@@ -140,12 +140,12 @@ from src.db.models import RunRecord
 
 DB_PATH = "tripcraft.sqlite"
 
-def connect(db_path: str = DB_PATH):
+def connect(db_path=DB_PATH):
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection
 
-def init_db(db_path: str = DB_PATH) -> None:
+def init_db(db_path=DB_PATH):
     connection = connect(db_path)
     connection.execute(
         "CREATE TABLE IF NOT EXISTS runs ("
@@ -155,7 +155,7 @@ def init_db(db_path: str = DB_PATH) -> None:
     connection.commit()
     connection.close()
 
-def save_run(result: dict, db_path: str = DB_PATH) -> int:
+def save_run(result, db_path=DB_PATH):
     connection = connect(db_path)
     created_at = datetime.now(timezone.utc).isoformat()
     cursor = connection.execute(
@@ -169,7 +169,7 @@ def save_run(result: dict, db_path: str = DB_PATH) -> int:
     connection.close()
     return run_id
 
-def get_run(run_id: int, db_path: str = DB_PATH):
+def get_run(run_id, db_path=DB_PATH):
     connection = connect(db_path)
     row = connection.execute(
         "SELECT * FROM runs WHERE id = ?", (run_id,)
@@ -207,7 +207,7 @@ class ItineraryResponse(BaseModel):
 from fastapi import APIRouter, HTTPException
 
 from src import pipeline
-from src.api.schemas import ItineraryRequest, ItineraryResponse
+from src.api.schemas import ItineraryResponse
 from src.config import load_config
 from src.db.database import get_run, save_run
 
@@ -218,14 +218,14 @@ def health():
     return {"status": "ok"}
 
 @router.post("/itineraries", response_model=ItineraryResponse)
-def create_itinerary(request: ItineraryRequest):
+def create_itinerary(request):
     config = load_config()
     result = pipeline.run_pipeline(config, request.destination)
     run_id = save_run(result)
     return ItineraryResponse(id=run_id, **result)
 
 @router.get("/itineraries/{run_id}", response_model=ItineraryResponse)
-def read_itinerary(run_id: int):
+def read_itinerary(run_id):
     record = get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail="run not found")
@@ -308,7 +308,7 @@ class JudgeScore(BaseModel):
     score: int = Field(ge=1, le=10)
     feedback: str
 
-def score_itinerary(model, itinerary: str, checks: str) -> JudgeScore:
+def score_itinerary(model, itinerary, checks):
     prompt = ChatPromptTemplate.from_template(JUDGE_PROMPT)
     chain = prompt | model.with_structured_output(JudgeScore)
     return chain.invoke({"itinerary": itinerary, "checks": checks})
@@ -325,7 +325,7 @@ from src.evals.tasks import EVAL_TASKS
 from src.models.llm import get_model
 from src.pipeline import run_pipeline
 
-def run_suite(model=None) -> float:
+def run_suite(model=None):
     config = load_config()
     if model is None:
         model = get_model(config)

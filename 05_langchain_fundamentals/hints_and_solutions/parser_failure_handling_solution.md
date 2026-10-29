@@ -12,51 +12,47 @@ from pydantic import BaseModel
 from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
+
 
 class Rating(BaseModel):
     score: int
 
+
 parser = PydanticOutputParser(pydantic_object=Rating)
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-# why: no word about the shape — the model answers in a sentence
-# how: {format_instructions} is filled once with .partial(), so the
-# caller only passes {thing}
-FIXED_TEMPLATE = "Rate {thing} from 1 to 10.\n{format_instructions}"
 
-def build_rating_chain(template: str) -> Runnable:
+# Build and run a rating chain for one template. If the template has a
+# {format_instructions} slot, fill it once so the caller only passes {thing}.
+# Returns a Rating, or None when the model's text won't parse.
+def get_rating(template, thing):
     prompt = ChatPromptTemplate.from_template(template)
     if "{format_instructions}" in template:
-        instructions = parser.get_format_instructions()
-        prompt = prompt.partial(format_instructions=instructions)
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    return prompt | model | parser
-
-def get_rating(chain: Runnable, thing: str) -> Rating | None:
+        prompt = prompt.partial(
+            format_instructions=parser.get_format_instructions()
+        )
     try:
-        return chain.invoke({"thing": thing})
+        return (prompt | model | parser).invoke({"thing": thing})
     except OutputParserException:
-        # why: catch the parser's own error by name — a network error
-        # or a bad key must still fail loudly
-        return None
+        return None          # catch the parser's own error, by name
 
-def main() -> None:
-    broken_chain = build_rating_chain("Rate {thing} from 1 to 10.")
-    print(f"case 1 (no instructions)   -> {get_rating(broken_chain, 'pizza')}")
 
-    fixed_chain = build_rating_chain(FIXED_TEMPLATE)
-    print(f"case 2 (with instructions) -> {get_rating(fixed_chain, 'pizza')}")
+# case 1: no instructions -> the model answers in a sentence that won't parse.
+no_hint = get_rating("Rate {thing} from 1 to 10.", "pizza")
+print(f"case 1 (no instructions)   -> {no_hint}")
 
-    # how: .parse() alone checks any text — no API call needed
-    try:
-        parser.parse("I'd say eight")
-        print("case 3 (parse by hand)     -> accepted (wrong!)")
-    except OutputParserException:
-        print("case 3 (parse by hand)     -> OutputParserException")
+# case 2: with instructions -> the model returns parseable JSON.
+fixed = "Rate {thing} from 1 to 10.\n{format_instructions}"
+with_hint = get_rating(fixed, "pizza")
+print(f"case 2 (with instructions) -> {with_hint}")
 
-if __name__ == "__main__":
-    main()
+# case 3: parse plain text by hand — no API call needed.
+try:
+    parser.parse("I'd say eight")
+    print("case 3 (parse by hand)     -> accepted (wrong!)")
+except OutputParserException:
+    print("case 3 (parse by hand)     -> OutputParserException")
 ```
 **Expected output** (the score varies):
 

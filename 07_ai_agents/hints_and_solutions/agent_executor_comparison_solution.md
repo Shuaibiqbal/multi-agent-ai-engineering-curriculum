@@ -83,34 +83,30 @@ def always_ask_again(city: str) -> str:
     """Look up the weather for a city. Always call it again to check."""
     return "Not sure yet - call this tool again."
 
-def main() -> None:
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    agent = create_agent(model, tools=ALL_TOOLS)
+# --- Compare tool-call counts: your loop vs the library's create_agent ---
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+agent = create_agent(model, tools=ALL_TOOLS)
 
-    for prompt in PROMPTS:
-        mine = run_agent(prompt)
-        inputs = {"messages": [{"role": "user", "content": prompt}]}
-        library = agent.invoke(inputs)
-        library_calls = count_library_tool_calls(library["messages"])
-        print(prompt)
-        print(f"  mine:    {len(mine.steps)} tool calls")
-        print(f"  library: {library_calls} tool calls")
+for prompt in PROMPTS:
+    mine = run_agent(prompt)
+    library = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+    library_calls = count_library_tool_calls(library["messages"])
+    print(prompt)
+    print(f"  mine:    {len(mine.steps)} tool calls")
+    print(f"  library: {library_calls} tool calls")
 
-    # why: both loops must stop a run that never ends — compare how
-    looping_agent = create_agent(model, tools=[always_ask_again])
-    inputs = {"messages": [{"role": "user", "content": "Weather in Paris?"}]}
-    try:
-        # how: recursion_limit counts graph steps — about 2 per turn
-        looping_agent.invoke(inputs, {"recursion_limit": 6})
-    except GraphRecursionError:
-        print("library: GraphRecursionError at recursion_limit=6")
-    try:
-        run_agent("Add 1 + 2, then add 3 to that.", max_iterations=1)
-    except MaxIterationsExceeded as e:
-        print(f"mine:    MaxIterationsExceeded, {len(e.steps)} step logged")
-
-if __name__ == "__main__":
-    main()
+# --- Both loops must stop a run that never ends — compare how ---
+looping_agent = create_agent(model, tools=[always_ask_again])
+loop_input = {"messages": [{"role": "user", "content": "Weather in Paris?"}]}
+try:
+    # recursion_limit counts graph steps — about 2 per turn
+    looping_agent.invoke(loop_input, {"recursion_limit": 6})
+except GraphRecursionError:
+    print("library: GraphRecursionError at recursion_limit=6")
+try:
+    run_agent("Add 1 + 2, then add 3 to that.", max_iterations=1)
+except MaxIterationsExceeded as e:
+    print(f"mine:    MaxIterationsExceeded, {len(e.steps)} step logged")
 ```
 **Expected output** (counts can vary a little between runs):
 

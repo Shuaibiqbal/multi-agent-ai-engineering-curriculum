@@ -21,7 +21,7 @@ EXTRACT_PROMPT = (
 )
 
 
-def extract_invoice(model, text: str) -> Invoice:
+def extract_invoice(model, text):
     prompt = ChatPromptTemplate.from_template(EXTRACT_PROMPT)
     chain = prompt | model.with_structured_output(Invoice)
     return chain.invoke({"text": text})

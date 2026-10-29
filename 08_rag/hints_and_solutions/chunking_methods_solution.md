@@ -91,19 +91,16 @@ def find_best_chunk(
             best_chunk = chunk
     return best_chunk, best_score
 
-def main() -> None:
-    question_vector = get_embedding(QUESTION)
-    methods = {
-        "chunk_by_chars": chunk_by_chars(DOCUMENT),
-        "chunk_by_paragraph": chunk_by_paragraph(DOCUMENT),
-    }
-    for name, chunks in methods.items():
-        best_chunk, best_score = find_best_chunk(chunks, question_vector)
-        print(f"{name} best match, score: {best_score:.4f}")
-        print(best_chunk)
-        print()
-
-if __name__ == "__main__":
-    main()
+# Compare two chunking methods: which gives the best-matching chunk?
+question_vector = get_embedding(QUESTION)
+methods = {
+    "chunk_by_chars": chunk_by_chars(DOCUMENT),
+    "chunk_by_paragraph": chunk_by_paragraph(DOCUMENT),
+}
+for name, chunks in methods.items():
+    best_chunk, best_score = find_best_chunk(chunks, question_vector)
+    print(f"{name} best match, score: {best_score:.4f}")
+    print(best_chunk)
+    print()
 ```
 **Expected output:** same conclusion as Basic — `chunk_by_paragraph`'s top match contains the whole temperature fact; `chunk_by_chars`'s top match is missing half of "scalds."

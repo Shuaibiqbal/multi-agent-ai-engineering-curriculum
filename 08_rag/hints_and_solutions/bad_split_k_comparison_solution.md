@@ -73,22 +73,20 @@ def build_index(text: str, chunk_size: int) -> list[tuple[str, list[float]]]:
         results.append((chunk, get_embedding(chunk)))
     return results
 
-def main() -> None:
-    chunks_with_embeddings = build_index(TEST_DOCUMENT, 40)
+# Build the index once (chunk + embed), then look at the top result.
+chunks_with_embeddings = build_index(TEST_DOCUMENT, 40)
 
-    print("k=1 result:")
-    for score, chunk_text in retrieve(QUESTION, chunks_with_embeddings, k=1):
-        print(f"  {score:.3f}  {chunk_text!r}")
+print("k=1 result:")
+for score, chunk_text in retrieve(QUESTION, chunks_with_embeddings, k=1):
+    print(f"  {score:.3f}  {chunk_text!r}")
 
-    print("\ntiming at k=1, k=3, k=10:")
-    for k in (1, 3, 10):
-        start = time.perf_counter()
-        results = retrieve(QUESTION, chunks_with_embeddings, k)
-        elapsed = time.perf_counter() - start
-        print(f"k = {k} | time: {elapsed:.4f} seconds")
-        for score, chunk_text in results:
-            print(f"    {score:.3f}  {chunk_text!r}")
-
-if __name__ == "__main__":
-    main()
+# Time retrieval at a few values of k.
+print("\ntiming at k=1, k=3, k=10:")
+for k in (1, 3, 10):
+    start = time.perf_counter()
+    results = retrieve(QUESTION, chunks_with_embeddings, k)
+    elapsed = time.perf_counter() - start
+    print(f"k = {k} | time: {elapsed:.4f} seconds")
+    for score, chunk_text in results:
+        print(f"    {score:.3f}  {chunk_text!r}")
 ```

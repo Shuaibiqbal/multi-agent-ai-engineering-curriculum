@@ -122,7 +122,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -130,7 +130,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -143,7 +143,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -160,7 +160,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/utils/prompts.py
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -176,7 +176,7 @@ import requests
 from src.exceptions import PermanentHTTPError, TransientHTTPError
 from src.utils.logger import get_logger
 
-def compute_backoff_delay(attempt: int) -> float:
+def compute_backoff_delay(attempt):
     return min(2 ** attempt, 8)
 
 def request_with_retry(method, url, max_attempts=5, **kwargs):
@@ -203,9 +203,7 @@ def request_with_retry(method, url, max_attempts=5, **kwargs):
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -240,8 +238,7 @@ def build_direct_chain(model):
 from langchain_core.tools import tool
 
 @tool
-def monthly_payment(principal: float, annual_rate_percent: float,
-                    months: int) -> float:
+def monthly_payment(principal, annual_rate_percent, months):
     """Exact monthly payment for an amortized loan. Use for any 'what is
     the monthly payment' question, never estimate it."""
     monthly_rate = annual_rate_percent / 100 / 12
@@ -263,7 +260,7 @@ from src.utils.http_client import request_with_retry
 FX_URL = "https://api.frankfurter.app/latest"
 
 @tool
-def get_exchange_rate(amount: float, base: str, quote: str) -> str:
+def get_exchange_rate(amount, base, quote):
     """Convert an amount between two currencies at today's real rate. Use
     for any currency conversion, never guess the rate."""
     data = request_with_retry(
@@ -292,7 +289,7 @@ class FlakyToolState:
     call_count = 0
 
 @tool
-def search_policies(query: str) -> str:
+def search_policies(query):
     """Search loan policies by keyword and return the matching policy text.
     Use for any question about rules, fees, or what is allowed."""
     FlakyToolState.call_count += 1
@@ -431,7 +428,7 @@ def build_verifier_chain(model):
     prompt = ChatPromptTemplate.from_template(load_prompt("verifier"))
     return prompt | model.with_structured_output(VerifierVerdict)
 
-def collect_evidence(steps) -> str:
+def collect_evidence(steps):
     lines = []
     for step in steps:
         if not str(step["result"]).startswith("Error"):
@@ -583,7 +580,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "LOANDESK_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -592,7 +589,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -601,7 +598,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -625,7 +622,7 @@ from pydantic import ValidationError
 from src.tools.calculator import monthly_payment
 from src.tools.policy_search import FlakyToolState, search_policies
 
-def test_payment_math() -> None:
+def test_payment_math():
     value = monthly_payment.invoke(
         {"principal": 20000, "annual_rate_percent": 7, "months": 36}
     )
@@ -634,7 +631,7 @@ def test_payment_math() -> None:
         result = "WRONG"
     print(f"case 1 (20000 @7% /36 = 617.54) -> {result}")
 
-def test_payment_rejects_bad_arg() -> None:
+def test_payment_rejects_bad_arg():
     result = "WRONG"
     try:
         monthly_payment.invoke(
@@ -644,7 +641,7 @@ def test_payment_rejects_bad_arg() -> None:
         result = "OK"
     print(f"case 2 (bad principal refused)  -> {result}")
 
-def test_policy_search_recovers() -> None:
+def test_policy_search_recovers():
     FlakyToolState.call_count = 0
     result = "OK"
     try:
@@ -671,19 +668,19 @@ if __name__ == "__main__":
 from src.agents.verifier import collect_evidence
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-def test_find_known_tool() -> None:
+def test_find_known_tool():
     result = "OK"
     if find_tool(ALL_TOOLS, "monthly_payment") is None:
         result = "WRONG"
     print(f"case 1 (known tool found)      -> {result}")
 
-def test_find_unknown_tool() -> None:
+def test_find_unknown_tool():
     result = "OK"
     if find_tool(ALL_TOOLS, "send_money") is not None:
         result = "WRONG"
     print(f"case 2 (unknown tool is None)  -> {result}")
 
-def test_run_tool_good_call() -> None:
+def test_run_tool_good_call():
     call = {"name": "monthly_payment", "id": "1",
             "args": {"principal": 1200, "annual_rate_percent": 0,
                      "months": 12}}
@@ -693,7 +690,7 @@ def test_run_tool_good_call() -> None:
         result = "WRONG"
     print(f"case 3 (good call -> result)   -> {result}")
 
-def test_run_tool_unknown() -> None:
+def test_run_tool_unknown():
     call = {"name": "send_money", "id": "1", "args": {}}
     value, error = run_tool(call, ALL_TOOLS)
     result = "OK"
@@ -701,7 +698,7 @@ def test_run_tool_unknown() -> None:
         result = "WRONG"
     print(f"case 4 (unknown -> error)      -> {result}")
 
-def test_collect_evidence_drops_errors() -> None:
+def test_collect_evidence_drops_errors():
     steps = [
         {"tool": "a", "args": {}, "result": "Error: boom"},
         {"tool": "b", "args": {}, "result": "good data"},
@@ -736,24 +733,24 @@ def tools_used(result):
         names.append(step["tool"])
     return names
 
-def test_payment_uses_calculator(model) -> None:
+def test_payment_uses_calculator(model):
     result = run_worker(
         model, "Monthly payment on 20000 at 7% annual over 36 months?"
     )
     ok = "monthly_payment" in tools_used(result)
     print(f"case 1 (calc used)          -> {'OK' if ok else 'WRONG'}")
 
-def test_fx_uses_rate_tool(model) -> None:
+def test_fx_uses_rate_tool(model):
     result = run_worker(model, "What is 500 EUR in USD today?")
     ok = "get_exchange_rate" in tools_used(result)
     print(f"case 2 (fx tool used)       -> {'OK' if ok else 'WRONG'}")
 
-def test_policy_recovers(model) -> None:
+def test_policy_recovers(model):
     result = run_worker(model, "Does policy allow early repayment fee-free?")
     ok = "search_policies" in tools_used(result)
     print(f"case 3 (policy recovered)   -> {'OK' if ok else 'WRONG'}")
 
-def test_verifier_rejects_wrong(model) -> None:
+def test_verifier_rejects_wrong(model):
     chain = build_verifier_chain(model)
     result = run_worker(model, "What is 500 EUR in USD today?")
     # tamper with the answer so it no longer matches the evidence
@@ -762,7 +759,7 @@ def test_verifier_rejects_wrong(model) -> None:
     print(f"case 4 (wrong answer rejected) -> "
           f"{'OK' if not verdict.approved else 'WRONG'}")
 
-def test_full_handoff(model) -> None:
+def test_full_handoff(model):
     chain = build_verifier_chain(model)
     result, verdict = answer_task(
         model, chain, "Monthly payment on 10000 at 5% over 24 months?"

@@ -20,7 +20,7 @@ from src.sql_agent import generate_sql
 from src.utils.logger import get_logger
 
 
-def ask(model, db_path: str, question: str):
+def ask(model, db_path, question):
     logger = get_logger(__name__)
     schema = schema_text(db_path)
     sql = generate_sql(model, schema, question)
@@ -81,7 +81,7 @@ from src.models.llm import get_model
 from src.pipeline import ask
 
 
-def test_counts_completed_orders() -> None:
+def test_counts_completed_orders():
     config = load_config()
     build_sample_db(config.db_path)
     model = get_model(config)
@@ -92,7 +92,7 @@ def test_counts_completed_orders() -> None:
     print(f"case 1 (completed orders counted) -> {status}")
 
 
-def test_lists_a_city() -> None:
+def test_lists_a_city():
     config = load_config()
     build_sample_db(config.db_path)
     model = get_model(config)

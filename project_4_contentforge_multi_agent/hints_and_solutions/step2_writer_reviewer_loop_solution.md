@@ -41,7 +41,7 @@ def build_writer_chain():
     return prompt | get_model() | StrOutputParser()
 
 # changed in Step 2: + feedback
-def run_writer(findings: str, feedback: str = "") -> str:
+def run_writer(findings, feedback=""):
     if feedback == "":
         feedback = "none"
     chain = build_writer_chain()
@@ -95,7 +95,7 @@ from src.utils.prompts import load_prompt
 
 PASS_SCORE = 7
 
-def run_reviewer(findings: str, draft: str) -> ReviewVerdict:
+def run_reviewer(findings, draft):
     prompt = ChatPromptTemplate.from_template(load_prompt("reviewer"))
     chain = prompt | get_model().with_structured_output(ReviewVerdict)
     return chain.invoke({"findings": findings, "draft": draft})
@@ -123,7 +123,7 @@ SAMPLE_FINDINGS = (
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-def write_with_review(findings: str) -> dict:
+def write_with_review(findings):
     logger = get_logger(__name__)
     result = {
         "draft": "",
@@ -144,7 +144,7 @@ def write_with_review(findings: str) -> dict:
         result["revision_count"] = result["revision_count"] + 1
     return result
 
-def print_report(result: dict) -> None:
+def print_report(result):
     if result["accepted"]:
         print("\nFinal article:\n")
         print(result["draft"])
@@ -158,7 +158,7 @@ def print_report(result: dict) -> None:
         print("\nLast draft (NOT approved):\n")
         print(result["draft"])
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -189,7 +189,7 @@ FINDINGS = (
 )
 
 
-def test_writer_keeps_sources() -> None:
+def test_writer_keeps_sources():
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:
@@ -197,7 +197,7 @@ def test_writer_keeps_sources() -> None:
     print(f"case 1 (writer keeps sources) -> {result}")
 
 
-def test_reviewer_rejects_weak_draft() -> None:
+def test_reviewer_rejects_weak_draft():
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
     result = "OK"
     if verdict.score >= PASS_SCORE:

@@ -14,7 +14,7 @@ After this step the project runs: `add_note` and `search_notes` are unchanged, a
 
 ```python
 # src/db.py (new function — add alongside Step 2's functions)
-def list_all_notes(path: str) -> list:
+def list_all_notes(path):
     conn = sqlite3.connect(path)
     rows = conn.execute(
         "SELECT id, text, created_at FROM notes ORDER BY id"
@@ -31,7 +31,7 @@ from src.db import list_all_notes     # new in Step 3
 
 # new in Step 3: a read-only Resource — no arguments, no side effect
 @mcp.resource("notes://all")
-def all_notes() -> str:
+def all_notes():
     """A read-only listing of every note currently stored, oldest first."""
     rows = list_all_notes(DB_PATH)
     if not rows:
@@ -43,7 +43,7 @@ def all_notes() -> str:
 
 # new in Step 3: a Prompt — a reusable template, not a summary
 @mcp.prompt()
-def summarize_notes(start_date: str, end_date: str) -> str:
+def summarize_notes(start_date, end_date):
     """A reusable template for summarizing notes created in a date range
     (format: YYYY-MM-DD). Returns the prompt text only — pair it with the
     notes://all Resource so the client has the notes to summarize."""
@@ -62,7 +62,7 @@ def summarize_notes(start_date: str, end_date: str) -> str:
 
 ```python
 # tests/unit/test_db.py (new case — add alongside Step 2's cases)
-def test_list_all_notes() -> None:
+def test_list_all_notes():
     fresh_db()
     insert_note(DB, "one")
     insert_note(DB, "two")

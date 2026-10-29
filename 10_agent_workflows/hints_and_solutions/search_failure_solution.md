@@ -49,8 +49,8 @@ def test_state_survives_search_failure() -> None:
     print("Confirmed: plan_node's work survived, and the graph knows")
     print("it stopped before search_node.")
 
-if __name__ == "__main__":
-    test_state_survives_search_failure()
+# Run the test: the graph should survive a search node that raises.
+test_state_survives_search_failure()
 ```
 **Expected output:**
 ```

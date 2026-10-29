@@ -20,7 +20,7 @@ PLAN_PROMPT = (
     "Research question: {question}"
 )
 
-def make_plan(model, question: str) -> SubQuestions:
+def make_plan(model, question):
     prompt = ChatPromptTemplate.from_template(PLAN_PROMPT)
     chain = prompt | model.with_structured_output(SubQuestions)
     return chain.invoke({"question": question})
@@ -41,7 +41,7 @@ import chromadb
 COLLECTION_NAME = "sources"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-def build_source_store(sources_dir: str = "data/sources"):
+def build_source_store(sources_dir="data/sources"):
     loader = DirectoryLoader(sources_dir, glob="**/*.md",
                              loader_cls=TextLoader)
     documents = loader.load()
@@ -78,7 +78,7 @@ def build_source_store(sources_dir: str = "data/sources"):
 from src.rag.source_store import EMBEDDINGS
 
 def make_search(collection):
-    def search(query: str):
+    def search(query):
         if collection.count() == 0:
             return "No sources available.", "none"
         results = collection.query(

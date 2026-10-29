@@ -23,7 +23,7 @@ class TeamState(TypedDict):
     routing_log: list
 
 
-def start_state(task: str) -> TeamState:
+def start_state(task):
     return {
         "task": task,
         "notes_findings": "",
@@ -48,17 +48,17 @@ from langgraph.types import Command
 from src.utils.logger import get_logger
 
 
-def needs_notes(task: str) -> bool:
+def needs_notes(task):
     lowered = task.lower()
     return "note" in lowered or "check" in lowered or "both" in lowered
 
 
-def needs_web(task: str) -> bool:
+def needs_web(task):
     lowered = task.lower()
     return "fetch" in lowered or "status page" in lowered or "web" in lowered
 
 
-def decide_next(state) -> str:
+def decide_next(state):
     task = state["task"]
     if needs_notes(task) and state["notes_findings"] == "":
         return "notes"
@@ -137,13 +137,13 @@ from src.state import start_state
 BOTH = "Check my notes for Atlas, fetch its status page, and give a report."
 
 
-def test_fresh_routes_to_notes() -> None:
+def test_fresh_routes_to_notes():
     target = decide_next(start_state(BOTH))
     print(f"case 1 (fresh -> notes)  -> "
           f"{'OK' if target == 'notes' else 'WRONG'}")
 
 
-def test_notes_done_routes_to_web() -> None:
+def test_notes_done_routes_to_web():
     state = start_state(BOTH)
     state["notes_findings"] = "found"
     target = decide_next(state)
@@ -151,7 +151,7 @@ def test_notes_done_routes_to_web() -> None:
           f"{'OK' if target == 'web' else 'WRONG'}")
 
 
-def test_both_done_routes_to_writer() -> None:
+def test_both_done_routes_to_writer():
     state = start_state(BOTH)
     state["notes_findings"] = "found"
     state["web_findings"] = "fetched"
@@ -160,7 +160,7 @@ def test_both_done_routes_to_writer() -> None:
           f"{'OK' if target == 'writer' else 'WRONG'}")
 
 
-def test_web_unavailable_skips_web() -> None:
+def test_web_unavailable_skips_web():
     state = start_state(BOTH)
     state["notes_findings"] = "found"
     state["web_unavailable"] = True

@@ -29,7 +29,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -37,7 +37,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -50,7 +50,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -68,9 +68,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -111,14 +109,14 @@ class MeetingReport(BaseModel):
 # human. Plain Python, so it's fully testable with hand-made parts - no model.
 from src.schemas import MeetingReport
 
-def compile_report(parts) -> MeetingReport:
+def compile_report(parts):
     return MeetingReport(
         summary=parts["summary"],
         decisions=parts["decisions"].decisions,
         action_items=parts["actions"].items,
     )
 
-def format_report(report: MeetingReport) -> str:
+def format_report(report):
     lines = ["Summary:", "  " + report.summary, "", "Decisions:"]
     for decision in report.decisions:
         lines.append("  - " + decision)
@@ -144,7 +142,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MEETINGMIND_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -153,7 +151,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -183,7 +181,7 @@ def sample_parts():
         ]),
     }
 
-def test_report_lists_decisions_and_actions() -> None:
+def test_report_lists_decisions_and_actions():
     text = format_report(compile_report(sample_parts()))
     result = "OK"
     if "Ship v2 on Friday" not in text:
@@ -192,7 +190,7 @@ def test_report_lists_decisions_and_actions() -> None:
         result = "WRONG"
     print(f"case 1 (report lists both)        -> {result}")
 
-def test_unassigned_action_reads_unassigned() -> None:
+def test_unassigned_action_reads_unassigned():
     text = format_report(compile_report(sample_parts()))
     result = "OK"
     if "Write the migration guide (unassigned)" not in text:

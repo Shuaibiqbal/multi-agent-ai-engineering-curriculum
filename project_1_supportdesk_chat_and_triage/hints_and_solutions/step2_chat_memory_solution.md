@@ -19,14 +19,12 @@ After this step the project is a working chat app. Files from Step 1 that aren't
 import openai
 from openai import OpenAI
 
-from src.config import Config
-
 MODEL = "gpt-4o-mini"
 
-def create_client(config: Config) -> OpenAI:
+def create_client(config):
     return OpenAI(api_key=config.openai_api_key)
 
-def check_api_key_at_startup(client: OpenAI) -> bool:
+def check_api_key_at_startup(client):
     try:
         client.chat.completions.create(
             model=MODEL,
@@ -37,7 +35,7 @@ def check_api_key_at_startup(client: OpenAI) -> bool:
         return False
     return True
 
-def send_message(client: OpenAI, history: list[dict], user_input: str) -> str:
+def send_message(client, history, user_input):
     history.append({"role": "user", "content": user_input})
     response = client.chat.completions.create(model=MODEL, messages=history)
     reply = response.choices[0].message.content
@@ -45,9 +43,7 @@ def send_message(client: OpenAI, history: list[dict], user_input: str) -> str:
     return reply
 
 # new in Step 2: everything below this line
-def stream_message(
-    client: OpenAI, history: list[dict], user_input: str
-) -> str:
+def stream_message(client, history, user_input):
     history.append({"role": "user", "content": user_input})
     stream = client.chat.completions.create(
         model=MODEL, messages=history, stream=True
@@ -79,7 +75,7 @@ Answer general questions and small talk about the service.
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live
 # in text files instead of Python strings.
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
@@ -93,13 +89,13 @@ def load_prompt(name: str) -> str:
 # its size (about 4 characters per token), and trim_history() drops the
 # oldest turns — never the system prompt.
 
-def estimate_tokens(history: list[dict]) -> int:
+def estimate_tokens(history):
     total_chars = 0
     for message in history:
         total_chars = total_chars + len(message["content"])
     return total_chars // 4
 
-def trim_history(history: list[dict], max_tokens: int) -> list[dict]:
+def trim_history(history, max_tokens):
     while estimate_tokens(history) > max_tokens and len(history) > 2:
         del history[1]
     return history
@@ -130,7 +126,7 @@ from src.utils.prompts import load_prompt
 
 # new in Step 2
 
-def main() -> None:
+def main():
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -173,7 +169,7 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_history
 from src.utils.history import estimate_tokens, trim_history
 
-def test_estimate_tokens() -> None:
+def test_estimate_tokens():
     history = [
         {"role": "system", "content": "a" * 20},
         {"role": "user", "content": "b" * 20},
@@ -183,7 +179,7 @@ def test_estimate_tokens() -> None:
         result = "WRONG"
     print(f"case 1 (40 characters = 10 tokens) -> {result}")
 
-def test_short_history_untouched() -> None:
+def test_short_history_untouched():
     history = [
         {"role": "system", "content": "be nice"},
         {"role": "user", "content": "hi"},
@@ -194,7 +190,7 @@ def test_short_history_untouched() -> None:
         result = "WRONG"
     print(f"case 2 (short chat not trimmed)    -> {result}")
 
-def test_long_history_trimmed() -> None:
+def test_long_history_trimmed():
     history = [{"role": "system", "content": "be nice"}]
     for number in range(1, 6):
         history.append({"role": "user", "content": str(number) * 400})
@@ -240,14 +236,14 @@ from src.models.llm import (
     send_message,
 )
 
-def test_first_reply(client: OpenAI) -> None:
+def test_first_reply(client):
     reply = send_message(client, [], "What's 2+2?")
     result = "OK"
     if "4" not in reply:
         result = "WRONG"
     print(f"case 1 (first reply) -> {result}: {reply}")
 
-def test_bad_key() -> None:
+def test_bad_key():
     bad_client = OpenAI(api_key="sk-fake-key-123")
     result = "OK"
     if check_api_key_at_startup(bad_client):
@@ -255,7 +251,7 @@ def test_bad_key() -> None:
     print(f"case 2 (bad key)     -> {result}")
 
 # new in Step 2
-def test_memory(client: OpenAI) -> None:
+def test_memory(client):
     history = [{"role": "system", "content": "You are a helpful assistant."}]
     send_message(client, history, "My order number is 4471.")
     send_message(client, history, "Thanks, that's all for now.")

@@ -10,7 +10,7 @@
 
 ```python
 # src/memory/store.py  (add this)
-def forget_user(store, user_id: str) -> int:
+def forget_user(store, user_id):
     namespace = namespace_for(user_id)
     deleted = 0
     for item in store.search(namespace):
@@ -40,7 +40,7 @@ After `forget_me`, a brand-new thread's `recall_node` finds nothing, and the mod
 from src.memory.store import forget_user
 
 
-def test_forget_removes_all() -> None:
+def test_forget_removes_all():
     store = build_store()
     save_fact(store, "sam", "preferred_name", "Name is Sam")
     save_fact(store, "sam", "seat", "Likes window seats")
@@ -100,7 +100,7 @@ def say(app, text, thread):
     return out["messages"][-1].content
 
 
-def test_remembers_across_threads() -> None:
+def test_remembers_across_threads():
     app, store = fresh_app()
     say(app, "Hi, my name is Sam.", "t1")
     answer = say(app, "What's my name?", "brand-new-thread")
@@ -110,7 +110,7 @@ def test_remembers_across_threads() -> None:
     print(f"case 1 (recalls name in a new thread) -> {result}")
 
 
-def test_ephemeral_not_saved() -> None:
+def test_ephemeral_not_saved():
     app, store = fresh_app()
     say(app, "I think I'll have pasta tonight.", "t1")
     result = "OK"
@@ -119,7 +119,7 @@ def test_ephemeral_not_saved() -> None:
     print(f"case 2 (ephemeral not remembered)     -> {result}")
 
 
-def test_rename_updates() -> None:
+def test_rename_updates():
     app, store = fresh_app()
     say(app, "My name is Sam.", "t1")
     say(app, "Actually, call me Sammy.", "t2")
@@ -134,7 +134,7 @@ def test_rename_updates() -> None:
     print(f"case 3 (rename updates, not dup)      -> {result}")
 
 
-def test_forget_leaves_nothing() -> None:
+def test_forget_leaves_nothing():
     app, store = fresh_app()
     say(app, "My name is Sam.", "t1")
     forget_user(store, USER)

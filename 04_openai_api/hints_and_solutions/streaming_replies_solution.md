@@ -14,36 +14,32 @@ from openai import OpenAI
 load_dotenv()
 client = OpenAI()
 
-def stream_reply(history: list) -> str:
-    # why: returns the full text once streaming finishes, so this can plug
-    # straight into the same history list the memory exercise already builds.
+# Stream a reply: print each piece as it arrives, and return the full text
+# at the end so it can be appended to the same history list.
+def stream_reply(history):
     stream = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=history,
         stream=True,
     )
-
     full_reply = ""
     for chunk in stream:
-        # how: each chunk carries one small piece of the reply in
-        # .delta.content — None on chunks that carry no new text.
+        # each chunk carries one small piece in .delta.content
+        # (None on chunks that carry no new text)
         piece = chunk.choices[0].delta.content
         if piece:
             print(piece, end="")
             full_reply = full_reply + piece
-
     print()
     return full_reply
 
-def main() -> None:
-    history = [
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Explain a REST API in 3 sentences."},
-    ]
-    reply = stream_reply(history)
-    history.append({"role": "assistant", "content": reply})
 
-if __name__ == "__main__":
-    main()
+# Try it, then append the finished reply to history like a real chat would.
+history = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Explain a REST API in 3 sentences."},
+]
+reply = stream_reply(history)
+history.append({"role": "assistant", "content": reply})
 ```
 **Expected output:** the reply printed piece by piece as it streams in, and `history` now correctly ends with the assistant's full reply appended.

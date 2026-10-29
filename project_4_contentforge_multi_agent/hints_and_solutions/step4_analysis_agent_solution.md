@@ -34,7 +34,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.models.llm import get_model
 from src.utils.prompts import load_prompt
 
-def run_analysis(notes: str) -> str:
+def run_analysis(notes):
     prompt = ChatPromptTemplate.from_template(load_prompt("analysis"))
     chain = prompt | get_model() | StrOutputParser()
     return chain.invoke({"notes": notes})
@@ -56,7 +56,7 @@ from src.config import load_config
 from src.exceptions import MissingConfigError
 from src.utils.logger import get_logger
 
-def write_with_review(findings: str) -> dict:
+def write_with_review(findings):
     logger = get_logger(__name__)
     result = {
         "draft": "",
@@ -77,7 +77,7 @@ def write_with_review(findings: str) -> dict:
         result["revision_count"] = result["revision_count"] + 1
     return result
 
-def print_report(result: dict) -> None:
+def print_report(result):
     if result["accepted"]:
         print("\nFinal article:\n")
         print(result["draft"])
@@ -91,7 +91,7 @@ def print_report(result: dict) -> None:
         print("\nLast draft (NOT approved):\n")
         print(result["draft"])
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -131,35 +131,35 @@ FINDINGS = (
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-def test_writer_keeps_sources() -> None:
+def test_writer_keeps_sources():
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:
         result = "WRONG"
     print(f"case 1 (writer keeps sources) -> {result}")
 
-def test_reviewer_rejects_weak_draft() -> None:
+def test_reviewer_rejects_weak_draft():
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
     result = "OK"
     if verdict.score >= PASS_SCORE:
         result = "WRONG"
     print(f"case 2 (weak draft fails)     -> {result}")
 
-def test_research_keeps_sources() -> None:
+def test_research_keeps_sources():
     notes = run_research("electric bikes")
     result = "OK"
     if notes.count("[") < 5:
         result = "WRONG"
     print(f"case 3 (known topic sourced)  -> {result}")
 
-def test_research_unknown_topic() -> None:
+def test_research_unknown_topic():
     notes = run_research("deep sea mining")
     result = "OK"
     if notes != "":
         result = "WRONG"
     print(f"case 4 (unknown topic empty)  -> {result}")
 
-def test_analysis_keeps_every_fact() -> None:
+def test_analysis_keeps_every_fact():
     notes = run_research("electric bikes")
     findings = run_analysis(notes)
     result = "OK"

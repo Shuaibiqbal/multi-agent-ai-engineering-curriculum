@@ -10,7 +10,6 @@
 # real_api_tool_practice.py
 import requests
 
-from langchain_core.runnables import Runnable
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
@@ -83,28 +82,20 @@ def get_weather(city: str) -> str:
     temperature = response["current_weather"]["temperature"]
     return f"Currently {temperature}°C in {city}"
 
-def get_model_with_tools() -> Runnable:
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    return model.bind_tools([get_weather])
+# Ask the model; it decides whether to call get_weather.
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([get_weather])
+response = model.invoke("What's the weather in Lahore?")
 
-def main() -> None:
-    model_with_tools = get_model_with_tools()
-    response = model_with_tools.invoke("What's the weather in Lahore?")
-
-    if not response.tool_calls:
-        print("The model answered directly, without calling a tool.")
-        print(response.content)
-        return
-
+if not response.tool_calls:
+    print("The model answered directly, without calling a tool.")
+    print(response.content)
+else:
     for call in response.tool_calls:
         if call["name"] == "get_weather":
             result = get_weather.invoke(call["args"])
             print(f"Called get_weather({call['args']}) -> {result}")
         else:
             print(f"Unexpected tool requested: {call['name']}")
-
-if __name__ == "__main__":
-    main()
 ```
 **Expected output:**
 ```

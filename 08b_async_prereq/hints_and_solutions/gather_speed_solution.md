@@ -11,33 +11,40 @@
 import asyncio
 import time
 
-async def f1() -> str:
+async def f1():
     await asyncio.sleep(2)
     return "f1 done"
 
-async def f2() -> str:
+
+async def f2():
     await asyncio.sleep(2)
     return "f2 done"
 
-async def f3() -> str:
+
+async def f3():
     await asyncio.sleep(2)
     return "f3 done"
 
-async def run_sequential() -> None:
+
+# One at a time: each await waits for the last to finish (~6 seconds total).
+async def run_sequential():
     start = time.perf_counter()
     await f1()
     await f2()
     await f3()
     print("sequential:", time.perf_counter() - start)
 
-async def run_parallel() -> None:
+
+# All at once: gather() runs them together (~2 seconds total).
+async def run_parallel():
     start = time.perf_counter()
     await asyncio.gather(f1(), f2(), f3())
     print("parallel:", time.perf_counter() - start)
 
-if __name__ == "__main__":
-    asyncio.run(run_sequential())
-    asyncio.run(run_parallel())
+
+# Run both and compare the times.
+asyncio.run(run_sequential())
+asyncio.run(run_parallel())
 ```
 **Expected output:**
 ```

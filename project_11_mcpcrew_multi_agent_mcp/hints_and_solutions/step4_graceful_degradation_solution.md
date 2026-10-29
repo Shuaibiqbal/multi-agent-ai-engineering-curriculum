@@ -88,7 +88,7 @@ TASK = ("Check my notes for Project Atlas, fetch its status page too, and "
         "give me one combined report.")
 
 
-async def test_both_specialists_report(client) -> None:
+async def test_both_specialists_report(client):
     app = build_graph(client)
     final = await app.ainvoke(start_state(TASK))
     used = final["routing_log"]
@@ -100,7 +100,7 @@ async def test_both_specialists_report(client) -> None:
           f"{'OK' if ok else 'WRONG'}")
 
 
-async def test_web_down_degrades(client) -> None:
+async def test_web_down_degrades(client):
     # build a graph whose web agent points at a server that does not exist
     app = build_graph(client, web_args=["servers/does_not_exist.py"])
     final = await app.ainvoke(start_state(TASK))
@@ -114,7 +114,7 @@ async def test_web_down_degrades(client) -> None:
           f"{'OK' if ok else 'WRONG'}")
 
 
-async def main() -> None:
+async def main():
     client = create_client(load_config())
     await test_both_specialists_report(client)
     await test_web_down_degrades(client)
@@ -128,8 +128,7 @@ For the web-down test to work, give `build_graph` an optional `web_args` and pas
 
 ```python
 # src/graph.py  (final: make the web server path overridable for the test)
-def build_graph(client, connect_timeout=10.0,
-                web_args=None):
+def build_graph(client, connect_timeout=10.0, web_args=None):
     if web_args is None:
         web_args = ["servers/web_server.py"]
 

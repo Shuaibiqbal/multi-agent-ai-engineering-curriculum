@@ -73,7 +73,7 @@ class JudgeResult:
     verdict: str
     reason: str
 
-def call_model(prompt: str) -> str:
+def call_model(prompt):
     client = OpenAI()
     response = client.chat.completions.create(
         model=MODEL_NAME,
@@ -82,7 +82,7 @@ def call_model(prompt: str) -> str:
     )
     return response.choices[0].message.content
 
-def build_judge_prompt(task_input: str, output: str, rules: list) -> str:
+def build_judge_prompt(task_input, output, rules):
     rules_text = ""
     for rule in rules:
         rules_text = rules_text + "- " + rule + "\n"
@@ -94,7 +94,7 @@ def build_judge_prompt(task_input: str, output: str, rules: list) -> str:
         "then one sentence explaining why."
     )
 
-def score_with_judge(task_input: str, output: str, rules: list):
+def score_with_judge(task_input, output, rules):
     reply = call_model(build_judge_prompt(task_input, output, rules))
     lines = reply.strip().split("\n", 1)
     verdict = lines[0].strip().upper()
@@ -119,7 +119,7 @@ from src.evals.judge import JUDGE_PROMPT_VERSION, score_with_judge
 from src.evals.tasks import TASKS
 from src.pipeline import run_pipeline
 
-def run_one_task(task: dict) -> dict:
+def run_one_task(task):
     outcome = run_pipeline(task["topic"])
     article = outcome["article"]
     if "expect_no_article" in task:
@@ -134,7 +134,7 @@ def run_one_task(task: dict) -> dict:
         reason = judged.reason
     return {"task_id": task["id"], "passed": passed, "reason": reason}
 
-def run_eval_suite() -> dict:
+def run_eval_suite():
     results = []
     passed_by_id = {}
     for task in TASKS:
@@ -229,21 +229,21 @@ SABOTAGE = (
     '", each ending with its [source] tag". Save, then press Enter...'
 )
 
-def score(passed_by_id: dict) -> float:
+def score(passed_by_id):
     passed = 0
     for task_id in passed_by_id:
         if passed_by_id[task_id]:
             passed = passed + 1
     return passed / len(passed_by_id)
 
-def find_newly_failed(baseline: dict, after: dict) -> list:
+def find_newly_failed(baseline, after):
     newly_failed = []
     for task_id in baseline:
         if baseline[task_id] and not after[task_id]:
             newly_failed.append(task_id)
     return newly_failed
 
-def run_regression_check() -> None:
+def run_regression_check():
     print("--- baseline run ---")
     baseline = run_eval_suite()
     input(SABOTAGE)

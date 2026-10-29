@@ -94,7 +94,7 @@ class Config:
     log_level: str
     confidence_cutoff: float
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -102,7 +102,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -116,7 +116,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -134,9 +134,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -156,7 +154,7 @@ import chromadb
 COLLECTION_NAME = "it_kb"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-def build_kb_store(kb_dir: str = "data/kb"):
+def build_kb_store(kb_dir="data/kb"):
     loader = DirectoryLoader(kb_dir, glob="**/*.md", loader_cls=TextLoader)
     documents = loader.load()
     texts = []
@@ -184,7 +182,7 @@ from src.rag.kb_store import EMBEDDINGS
 
 NO_MATCH_DISTANCE = 2.0
 
-def best_match(collection, question: str):
+def best_match(collection, question):
     if collection.count() == 0:
         return "", NO_MATCH_DISTANCE
     results = collection.query(
@@ -201,7 +199,7 @@ def best_match(collection, question: str):
 # src/confidence.py
 # The whole bot turns on this: is the best KB match close enough to answer from?
 
-def is_confident(distance: float, cutoff: float = 0.8) -> bool:
+def is_confident(distance, cutoff=0.8):
     return distance <= cutoff
 ```
 
@@ -218,7 +216,7 @@ class SupportState(TypedDict):
     answer: str
     escalated: bool
 
-def start_state(question: str) -> SupportState:
+def start_state(question):
     return {
         "question": question, "context": "", "best_distance": 2.0,
         "answer": "", "escalated": False,
@@ -243,7 +241,7 @@ ANSWER_PROMPT = (
     "Question: {question}"
 )
 
-def build_graph(model, collection, cutoff: float = 0.8):
+def build_graph(model, collection, cutoff=0.8):
     def retrieve_node(state):
         text, distance = best_match(collection, state["question"])
         return {"context": text, "best_distance": distance}
@@ -332,7 +330,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "ITDESK_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -341,7 +339,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -359,19 +357,19 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_confidence
 from src.confidence import is_confident
 
-def test_small_distance_is_confident() -> None:
+def test_small_distance_is_confident():
     result = "OK"
     if not is_confident(0.2, cutoff=0.8):
         result = "WRONG"
     print(f"case 1 (small -> confident)   -> {result}")
 
-def test_large_distance_is_not() -> None:
+def test_large_distance_is_not():
     result = "OK"
     if is_confident(1.5, cutoff=0.8):
         result = "WRONG"
     print(f"case 2 (large -> escalate)    -> {result}")
 
-def test_cutoff_itself_is_confident() -> None:
+def test_cutoff_itself_is_confident():
     result = "OK"
     if not is_confident(0.8, cutoff=0.8):
         result = "WRONG"
@@ -403,14 +401,14 @@ def build_app():
     graph = build_graph(model, collection, config.confidence_cutoff)
     return graph.compile(checkpointer=MemorySaver())
 
-def test_covered_is_answered() -> None:
+def test_covered_is_answered():
     app = build_app()
     thread = {"configurable": {"thread_id": "t-answer"}}
     result = app.invoke(start_state("How do I connect to the VPN?"), thread)
     ok = not app.get_state(thread).next and "vpn" in result["answer"].lower()
     print(f"case 1 (covered answered) -> {'OK' if ok else 'WRONG'}")
 
-def test_sensitive_escalates() -> None:
+def test_sensitive_escalates():
     app = build_app()
     thread = {"configurable": {"thread_id": "t-escalate"}}
     app.invoke(start_state("My account is locked, reset it"), thread)

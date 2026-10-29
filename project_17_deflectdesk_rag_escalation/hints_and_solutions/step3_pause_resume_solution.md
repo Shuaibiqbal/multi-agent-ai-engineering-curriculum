@@ -112,7 +112,7 @@ def build_app():
     return graph.compile(checkpointer=MemorySaver())
 
 
-def test_confident_question_is_answered() -> None:
+def test_confident_question_is_answered():
     app = build_app()
     thread = {"configurable": {"thread_id": "t-answer"}}
     result = app.invoke(start_state("How do refunds work?"), thread)
@@ -120,7 +120,7 @@ def test_confident_question_is_answered() -> None:
     print(f"case 1 (covered question answered) -> {'OK' if ok else 'WRONG'}")
 
 
-def test_offtopic_escalates_and_resumes() -> None:
+def test_offtopic_escalates_and_resumes():
     app = build_app()
     thread = {"configurable": {"thread_id": "t-escalate"}}
     app.invoke(start_state("Delete my account permanently"), thread)

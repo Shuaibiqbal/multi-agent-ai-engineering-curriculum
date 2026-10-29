@@ -38,24 +38,21 @@ def write(research_text: str) -> dict:
         "seconds": elapsed,
     }
 
-def main():
-    topic = "climate change"
-    total_start = time.perf_counter()
+# Run the two stages in order, and measure each one.
+topic = "climate change"
+total_start = time.perf_counter()
 
-    research_result = research(topic)
-    write_result = write(research_result["text"])
+research_result = research(topic)
+write_result = write(research_result["text"])
 
-    total_seconds = time.perf_counter() - total_start
-    total_tokens = research_result["tokens"] + write_result["tokens"]
+total_seconds = time.perf_counter() - total_start
+total_tokens = research_result["tokens"] + write_result["tokens"]
+r_tokens, r_seconds = research_result["tokens"], research_result["seconds"]
+w_tokens, w_seconds = write_result["tokens"], write_result["seconds"]
 
-    r_tokens, r_seconds = research_result["tokens"], research_result["seconds"]
-    w_tokens, w_seconds = write_result["tokens"], write_result["seconds"]
-
-    print(f"research: {r_tokens} tokens, {r_seconds:.2f}s")
-    print(f"write: {w_tokens} tokens, {w_seconds:.2f}s")
-    print(f"total: {total_tokens} tokens, {total_seconds:.2f}s")
-
-main()
+print(f"research: {r_tokens} tokens, {r_seconds:.2f}s")
+print(f"write: {w_tokens} tokens, {w_seconds:.2f}s")
+print(f"total: {total_tokens} tokens, {total_seconds:.2f}s")
 ```
 **Expected output** (exact numbers vary by run):
 ```

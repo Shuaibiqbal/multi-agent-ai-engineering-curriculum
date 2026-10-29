@@ -49,12 +49,10 @@ def get_collection(embedding_function=None):
 # src/rag/ingest.py
 # Chunk the style guide into individual rules (one per paragraph) and embed
 # them, so a diff line can retrieve the specific rules it might violate.
-import os
 
 STYLE_GUIDE_PATH = "data/style_guide.md"
 
-
-def load_rules(path: str = STYLE_GUIDE_PATH) -> list:
+def load_rules(path=STYLE_GUIDE_PATH):
     with open(path) as guide_file:
         text = guide_file.read()
     rules = []
@@ -64,8 +62,7 @@ def load_rules(path: str = STYLE_GUIDE_PATH) -> list:
             rules.append(cleaned)
     return rules
 
-
-def build_style_store(collection, path: str = STYLE_GUIDE_PATH):
+def build_style_store(collection, path=STYLE_GUIDE_PATH):
     rules = load_rules(path)
     ids = []
     for index in range(len(rules)):
@@ -76,7 +73,7 @@ def build_style_store(collection, path: str = STYLE_GUIDE_PATH):
 
 ```python
 # src/rag/retriever.py
-def retrieve_rules(collection, query: str, k: int = 3) -> list:
+def retrieve_rules(collection, query, k=3):
     found = collection.query(query_texts=[query], n_results=k)
     return found["documents"][0]
 ```
@@ -121,7 +118,7 @@ class _StyleItem(BaseModel):
     rule: str
 
 
-def run_style(model, collection, files) -> list:
+def run_style(model, collection, files):
     changed = []
     for one_file in files:
         for line in one_file["added"]:

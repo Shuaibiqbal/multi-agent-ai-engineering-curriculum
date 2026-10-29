@@ -18,13 +18,13 @@ After this step the project runs as a web API: `uvicorn src.api.main:app --reloa
 from src.graph import build_graph
 from src.state import start_state
 
-def steps_from_log(routing_log: list[dict]) -> list[str]:
+def steps_from_log(routing_log):
     steps = []
     for entry in routing_log:
         steps.append(entry["step"] + ": " + entry["reason"])
     return steps
 
-def run_pipeline(topic: str) -> dict:
+def run_pipeline(topic):
     graph = build_graph()
     result = graph.invoke(start_state(topic))
     last_entry = result["routing_log"][-1]
@@ -62,7 +62,7 @@ class TaskResponse(BaseModel):
 # keeping the real traceback on the server with logger.exception().
 from fastapi import APIRouter, HTTPException
 
-from src.api.schemas import TaskRequest, TaskResponse
+from src.api.schemas import TaskResponse
 from src.pipeline import run_pipeline
 from src.utils.logger import get_logger
 
@@ -71,11 +71,11 @@ router = APIRouter()
 INTERNAL_ERROR = "Internal error. Please try again later."
 
 @router.get("/health")
-def health() -> dict:
+def health():
     return {"status": "ok"}
 
 @router.post("/run-task", response_model=TaskResponse)
-def run_task(request: TaskRequest) -> TaskResponse:
+def run_task(request):
     logger = get_logger(__name__)
     if not request.topic.strip():
         raise HTTPException(status_code=400, detail="topic cannot be empty")
@@ -127,7 +127,7 @@ from src.api.main import app
 
 client = TestClient(app)
 
-def fake_run_pipeline(topic: str) -> dict:
+def fake_run_pipeline(topic):
     return {
         "article": "E-Bikes Explained\n\nUp to 100 km. [battery-review]",
         "accepted": True,
@@ -138,10 +138,10 @@ def fake_run_pipeline(topic: str) -> dict:
         ],
     }
 
-def broken_run_pipeline(topic: str) -> dict:
+def broken_run_pipeline(topic):
     raise RuntimeError("simulated internal failure")
 
-def use_fake_team(monkeypatch, fake) -> None:
+def use_fake_team(monkeypatch, fake):
     monkeypatch.setattr(routes, "run_pipeline", fake)
 
 def test_health():

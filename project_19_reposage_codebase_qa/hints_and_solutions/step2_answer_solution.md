@@ -19,7 +19,7 @@ ANSWER_PROMPT = (
 )
 
 
-def answer_question(model, question: str, context: str) -> str:
+def answer_question(model, question, context):
     prompt = ChatPromptTemplate.from_template(ANSWER_PROMPT)
     chain = prompt | model
     reply = chain.invoke({"context": context, "question": question})

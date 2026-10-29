@@ -49,10 +49,10 @@ from langchain_core.runnables import Runnable     # new in Step 4
 from src.chains.classifier import classify_ticket
 from src.chains.fallback import FALLBACK_REPLY
 from src.chains.replies import build_reply_chain
-from src.schemas import TicketCategory, TicketRecord
+from src.schemas import TicketRecord
 
 # new in Step 4
-def stream_reply(chain: Runnable, inputs: dict) -> str:
+def stream_reply(chain, inputs):
     print("Reply: ", end="", flush=True)
     reply = ""
     for chunk in chain.stream(inputs):
@@ -62,7 +62,7 @@ def stream_reply(chain: Runnable, inputs: dict) -> str:
     return reply
 
 # new in Step 4
-def review_reasons(category: TicketCategory, used_fallback: bool) -> list:
+def review_reasons(category, used_fallback):
     reasons = []
     if used_fallback:
         reasons.append("the fallback reply was sent")
@@ -70,7 +70,7 @@ def review_reasons(category: TicketCategory, used_fallback: bool) -> list:
         reasons.append("the ticket could fit more than one category")
     return reasons
 
-def handle_ticket(ticket: str, customer_id: str) -> TicketRecord:
+def handle_ticket(ticket, customer_id):
     category = classify_ticket(ticket)
     chain = build_reply_chain(category.category)
     inputs = {"ticket": ticket, "customer_id": customer_id}
@@ -106,22 +106,21 @@ import openai
 
 from src.config import load_config
 from src.exceptions import MissingConfigError
-from src.schemas import TicketRecord
 from src.services.pipeline import handle_ticket
 from src.utils.logger import get_logger
 
-def load_samples() -> list[dict]:
+def load_samples():
     with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
 
-def print_record(record: TicketRecord) -> None:
+def print_record(record):
     print(f"  category:      {record.category}")
     print(f"  used fallback: {record.used_fallback}")
     print(f"  human review:  {record.needs_human_review}")     # new in Step 4
     for reason in record.review_reasons:                       # new in Step 4
         print(f"    - {reason}")
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -157,24 +156,24 @@ if __name__ == "__main__":
 from src.schemas import TicketCategory
 from src.services.pipeline import review_reasons
 
-def make_category(sure: bool) -> TicketCategory:
+def make_category(sure):
     return TicketCategory(category="billing", reason="test", sure=sure)
 
-def test_clear_ticket() -> None:
+def test_clear_ticket():
     reasons = review_reasons(make_category(True), False)
     ok = "OK"
     if reasons != []:
         ok = "WRONG"
     print(f"case 1 (sure, no fallback) -> {ok}")
 
-def test_unsure_ticket() -> None:
+def test_unsure_ticket():
     reasons = review_reasons(make_category(False), False)
     ok = "OK"
     if len(reasons) != 1:
         ok = "WRONG"
     print(f"case 2 (unsure flagged)   -> {ok}")
 
-def test_fallback_used() -> None:
+def test_fallback_used():
     reasons = review_reasons(make_category(True), True)
     ok = "OK"
     if len(reasons) != 1:
@@ -200,32 +199,32 @@ from src.chains.classifier import classify_ticket
 from src.config import load_config
 from src.services.pipeline import handle_ticket
 
-def load_samples() -> list[dict]:
+def load_samples():
     with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
 
-def test_billing_classified(samples: list[dict]) -> None:
+def test_billing_classified(samples):
     result = classify_ticket(samples[0]["ticket"])
     ok = "OK"
     if result.category != "billing":
         ok = "WRONG"
     print(f"case 1 (billing)   -> {ok} ({result.category})")
 
-def test_technical_classified(samples: list[dict]) -> None:
+def test_technical_classified(samples):
     result = classify_ticket(samples[1]["ticket"])
     ok = "OK"
     if result.category != "technical":
         ok = "WRONG"
     print(f"case 2 (technical) -> {ok} ({result.category})")
 
-def test_general_classified(samples: list[dict]) -> None:
+def test_general_classified(samples):
     result = classify_ticket(samples[2]["ticket"])
     ok = "OK"
     if result.category != "general":
         ok = "WRONG"
     print(f"case 3 (general)   -> {ok} ({result.category})")
 
-def test_full_pipeline(samples: list[dict]) -> None:
+def test_full_pipeline(samples):
     record = handle_ticket(samples[0]["ticket"], samples[0]["customer_id"])
     ok = "OK"
     if record.category != "billing" or record.reply == "":
@@ -233,7 +232,7 @@ def test_full_pipeline(samples: list[dict]) -> None:
     print(f"case 4 (full pipeline) -> {ok}")
 
 # new in Step 4
-def test_unclear_flagged(samples: list[dict]) -> None:
+def test_unclear_flagged(samples):
     record = handle_ticket(samples[3]["ticket"], samples[3]["customer_id"])
     ok = "OK"
     if not record.needs_human_review:

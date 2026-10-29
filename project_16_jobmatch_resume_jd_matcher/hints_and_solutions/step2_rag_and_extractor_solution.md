@@ -19,7 +19,7 @@ COLLECTION_NAME = "resume"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
 
-def build_resume_store(resume_text: str):
+def build_resume_store(resume_text):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=300, chunk_overlap=40,
     )
@@ -53,7 +53,7 @@ from src.rag.resume_store import EMBEDDINGS
 NO_MATCH_DISTANCE = 2.0
 
 
-def best_distance(collection, skill: str) -> float:
+def best_distance(collection, skill):
     if collection.count() == 0:
         return NO_MATCH_DISTANCE
     results = collection.query(
@@ -81,7 +81,7 @@ SKILLS_PROMPT = (
 )
 
 
-def extract_required_skills(model, job_text: str) -> RequiredSkills:
+def extract_required_skills(model, job_text):
     prompt = ChatPromptTemplate.from_template(SKILLS_PROMPT)
     chain = prompt | model.with_structured_output(RequiredSkills)
     return chain.invoke({"job": job_text})

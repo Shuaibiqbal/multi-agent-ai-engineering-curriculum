@@ -24,7 +24,7 @@ class MemoryDecision(BaseModel):
     fact: str
 
 
-def decide_memory(model, message: str) -> MemoryDecision:
+def decide_memory(model, message):
     prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
     chain = prompt | model.with_structured_output(MemoryDecision)
     return chain.invoke({"message": message})

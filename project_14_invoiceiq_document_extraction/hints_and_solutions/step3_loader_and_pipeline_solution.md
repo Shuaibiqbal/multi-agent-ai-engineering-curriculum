@@ -42,7 +42,7 @@ Total: 10.00
 from src.exceptions import UnsupportedFileError
 
 
-def load_invoice_text(path: str) -> str:
+def load_invoice_text(path):
     lower = path.lower()
     if lower.endswith((".txt", ".md")):
         with open(path) as invoice_file:
@@ -78,7 +78,7 @@ class Result:
     problems: list
 
 
-def process_invoice(model, path: str) -> Result:
+def process_invoice(model, path):
     logger = get_logger(__name__)
     text = load_invoice_text(path)
     invoice = extract_invoice(model, text)
@@ -137,7 +137,7 @@ from src.models.llm import get_model
 from src.pipeline import process_invoice
 
 
-def test_clean_invoice_clears() -> None:
+def test_clean_invoice_clears():
     config = load_config()
     model = get_model(config)
     result = process_invoice(model, "samples/clean.txt")
@@ -145,7 +145,7 @@ def test_clean_invoice_clears() -> None:
     print(f"case 1 (clean invoice clears)     -> {'OK' if ok else 'WRONG'}")
 
 
-def test_bad_total_is_flagged() -> None:
+def test_bad_total_is_flagged():
     config = load_config()
     model = get_model(config)
     result = process_invoice(model, "samples/bad_total.txt")

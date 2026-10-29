@@ -38,7 +38,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -46,7 +46,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -64,7 +64,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
 
     if not logger.handlers:
@@ -100,14 +100,12 @@ Also create the empty `src/models/__init__.py` and `src/utils/__init__.py`, so b
 import openai
 from openai import OpenAI
 
-from src.config import Config
-
 MODEL = "gpt-4o-mini"
 
-def create_client(config: Config) -> OpenAI:
+def create_client(config):
     return OpenAI(api_key=config.openai_api_key)
 
-def check_api_key_at_startup(client: OpenAI) -> bool:
+def check_api_key_at_startup(client):
     try:
         client.chat.completions.create(
             model=MODEL,
@@ -118,7 +116,7 @@ def check_api_key_at_startup(client: OpenAI) -> bool:
         return False
     return True
 
-def send_message(client: OpenAI, history: list[dict], user_input: str) -> str:
+def send_message(client, history, user_input):
     history.append({"role": "user", "content": user_input})
     response = client.chat.completions.create(model=MODEL, messages=history)
     reply = response.choices[0].message.content
@@ -143,7 +141,7 @@ from src.models.llm import (
 )
 from src.utils.logger import get_logger
 
-def main() -> None:
+def main():
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -202,7 +200,7 @@ from src.exceptions import MissingConfigError
 TEST_SETTING = "SUPPORTDESK_TEST_SETTING"
 
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -212,7 +210,7 @@ def test_missing_setting() -> None:
     print(f"case 1 (missing setting) -> {result}")
 
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -222,7 +220,7 @@ def test_empty_setting() -> None:
     print(f"case 2 (empty setting)   -> {result}")
 
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -254,7 +252,7 @@ from src.models.llm import (
 )
 
 
-def test_first_reply(client: OpenAI) -> None:
+def test_first_reply(client):
     reply = send_message(client, [], "What's 2+2?")
     result = "OK"
     if "4" not in reply:
@@ -262,7 +260,7 @@ def test_first_reply(client: OpenAI) -> None:
     print(f"case 1 (first reply) -> {result}: {reply}")
 
 
-def test_bad_key() -> None:
+def test_bad_key():
     bad_client = OpenAI(api_key="sk-fake-key-123")
     result = "OK"
     if check_api_key_at_startup(bad_client):

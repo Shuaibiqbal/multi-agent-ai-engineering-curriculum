@@ -35,7 +35,7 @@ class Config:
     log_level: str
     notes_db_path: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -43,7 +43,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     log_level = os.getenv("LOG_LEVEL", "INFO")
     notes_db_path = os.getenv("NOTES_DB_PATH", "notes.db")
@@ -58,7 +58,7 @@ import logging
 import os
 import sys
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -100,7 +100,7 @@ mcp = MCPServer("notes-server")
 notes: list = []
 
 @mcp.tool()
-def add_note(text: str) -> str:
+def add_note(text):
     """Add a new note to the local notes store. Use this whenever the user
     wants to save or jot down a piece of text. Returns a short
     confirmation once the note is stored."""
@@ -132,7 +132,7 @@ from src.exceptions import MissingConfigError
 TEST_SETTING = "MCPFORGE_TEST_SETTING"
 
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -142,7 +142,7 @@ def test_missing_setting() -> None:
     print(f"case 1 (missing setting) -> {result}")
 
 
-def test_present_setting() -> None:
+def test_present_setting():
     os.environ[TEST_SETTING] = "hello"
     result = "OK"
     if require_env(TEST_SETTING) != "hello":
@@ -150,7 +150,7 @@ def test_present_setting() -> None:
     print(f"case 2 (present setting)  -> {result}")
 
 
-def test_config_loads_defaults() -> None:
+def test_config_loads_defaults():
     os.environ.pop("NOTES_DB_PATH", None)
     config = load_config()
     result = "OK"
@@ -179,14 +179,14 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
-def show(case: str, passed: bool) -> None:
+def show(case, passed):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}")
 
 
-async def main() -> None:
+async def main():
     server_params = StdioServerParameters(command="python", args=["server.py"])
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:

@@ -97,7 +97,7 @@ class TeamState(TypedDict):
     routing_log: list
     status: str          # "working" | "done" | "unknown" | "no_agreement"
 
-def start_state(destination: str) -> TeamState:
+def start_state(destination):
     return {
         "destination": destination,
         "notes": None,
@@ -143,7 +143,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -151,7 +151,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -164,7 +164,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -181,7 +181,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/utils/prompts.py
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -190,9 +190,7 @@ def load_prompt(name: str) -> str:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -230,13 +228,13 @@ from langchain_core.tools import tool
 from src.utils.logger import get_logger
 
 @tool
-def lookup_attractions(destination: str) -> list:
+def lookup_attractions(destination):
     """Look up real attractions for a destination from the local file."""
     with open("data/attractions.json") as attractions_file:
         data = json.loads(attractions_file.read())
     return data.get(destination.strip().lower(), [])
 
-def run_research(destination: str) -> list:
+def run_research(destination):
     logger = get_logger(__name__)
     found = lookup_attractions.invoke({"destination": destination})
     logger.info(f"research found {len(found)} attractions for {destination}")
@@ -263,7 +261,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def run_analysis(model, notes: list) -> str:
+def run_analysis(model, notes):
     logger = get_logger(__name__)
     prompt = ChatPromptTemplate.from_template(load_prompt("analysis"))
     chain = prompt | model | StrOutputParser()
@@ -296,7 +294,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def run_writer(model, day_plan: str, feedback: str) -> str:
+def run_writer(model, day_plan, feedback):
     logger = get_logger(__name__)
     prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
     chain = prompt | model | StrOutputParser()
@@ -330,7 +328,7 @@ from src.utils.prompts import load_prompt
 
 PASS_SCORE = 7
 
-def run_reviewer(model, notes: list, draft: str) -> ReviewVerdict:
+def run_reviewer(model, notes, draft):
     logger = get_logger(__name__)
     prompt = ChatPromptTemplate.from_template(load_prompt("reviewer"))
     chain = prompt | model.with_structured_output(ReviewVerdict)
@@ -354,7 +352,7 @@ from src.utils.logger import get_logger
 
 MAX_REVISIONS = 2
 
-def decide_next(state) -> tuple:
+def decide_next(state):
     if state["notes"] is None:
         return "research", "no attractions looked up yet"
     if len(state["notes"]) == 0:
@@ -498,7 +496,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "TRIPCRAFT_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -507,7 +505,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -516,7 +514,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -536,7 +534,7 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_lookup
 from src.agents.research_agent import lookup_attractions
 
-def test_known_destination() -> None:
+def test_known_destination():
     found = lookup_attractions.invoke({"destination": "Paris"})
     result = "OK"
     if len(found) == 0:
@@ -545,14 +543,14 @@ def test_known_destination() -> None:
         result = "WRONG"
     print(f"case 1 (known destination has sources) -> {result}")
 
-def test_case_insensitive() -> None:
+def test_case_insensitive():
     found = lookup_attractions.invoke({"destination": "  TOKYO "})
     result = "OK"
     if len(found) == 0:
         result = "WRONG"
     print(f"case 2 (trim + lowercase match)        -> {result}")
 
-def test_unknown_destination() -> None:
+def test_unknown_destination():
     found = lookup_attractions.invoke({"destination": "Atlantis"})
     result = "OK"
     if found != []:
@@ -573,19 +571,19 @@ from src.agents.research_agent import run_research  # noqa: F401
 from src.agents.supervisor import MAX_REVISIONS, decide_next
 from src.state import start_state
 
-def test_routes_to_research_first() -> None:
+def test_routes_to_research_first():
     target, reason = decide_next(start_state("Paris"))
     print(f"case 1 (fresh -> research) -> "
           f"{'OK' if target == 'research' else 'WRONG'}")
 
-def test_unknown_destination_stops() -> None:
+def test_unknown_destination_stops():
     state = start_state("Atlantis")
     state["notes"] = []
     target, reason = decide_next(state)
     print(f"case 2 (empty notes -> finish_unknown) -> "
           f"{'OK' if target == 'finish_unknown' else 'WRONG'}")
 
-def test_accepts_high_score() -> None:
+def test_accepts_high_score():
     state = start_state("Paris")
     state["notes"] = ["x [source: a]"]
     state["day_plan"] = "Day 1"
@@ -595,7 +593,7 @@ def test_accepts_high_score() -> None:
     print(f"case 3 (score 9 -> finish_ok) -> "
           f"{'OK' if target == 'finish_ok' else 'WRONG'}")
 
-def test_revise_then_give_up() -> None:
+def test_revise_then_give_up():
     state = start_state("Paris")
     state["notes"] = ["x [source: a]"]
     state["day_plan"] = "Day 1"
@@ -630,7 +628,7 @@ def build_app():
     model = get_model(config)
     return build_graph(model)
 
-def test_known_destination_finishes() -> None:
+def test_known_destination_finishes():
     final = build_app().invoke(start_state("Paris"))
     result = "OK"
     if final["status"] != "done":
@@ -639,7 +637,7 @@ def test_known_destination_finishes() -> None:
         result = "WRONG"
     print(f"case 1 (Paris -> reviewed itinerary, sources kept) -> {result}")
 
-def test_unknown_destination_stops() -> None:
+def test_unknown_destination_stops():
     final = build_app().invoke(start_state("Atlantis"))
     result = "OK"
     if final["status"] != "unknown":

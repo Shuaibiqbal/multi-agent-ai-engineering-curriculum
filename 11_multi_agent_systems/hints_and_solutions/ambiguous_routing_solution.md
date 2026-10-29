@@ -58,22 +58,22 @@ def run_ambiguity_check(prompts: list[str], attempts: int = 3) -> dict:
         tally[prompt] = picks
     return tally
 
-if __name__ == "__main__":
-    test_prompts = [
-        "find out why sales dropped last quarter",
-        "what does this survey data actually tell us",
-        "look into the causes of the outage",
-        "explain what happened to our conversion rate",
-        "dig into the reasons behind the delay",
-    ]
-    tally = run_ambiguity_check(test_prompts)
-    for prompt, picks in tally.items():
-        consistent = len(set(picks)) == 1
-        label = "consistent"
-        if not consistent:
-            label = "INCONSISTENT"
-        print(f"{prompt!r}:")
-        print(f"  {picks} ({label})")
+# Run each ambiguous task a few times and see if the routing is stable.
+test_prompts = [
+    "find out why sales dropped last quarter",
+    "what does this survey data actually tell us",
+    "look into the causes of the outage",
+    "explain what happened to our conversion rate",
+    "dig into the reasons behind the delay",
+]
+tally = run_ambiguity_check(test_prompts)
+for prompt, picks in tally.items():
+    consistent = len(set(picks)) == 1
+    label = "consistent"
+    if not consistent:
+        label = "INCONSISTENT"
+    print(f"{prompt!r}:")
+    print(f"  {picks} ({label})")
 ```
 **Expected output** (exact picks vary by run):
 ```

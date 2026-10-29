@@ -33,7 +33,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -41,7 +41,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -54,7 +54,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -72,9 +72,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -110,15 +108,14 @@ class Invoice(BaseModel):
 # The deterministic checks the model can't be trusted with: do the line items
 # add up to the stated total, and are required fields present? Plain Python, so
 # it's fully testable with hand-made Invoice objects - no model needed.
-from src.schemas import Invoice
 
-def compute_subtotal(invoice: Invoice) -> float:
+def compute_subtotal(invoice):
     subtotal = 0.0
     for item in invoice.line_items:
         subtotal += item.quantity * item.unit_price
     return round(subtotal, 2)
 
-def validate_invoice(invoice: Invoice) -> list:
+def validate_invoice(invoice):
     problems = []
     if not invoice.invoice_number:
         problems.append("missing invoice number")
@@ -150,7 +147,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "INVOICEIQ_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -159,7 +156,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -178,7 +175,7 @@ if __name__ == "__main__":
 from src.schemas import Invoice, LineItem
 from src.validator import compute_subtotal, validate_invoice
 
-def good_invoice() -> Invoice:
+def good_invoice():
     return Invoice(
         vendor="Acme", invoice_number="INV-1001",
         line_items=[
@@ -188,19 +185,19 @@ def good_invoice() -> Invoice:
         total=40.0,
     )
 
-def has_problem(problems, text: str) -> bool:
+def has_problem(problems, text):
     for problem in problems:
         if text in problem:
             return True
     return False
 
-def test_clean_invoice_has_no_problems() -> None:
+def test_clean_invoice_has_no_problems():
     result = "OK"
     if validate_invoice(good_invoice()) != []:
         result = "WRONG"
     print(f"case 1 (clean invoice -> no problems) -> {result}")
 
-def test_total_mismatch_is_caught() -> None:
+def test_total_mismatch_is_caught():
     invoice = good_invoice()
     invoice.total = 99.0
     result = "OK"
@@ -208,7 +205,7 @@ def test_total_mismatch_is_caught() -> None:
         result = "WRONG"
     print(f"case 2 (wrong total -> flagged)       -> {result}")
 
-def test_missing_number_is_caught() -> None:
+def test_missing_number_is_caught():
     invoice = good_invoice()
     invoice.invoice_number = None
     result = "OK"
@@ -216,7 +213,7 @@ def test_missing_number_is_caught() -> None:
         result = "WRONG"
     print(f"case 3 (missing number -> flagged)    -> {result}")
 
-def test_subtotal_adds_up() -> None:
+def test_subtotal_adds_up():
     result = "OK"
     if compute_subtotal(good_invoice()) != 40.0:
         result = "WRONG"

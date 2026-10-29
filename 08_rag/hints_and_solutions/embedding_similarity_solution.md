@@ -42,23 +42,19 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     norm_b = math.sqrt(squares)
     return dot / (norm_a * norm_b)
 
-def main() -> None:
-    embeddings = {}
-    for sentence in SENTENCES:
-        embeddings[sentence] = get_embedding(sentence)
+# Embed every sentence once.
+embeddings = {}
+for sentence in SENTENCES:
+    embeddings[sentence] = get_embedding(sentence)
 
-    scored_pairs = []
-    for sentence_a, sentence_b in combinations(SENTENCES, 2):
-        score = cosine_similarity(
-            embeddings[sentence_a], embeddings[sentence_b]
-        )
-        scored_pairs.append((score, sentence_a, sentence_b))
+# Score every pair of sentences, then sort most-similar first.
+scored_pairs = []
+for sentence_a, sentence_b in combinations(SENTENCES, 2):
+    score = cosine_similarity(embeddings[sentence_a], embeddings[sentence_b])
+    scored_pairs.append((score, sentence_a, sentence_b))
 
-    scored_pairs.sort(reverse=True)
-    for score, sentence_a, sentence_b in scored_pairs:
-        print(f"{score:.4f}  {sentence_a!r} <-> {sentence_b!r}")
-
-if __name__ == "__main__":
-    main()
+scored_pairs.sort(reverse=True)
+for score, sentence_a, sentence_b in scored_pairs:
+    print(f"{score:.4f}  {sentence_a!r} <-> {sentence_b!r}")
 ```
 **Expected output:** the same 10 pairs as Basic, but sorted, so the cat/feline pair prints first, with the highest score, instead of being buried wherever the loop happened to reach it.

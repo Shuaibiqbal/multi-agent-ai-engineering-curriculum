@@ -68,12 +68,12 @@ def build_graph(search_collection, router=has_results):
     builder.add_edge("cant_answer_node", END)
     return builder.compile()
 
-if __name__ == "__main__":
-    task = {"task": "How hot should the water be when brewing?"}
-    in_scope = build_graph(collection).invoke(task)
-    empty = build_graph(empty_collection).invoke(task)
-    print("coffee docs -> grounded:", in_scope["grounded"])
-    print("empty store -> grounded:", empty["grounded"])
+# Compare: a question answerable from the docs vs an empty store.
+task = {"task": "How hot should the water be when brewing?"}
+in_scope = build_graph(collection).invoke(task)
+empty = build_graph(empty_collection).invoke(task)
+print("coffee docs -> grounded:", in_scope["grounded"])
+print("empty store -> grounded:", empty["grounded"])
 ```
 **Expected output:**
 ```

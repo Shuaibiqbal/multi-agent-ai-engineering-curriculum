@@ -8,41 +8,32 @@
 
 ```python
 # first_tool_call_practice.py
-from langchain_core.runnables import Runnable
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+
 
 @tool
 def add(a: int, b: int) -> int:
     """Add two integers together and return the sum."""
     return a + b
 
-def get_model_with_tools() -> Runnable:
-    # how: .bind_tools() returns a new Runnable, not a ChatOpenAI
-    return ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([add])
 
-def main() -> None:
-    model_with_tools = get_model_with_tools()
-    response = model_with_tools.invoke("What's 5 + 7?")
+# .bind_tools() gives back a model that can choose to call our tool.
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([add])
+response = model.invoke("What's 5 + 7?")
 
-    if not response.tool_calls:
-        # when: even an obvious math question, the model can still just
-        # answer in text instead of calling a tool — always check first.
-        print("The model answered directly, without calling a tool.")
-        print(response.content)
-        return
-
+# Even for obvious math, the model might just answer in text — always check.
+if not response.tool_calls:
+    print("The model answered directly, without calling a tool.")
+    print(response.content)
+else:
     for call in response.tool_calls:
         if call["name"] == "add":
-            # how: .invoke() on the tool itself, not a plain function call —
-            # @tool wraps add into a Runnable too.
+            # .invoke() on the tool — @tool wraps add into a Runnable too
             result = add.invoke(call["args"])
             print(f"Called add({call['args']}) -> {result}")
         else:
             print(f"Unexpected tool requested: {call['name']}")
-
-if __name__ == "__main__":
-    main()
 ```
 **Expected output:**
 ```

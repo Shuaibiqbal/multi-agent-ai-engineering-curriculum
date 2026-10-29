@@ -76,7 +76,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -84,7 +84,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -97,7 +97,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -116,7 +116,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/rag/chunking.py
 # Split a document into paragraph chunks.
-def chunk_by_paragraph(text: str) -> list:
+def chunk_by_paragraph(text):
     chunks = []
     for block in text.split("\n\n"):
         cleaned = block.strip()
@@ -153,7 +153,7 @@ import os
 
 from src.rag.chunking import chunk_by_paragraph
 
-def load_documents(docs_dir: str = "data/docs") -> list:
+def load_documents(docs_dir="data/docs"):
     documents = []
     for name in sorted(os.listdir(docs_dir)):
         if not name.endswith(".md"):
@@ -180,7 +180,7 @@ def build_vector_store(collection, documents):
 ```python
 # src/rag/retriever.py  (Step 1 version — no scanner yet)
 # retrieve(): the top-k chunks as dicts with their source and text.
-def retrieve(collection, query: str, k: int = 3) -> list:
+def retrieve(collection, query, k=3):
     found = collection.query(query_texts=[query], n_results=k)
     passages = []
     for index in range(len(found["documents"][0])):
@@ -214,7 +214,7 @@ SEND_EMAIL_SCHEMA = {
     },
 }
 
-def send_email(to: str, subject: str, body: str) -> str:
+def send_email(to, subject, body):
     [].append({"to": to, "subject": subject, "body": body})
     return f"(mock) email queued to {to}"
 ```
@@ -229,13 +229,12 @@ import json
 
 from openai import OpenAI
 
-from src.config import Config
 from src.tools.email_tool import SEND_EMAIL_SCHEMA, send_email
 
-def create_client(config: Config) -> OpenAI:
+def create_client(config):
     return OpenAI(api_key=config.openai_api_key)
 
-def chat_with_tools(client, system: str, user: str) -> tuple:
+def chat_with_tools(client, system, user):
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -294,7 +293,7 @@ class AgentResult:
     answer: str
     tool_calls: list = field(default_factory=list)
 
-def run_agent(client, collection, question: str) -> AgentResult:
+def run_agent(client, collection, question):
     chunks = retrieve(collection, question)
     parts = []
     for chunk in chunks:
@@ -354,7 +353,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "PROMPTSHIELD_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -363,7 +362,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -372,7 +371,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"

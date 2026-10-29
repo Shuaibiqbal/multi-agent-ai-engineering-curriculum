@@ -35,7 +35,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -43,7 +43,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -57,7 +57,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
 
     if not logger.handlers:
@@ -92,7 +92,7 @@ Also create empty `__init__.py` files in `src/utils/` and `src/models/`.
 # OPENAI_API_KEY from the environment, filled by load_config().
 from langchain_openai import ChatOpenAI
 
-def get_model() -> ChatOpenAI:
+def get_model():
     return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
@@ -111,7 +111,7 @@ class DocState(TypedDict):
     path: Annotated[list[str], operator.add]
     answer: str
 
-def start_state(task: str) -> DocState:
+def start_state(task):
     return {"task": task, "path": [], "answer": ""}
 ```
 
@@ -130,7 +130,7 @@ Question: {task}
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live
 # in text files instead of Python strings.
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
@@ -146,13 +146,12 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.models.llm import get_model
-from src.state import DocState
 from src.utils.prompts import load_prompt
 
-def clean_task(state: DocState) -> dict:
+def clean_task(state):
     return {"task": state["task"].strip(), "path": ["clean_task"]}
 
-def answer_node(state: DocState) -> dict:
+def answer_node(state):
     prompt = ChatPromptTemplate.from_template(load_prompt("general"))
     chain = prompt | get_model() | StrOutputParser()
     reply = chain.invoke({"task": state["task"]})
@@ -199,7 +198,7 @@ from src.graph import build_graph
 from src.state import start_state
 from src.utils.logger import get_logger
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -264,7 +263,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DOCUMIND_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -273,7 +272,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -282,7 +281,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -306,7 +305,7 @@ if __name__ == "__main__":
 from src.nodes import clean_task
 from src.state import start_state
 
-def test_clean_task() -> None:
+def test_clean_task():
     update = clean_task({"task": "  What is a refund?  "})
     result = "OK"
     if update["task"] != "What is a refund?":
@@ -315,7 +314,7 @@ def test_clean_task() -> None:
         result = "WRONG"
     print(f"case 1 (clean_task tidies the task) -> {result}")
 
-def test_start_state() -> None:
+def test_start_state():
     state = start_state("hello")
     result = "OK"
     if state["task"] != "hello" or state["path"] != []:
@@ -340,17 +339,17 @@ from src.config import load_config
 from src.graph import build_graph
 from src.state import start_state
 
-def run(graph, thread_id: str, task: str) -> dict:
+def run(graph, thread_id, task):
     config = {"configurable": {"thread_id": thread_id}}
     return graph.invoke(start_state(task), config)
 
-def show(case: str, passed: bool, outcome: dict) -> None:
+def show(case, passed, outcome):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}: {outcome.get('path')}")
 
-def test_general_question(graph) -> None:
+def test_general_question(graph):
     outcome = run(graph, "t1", "What is the capital of France?")
     passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
     show("case 1 (general question)", passed, outcome)

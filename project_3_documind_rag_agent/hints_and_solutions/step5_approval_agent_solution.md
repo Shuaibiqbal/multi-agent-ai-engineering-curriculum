@@ -19,25 +19,24 @@ After this step the project is complete. Only `agents/approval_agent.py` and the
 # so nothing above interrupt() may do a real action.
 from langgraph.types import interrupt
 
-from src.state import DocState
 from src.utils.logger import get_logger
 
 # new in Step 5: the checklist, one small function per check
 
-def cites_a_source(answer: str, sources: list[dict]) -> bool:
+def cites_a_source(answer, sources):
     for source in sources:
         if "[" + source["source_file"] + "]" in answer:
             return True
     return False
 
-def asks_for_an_action(task: str) -> bool:
+def asks_for_an_action(task):
     lowered = task.lower()
     for word in ["send", "cancel", "delete", "refund my", "change my"]:
         if word in lowered:
             return True
     return False
 
-def run_checks(state: DocState) -> list[str]:
+def run_checks(state):
     failed = []
     if not state["grounded"]:
         failed.append("not grounded in the documents")
@@ -47,7 +46,7 @@ def run_checks(state: DocState) -> list[str]:
         failed.append("the task asks for an action")
     return failed
 
-def approval_node(state: DocState) -> dict:
+def approval_node(state):
     logger = get_logger(__name__)
     # changed in Step 5: real checks replace the fixed reason
     reasons = run_checks(state)
@@ -77,7 +76,7 @@ def approval_node(state: DocState) -> dict:
 # Run from the repo root: python -m tests.unit.test_approval_checks
 from src.agents.approval_agent import run_checks
 
-def make_state(task: str, answer: str, grounded: bool) -> dict:
+def make_state(task, answer, grounded):
     return {
         "task": task,
         "answer": answer,
@@ -85,24 +84,24 @@ def make_state(task: str, answer: str, grounded: bool) -> dict:
         "sources": [{"source_file": "refund_policy.md"}],
     }
 
-def show(case: str, failed: list[str], expected: list[str]) -> None:
+def show(case, failed, expected):
     result = "OK"
     if failed != expected:
         result = "WRONG"
     print(f"{case} -> {result}: {failed}")
 
-def test_all_checks_pass() -> None:
+def test_all_checks_pass():
     state = make_state(
         "What is the refund policy?", "30 days [refund_policy.md]", True
     )
     show("case 1 (grounded, cited)", run_checks(state), [])
 
-def test_no_citation() -> None:
+def test_no_citation():
     state = make_state("What is the refund policy?", "30 days", True)
     show("case 2 (no citation)    ", run_checks(state),
          ["cites no source file"])
 
-def test_action_request() -> None:
+def test_action_request():
     state = make_state(
         "Send the refund policy to the customer",
         "30 days [refund_policy.md]",
@@ -133,57 +132,55 @@ from src.state import start_state
 
 ACTION_TASK = "What is the refund policy? Send it to the customer."
 
-def run(
-    graph, thread_id: str, task: str, decision: str | None = "yes"
-) -> dict:
+def run(graph, thread_id, task, decision="yes"):
     config = {"configurable": {"thread_id": thread_id}}
     outcome = graph.invoke(start_state(task), config)
     if decision is not None and "__interrupt__" in outcome:
         outcome = graph.invoke(Command(resume=decision), config)
     return outcome
 
-def show(case: str, passed: bool, outcome: dict) -> None:
+def show(case, passed, outcome):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}: {outcome.get('path')}")
 
-def test_general_question(graph) -> None:
+def test_general_question(graph):
     outcome = run(graph, "t1", "What is the capital of France?")
     passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
     show("case 1 (general question)", passed, outcome)
 
-def test_action_pauses(graph) -> None:
+def test_action_pauses(graph):
     outcome = run(graph, "t2", ACTION_TASK, decision=None)
     show("case 2 (pauses)          ", "__interrupt__" in outcome, outcome)
 
-def test_human_says_yes(graph) -> None:
+def test_human_says_yes(graph):
     outcome = run(graph, "t3", ACTION_TASK, "yes")
     passed = outcome["approved"] and "human_approved" in outcome["path"]
     show("case 3 (human: yes)      ", passed, outcome)
 
-def test_human_says_no(graph) -> None:
+def test_human_says_no(graph):
     outcome = run(graph, "t4", ACTION_TASK, "no")
     passed = outcome["answer"].startswith("Not approved")
     show("case 4 (human: no)       ", passed, outcome)
 
-def test_grounded_answer(graph) -> None:
+def test_grounded_answer(graph):
     outcome = run(graph, "t5", "What is the refund policy?")
     passed = outcome["grounded"] and "retrieve_node" in outcome["path"]
     show("case 5 (grounded)        ", passed, outcome)
 
-def test_not_in_documents(graph) -> None:
+def test_not_in_documents(graph):
     outcome = run(graph, "t6", "What is the policy on remote work?")
     passed = outcome["path"][-1] == "no_grounding_node"
     show("case 6 (not found)       ", passed, outcome)
 
-def test_answer_cites_its_file(graph) -> None:
+def test_answer_cites_its_file(graph):
     outcome = run(graph, "t7", "What is the refund policy?")
     passed = "[refund_policy.md]" in outcome["answer"]
     show("case 7 (cites its file)  ", passed, outcome)
 
 # new in Step 5
-def test_safe_answer_auto_approved(graph) -> None:
+def test_safe_answer_auto_approved(graph):
     outcome = run(graph, "t8", "What is the refund policy?", decision=None)
     passed = "__interrupt__" not in outcome
     passed = passed and "auto_approved" in outcome["path"]

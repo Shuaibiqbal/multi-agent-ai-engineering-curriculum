@@ -29,13 +29,13 @@ class PermanentHTTPError(Exception):
     """Raised immediately for a non-retryable 4xx, with the response body
     attached."""
 
-    def __init__(self, status_code: int, body: str) -> None:
+    def __init__(self, status_code, body):
         self.status_code = status_code
         self.body = body
         super().__init__(f"HTTP {status_code}: {body[:200]}")
 
 class MaxIterationsExceeded(Exception):
-    def __init__(self, message: str, steps: list[dict]) -> None:
+    def __init__(self, message, steps):
         self.steps = steps
         super().__init__(message)
 ```
@@ -50,22 +50,16 @@ class MaxIterationsExceeded(Exception):
 import json
 import random
 import time
-from typing import Any
 
 import requests
 
 from src.exceptions import PermanentHTTPError, TransientHTTPError
 from src.utils.logger import get_logger
 
-def compute_backoff_delay(attempt: int) -> float:
+def compute_backoff_delay(attempt):
     return (2 ** attempt) + random.uniform(0, 1)
 
-def request_with_retry(
-    method: str,
-    url: str,
-    max_attempts: int = 5,
-    **kwargs: Any,
-) -> dict:
+def request_with_retry(method, url, max_attempts=5, **kwargs):
     logger = get_logger(__name__)
     for attempt in range(max_attempts):
         logger.debug(f"attempt {attempt}: {method} {url}")
@@ -122,13 +116,13 @@ COMPANY_DOCS = {
 }
 
 class FlakyToolState:
-    def __init__(self) -> None:
+    def __init__(self):
         self.call_count = 0
 
 search_state = FlakyToolState()
 
 @tool
-def search_docs(query: str) -> str:
+def search_docs(query):
     """Search the company's policy documents: refunds, shipping and
     warranty. Use it only for company policy questions."""
     search_state.call_count = search_state.call_count + 1
@@ -164,7 +158,7 @@ CITY_COORDINATES = {
     "paris": {"latitude": 48.85, "longitude": 2.35},
 }
 
-def build_weather_params(city: str) -> dict | None:
+def build_weather_params(city):
     coords = CITY_COORDINATES.get(city.lower())
     if coords is None:
         return None
@@ -175,7 +169,7 @@ def build_weather_params(city: str) -> dict | None:
     }
 
 @tool
-def get_weather(city: str) -> str:
+def get_weather(city):
     """Get the current temperature in Celsius for a city. Use it only for
     live weather questions — never for company policy or conversions."""
     params = build_weather_params(city)
@@ -210,9 +204,6 @@ tools returned, and say so if a tool could not give you the answer.
 # step limit. ALL_TOOLS lists the tools it may use.
 from dataclasses import dataclass, field
 
-from langchain_core.tools import BaseTool
-from langchain_openai import ChatOpenAI
-
 from src.exceptions import MaxIterationsExceeded
 from src.tools.converter import celsius_to_fahrenheit
 # new in Step 3: the 2 new tools
@@ -229,15 +220,13 @@ class AgentResult:
     final_answer: str
     steps: list[dict] = field(default_factory=list)
 
-def find_tool(tools: list[BaseTool], name: str) -> BaseTool | None:
+def find_tool(tools, name):
     for candidate in tools:
         if candidate.name == name:
             return candidate
     return None
 
-def run_tool(
-    call: dict, tools: list[BaseTool]
-) -> tuple[str | None, str | None]:
+def run_tool(call, tools):
     tool = find_tool(tools, call["name"])
     if tool is None:
         return None, f"unknown tool: {call['name']}"
@@ -247,9 +236,7 @@ def run_tool(
     except Exception as e:
         return None, str(e)
 
-def run_worker(
-    model: ChatOpenAI, task: str, max_iterations: int
-) -> AgentResult:
+def run_worker(model, task, max_iterations):
     logger = get_logger(__name__)
     model_with_tools = model.bind_tools(ALL_TOOLS)
     messages = [
@@ -308,13 +295,13 @@ from src.tools.converter import celsius_to_fahrenheit
 from src.tools.docs_search import search_docs, search_state
 from src.tools.weather import build_weather_params
 
-def test_converter() -> None:
+def test_converter():
     result = "OK"
     if celsius_to_fahrenheit.invoke({"celsius": 18}) != 64.4:
         result = "WRONG"
     print(f"case 1 (18°C is 64.4°F)           -> {result}")
 
-def test_converter_rejects_bad_arguments() -> None:
+def test_converter_rejects_bad_arguments():
     result = "WRONG"
     try:
         celsius_to_fahrenheit.invoke({"celsius": "hot"})
@@ -323,7 +310,7 @@ def test_converter_rejects_bad_arguments() -> None:
     print(f"case 2 (celsius='hot' refused)    -> {result}")
 
 # new in Step 3
-def test_weather_params_known_city() -> None:
+def test_weather_params_known_city():
     params = build_weather_params("Lahore")
     result = "OK"
     if params is None or params["latitude"] != 31.55:
@@ -331,14 +318,14 @@ def test_weather_params_known_city() -> None:
     print(f"case 3 (Lahore coordinates)       -> {result}")
 
 # new in Step 3
-def test_weather_params_unknown_city() -> None:
+def test_weather_params_unknown_city():
     result = "OK"
     if build_weather_params("Atlantis") is not None:
         result = "WRONG"
     print(f"case 4 (unknown city gives None)  -> {result}")
 
 # new in Step 3
-def test_search_fails_then_recovers() -> None:
+def test_search_fails_then_recovers():
     search_state.call_count = 0
     result = "WRONG"
     try:
@@ -367,9 +354,8 @@ if __name__ == "__main__":
 # adds cases. Each case prints OK or WRONG.
 # Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-from langchain_openai import ChatOpenAI
 
-from src.agents.worker import AgentResult, run_worker
+from src.agents.worker import run_worker
 from src.chains.direct_answer import build_direct_chain
 from src.config import load_config
 from src.exceptions import MaxIterationsExceeded
@@ -377,7 +363,7 @@ from src.models.llm import get_model
 # new in Step 3
 from src.tools.docs_search import search_state
 
-def test_direct_answer(model: ChatOpenAI) -> None:
+def test_direct_answer(model):
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
     result = "OK"
@@ -385,13 +371,13 @@ def test_direct_answer(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 1 (direct answer)  -> {result}: {answer}")
 
-def tools_used(outcome: AgentResult) -> list[str]:
+def tools_used(outcome):
     names = []
     for step in outcome.steps:
         names.append(step["tool"])
     return names
 
-def test_conversion_uses_tool(model: ChatOpenAI) -> None:
+def test_conversion_uses_tool(model):
     task = "What is 25 degrees Celsius in Fahrenheit?"
     used = tools_used(run_worker(model, task, 5))
     result = "OK"
@@ -399,14 +385,14 @@ def test_conversion_uses_tool(model: ChatOpenAI) -> None:
         result = "WRONG"
     print(f"case 2 (conversion)     -> {result}: {used}")
 
-def test_no_tool_needed(model: ChatOpenAI) -> None:
+def test_no_tool_needed(model):
     outcome = run_worker(model, "What is the capital of France?", 5)
     result = "OK"
     if len(outcome.steps) != 0:
         result = "WRONG"
     print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
 
-def test_step_limit(model: ChatOpenAI) -> None:
+def test_step_limit(model):
     task = "What is 25 degrees Celsius in Fahrenheit?"
     result = "WRONG"
     try:
@@ -416,7 +402,7 @@ def test_step_limit(model: ChatOpenAI) -> None:
     print(f"case 4 (step limit)     -> {result}")
 
 # new in Step 3
-def test_weather_uses_tool(model: ChatOpenAI) -> None:
+def test_weather_uses_tool(model):
     task = "What's the weather in Lahore right now?"
     used = tools_used(run_worker(model, task, 5))
     result = "OK"
@@ -425,7 +411,7 @@ def test_weather_uses_tool(model: ChatOpenAI) -> None:
     print(f"case 5 (weather task)   -> {result}: {used}")
 
 # new in Step 3
-def test_tool_failure_recovery(model: ChatOpenAI) -> None:
+def test_tool_failure_recovery(model):
     search_state.call_count = 0
     outcome = run_worker(model, "What is your refund policy?", 5)
     failed = 0

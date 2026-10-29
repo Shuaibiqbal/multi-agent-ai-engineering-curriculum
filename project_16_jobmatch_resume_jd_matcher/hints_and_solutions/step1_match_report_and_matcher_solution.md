@@ -30,7 +30,7 @@ class Config:
     log_level: str
     match_cutoff: float
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -38,7 +38,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -52,7 +52,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -70,9 +70,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -106,7 +104,7 @@ class MatchReport(BaseModel):
 # passed in, so this whole decision is testable with no model or embeddings.
 from src.schemas import MatchReport
 
-def match_skills(required, distance, cutoff: float = 0.8):
+def match_skills(required, distance, cutoff=0.8):
     matched = []
     missing = []
     for skill in required:
@@ -134,7 +132,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "JOBMATCH_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -143,7 +141,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -164,10 +162,10 @@ from src.matcher import match_skills
 # a fake distance(): small for skills the "resume" covers, big otherwise
 COVERED = {"python": 0.1, "docker": 0.3, "aws": 0.4, "leadership": 0.5}
 
-def fake_distance(skill: str) -> float:
+def fake_distance(skill):
     return COVERED.get(skill.lower(), 1.5)
 
-def test_matched_and_missing() -> None:
+def test_matched_and_missing():
     required = ["Python", "Docker", "AWS", "Kubernetes", "Leadership"]
     report = match_skills(required, fake_distance, cutoff=0.8)
     result = "OK"
@@ -177,7 +175,7 @@ def test_matched_and_missing() -> None:
         result = "WRONG"
     print(f"case 1 (4 matched, 1 missing) -> {result}")
 
-def test_score_is_a_percentage() -> None:
+def test_score_is_a_percentage():
     required = ["Python", "Docker", "AWS", "Kubernetes", "Leadership"]
     report = match_skills(required, fake_distance, cutoff=0.8)
     result = "OK"
@@ -185,7 +183,7 @@ def test_score_is_a_percentage() -> None:
         result = "WRONG"
     print(f"case 2 (score = 80)           -> {result}")
 
-def test_no_required_skills_is_zero() -> None:
+def test_no_required_skills_is_zero():
     report = match_skills([], fake_distance)
     result = "OK"
     if report.score != 0:

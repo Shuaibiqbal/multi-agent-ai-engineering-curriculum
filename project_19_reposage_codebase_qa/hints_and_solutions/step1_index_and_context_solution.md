@@ -30,7 +30,7 @@ class Config:
     log_level: str
     repo_dir: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -38,7 +38,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -52,7 +52,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -70,9 +70,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -93,7 +91,7 @@ import chromadb
 COLLECTION_NAME = "code"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-def build_code_store(repo_dir: str):
+def build_code_store(repo_dir):
     loader = DirectoryLoader(repo_dir, glob="**/*.py", loader_cls=TextLoader)
     documents = loader.load()
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=60)
@@ -124,7 +122,7 @@ def build_code_store(repo_dir: str):
 # Return the code snippets closest to a question, each with its file path.
 from src.rag.code_store import EMBEDDINGS
 
-def retrieve_snippets(collection, question: str, k: int = 4) -> list:
+def retrieve_snippets(collection, question, k=4):
     if collection.count() == 0:
         return []
     results = collection.query(
@@ -148,13 +146,13 @@ def retrieve_snippets(collection, question: str, k: int = 4) -> list:
 # Turn retrieved snippets into one model-ready block (each under a # File:
 # header) and the de-duplicated list of files to cite. Plain Python, so it's
 # fully testable with hand-made snippets - no model or embeddings.
-def build_context(snippets) -> str:
+def build_context(snippets):
     blocks = []
     for snippet in snippets:
         blocks.append(f"# File: {snippet['file']}\n{snippet['code']}")
     return "\n\n".join(blocks)
 
-def cited_files(snippets) -> list:
+def cited_files(snippets):
     files = []
     for snippet in snippets:
         if snippet["file"] not in files:
@@ -174,7 +172,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "REPOSAGE_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -183,7 +181,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -207,7 +205,7 @@ SNIPPETS = [
     {"file": "auth.py", "code": "def logout(user):\n    session.clear()"},
 ]
 
-def test_every_snippet_has_a_file_header() -> None:
+def test_every_snippet_has_a_file_header():
     context = build_context(SNIPPETS)
     result = "OK"
     if context.count("# File:") != 3:
@@ -216,7 +214,7 @@ def test_every_snippet_has_a_file_header() -> None:
         result = "WRONG"
     print(f"case 1 (file headers in context) -> {result}")
 
-def test_cited_files_are_deduped() -> None:
+def test_cited_files_are_deduped():
     files = cited_files(SNIPPETS)
     result = "OK"
     if files != ["auth.py", "db.py"]:

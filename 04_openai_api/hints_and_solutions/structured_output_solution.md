@@ -36,21 +36,10 @@ class ExtractedInfo(BaseModel):
     # why: Literal — the model can only pick one of these 3 exact values
     urgency: Literal["low", "normal", "urgent"]
 
-def check_by_hand() -> None:
-    # how: model_validate() is the same check .parse() runs for you on
-    # the model's JSON — here you run it yourself on a plain dict
-    good = {"name": "Maria", "intent": "reset password", "urgency": "urgent"}
-    info = ExtractedInfo.model_validate(good)
-    print(f"case 1 (good dict)    -> {info.urgency}")
-
-    bad = {"name": "Maria", "intent": "reset password", "urgency": "very"}
-    try:
-        ExtractedInfo.model_validate(bad)
-        print("case 2 (bad urgency)  -> accepted (wrong!)")
-    except ValidationError:
-        print("case 2 (bad urgency)  -> ValidationError")
-
-def extract_info(text: str) -> ExtractedInfo | None:
+# extract_info: the one function callers use. It turns refusals,
+# validation errors and empty answers all into None, so the caller can
+# trust whatever it gets back.
+def extract_info(text):
     try:
         completion = client.beta.chat.completions.parse(
             model="gpt-4o-mini",
@@ -79,26 +68,34 @@ def extract_info(text: str) -> ExtractedInfo | None:
         return None
     return info
 
-def main() -> None:
-    check_by_hand()
-    texts = [
-        "Hi, I'm Maria and I need my password reset today, please!",
-        "Can someone check why my invoice is wrong?",
-        "the sky is blue",
-    ]
-    for text in texts:
-        info = extract_info(text)
-        print()
-        print(f"Text: {text}")
-        if info is None:
-            print("  nothing to extract")
-        else:
-            print(f"  name:    {info.name}")
-            print(f"  intent:  {info.intent}")
-            print(f"  urgency: {info.urgency}")
+# --- First, see the validation itself, by hand ---
+# model_validate() runs the same check .parse() runs on the model's JSON.
+good = {"name": "Maria", "intent": "reset password", "urgency": "urgent"}
+print(f"case 1 (good dict)    -> {ExtractedInfo.model_validate(good).urgency}")
 
-if __name__ == "__main__":
-    main()
+bad = {"name": "Maria", "intent": "reset password", "urgency": "very"}
+try:
+    ExtractedInfo.model_validate(bad)
+    print("case 2 (bad urgency)  -> accepted (wrong!)")
+except ValidationError:
+    print("case 2 (bad urgency)  -> ValidationError")
+
+# --- Now let the model fill the form ---
+texts = [
+    "Hi, I'm Maria and I need my password reset today, please!",
+    "Can someone check why my invoice is wrong?",
+    "the sky is blue",
+]
+for text in texts:
+    info = extract_info(text)
+    print()
+    print(f"Text: {text}")
+    if info is None:
+        print("  nothing to extract")
+    else:
+        print(f"  name:    {info.name}")
+        print(f"  intent:  {info.intent}")
+        print(f"  urgency: {info.urgency}")
 ```
 **Expected output** (model values vary):
 

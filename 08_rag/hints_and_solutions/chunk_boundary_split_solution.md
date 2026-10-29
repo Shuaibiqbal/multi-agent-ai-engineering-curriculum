@@ -68,26 +68,25 @@ def search(
         top_chunks.append(chunk)
     return top_chunks
 
-def main() -> None:
-    chunks = chunk_text(DOCUMENT, CHUNK_SIZE)
-    print(f"document was cut into {len(chunks)} chunks:")
-    for i, chunk in enumerate(chunks):
-        print(f"  {i}: {chunk!r}")
+# Cut the document into fixed-size chunks and see where the facts landed.
+chunks = chunk_text(DOCUMENT, CHUNK_SIZE)
+print(f"document was cut into {len(chunks)} chunks:")
+for i, chunk in enumerate(chunks):
+    print(f"  {i}: {chunk!r}")
 
-    chunk_embeddings = []
-    for chunk in chunks:
-        chunk_embeddings.append(get_embedding(chunk))
+# Embed each chunk once.
+chunk_embeddings = []
+for chunk in chunks:
+    chunk_embeddings.append(get_embedding(chunk))
 
-    top_1 = search(QUESTION, chunks, chunk_embeddings, k=1)
-    top_all = search(QUESTION, chunks, chunk_embeddings, k=len(chunks))
+# Compare retrieving just the top chunk (k=1) vs all of them.
+top_1 = search(QUESTION, chunks, chunk_embeddings, k=1)
+top_all = search(QUESTION, chunks, chunk_embeddings, k=len(chunks))
 
-    print("\nk=1 result:")
-    for chunk in top_1:
-        print(" ", chunk)
-    print(f"\nk={len(chunks)} result (all chunks):")
-    for chunk in top_all:
-        print(" ", chunk)
-
-if __name__ == "__main__":
-    main()
+print("\nk=1 result:")
+for chunk in top_1:
+    print(" ", chunk)
+print(f"\nk={len(chunks)} result (all chunks):")
+for chunk in top_all:
+    print(" ", chunk)
 ```

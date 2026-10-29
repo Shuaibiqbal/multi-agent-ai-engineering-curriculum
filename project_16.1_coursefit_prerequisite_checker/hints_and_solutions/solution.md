@@ -96,7 +96,7 @@ class Config:
     log_level: str
     match_cutoff: float
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -104,7 +104,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -118,7 +118,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -136,9 +136,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -168,7 +166,7 @@ class ReadinessReport(BaseModel):
 # passed in, so the decision is testable with no model or embeddings.
 from src.schemas import ReadinessReport
 
-def check_prereqs(required, distance, cutoff: float = 0.8):
+def check_prereqs(required, distance, cutoff=0.8):
     met = []
     missing = []
     for prereq in required:
@@ -196,7 +194,7 @@ import chromadb
 COLLECTION_NAME = "background"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-def build_background_store(background_text: str):
+def build_background_store(background_text):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=300, chunk_overlap=40,
     )
@@ -225,7 +223,7 @@ from src.rag.background_store import EMBEDDINGS
 
 NO_MATCH_DISTANCE = 2.0
 
-def best_distance(collection, prereq: str) -> float:
+def best_distance(collection, prereq):
     if collection.count() == 0:
         return NO_MATCH_DISTANCE
     results = collection.query(
@@ -249,7 +247,7 @@ PREREQS_PROMPT = (
     "if none are stated.\n\nCourse:\n{course}"
 )
 
-def extract_required_prereqs(model, course_text: str) -> RequiredPrereqs:
+def extract_required_prereqs(model, course_text):
     prompt = ChatPromptTemplate.from_template(PREREQS_PROMPT)
     chain = prompt | model.with_structured_output(RequiredPrereqs)
     return chain.invoke({"course": course_text})
@@ -263,16 +261,14 @@ from src.extractor import extract_required_prereqs
 from src.matcher import check_prereqs
 from src.rag.background_store import build_background_store
 from src.rag.retriever import best_distance
-from src.schemas import ReadinessReport
 from src.utils.logger import get_logger
 
-def run_check(model, background_text: str, course_text: str,
-              cutoff: float = 0.8) -> ReadinessReport:
+def run_check(model, background_text, course_text, cutoff=0.8):
     logger = get_logger(__name__)
     collection = build_background_store(background_text)
     required = extract_required_prereqs(model, course_text).prereqs
 
-    def distance(prereq: str) -> float:
+    def distance(prereq):
         return best_distance(collection, prereq)
 
     report = check_prereqs(required, distance, cutoff=cutoff)
@@ -332,7 +328,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "COURSEFIT_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -341,7 +337,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -359,10 +355,10 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_matcher
 from src.matcher import check_prereqs
 
-def fake_distance(prereq: str) -> float:
+def fake_distance(prereq):
     return {"linear algebra": 0.2, "python": 0.1}.get(prereq.lower(), 1.5)
 
-def test_met_and_missing() -> None:
+def test_met_and_missing():
     required = ["Linear algebra", "Python", "Statistics"]
     report = check_prereqs(required, fake_distance, cutoff=0.8)
     result = "OK"
@@ -372,7 +368,7 @@ def test_met_and_missing() -> None:
         result = "WRONG"
     print(f"case 1 (2 met, 1 missing)  -> {result}")
 
-def test_score_is_a_percentage() -> None:
+def test_score_is_a_percentage():
     required = ["Linear algebra", "Python", "Statistics"]
     report = check_prereqs(required, fake_distance, cutoff=0.8)
     result = "OK"
@@ -380,7 +376,7 @@ def test_score_is_a_percentage() -> None:
         result = "WRONG"
     print(f"case 2 (score = 67)        -> {result}")
 
-def test_no_prereqs_is_ready() -> None:
+def test_no_prereqs_is_ready():
     report = check_prereqs([], fake_distance)
     result = "OK"
     if report.score != 100:
@@ -406,7 +402,7 @@ BACKGROUND = (
 )
 COURSE = "Prerequisites: linear algebra, Python, and intro statistics."
 
-def test_meets_most_and_finds_gap() -> None:
+def test_meets_most_and_finds_gap():
     config = load_config()
     model = get_model(config)
     report = run_check(model, BACKGROUND, COURSE, config.match_cutoff)

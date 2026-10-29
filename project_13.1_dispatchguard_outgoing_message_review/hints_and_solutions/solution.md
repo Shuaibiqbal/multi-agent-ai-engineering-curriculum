@@ -127,7 +127,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -135,7 +135,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -148,7 +148,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -168,7 +168,7 @@ import os
 
 PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "prompts")
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     path = os.path.join(PROMPTS_DIR, f"{name}.txt")
     with open(path) as prompt_file:
         return prompt_file.read()
@@ -178,9 +178,7 @@ def load_prompt(name: str) -> str:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -206,7 +204,7 @@ class Finding(BaseModel):
 # [internal] / [transactional] / [marketing] tag; no tag means marketing.
 import re
 
-def parse_message(text: str) -> dict:
+def parse_message(text):
     match = re.match(r"\s*\[(\w+)\]\s*", text)
     message_type = "marketing"
     body = text
@@ -246,7 +244,7 @@ RISKY_PATTERNS = [
     (r"(?i)\bi (guarantee|promise)\b", "unauthorized promise"),
 ]
 
-def run_safety(message) -> list:
+def run_safety(message):
     findings = []
     body = message["body"]
     for pattern, label in PII_PATTERNS:
@@ -292,11 +290,10 @@ def get_collection(embedding_function=None):
 # src/rag/ingest.py
 # Chunk the voice guide into individual rules (one per paragraph) and embed
 # them, so a message can retrieve the specific rules it might break.
-import os
 
 VOICE_GUIDE_PATH = "data/voice_guide.md"
 
-def load_rules(path: str = VOICE_GUIDE_PATH) -> list:
+def load_rules(path=VOICE_GUIDE_PATH):
     with open(path) as guide_file:
         text = guide_file.read()
     rules = []
@@ -306,7 +303,7 @@ def load_rules(path: str = VOICE_GUIDE_PATH) -> list:
             rules.append(cleaned)
     return rules
 
-def build_voice_store(collection, path: str = VOICE_GUIDE_PATH):
+def build_voice_store(collection, path=VOICE_GUIDE_PATH):
     rules = load_rules(path)
     ids = []
     for index in range(len(rules)):
@@ -317,7 +314,7 @@ def build_voice_store(collection, path: str = VOICE_GUIDE_PATH):
 
 ```python
 # src/rag/retriever.py
-def retrieve_rules(collection, query: str, k: int = 3) -> list:
+def retrieve_rules(collection, query, k=3):
     found = collection.query(query_texts=[query], n_results=k)
     return found["documents"][0]
 ```
@@ -359,7 +356,7 @@ class _BrandItem(BaseModel):
     line: str
     rule: str
 
-def run_brand(model, collection, message) -> list:
+def run_brand(model, collection, message):
     body = message["body"]
     if not body.strip():
         return []
@@ -391,7 +388,7 @@ from src.schemas import Finding
 
 END_DATE = r"(?i)(ends|until|through|expires)"
 
-def run_completeness(message) -> list:
+def run_completeness(message):
     findings = []
     body = message["body"]
     lower = body.lower()
@@ -426,7 +423,7 @@ from src.utils.logger import get_logger
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
-def choose_reviewers(message) -> list:
+def choose_reviewers(message):
     reviewers = ["safety"]
     message_type = message["type"]
     if message_type == "internal":
@@ -438,13 +435,13 @@ def choose_reviewers(message) -> list:
         reviewers.append("completeness")
     return reviewers
 
-def decide_next(state) -> str:
+def decide_next(state):
     for reviewer in state["reviewers"]:
         if reviewer not in state["done"]:
             return reviewer
     return "compile"
 
-def compile_review(findings) -> str:
+def compile_review(findings):
     seen = set()
     unique = []
     for finding in findings:
@@ -487,7 +484,7 @@ class ReviewState(TypedDict):
     review: str
     routing_log: list
 
-def start_state(raw: str) -> ReviewState:
+def start_state(raw):
     message = parse_message(raw)
     return {
         "raw": raw,
@@ -592,7 +589,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DISPATCHGUARD_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -601,7 +598,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -610,7 +607,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -629,7 +626,7 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_message
 from src.message import parse_message
 
-def test_tagged() -> None:
+def test_tagged():
     message = parse_message("[internal] secret plan")
     result = "OK"
     if message["type"] != "internal":
@@ -638,7 +635,7 @@ def test_tagged() -> None:
         result = "WRONG"
     print(f"case 1 (tagged type + body) -> {result}")
 
-def test_default_marketing() -> None:
+def test_default_marketing():
     message = parse_message("Big summer sale!")
     result = "OK"
     if message["type"] != "marketing":
@@ -661,7 +658,7 @@ DIRTY = parse_message(
 )
 CLEAN = parse_message("[marketing] Thanks for being a customer this year.")
 
-def test_flags_pii_and_claim() -> None:
+def test_flags_pii_and_claim():
     findings = run_safety(DIRTY)
     text = " ".join(f.message for f in findings)
     result = "OK"
@@ -669,7 +666,7 @@ def test_flags_pii_and_claim() -> None:
         result = "WRONG"
     print(f"case 1 (email + claim flagged) -> {result}")
 
-def test_clean_message_no_findings() -> None:
+def test_clean_message_no_findings():
     findings = run_safety(CLEAN)
     result = "OK"
     if findings != []:
@@ -687,21 +684,21 @@ if __name__ == "__main__":
 from src.agents.supervisor import choose_reviewers
 from src.message import parse_message
 
-def test_marketing_runs_all() -> None:
+def test_marketing_runs_all():
     reviewers = set(choose_reviewers(parse_message("[marketing] hi")))
     result = "OK"
     if reviewers != {"safety", "brand", "completeness"}:
         result = "WRONG"
     print(f"case 1 (marketing -> all three)   -> {result}")
 
-def test_internal_safety_only() -> None:
+def test_internal_safety_only():
     reviewers = choose_reviewers(parse_message("[internal] hi"))
     result = "OK"
     if reviewers != ["safety"]:
         result = "WRONG"
     print(f"case 2 (internal -> safety only)  -> {result}")
 
-def test_transactional_skips_brand() -> None:
+def test_transactional_skips_brand():
     reviewers = choose_reviewers(parse_message("[transactional] hi"))
     result = "OK"
     if "brand" in reviewers:
@@ -720,7 +717,7 @@ if __name__ == "__main__":
 from src.agents.supervisor import compile_review
 from src.schemas import Finding
 
-def test_dedup_and_sort() -> None:
+def test_dedup_and_sort():
     findings = [
         Finding(severity="medium", category="safety", message="x"),
         Finding(severity="high", category="safety", message="y"),
@@ -734,7 +731,7 @@ def test_dedup_and_sort() -> None:
         result = "WRONG"
     print(f"case 1 (dedup + severity sort) -> {result}")
 
-def test_empty_is_clean() -> None:
+def test_empty_is_clean():
     out = compile_review([])
     result = "OK"
     if "cleared to send" not in out:
@@ -769,13 +766,13 @@ def build_app():
     collection = build_voice_store(get_collection())
     return build_graph(model, collection)
 
-def test_full_review() -> None:
+def test_full_review():
     final = build_app().invoke(start_state(DIRTY))
     review = final["review"].lower()
     ok = "email" in review and "end date" in review and "b-1" in review
     print(f"case 1 (full review, all 3)      -> {'OK' if ok else 'WRONG'}")
 
-def test_internal_skips_brand() -> None:
+def test_internal_skips_brand():
     final = build_app().invoke(start_state(INTERNAL))
     ok = "brand" not in final["routing_log"]
     print(f"case 2 (internal skips brand)    -> {'OK' if ok else 'WRONG'}")

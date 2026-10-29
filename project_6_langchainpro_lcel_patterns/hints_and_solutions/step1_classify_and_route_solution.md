@@ -35,7 +35,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -43,7 +43,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -57,7 +57,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
 
     if not logger.handlers:
@@ -81,7 +81,7 @@ def get_logger(name: str) -> logging.Logger:
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live in text
 # files instead of Python strings. (Project 1's file.)
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
@@ -103,7 +103,7 @@ Also create empty `__init__.py` files in `src/utils/` and `src/models/`.
 # OPENAI_API_KEY from the environment, filled by load_config().
 from langchain_openai import ChatOpenAI
 
-def get_model() -> ChatOpenAI:
+def get_model():
     return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
@@ -188,7 +188,6 @@ Ticket: {ticket}
 # model; classify_ticket() runs it, falls back to "general, not sure" on a
 # ValidationError, and logs every decision.
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 from pydantic import ValidationError
 
 from src.models.llm import get_model
@@ -196,13 +195,13 @@ from src.schemas import TicketCategory
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def build_classifier_chain() -> Runnable:
+def build_classifier_chain():
     prompt = ChatPromptTemplate.from_template(load_prompt("classifier"))
     model = get_model().with_structured_output(TicketCategory)
     chain = prompt | model
     return chain
 
-def classify_ticket(ticket: str) -> TicketCategory:
+def classify_ticket(ticket):
     logger = get_logger(__name__)
     chain = build_classifier_chain()
     try:
@@ -229,12 +228,11 @@ def classify_ticket(ticket: str) -> TicketCategory:
 # the prompt file named after the category.
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 
 from src.models.llm import get_model
 from src.utils.prompts import load_prompt
 
-def build_reply_chain(category: str) -> Runnable:
+def build_reply_chain(category):
     prompt = ChatPromptTemplate.from_template(load_prompt(category))
     chain = prompt | get_model() | StrOutputParser()
     return chain
@@ -251,7 +249,7 @@ from src.chains.classifier import classify_ticket
 from src.chains.replies import build_reply_chain
 from src.schemas import TicketRecord
 
-def handle_ticket(ticket: str, customer_id: str) -> TicketRecord:
+def handle_ticket(ticket, customer_id):
     category = classify_ticket(ticket)
     chain = build_reply_chain(category.category)
     inputs = {"ticket": ticket, "customer_id": customer_id}
@@ -309,18 +307,17 @@ import openai
 
 from src.config import load_config
 from src.exceptions import MissingConfigError
-from src.schemas import TicketRecord
 from src.services.pipeline import handle_ticket
 from src.utils.logger import get_logger
 
-def load_samples() -> list[dict]:
+def load_samples():
     with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
 
-def print_record(record: TicketRecord) -> None:
+def print_record(record):
     print(f"  category:      {record.category}")
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -372,7 +369,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "LANGCHAINPRO_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -381,7 +378,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -390,7 +387,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -415,7 +412,7 @@ from pydantic import ValidationError
 
 from src.schemas import TicketCategory, TicketRecord
 
-def test_good_category() -> None:
+def test_good_category():
     result = TicketCategory(
         category="billing", reason="A double charge.", sure=True
     )
@@ -424,7 +421,7 @@ def test_good_category() -> None:
         ok = "WRONG"
     print(f"case 1 (good category)   -> {ok}")
 
-def test_unknown_category() -> None:
+def test_unknown_category():
     ok = "WRONG"
     try:
         TicketCategory(category="shipping", reason="?", sure=True)
@@ -432,7 +429,7 @@ def test_unknown_category() -> None:
         ok = "OK"
     print(f"case 2 (unknown rejected) -> {ok}")
 
-def test_record() -> None:
+def test_record():
     record = TicketRecord(
         customer_id="C-1001",
         ticket="I was charged twice this month.",
@@ -463,32 +460,32 @@ from src.chains.classifier import classify_ticket
 from src.config import load_config
 from src.services.pipeline import handle_ticket
 
-def load_samples() -> list[dict]:
+def load_samples():
     with open("data/sample/tickets.json") as samples_file:
         return json.loads(samples_file.read())
 
-def test_billing_classified(samples: list[dict]) -> None:
+def test_billing_classified(samples):
     result = classify_ticket(samples[0]["ticket"])
     ok = "OK"
     if result.category != "billing":
         ok = "WRONG"
     print(f"case 1 (billing)   -> {ok} ({result.category})")
 
-def test_technical_classified(samples: list[dict]) -> None:
+def test_technical_classified(samples):
     result = classify_ticket(samples[1]["ticket"])
     ok = "OK"
     if result.category != "technical":
         ok = "WRONG"
     print(f"case 2 (technical) -> {ok} ({result.category})")
 
-def test_general_classified(samples: list[dict]) -> None:
+def test_general_classified(samples):
     result = classify_ticket(samples[2]["ticket"])
     ok = "OK"
     if result.category != "general":
         ok = "WRONG"
     print(f"case 3 (general)   -> {ok} ({result.category})")
 
-def test_full_pipeline(samples: list[dict]) -> None:
+def test_full_pipeline(samples):
     record = handle_ticket(samples[0]["ticket"], samples[0]["customer_id"])
     ok = "OK"
     if record.category != "billing" or record.reply == "":

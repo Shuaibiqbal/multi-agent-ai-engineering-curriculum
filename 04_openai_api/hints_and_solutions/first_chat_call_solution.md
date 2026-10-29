@@ -14,9 +14,9 @@ from openai import OpenAI
 load_dotenv()
 client = OpenAI()
 
-def ask(system_prompt: str, user_prompt: str) -> str:
-    # why: separates "how to call the API" from "which prompts to compare" —
-    # comparing a third prompt is now one more call, not a copy-pasted block.
+# One reusable function for "call the API with these prompts", so trying
+# another prompt is just one more call, not a copy-pasted block.
+def ask(system_prompt, user_prompt):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -24,21 +24,18 @@ def ask(system_prompt: str, user_prompt: str) -> str:
             {"role": "user", "content": user_prompt},
         ],
     )
-    # how: .choices[0] is the first (and here, only) reply the model generated;
-    # .message.content is the actual text, not the whole response object.
+    # .choices[0].message.content is the reply text, not the whole object
     return response.choices[0].message.content
 
-def main() -> None:
-    question = "Tell me about your day."
 
-    formal_answer = ask("You are formal and professional.", question)
-    print("Formal:", formal_answer)
+# Ask the same question with two different system prompts and compare.
+question = "Tell me about your day."
 
-    pirate_answer = ask("You are a sarcastic pirate.", question)
-    print("Pirate:", pirate_answer)
+formal_answer = ask("You are formal and professional.", question)
+print("Formal:", formal_answer)
 
-if __name__ == "__main__":
-    main()
+pirate_answer = ask("You are a sarcastic pirate.", question)
+print("Pirate:", pirate_answer)
 ```
 **Expected output:**
 ```

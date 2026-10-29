@@ -31,7 +31,7 @@ class EmptyNoteError(Exception):     # new in Step 2
 import sqlite3
 from datetime import datetime
 
-def init_db(path: str) -> None:
+def init_db(path):
     conn = sqlite3.connect(path)
     conn.execute(
         """CREATE TABLE IF NOT EXISTS notes (
@@ -43,7 +43,7 @@ def init_db(path: str) -> None:
     conn.commit()
     conn.close()
 
-def insert_note(path: str, text: str) -> int:
+def insert_note(path, text):
     conn = sqlite3.connect(path)
     cursor = conn.execute(
         "INSERT INTO notes (text, created_at) VALUES (?, ?)",
@@ -54,7 +54,7 @@ def insert_note(path: str, text: str) -> int:
     conn.close()
     return new_id
 
-def find_notes(path: str, query: str) -> list:
+def find_notes(path, query):
     conn = sqlite3.connect(path)
     rows = conn.execute(
         "SELECT text FROM notes WHERE LOWER(text) LIKE ?",
@@ -100,7 +100,7 @@ mcp = MCPServer("notes-server")
 
 # changed in Step 2: db-backed, with content validation
 @mcp.tool()
-def add_note(text: str) -> str:
+def add_note(text):
     """Add a new note to the local notes store. Use this whenever the user
     wants to save or jot down a piece of text. Rejects empty or
     whitespace-only text. Returns a short confirmation with the new id."""
@@ -117,7 +117,7 @@ def add_note(text: str) -> str:
 
 # new in Step 2
 @mcp.tool()
-def search_notes(query: str) -> list:
+def search_notes(query):
     """Search stored notes for a case-insensitive substring match. Returns
     the matching notes' text, or an empty list if nothing matches."""
     return find_notes(DB_PATH, query)
@@ -143,13 +143,13 @@ from src.db import find_notes, init_db, insert_note
 DB = "test_notes_tmp.db"
 
 
-def fresh_db() -> None:
+def fresh_db():
     if os.path.exists(DB):
         os.remove(DB)
     init_db(DB)
 
 
-def test_insert_returns_id() -> None:
+def test_insert_returns_id():
     fresh_db()
     new_id = insert_note(DB, "Buy milk and eggs")
     result = "OK"
@@ -158,7 +158,7 @@ def test_insert_returns_id() -> None:
     print(f"case 1 (insert returns id)       -> {result}")
 
 
-def test_find_is_case_insensitive() -> None:
+def test_find_is_case_insensitive():
     fresh_db()
     insert_note(DB, "Call the dentist to reschedule")
     found = find_notes(DB, "DENTIST")
@@ -168,7 +168,7 @@ def test_find_is_case_insensitive() -> None:
     print(f"case 2 (case-insensitive search) -> {result}")
 
 
-def test_find_no_match_is_empty() -> None:
+def test_find_no_match_is_empty():
     fresh_db()
     insert_note(DB, "Buy milk")
     result = "OK"
@@ -199,14 +199,14 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
-def show(case: str, passed: bool) -> None:
+def show(case, passed):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}")
 
 
-async def main() -> None:
+async def main():
     if os.path.exists("notes.db"):     # new in Step 2: a clean store
         os.remove("notes.db")
     server_params = StdioServerParameters(command="python", args=["server.py"])

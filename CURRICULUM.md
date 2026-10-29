@@ -69,6 +69,8 @@ Everything else matches your numbering exactly.
 18 Final Production Multi-Agent Capstone  ──► PROJECT 5 (Production system)
         ↓
 19 MLOps & LLMOps (versions, gated releases, rollback, slow-decline watch)
+        ↓
+20 Web Frontends for AI Apps (Streamlit, Flask, FastAPI, Django)
 ```
 
 **Document 19 got added after your original request**, at your ask ("MLOps and Docker stuff too"). It sits after the capstone on purpose — MLOps only makes sense once there's a real system (Project 5) to run. Docker itself is covered where it belongs, inside Doc12, since it's part of shipping *one* version. Doc19 is about safely changing that shipped system afterward.
@@ -94,6 +96,8 @@ Every project is a real multi-agent system — the number of agents grows 2→2�
 | 11 (bonus) — MCPCrew (Multi-Agent Research Team) | 3 (+ Supervisor) | Doc06/11's MCP + multi-agent topics | You can build a Supervisor-led team where each specialist connects to its own MCP server, with graceful degradation |
 | 12 (bonus) — MCPResearch (Agentic Pipeline as an MCP Tool) | 2 (Researcher + Fact-Checker) | Doc06/11's MCP + multi-agent topics | You can wrap a whole agentic pipeline behind one MCP tool call — the "agent-as-a-service" pattern |
 | 13 (bonus) — CodeGuard (PR-Review Team) | 4 | All of Docs 01-19, applied again | You can apply the whole architecture to a new problem, with less help |
+
+**Beyond the numbered arc:** there are also **7 real-world example projects** (InvoiceIQ, MeetingMind, JobMatch, DeflectDesk, ResearchPilot, RepoSage, SQLSage — each a complete, step-by-step build of a job a real business has), and a **practice twin** for every project (the same skills in a new story). They're optional, but the twins are the fastest way to prove a pattern really stuck. See the [README](README.md) for the full list.
 
 ---
 
@@ -289,7 +293,17 @@ Jump straight to: [01](#document-01-python-engineering-foundations) · [02](#doc
 - **Build:** a versioned release-gate layer on top of Project 5 — prompt/setting versions, a test-gated `deploy()`, and a `rollback_to_previous()` that only ever goes back to a version that itself passed the gate.
 - **Break & debug:** a release gate skipped by editing the "live" marker directly; a rollback that goes back to "the previous version" instead of "the previous version that *passed*"; a slow decline that only shows up as a trend, invisible to per-request alerts.
 - **Explain & interview themes:** MLOps vs. LLMOps, why prompts need the same version discipline as code, canary vs. blue-green vs. shadow trade-offs, what a good rollback trigger looks like, a backup plan for a provider outage.
-- **Move on when:** you have a working gate that actually blocks a worse version of Project 5 from reaching "live," and can explain what would make you trust an automatic rollback enough not to watch every release yourself. This is the real end of the curriculum — go back to §6 below to check every final ability is there.
+- **Move on when:** you have a working gate that actually blocks a worse version of Project 5 from reaching "live," and can explain what would make you trust an automatic rollback enough not to watch every release yourself. This is the end of the core production arc — §6 below checks every final ability; Doc20 then adds a web UI on top.
+
+### Document 20 — Web Frontends for AI Apps (Streamlit, Flask, FastAPI, Django)
+- **Depends on:** any project with a pipeline to put a UI on (Doc04 onward).
+- **Topics:** the four Python web layers and when each fits — Streamlit (fastest demo / internal tool), Flask (a small custom site), FastAPI (a typed JSON API / service), Django (a full product with auth, admin, ORM); plus file uploads, streaming replies to the browser, a plain HTML+JS front end, and deployment basics.
+- **Learn:** every project so far is a terminal script — this is how you give it a web UI someone else can actually use, and how to pick the lightest framework the job needs instead of over-building.
+- **Practice:** serve one `classify()` pipeline four ways (Streamlit, Flask, FastAPI, Django); add a file-upload UI, a streaming chat UI, and a hand-written HTML+JS front end; choose the right framework for a given app and defend it.
+- **Build:** a web front end for any project you've built, in the framework that fits it.
+- **Break & debug:** a Streamlit app that recomputes expensive work on every rerun; a route that blocks while the model streams; an upload with no size/type guard.
+- **Explain & interview themes:** Streamlit vs. Flask vs. FastAPI vs. Django trade-offs, when a demo UI is enough vs. when you need real routing/auth, how streaming to a browser works.
+- **Move on when:** you can put a working, appropriate web UI on any project you've built, and defend the framework choice.
 
 ---
 

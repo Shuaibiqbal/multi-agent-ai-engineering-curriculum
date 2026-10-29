@@ -13,19 +13,17 @@ import asyncio
 
 client = AsyncOpenAI()
 
-async def ask(question: str) -> str:
+async def ask(question):
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": question}],
     )
     return response.choices[0].message.content
 
-def main() -> None:
-    answer = asyncio.run(ask("What is 2 + 2?"))
-    print(answer)
 
-if __name__ == "__main__":
-    main()
+# ask is a coroutine (it uses await), so asyncio.run() is what runs it.
+answer = asyncio.run(ask("What is 2 + 2?"))
+print(answer)
 ```
 **Expected output:**
 ```

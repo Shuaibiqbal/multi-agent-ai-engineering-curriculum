@@ -41,7 +41,6 @@ only if the customer says it is urgent or needed today.
 # src/agents/triage.py
 # The Triage agent: turns one complaint into a SupportTicket, or returns
 # None when the model's answer can't be used.
-from openai import OpenAI
 from pydantic import ValidationError
 
 from src.models.llm import MODEL
@@ -49,7 +48,7 @@ from src.schemas import SupportTicket
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def triage_agent(client: OpenAI, message: str) -> SupportTicket | None:
+def triage_agent(client, message):
     logger = get_logger(__name__)
     messages = [
         {"role": "system", "content": load_prompt("triage")},
@@ -77,9 +76,8 @@ Also create an empty `src/agents/__init__.py`.
 ```python
 # src/services/desk_service.py
 # The app's flow, apart from the keyboard. print_ticket() shows a ticket.
-from src.schemas import SupportTicket
 
-def print_ticket(ticket: SupportTicket) -> None:
+def print_ticket(ticket):
     name = ticket.customer_name
     if name is None:
         name = "(not given)"
@@ -117,7 +115,7 @@ from src.utils.history import trim_history
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def main() -> None:
+def main():
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -205,7 +203,7 @@ from src.models.llm import create_client
 
 SAMPLES_PATH = "data/sample/messages.json"
 
-def main() -> None:
+def main():
     config = load_config()
     client = create_client(config)
     with open(SAMPLES_PATH) as samples_file:
@@ -234,7 +232,7 @@ from pydantic import ValidationError
 
 from src.schemas import SupportTicket
 
-def test_ticket_without_a_name() -> None:
+def test_ticket_without_a_name():
     ticket = SupportTicket(
         customer_name=None,
         issue_category="account_access",
@@ -246,7 +244,7 @@ def test_ticket_without_a_name() -> None:
         result = "WRONG"
     print(f"case 1 (no name allowed)  -> {result}")
 
-def test_ticket_rejects_unknown_urgency() -> None:
+def test_ticket_rejects_unknown_urgency():
     result = "WRONG"
     try:
         SupportTicket(
@@ -290,21 +288,21 @@ from src.models.llm import (
 # new in Step 3
 SAMPLES_PATH = "data/sample/messages.json"
 
-def test_first_reply(client: OpenAI) -> None:
+def test_first_reply(client):
     reply = send_message(client, [], "What's 2+2?")
     result = "OK"
     if "4" not in reply:
         result = "WRONG"
     print(f"case 1 (first reply) -> {result}: {reply}")
 
-def test_bad_key() -> None:
+def test_bad_key():
     bad_client = OpenAI(api_key="sk-fake-key-123")
     result = "OK"
     if check_api_key_at_startup(bad_client):
         result = "WRONG"
     print(f"case 2 (bad key)     -> {result}")
 
-def test_memory(client: OpenAI) -> None:
+def test_memory(client):
     history = [{"role": "system", "content": "You are a helpful assistant."}]
     send_message(client, history, "My order number is 4471.")
     send_message(client, history, "Thanks, that's all for now.")
@@ -315,12 +313,12 @@ def test_memory(client: OpenAI) -> None:
     print(f"case 3 (memory)      -> {result}: {reply}")
 
 # new in Step 3
-def load_samples() -> dict:
+def load_samples():
     with open(SAMPLES_PATH) as samples_file:
         return json.loads(samples_file.read())
 
 # new in Step 3
-def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
+def test_every_sample_gets_a_ticket(client, samples):
     for message in samples["triage"]:
         ticket = triage_agent(client, message)
         if ticket is None:
@@ -329,7 +327,7 @@ def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
             print("case 4 (ticket)      -> OK:", ticket.issue_category)
 
 # new in Step 3
-def test_no_invented_name(client: OpenAI, samples: dict) -> None:
+def test_no_invented_name(client, samples):
     ticket = triage_agent(client, samples["triage"][1])
     result = "OK"
     if ticket is None or ticket.customer_name is not None:

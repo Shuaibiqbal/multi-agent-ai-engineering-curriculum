@@ -10,33 +10,33 @@ Run from inside `practice/`, next to `react_loop_practice.py`.
 
 ```python
 # no_tool_needed_practice.py
-from react_loop_practice import run_agent
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
 
-# why: none of these needs add, get_weather or flaky_lookup — a model
-# that calls a tool here is wasting a round trip on every question
-NO_TOOL_PROMPTS = [
+
+@tool
+def add(a: int, b: int) -> int:
+    """Add two integers and return the result."""
+    return a + b
+
+
+# None of these needs the add tool — a model that calls a tool here is
+# wasting a round trip on every question.
+prompts = [
     "What's the capital of France?",
     "What's the boiling point of water in Celsius?",
     "Write a haiku about the sea.",
 ]
 
-def check_no_tool(prompt: str) -> bool:
-    result = run_agent(prompt)
-    return len(result.steps) == 0
-
-def main() -> None:
-    passed = 0
-    number = 0
-    for prompt in NO_TOOL_PROMPTS:
-        number = number + 1
-        ok = check_no_tool(prompt)
-        if ok:
-            passed = passed + 1
-        print(f"case {number} (no tool?) -> {ok}: {prompt}")
-    print(f"{passed}/{len(NO_TOOL_PROMPTS)} answered without a tool")
-
-if __name__ == "__main__":
-    main()
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools([add])
+passed = 0
+for prompt in prompts:
+    response = model.invoke(prompt)
+    no_tool = not response.tool_calls     # True = answered directly, good
+    if no_tool:
+        passed = passed + 1
+    print(f"no tool? -> {no_tool}: {prompt}")
+print(f"{passed}/{len(prompts)} answered without a tool")
 ```
 **Expected output:**
 

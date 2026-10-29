@@ -25,7 +25,7 @@ def get_app(model, style_collection):
     return _APP
 
 
-def review_diff(model, style_collection, diff: str) -> dict:
+def review_diff(model, style_collection, diff):
     app = get_app(model, style_collection)
     final = app.invoke(start_state(diff))
     return {
@@ -56,7 +56,7 @@ class ReviewResponse(BaseModel):
 # src/api/routes.py
 from fastapi import APIRouter
 
-from src.api.schemas import ReviewRequest, ReviewResponse
+from src.api.schemas import ReviewResponse
 from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import review_diff
@@ -68,14 +68,12 @@ _CONFIG = load_config()
 _MODEL = get_model(_CONFIG)
 _COLLECTION = build_style_store(get_collection())
 
-
 @router.get("/health")
 def health():
     return {"status": "ok"}
 
-
 @router.post("/review", response_model=ReviewResponse)
-def review(request: ReviewRequest):
+def review(request):
     result = review_diff(_MODEL, _COLLECTION, request.diff)
     return ReviewResponse(**result)
 ```

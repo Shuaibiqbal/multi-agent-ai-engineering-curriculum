@@ -105,10 +105,10 @@ def compare_cost() -> None:
     print(f"before: {before_cost} tokens, after: {after_cost} tokens")
     print(f"saved {saved}% by halving the 'research' prompt")
 
-if __name__ == "__main__":
-    run_loop()
-    print()
-    compare_cost()
+# Run Part 1 (the non-converging loop), then Part 2 (the cost comparison).
+run_loop()
+print()
+compare_cost()
 ```
 **Expected output:**
 ```

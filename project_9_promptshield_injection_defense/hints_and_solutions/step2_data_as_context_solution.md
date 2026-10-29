@@ -12,7 +12,7 @@
 # src/security/context_builder.py
 # Wrap retrieved chunks in a labeled block so the system prompt can refer to
 # exactly this region as "data, never commands". Each chunk keeps its source.
-def build_context(chunks: list) -> str:
+def build_context(chunks):
     lines = []
     for chunk in chunks:
         lines.append(f"[{chunk['source']}] {chunk['text']}")
@@ -51,8 +51,7 @@ class AgentResult:
     tool_calls: list = field(default_factory=list)
 
 
-def run_agent(client, collection, question: str,
-              defended: bool = True) -> AgentResult:
+def run_agent(client, collection, question, defended=True):
     chunks = retrieve(collection, question)
     if defended:
         context = build_context(chunks)
@@ -115,7 +114,7 @@ if __name__ == "__main__":
 from src.security.context_builder import build_context
 
 
-def test_wraps_in_tags() -> None:
+def test_wraps_in_tags():
     out = build_context([{"source": "a.md", "text": "hello"}])
     result = "OK"
     if not out.startswith("<retrieved_context>"):
@@ -125,7 +124,7 @@ def test_wraps_in_tags() -> None:
     print(f"case 1 (wrapped in tags)     -> {result}")
 
 
-def test_keeps_source() -> None:
+def test_keeps_source():
     out = build_context([{"source": "policy_expenses.md", "text": "x"}])
     result = "OK"
     if "[policy_expenses.md]" not in out:
@@ -133,7 +132,7 @@ def test_keeps_source() -> None:
     print(f"case 2 (keeps the source)    -> {result}")
 
 
-def test_joins_many() -> None:
+def test_joins_many():
     out = build_context([
         {"source": "a.md", "text": "one"},
         {"source": "b.md", "text": "two"},

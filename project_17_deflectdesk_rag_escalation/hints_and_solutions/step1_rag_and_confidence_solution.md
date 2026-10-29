@@ -30,7 +30,7 @@ class Config:
     log_level: str
     confidence_cutoff: float
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -38,7 +38,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -52,7 +52,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -70,9 +70,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -84,7 +82,6 @@ def get_model(config: Config) -> ChatOpenAI:
 # src/rag/help_store.py
 # Load the help articles, embed them, and store them in Chroma so a question
 # can be matched to the closest article by meaning (Doc08).
-import os
 
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_openai import OpenAIEmbeddings
@@ -94,7 +91,7 @@ import chromadb
 COLLECTION_NAME = "help_docs"
 EMBEDDINGS = OpenAIEmbeddings(model="text-embedding-3-small")
 
-def build_help_store(help_dir: str = "data/help_docs"):
+def build_help_store(help_dir="data/help_docs"):
     loader = DirectoryLoader(help_dir, glob="**/*.md", loader_cls=TextLoader)
     documents = loader.load()
     texts = []
@@ -123,7 +120,7 @@ from src.rag.help_store import EMBEDDINGS
 
 NO_MATCH_DISTANCE = 2.0
 
-def best_match(collection, question: str):
+def best_match(collection, question):
     if collection.count() == 0:
         return "", NO_MATCH_DISTANCE
     results = collection.query(
@@ -143,7 +140,7 @@ def best_match(collection, question: str):
 # The whole bot turns on this: is the best match close enough to answer from?
 # Deterministic, so it's testable with no model.
 
-def is_confident(distance: float, cutoff: float = 0.8) -> bool:
+def is_confident(distance, cutoff=0.8):
     return distance <= cutoff
 ```
 
@@ -159,7 +156,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "DEFLECTDESK_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -168,7 +165,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -186,19 +183,19 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_confidence
 from src.confidence import is_confident
 
-def test_small_distance_is_confident() -> None:
+def test_small_distance_is_confident():
     result = "OK"
     if not is_confident(0.2, cutoff=0.8):
         result = "WRONG"
     print(f"case 1 (small distance -> confident)  -> {result}")
 
-def test_large_distance_is_not() -> None:
+def test_large_distance_is_not():
     result = "OK"
     if is_confident(1.5, cutoff=0.8):
         result = "WRONG"
     print(f"case 2 (large distance -> escalate)   -> {result}")
 
-def test_cutoff_itself_is_confident() -> None:
+def test_cutoff_itself_is_confident():
     result = "OK"
     if not is_confident(0.8, cutoff=0.8):
         result = "WRONG"

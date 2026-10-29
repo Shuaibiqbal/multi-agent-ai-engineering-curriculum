@@ -27,7 +27,7 @@ class TeamState(TypedDict):
     revision_count: int          # written by Reviewer
     routing_log: list[dict]      # written by the Supervisor only
 
-def start_state(topic: str) -> TeamState:
+def start_state(topic):
     return {
         "topic": topic,
         "research_notes": "",
@@ -51,12 +51,11 @@ def start_state(topic: str) -> TeamState:
 from langgraph.graph import END
 from langgraph.types import Command
 
-from src.state import TeamState
 from src.utils.logger import get_logger
 
 MAX_REVISIONS = 3
 
-def decide_next(state: TeamState) -> tuple[str, str]:
+def decide_next(state):
     if not state["research_done"]:
         return "research_agent", "no research yet"
     if state["research_notes"] == "":
@@ -73,7 +72,7 @@ def decide_next(state: TeamState) -> tuple[str, str]:
         return "writer_agent", "findings ready, no draft yet"
     return "reviewer_agent", "draft ready for review"
 
-def supervisor(state: TeamState) -> Command:
+def supervisor(state):
     logger = get_logger(__name__)
     step, reason = decide_next(state)
     logger.info(f"supervisor -> {step} ({reason})")
@@ -94,12 +93,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import Command
 
 from src.models.llm import get_model
-from src.state import TeamState
 from src.tools.lookup import lookup_facts
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def run_research(topic: str) -> str:
+def run_research(topic):
     logger = get_logger(__name__)
     facts = lookup_facts.invoke({"topic": topic})
     if facts == "":
@@ -110,7 +108,7 @@ def run_research(topic: str) -> str:
     return chain.invoke({"topic": topic, "facts": facts})
 
 # new in Step 5: the node wrapper
-def research_node(state: TeamState) -> Command:
+def research_node(state):
     notes = run_research(state["topic"])
     return Command(update={"research_notes": notes, "research_done": True},
                    goto="supervisor")
@@ -125,16 +123,15 @@ from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import Command
 
 from src.models.llm import get_model
-from src.state import TeamState
 from src.utils.prompts import load_prompt
 
-def run_analysis(notes: str) -> str:
+def run_analysis(notes):
     prompt = ChatPromptTemplate.from_template(load_prompt("analysis"))
     chain = prompt | get_model() | StrOutputParser()
     return chain.invoke({"notes": notes})
 
 # new in Step 5: the node wrapper
-def analysis_node(state: TeamState) -> Command:
+def analysis_node(state):
     findings = run_analysis(state["research_notes"])
     return Command(update={"findings": findings}, goto="supervisor")
 ```
@@ -148,21 +145,20 @@ from langchain_core.prompts import ChatPromptTemplate
 from langgraph.types import Command
 
 from src.models.llm import get_model
-from src.state import TeamState
 from src.utils.prompts import load_prompt
 
 def build_writer_chain():
     prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
     return prompt | get_model() | StrOutputParser()
 
-def run_writer(findings: str, feedback: str = "") -> str:
+def run_writer(findings, feedback=""):
     if feedback == "":
         feedback = "none"
     chain = build_writer_chain()
     return chain.invoke({"findings": findings, "feedback": feedback})
 
 # new in Step 5: the node wrapper
-def writer_node(state: TeamState) -> Command:
+def writer_node(state):
     feedback = ""
     if state["feedback_history"]:
         feedback = state["feedback_history"][-1]
@@ -183,19 +179,18 @@ from langgraph.types import Command
 from src.agents.supervisor import MAX_REVISIONS
 from src.models.llm import get_model
 from src.schemas import ReviewVerdict
-from src.state import TeamState
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
 PASS_SCORE = 7
 
-def run_reviewer(findings: str, draft: str) -> ReviewVerdict:
+def run_reviewer(findings, draft):
     prompt = ChatPromptTemplate.from_template(load_prompt("reviewer"))
     chain = prompt | get_model().with_structured_output(ReviewVerdict)
     return chain.invoke({"findings": findings, "draft": draft})
 
 # new in Step 5: Step 2's loop, as a node
-def reviewer_node(state: TeamState) -> Command:
+def reviewer_node(state):
     logger = get_logger(__name__)
     verdict = run_reviewer(state["findings"], state["draft"])
     logger.info(f"review score {verdict.score}: {verdict.feedback}")
@@ -255,7 +250,7 @@ from src.graph import build_graph
 from src.state import start_state
 from src.utils.logger import get_logger
 
-def print_report(result: dict) -> None:
+def print_report(result):
     # new in Step 5: the routing log
     print("Routing log:")
     for entry in result["routing_log"]:
@@ -276,7 +271,7 @@ def print_report(result: dict) -> None:
         print("\nLast draft (NOT approved):\n")
         print(result["draft"])
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -311,7 +306,7 @@ from src.agents.supervisor import MAX_REVISIONS, decide_next
 from src.state import start_state
 
 
-def check(label: str, state: dict, expected: str) -> None:
+def check(label, state, expected):
     step, reason = decide_next(state)
     result = "OK"
     if step != expected:
@@ -319,7 +314,7 @@ def check(label: str, state: dict, expected: str) -> None:
     print(f"{label} -> {result} ({step})")
 
 
-def test_routing_order() -> None:
+def test_routing_order():
     state = start_state("electric bikes")
     check("case 1 (fresh start)", state, "research_agent")
 
@@ -334,7 +329,7 @@ def test_routing_order() -> None:
     check("case 4 (draft ready)", state, "reviewer_agent")
 
 
-def test_stopping_rules() -> None:
+def test_stopping_rules():
     nothing_found = start_state("deep sea mining")
     nothing_found["research_done"] = True
     check("case 5 (nothing found)", nothing_found, "END")
@@ -382,7 +377,7 @@ FINDINGS = (
 )
 
 
-def test_writer_keeps_sources() -> None:
+def test_writer_keeps_sources():
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:
@@ -390,7 +385,7 @@ def test_writer_keeps_sources() -> None:
     print(f"case 1 (writer keeps sources) -> {result}")
 
 
-def test_reviewer_rejects_weak_draft() -> None:
+def test_reviewer_rejects_weak_draft():
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
     result = "OK"
     if verdict.score >= PASS_SCORE:
@@ -398,7 +393,7 @@ def test_reviewer_rejects_weak_draft() -> None:
     print(f"case 2 (weak draft fails)     -> {result}")
 
 
-def test_research_keeps_sources() -> None:
+def test_research_keeps_sources():
     notes = run_research("electric bikes")
     result = "OK"
     if notes.count("[") < 5:
@@ -406,7 +401,7 @@ def test_research_keeps_sources() -> None:
     print(f"case 3 (known topic sourced)  -> {result}")
 
 
-def test_research_unknown_topic() -> None:
+def test_research_unknown_topic():
     notes = run_research("deep sea mining")
     result = "OK"
     if notes != "":
@@ -414,7 +409,7 @@ def test_research_unknown_topic() -> None:
     print(f"case 4 (unknown topic empty)  -> {result}")
 
 
-def test_analysis_keeps_every_fact() -> None:
+def test_analysis_keeps_every_fact():
     notes = run_research("electric bikes")
     findings = run_analysis(notes)
     result = "OK"
@@ -423,7 +418,7 @@ def test_analysis_keeps_every_fact() -> None:
     print(f"case 5 (analysis keeps facts) -> {result}")
 
 
-def test_full_pipeline(graph) -> None:
+def test_full_pipeline(graph):
     result_state = graph.invoke(start_state("electric bikes"))
     steps = []
     for entry in result_state["routing_log"]:
@@ -437,7 +432,7 @@ def test_full_pipeline(graph) -> None:
     print(f"case 6 (full pipeline)        -> {result}")
 
 
-def test_unknown_topic_stops(graph) -> None:
+def test_unknown_topic_stops(graph):
     result_state = graph.invoke(start_state("deep sea mining"))
     last = result_state["routing_log"][-1]
     result = "OK"

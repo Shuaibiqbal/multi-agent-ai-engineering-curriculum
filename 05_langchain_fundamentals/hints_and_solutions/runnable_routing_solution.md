@@ -6,7 +6,10 @@
 
 ## Solution
 
-Each piece gets its own small function, so the router is reusable and you can prove the routing is correct **without a model or a key** — a fake model that echoes the system line it received tells you which branch ran.
+`build_pipeline` is written once and used twice — with a real model below,
+and with a fake model in the test. That reuse is what lets you prove the
+routing with no model and no key: a fake model that echoes the system line
+it was given tells you which branch ran.
 
 ```python
 # runnable_routing_practice.py
@@ -14,84 +17,58 @@ from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableBranch, RunnableLambda
+from langchain_openai import ChatOpenAI
 
-BILLING = "You are a billing agent. Be brief; mention the refund policy."
-TECHNICAL = "You are a tech-support agent. Ask for steps to reproduce."
-GENERAL = "You are a general support agent. Be friendly and brief."
 
-def build_reply_chain(model, system_text):
+# A reply chain for one system prompt.
+def reply_chain(model, system_text):
     prompt = ChatPromptTemplate.from_messages(
         [("system", system_text), ("human", "{text}")]
     )
     return prompt | model | StrOutputParser()
 
-def build_router(model):
-    billing = build_reply_chain(model, BILLING)
-    technical = build_reply_chain(model, TECHNICAL)
-    general = build_reply_chain(model, GENERAL)
-    return RunnableBranch(
+
+# A little tag added after whichever branch answered.
+def tag_reply(text):
+    return f"{text.strip()} (auto-routed)"
+
+
+# Build the whole routing pipeline for a given model.
+def build_pipeline(model):
+    billing = reply_chain(model, "You are a billing agent. Mention refunds.")
+    technical = reply_chain(model, "You are tech support. Ask for repro steps.")
+    general = reply_chain(model, "You are general support. Friendly, brief.")
+    # RunnableBranch takes the first branch whose test is True, else the last.
+    router = RunnableBranch(
         (lambda t: t["category"] == "billing", billing),
         (lambda t: t["category"] == "technical", technical),
         general,
     )
+    return router | RunnableLambda(tag_reply)
 
-def tag_reply(text):
-    return f"{text.strip()} (auto-routed)"
 
-def build_pipeline(model):
-    return build_router(model) | RunnableLambda(tag_reply)
-```
+# --- Run it against a real model ---
+real_model = ChatOpenAI(model="gpt-4o-mini", temperature=0, timeout=30)
+pipeline = build_pipeline(real_model)
+for category in ["billing", "technical", "hello"]:
+    reply = pipeline.invoke({"category": category, "text": "help me"})
+    print(f"{category} -> {reply}")
 
-The real `main()` uses a real model:
 
-```python
-def main():
-    from langchain_openai import ChatOpenAI
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0, timeout=30)
-    pipeline = build_pipeline(model)
-    for category in ["billing", "technical", "hello"]:
-        reply = pipeline.invoke({"category": category, "text": "help me"})
-        print(f"{category} -> {reply}")
-```
+# --- Prove the routing with no key: a fake model that echoes its system
+# line, so the reply tells us which branch ran. ---
+def echo_system_line(prompt_value):
+    return AIMessage(content=prompt_value.to_messages()[0].content)
 
-The tests prove routing with a fake model (no key, no cost):
 
-```python
-def fake_echo_model():
-    # a 'model' that returns the system line it was given, so the reply
-    # tells us which branch ran
-    def pick(prompt_value):
-        system_line = prompt_value.to_messages()[0].content
-        return AIMessage(content=system_line)
-    return RunnableLambda(pick)
-
-def test_each_category_routes_right():
-    pipeline = build_pipeline(fake_echo_model())
-    billing = pipeline.invoke({"category": "billing", "text": "x"})
-    technical = pipeline.invoke({"category": "technical", "text": "x"})
-    other = pipeline.invoke({"category": "sales", "text": "x"})
-    result = "OK"
-    if "billing agent" not in billing:
-        result = "WRONG"
-    if "tech-support agent" not in technical:
-        result = "WRONG"
-    if "general support agent" not in other:
-        result = "WRONG"
-    print(f"case 1 (each category -> right branch) -> {result}")
-
-def test_unknown_uses_default_and_tags():
-    pipeline = build_pipeline(fake_echo_model())
-    out = pipeline.invoke({"category": "anything-else", "text": "x"})
-    result = "OK"
-    if "general support agent" not in out:
-        result = "WRONG"
-    if "(auto-routed)" not in out:
-        result = "WRONG"
-    print(f"case 2 (unknown -> default + tagged)   -> {result}")
-
-if __name__ == "__main__":
-    test_each_category_routes_right()
-    test_unknown_uses_default_and_tags()
+test_pipeline = build_pipeline(RunnableLambda(echo_system_line))
+billing = test_pipeline.invoke({"category": "billing", "text": "x"})
+technical = test_pipeline.invoke({"category": "technical", "text": "x"})
+unknown = test_pipeline.invoke({"category": "sales", "text": "x"})
+print("case 1 (billing -> billing branch) ->", "billing agent" in billing)
+print("case 1 (technical -> tech branch)  ->", "tech support" in technical)
+print("case 2 (unknown -> default + tag)  ->",
+      "general support" in unknown and "(auto-routed)" in unknown)
 ```
 
 **Expected output (the tests, no key needed):**

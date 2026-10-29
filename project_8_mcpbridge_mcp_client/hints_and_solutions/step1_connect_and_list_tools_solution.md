@@ -41,7 +41,7 @@ class Config:
     connect_timeout: float
     max_iterations: int
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -49,7 +49,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -73,7 +73,7 @@ import logging
 import os
 import sys
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -106,7 +106,7 @@ NOTES = {
 }
 
 @mcp.tool()
-def search_notes(query: str) -> str:
+def search_notes(query):
     """Search notes by a keyword; return matching note ids."""
     hits = []
     for note_id, text in NOTES.items():
@@ -117,7 +117,7 @@ def search_notes(query: str) -> str:
     return "\n".join(hits)
 
 @mcp.tool()
-def read_note(note_id: str) -> str:
+def read_note(note_id):
     """Read the full text of one note by its id."""
     if note_id not in NOTES:
         return f"Error: no note with id {note_id}"
@@ -265,7 +265,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MCPBRIDGE_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -274,7 +274,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -283,7 +283,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"

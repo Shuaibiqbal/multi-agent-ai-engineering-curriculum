@@ -6,6 +6,9 @@
 
 ## Solution
 
+Read it top to bottom — each of the four LCEL patterns is its own short,
+commented section.
+
 ```python
 # lcel_patterns_practice.py
 import time
@@ -13,82 +16,83 @@ import time
 import openai
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable, RunnableLambda, RunnableParallel
+from langchain_core.runnables import RunnableLambda, RunnableParallel
 from langchain_openai import ChatOpenAI
 
-def get_weather(inputs: dict) -> str:
-    # why: the sleep stands in for a slow network call
+
+# 1) RUN IN PARALLEL -------------------------------------------------------
+# Both lookups get the same input and run at the same time. Each sleep
+# stands in for a slow network call.
+def get_weather(inputs):
     time.sleep(1)
     return "sunny in " + inputs["city"]
 
-def get_news(inputs: dict) -> str:
+
+def get_news(inputs):
     time.sleep(1)
     return "a new park opened in " + inputs["city"]
 
-def build_lookup_step() -> Runnable:
-    # how: RunnableParallel gives every function the same input, runs
-    # them at the same time, and returns a dict with the same keys
-    return RunnableParallel({"weather": get_weather, "news": get_news})
 
-def backup_reply(inputs: dict) -> str:
+lookups = RunnableParallel({"weather": get_weather, "news": get_news})
+
+start = time.time()
+result = lookups.invoke({"city": "Lahore"})
+seconds = time.time() - start
+print(f"case 1 (keys)         -> {sorted(result.keys())}")
+print(f"case 1 (under 1.5 s?) -> {seconds < 1.5}")
+
+
+# 2) FALL BACK -------------------------------------------------------------
+# If the model call fails, use a backup reply instead of crashing.
+def backup_reply(inputs):
     return "Sorry, the assistant is busy. Please try again soon."
 
-def with_backup(chain: Runnable) -> Runnable:
-    # how: RunnableLambda wraps the backup; fall back only on errors that
-    # pass on their own, so a bug in your code (a KeyError) still fails loudly
-    return chain.with_fallbacks(
-        [RunnableLambda(backup_reply)],
-        exceptions_to_handle=(openai.APIConnectionError,
-                              openai.RateLimitError),
-    )
 
-def stream_text(chain: Runnable, inputs: dict) -> str:
-    # how: .stream() gives the reply in small pieces; print each one as
-    # it arrives, and join them into the full text for the caller
-    text = ""
-    for chunk in chain.stream(inputs):
-        print(chunk, end="", flush=True)
-        text = text + chunk
-    print()
-    return text
+prompt = ChatPromptTemplate.from_template("Write one sentence about {city}.")
 
-def buggy_step(inputs: dict) -> str:
+# nothing listens on port 9, so this model call always fails (a forced outage)
+broken_model = ChatOpenAI(
+    model="gpt-4o-mini", base_url="http://127.0.0.1:9", max_retries=0
+)
+broken_chain = (prompt | broken_model | StrOutputParser()).with_fallbacks(
+    [RunnableLambda(backup_reply)],
+    # fall back only on real outages, so a bug in your code still fails loudly
+    exceptions_to_handle=(openai.APIConnectionError, openai.RateLimitError),
+)
+reply = broken_chain.invoke({"city": "Lahore"})
+print(f"case 2 (outage)       -> backup used: {reply.startswith('Sorry')}")
+
+
+# 3) A CODE BUG MUST STILL FAIL LOUDLY -------------------------------------
+# A KeyError is a bug in your own code, not a transient outage, so the
+# backup above must NOT hide it.
+def buggy_step(inputs):
     return inputs["missing_key"]
 
-def main() -> None:
-    lookups = build_lookup_step()
-    start = time.time()
-    result = lookups.invoke({"city": "Lahore"})
-    seconds = time.time() - start
-    print(f"case 1 (keys)          -> {sorted(result.keys())}")
-    print(f"case 1 (under 1.5 s?)  -> {seconds < 1.5}")
 
-    prompt = ChatPromptTemplate.from_template(
-        "Write one sentence about {city}."
-    )
-    # how: nothing listens on port 9 — a real, forced outage, no key used
-    broken_model = ChatOpenAI(
-        model="gpt-4o-mini", base_url="http://127.0.0.1:9", max_retries=0
-    )
-    broken_chain = with_backup(prompt | broken_model | StrOutputParser())
-    reply = broken_chain.invoke({"city": "Lahore"})
-    print(f"case 2 (outage)        -> backup used: {reply.startswith('Sorry')}")
+bug_chain = RunnableLambda(buggy_step).with_fallbacks(
+    [RunnableLambda(backup_reply)],
+    exceptions_to_handle=(openai.APIConnectionError, openai.RateLimitError),
+)
+try:
+    bug_chain.invoke({"city": "Lahore"})
+    print("case 3 (bug)          -> hidden (wrong!)")
+except KeyError:
+    print("case 3 (bug)          -> KeyError still raised")
 
-    bug_chain = with_backup(RunnableLambda(buggy_step))
-    try:
-        bug_chain.invoke({"city": "Lahore"})
-        print("case 3 (bug)           -> hidden (wrong!)")
-    except KeyError:
-        print("case 3 (bug)           -> KeyError still raised")
 
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    print("case 4 (stream)        -> ", end="")
-    live_chain = prompt | model | StrOutputParser()
-    full_text = stream_text(live_chain, {"city": "Lahore"})
-    print(f"case 4 (full text)     -> {len(full_text)} characters")
+# 4) STREAM ----------------------------------------------------------------
+# .stream() hands back the reply in small pieces; print each as it arrives.
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+live_chain = prompt | model | StrOutputParser()
 
-if __name__ == "__main__":
-    main()
+print("case 4 (stream)       -> ", end="")
+full_text = ""
+for chunk in live_chain.stream({"city": "Lahore"}):
+    print(chunk, end="", flush=True)
+    full_text = full_text + chunk
+print()
+print(f"case 4 (full text)    -> {len(full_text)} characters")
 ```
 **Expected output** (the streamed sentence varies):
 

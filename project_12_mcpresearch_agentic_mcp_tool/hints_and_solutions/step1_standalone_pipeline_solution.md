@@ -32,7 +32,7 @@ class Config:
     max_revision_rounds: int
     timeout_seconds: float
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -40,7 +40,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -56,7 +56,7 @@ import logging
 import os
 import sys
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -74,7 +74,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/utils/prompts.py
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -83,9 +83,7 @@ def load_prompt(name: str) -> str:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -119,7 +117,7 @@ class Draft:
     topic: str
     summary: str
 
-def run_researcher(model, topic: str, feedback=None) -> Draft:
+def run_researcher(model, topic, feedback=None):
     if feedback:
         feedback_block = (
             "A fact-checker rejected your previous draft for these reasons - "
@@ -160,7 +158,7 @@ class FactCheckVerdict(BaseModel):
     approved: bool
     issues: list
 
-def run_fact_checker(model, draft) -> FactCheckVerdict:
+def run_fact_checker(model, draft):
     prompt = ChatPromptTemplate.from_template(load_prompt("fact_checker"))
     chain = prompt | model.with_structured_output(FactCheckVerdict)
     return chain.invoke({"topic": draft.topic, "summary": draft.summary})
@@ -176,7 +174,7 @@ def run_fact_checker(model, draft) -> FactCheckVerdict:
 # else feed the issues back and go again, up to max_rounds. The Progress
 # holder records the latest draft and each round, so the MCP layer can show a
 # trace (Step 3) and fall back to the best draft on timeout (Step 4).
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.agents.fact_checker import run_fact_checker
 from src.agents.researcher import run_researcher
@@ -194,7 +192,7 @@ class Progress:
         self.latest_draft = None
         self.rounds = []
 
-def run_pipeline(model, topic, max_rounds, progress=None) -> PipelineResult:
+def run_pipeline(model, topic, max_rounds, progress=None):
     logger = get_logger(__name__)
     if progress is None:
         progress = Progress()
@@ -263,7 +261,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "MCPRESEARCH_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -272,7 +270,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -281,7 +279,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -333,7 +331,7 @@ class AlwaysReject(FakeModel):
             return FactCheckVerdict(approved=False, issues=["nitpick"])
         return check
 
-def test_rejects_then_approves() -> None:
+def test_rejects_then_approves():
     result = run_pipeline(FakeModel(), "RAG", max_rounds=3)
     ok = result.approved and len(result.rounds) == 2
     if "Meta AI" not in result.final_summary:
@@ -341,7 +339,7 @@ def test_rejects_then_approves() -> None:
     print(f"case 1 (wrong draft -> fixed, approved r2) -> "
           f"{'OK' if ok else 'WRONG'}")
 
-def test_stops_at_cap() -> None:
+def test_stops_at_cap():
     result = run_pipeline(AlwaysReject(), "blue", max_rounds=2)
     ok = (not result.approved) and len(result.rounds) == 2
     print(f"case 2 (never approved -> stops at cap)    -> "

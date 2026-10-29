@@ -8,24 +8,20 @@
 
 ```python
 # lcel_chain_basics_practice.py
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
 
-def build_chain(model_name: str = "gpt-4o-mini", temperature: float = 0.0):
-    # why: model name and temperature as real parameters, not hidden
-    # defaults — a model swap should be a visible, one-line decision.
-    prompt = ChatPromptTemplate.from_template("Answer: {question}")
-    model = ChatOpenAI(model=model_name, temperature=temperature)
-    parser = StrOutputParser()
-    # how: | connects the three pieces into one Runnable — the prompt's
-    # output feeds the model, the model's output feeds the parser.
-    return prompt | model | parser
+# The atom of every LangChain app: three pieces, joined with |.
+prompt = ChatPromptTemplate.from_template("Answer: {question}")
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+parser = StrOutputParser()
 
-if __name__ == "__main__":
-    chain = build_chain()
-    result = chain.invoke({"question": "What's 5 + 7?"})
-    print(f"Answer: {result}")
+# | feeds the prompt's output into the model, and the model's into the parser
+chain = prompt | model | parser
+
+result = chain.invoke({"question": "What's 5 + 7?"})
+print(f"Answer: {result}")
 ```
 **Expected output:**
 ```

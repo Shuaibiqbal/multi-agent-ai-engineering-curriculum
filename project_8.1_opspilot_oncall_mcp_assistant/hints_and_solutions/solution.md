@@ -114,14 +114,14 @@ DEPLOYS = {
 }
 
 @mcp.tool()
-def get_service_status(service: str) -> str:
+def get_service_status(service):
     """Get the current health status of one service by name."""
     if service not in STATUS:
         return f"Error: no service named {service}"
     return STATUS[service]
 
 @mcp.tool()
-def recent_deploys(service: str) -> str:
+def recent_deploys(service):
     """Get the most recent deploy for one service by name."""
     if service not in DEPLOYS:
         return f"Error: no service named {service}"
@@ -147,7 +147,7 @@ RUNBOOKS = {
 }
 
 @mcp.tool()
-def search_runbooks(query: str) -> str:
+def search_runbooks(query):
     """Search runbooks by keyword; return matching runbook ids."""
     hits = []
     for runbook_id, text in RUNBOOKS.items():
@@ -158,7 +158,7 @@ def search_runbooks(query: str) -> str:
     return "\n".join(hits)
 
 @mcp.tool()
-def read_runbook(runbook_id: str) -> str:
+def read_runbook(runbook_id):
     """Read the full text of one runbook by its id."""
     if runbook_id not in RUNBOOKS:
         return f"Error: no runbook with id {runbook_id}"
@@ -201,7 +201,7 @@ class Config:
     connect_timeout: float
     max_iterations: int
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -209,7 +209,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -231,7 +231,7 @@ import logging
 import os
 import sys
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -378,14 +378,12 @@ class MCPServerPool:
 import openai
 from openai import OpenAI
 
-from src.config import Config
-
 MODEL = "gpt-4o-mini"
 
-def create_client(config: Config) -> OpenAI:
+def create_client(config):
     return OpenAI(api_key=config.openai_api_key)
 
-def check_api_key_at_startup(client: OpenAI) -> bool:
+def check_api_key_at_startup(client):
     try:
         client.chat.completions.create(
             model=MODEL,
@@ -566,7 +564,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "OPSPILOT_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -575,7 +573,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -584,7 +582,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -622,7 +620,7 @@ class FakeResult:
         for text in texts:
             self.content.append(FakeBlock(text))
 
-def test_schema_shape() -> None:
+def test_schema_shape():
     tool = FakeTool("get_service_status", "Get status.",
                     {"type": "object", "properties": {}})
     schemas = mcp_tools_to_openai_schema([("status__get_service_status", tool)])
@@ -636,7 +634,7 @@ def test_schema_shape() -> None:
         result = "WRONG"
     print(f"case 1 (openai schema shape)   -> {result}")
 
-def test_missing_description() -> None:
+def test_missing_description():
     tool = FakeTool("t", None, {"type": "object"})
     schemas = mcp_tools_to_openai_schema([("s__t", tool)])
     result = "OK"
@@ -644,7 +642,7 @@ def test_missing_description() -> None:
         result = "WRONG"
     print(f"case 2 (None description -> '') -> {result}")
 
-def test_extract_text_joins() -> None:
+def test_extract_text_joins():
     result_obj = FakeResult(["line one", "line two"])
     text = extract_text(result_obj)
     result = "OK"
@@ -683,7 +681,7 @@ async def connect(servers):
     await pool.connect_all()
     return config, client, pool
 
-async def test_discovery_namespaced() -> None:
+async def test_discovery_namespaced():
     config, client, pool = await connect([STATUS, RUNBOOKS])
     names = []
     for namespaced, tool in pool.named_tools:
@@ -696,7 +694,7 @@ async def test_discovery_namespaced() -> None:
     await pool.aclose()
     print(f"case 1 (tools discovered + namespaced) -> {result}")
 
-async def test_routing_across_servers() -> None:
+async def test_routing_across_servers():
     config, client, pool = await connect([STATUS, RUNBOOKS])
     task = ("Is checkout down right now, and what does the runbook say to "
             "do about it?")
@@ -712,7 +710,7 @@ async def test_routing_across_servers() -> None:
     await pool.aclose()
     print(f"case 2 (routes to both services)       -> {result}")
 
-async def test_fallback_when_status_down() -> None:
+async def test_fallback_when_status_down():
     config, client, pool = await connect([BROKEN, RUNBOOKS])
     result = "OK"
     if "status" in pool.sessions:
@@ -726,7 +724,7 @@ async def test_fallback_when_status_down() -> None:
     await pool.aclose()
     print(f"case 3 (status down, runbooks only)    -> {result}")
 
-async def main() -> None:
+async def main():
     await test_discovery_namespaced()
     await test_routing_across_servers()
     await test_fallback_when_status_down()

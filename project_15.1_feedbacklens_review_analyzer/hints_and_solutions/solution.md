@@ -87,7 +87,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -95,7 +95,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -108,7 +108,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -126,9 +126,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -163,14 +161,14 @@ class FeedbackReport(BaseModel):
 # human. Plain Python, fully testable with hand-made parts - no model.
 from src.schemas import FeedbackReport
 
-def compile_report(parts) -> FeedbackReport:
+def compile_report(parts):
     return FeedbackReport(
         summary=parts["summary"],
         praises=parts["praises"].items,
         complaints=parts["complaints"].items,
     )
 
-def format_report(report: FeedbackReport) -> str:
+def format_report(report):
     lines = ["Overall mood:", "  " + report.summary, "", "Praised:"]
     for praise in report.praises:
         lines.append("  - " + praise)
@@ -244,7 +242,6 @@ from src.agents.complaints import build_complaints_chain
 from src.agents.praises import build_praises_chain
 from src.agents.summary import build_summary_chain
 from src.report import compile_report
-from src.schemas import FeedbackReport
 from src.utils.logger import get_logger
 
 def build_pipeline(model):
@@ -254,7 +251,7 @@ def build_pipeline(model):
         complaints=build_complaints_chain(model),
     )
 
-def run_analysis(model, reviews: str) -> FeedbackReport:
+def run_analysis(model, reviews):
     logger = get_logger(__name__)
     parts = build_pipeline(model).invoke({"reviews": reviews})
     report = compile_report(parts)
@@ -306,7 +303,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "FEEDBACKLENS_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -315,7 +312,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -342,7 +339,7 @@ def sample_parts():
                                         "Price is too high"]),
     }
 
-def test_report_lists_both() -> None:
+def test_report_lists_both():
     text = format_report(compile_report(sample_parts()))
     result = "OK"
     if "Battery life" not in text:
@@ -351,7 +348,7 @@ def test_report_lists_both() -> None:
         result = "WRONG"
     print(f"case 1 (praises + complaints) -> {result}")
 
-def test_summary_is_shown() -> None:
+def test_summary_is_shown():
     text = format_report(compile_report(sample_parts()))
     result = "OK"
     if "Mostly positive" not in text:
@@ -376,7 +373,7 @@ REVIEWS = (
     "Love the screen. Too expensive though."
 )
 
-def test_finds_praise_and_complaint() -> None:
+def test_finds_praise_and_complaint():
     config = load_config()
     model = get_model(config)
     report = run_analysis(model, REVIEWS)

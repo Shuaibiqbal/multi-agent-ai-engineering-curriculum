@@ -17,7 +17,7 @@ After this step the project runs as a small agent: ask for a temperature in Fahr
 from langchain_core.tools import tool
 
 @tool
-def celsius_to_fahrenheit(celsius: float) -> float:
+def celsius_to_fahrenheit(celsius):
     """Convert a temperature from Celsius to Fahrenheit. Use it only when
     you already have a Celsius number and the user wants Fahrenheit."""
     return round(celsius * 9 / 5 + 32, 1)
@@ -39,7 +39,7 @@ class MissingConfigError(Exception):
     pass
 
 class MaxIterationsExceeded(Exception):
-    def __init__(self, message: str, steps: list[dict]) -> None:
+    def __init__(self, message, steps):
         self.steps = steps
         super().__init__(message)
 ```
@@ -64,9 +64,6 @@ conversion — never convert in your head. Answer everything else directly.
 # step limit. ALL_TOOLS lists the tools it may use.
 from dataclasses import dataclass, field
 
-from langchain_core.tools import BaseTool
-from langchain_openai import ChatOpenAI
-
 from src.exceptions import MaxIterationsExceeded
 from src.tools.converter import celsius_to_fahrenheit
 from src.utils.logger import get_logger
@@ -79,15 +76,13 @@ class AgentResult:
     final_answer: str
     steps: list[dict] = field(default_factory=list)
 
-def find_tool(tools: list[BaseTool], name: str) -> BaseTool | None:
+def find_tool(tools, name):
     for candidate in tools:
         if candidate.name == name:
             return candidate
     return None
 
-def run_tool(
-    call: dict, tools: list[BaseTool]
-) -> tuple[str | None, str | None]:
+def run_tool(call, tools):
     tool = find_tool(tools, call["name"])
     if tool is None:
         return None, f"unknown tool: {call['name']}"
@@ -97,9 +92,7 @@ def run_tool(
     except Exception as e:
         return None, str(e)
 
-def run_worker(
-    model: ChatOpenAI, task: str, max_iterations: int
-) -> AgentResult:
+def run_worker(model, task, max_iterations):
     logger = get_logger(__name__)
     model_with_tools = model.bind_tools(ALL_TOOLS)
     messages = [
@@ -161,7 +154,7 @@ from src.exceptions import MaxIterationsExceeded, MissingConfigError
 from src.models.llm import get_model
 from src.utils.logger import get_logger
 
-def print_steps(steps: list[dict]) -> None:
+def print_steps(steps):
     for step in steps:
         if step["error"] is None:
             outcome = step["result"]
@@ -170,7 +163,7 @@ def print_steps(steps: list[dict]) -> None:
         print(f"  step {step['step']}: {step['tool']}({step['arguments']})")
         print(f"          -> {outcome}")
 
-def main() -> None:
+def main():
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -221,13 +214,13 @@ from pydantic import ValidationError
 
 from src.tools.converter import celsius_to_fahrenheit
 
-def test_converter() -> None:
+def test_converter():
     result = "OK"
     if celsius_to_fahrenheit.invoke({"celsius": 18}) != 64.4:
         result = "WRONG"
     print(f"case 1 (18°C is 64.4°F)           -> {result}")
 
-def test_converter_rejects_bad_arguments() -> None:
+def test_converter_rejects_bad_arguments():
     result = "WRONG"
     try:
         celsius_to_fahrenheit.invoke({"celsius": "hot"})
@@ -249,19 +242,19 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_agents
 from src.agents.worker import ALL_TOOLS, find_tool, run_tool
 
-def test_find_known_tool() -> None:
+def test_find_known_tool():
     result = "OK"
     if find_tool(ALL_TOOLS, "celsius_to_fahrenheit") is None:
         result = "WRONG"
     print(f"case 1 (known tool found)          -> {result}")
 
-def test_find_unknown_tool() -> None:
+def test_find_unknown_tool():
     result = "OK"
     if find_tool(ALL_TOOLS, "send_email") is not None:
         result = "WRONG"
     print(f"case 2 (unknown tool gives None)   -> {result}")
 
-def test_run_good_call() -> None:
+def test_run_good_call():
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": 0}}
     output, error = run_tool(call, ALL_TOOLS)
     result = "OK"
@@ -269,7 +262,7 @@ def test_run_good_call() -> None:
         result = "WRONG"
     print(f"case 3 (good call gives 32.0)      -> {result}")
 
-def test_run_unknown_tool() -> None:
+def test_run_unknown_tool():
     call = {"name": "send_email", "args": {}}
     output, error = run_tool(call, ALL_TOOLS)
     result = "OK"
@@ -277,7 +270,7 @@ def test_run_unknown_tool() -> None:
         result = "WRONG"
     print(f"case 4 (unknown tool gives error)  -> {result}")
 
-def test_run_bad_arguments() -> None:
+def test_run_bad_arguments():
     call = {"name": "celsius_to_fahrenheit", "args": {"celsius": "x"}}
     output, error = run_tool(call, ALL_TOOLS)
     result = "OK"
@@ -303,17 +296,16 @@ if __name__ == "__main__":
 # adds cases. Each case prints OK or WRONG.
 # Needs a valid OPENAI_API_KEY in .env.
 # Run from the repo root: python -m tests.integration.test_live_agents
-from langchain_openai import ChatOpenAI
 
 # new in Step 2
-from src.agents.worker import AgentResult, run_worker
+from src.agents.worker import run_worker
 from src.chains.direct_answer import build_direct_chain
 from src.config import load_config
 # new in Step 2
 from src.exceptions import MaxIterationsExceeded
 from src.models.llm import get_model
 
-def test_direct_answer(model: ChatOpenAI) -> None:
+def test_direct_answer(model):
     chain = build_direct_chain(model)
     answer = chain.invoke({"question": "What is the capital of France?"})
     result = "OK"
@@ -322,14 +314,14 @@ def test_direct_answer(model: ChatOpenAI) -> None:
     print(f"case 1 (direct answer)  -> {result}: {answer}")
 
 # new in Step 2
-def tools_used(outcome: AgentResult) -> list[str]:
+def tools_used(outcome):
     names = []
     for step in outcome.steps:
         names.append(step["tool"])
     return names
 
 # new in Step 2
-def test_conversion_uses_tool(model: ChatOpenAI) -> None:
+def test_conversion_uses_tool(model):
     task = "What is 25 degrees Celsius in Fahrenheit?"
     used = tools_used(run_worker(model, task, 5))
     result = "OK"
@@ -338,7 +330,7 @@ def test_conversion_uses_tool(model: ChatOpenAI) -> None:
     print(f"case 2 (conversion)     -> {result}: {used}")
 
 # new in Step 2
-def test_no_tool_needed(model: ChatOpenAI) -> None:
+def test_no_tool_needed(model):
     outcome = run_worker(model, "What is the capital of France?", 5)
     result = "OK"
     if len(outcome.steps) != 0:
@@ -346,7 +338,7 @@ def test_no_tool_needed(model: ChatOpenAI) -> None:
     print(f"case 3 (no tool needed) -> {result}: {outcome.final_answer}")
 
 # new in Step 2
-def test_step_limit(model: ChatOpenAI) -> None:
+def test_step_limit(model):
     task = "What is 25 degrees Celsius in Fahrenheit?"
     result = "WRONG"
     try:

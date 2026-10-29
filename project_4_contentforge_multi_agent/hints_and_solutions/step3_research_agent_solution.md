@@ -45,12 +45,12 @@ import json
 
 from langchain_core.tools import tool
 
-def load_facts() -> dict:
+def load_facts():
     with open("data/sample/facts.json") as facts_file:
         return json.loads(facts_file.read())
 
 @tool
-def lookup_facts(topic: str) -> str:
+def lookup_facts(topic):
     """Look up known facts, with sources, for a topic. Returns one fact
     per line, or an empty string if the topic is not known."""
     facts = load_facts()
@@ -99,7 +99,7 @@ from src.tools.lookup import lookup_facts
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def run_research(topic: str) -> str:
+def run_research(topic):
     logger = get_logger(__name__)
     facts = lookup_facts.invoke({"topic": topic})
     if facts == "":
@@ -126,7 +126,7 @@ from src.config import load_config
 from src.exceptions import MissingConfigError
 from src.utils.logger import get_logger
 
-def write_with_review(findings: str) -> dict:
+def write_with_review(findings):
     logger = get_logger(__name__)
     result = {
         "draft": "",
@@ -147,7 +147,7 @@ def write_with_review(findings: str) -> dict:
         result["revision_count"] = result["revision_count"] + 1
     return result
 
-def print_report(result: dict) -> None:
+def print_report(result):
     if result["accepted"]:
         print("\nFinal article:\n")
         print(result["draft"])
@@ -161,7 +161,7 @@ def print_report(result: dict) -> None:
         print("\nLast draft (NOT approved):\n")
         print(result["draft"])
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -193,7 +193,7 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_lookup
 from src.tools.lookup import lookup_facts
 
-def test_known_topic() -> None:
+def test_known_topic():
     facts = lookup_facts.invoke({"topic": "Why Electric Bikes are popular"})
     lines = facts.strip().split("\n")
     result = "OK"
@@ -201,7 +201,7 @@ def test_known_topic() -> None:
         result = "WRONG"
     print(f"case 1 (known topic -> 5 facts) -> {result}")
 
-def test_unknown_topic() -> None:
+def test_unknown_topic():
     facts = lookup_facts.invoke({"topic": "deep sea mining"})
     result = "OK"
     if facts != "":
@@ -230,28 +230,28 @@ FINDINGS = (
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-def test_writer_keeps_sources() -> None:
+def test_writer_keeps_sources():
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:
         result = "WRONG"
     print(f"case 1 (writer keeps sources) -> {result}")
 
-def test_reviewer_rejects_weak_draft() -> None:
+def test_reviewer_rejects_weak_draft():
     verdict = run_reviewer(FINDINGS, "E-bikes are good.")
     result = "OK"
     if verdict.score >= PASS_SCORE:
         result = "WRONG"
     print(f"case 2 (weak draft fails)     -> {result}")
 
-def test_research_keeps_sources() -> None:
+def test_research_keeps_sources():
     notes = run_research("electric bikes")
     result = "OK"
     if notes.count("[") < 5:
         result = "WRONG"
     print(f"case 3 (known topic sourced)  -> {result}")
 
-def test_research_unknown_topic() -> None:
+def test_research_unknown_topic():
     notes = run_research("deep sea mining")
     result = "OK"
     if notes != "":

@@ -69,7 +69,7 @@ class Config:
     max_revision_rounds: int
     timeout_seconds: float
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -77,7 +77,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -93,7 +93,7 @@ import logging
 import os
 import sys
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -110,7 +110,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/utils/prompts.py
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -119,9 +119,7 @@ def load_prompt(name: str) -> str:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -155,7 +153,7 @@ class Draft:
     ticket: str
     reply: str
 
-def run_drafter(model, ticket: str, feedback=None) -> Draft:
+def run_drafter(model, ticket, feedback=None):
     if feedback:
         feedback_block = (
             "A compliance check rejected your previous reply for these "
@@ -198,7 +196,7 @@ class ComplianceVerdict(BaseModel):
     approved: bool
     issues: list
 
-def run_compliance(model, draft) -> ComplianceVerdict:
+def run_compliance(model, draft):
     prompt = ChatPromptTemplate.from_template(load_prompt("compliance"))
     chain = prompt | model.with_structured_output(ComplianceVerdict)
     return chain.invoke({"ticket": draft.ticket, "reply": draft.reply})
@@ -230,7 +228,7 @@ class Progress:
         self.latest_draft = None
         self.rounds = []
 
-def run_pipeline(model, ticket, max_rounds, progress=None) -> PipelineResult:
+def run_pipeline(model, ticket, max_rounds, progress=None):
     logger = get_logger(__name__)
     if progress is None:
         progress = Progress()
@@ -257,7 +255,7 @@ def run_pipeline(model, ticket, max_rounds, progress=None) -> PipelineResult:
 ```python
 # src/formatting.py
 # Turn pipeline output into the string the MCP tool returns. Pure functions.
-def format_result(result) -> str:
+def format_result(result):
     lines = [f"Reply for ticket: {result.ticket}", "", "Compliance trace:"]
     for entry in result.rounds:
         state = "approved" if entry["approved"] else "rejected"
@@ -276,7 +274,7 @@ def format_result(result) -> str:
     lines.append(result.final_reply)
     return "\n".join(lines)
 
-def format_partial(ticket, progress) -> str:
+def format_partial(ticket, progress):
     draft = progress.latest_draft or "(no draft produced yet)"
     return (
         f"Reply for ticket: {ticket}\n\n"
@@ -313,7 +311,7 @@ logger = get_logger(__name__)
 mcp = MCPServer("complydesk-service")
 
 @mcp.tool()
-async def draft_safe_reply(ticket: str) -> str:
+async def draft_safe_reply(ticket):
     """Draft a reply to a customer ticket that has been checked against
     company policy (refunds, guarantees, information leaks). Returns the reply
     plus a compliance trace, or a marked partial if it runs past the timeout."""
@@ -386,7 +384,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "COMPLYDESK_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -395,7 +393,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -404,7 +402,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -438,7 +436,7 @@ class FakeProgress:
         self.latest_draft = latest_draft
         self.rounds = rounds
 
-def test_result_shows_trace() -> None:
+def test_result_shows_trace():
     result = FakeResult(
         "refund", "We can offer a 10% credit.", True,
         [{"round": 1, "approved": False, "issues": ["promised full refund"]},
@@ -451,7 +449,7 @@ def test_result_shows_trace() -> None:
           and "We can offer a 10% credit." in out)
     print(f"case 1 (trace + status + reply)  -> {'OK' if ok else 'WRONG'}")
 
-def test_cap_status_says_human() -> None:
+def test_cap_status_says_human():
     result = FakeResult(
         "x", "draft", False,
         [{"round": 1, "approved": False, "issues": ["x"]},
@@ -461,7 +459,7 @@ def test_cap_status_says_human() -> None:
     ok = "send to a human" in out
     print(f"case 2 (cap -> send to human)    -> {'OK' if ok else 'WRONG'}")
 
-def test_partial() -> None:
+def test_partial():
     out = format_partial("slow", FakeProgress("half a reply", [{"round": 1}]))
     ok = "PARTIAL" in out and "half a reply" in out
     print(f"case 3 (partial names the draft) -> {'OK' if ok else 'WRONG'}")
@@ -505,14 +503,14 @@ class AlwaysReject(FakeModel):
             return ComplianceVerdict(approved=False, issues=["nitpick"])
         return check
 
-def test_rejects_then_approves() -> None:
+def test_rejects_then_approves():
     result = run_pipeline(FakeModel(), "refund please", max_rounds=3)
     ok = result.approved and len(result.rounds) == 2
     if "credit" not in result.final_reply.lower():
         ok = False
     print(f"case 1 (refund fixed, approved r2) -> {'OK' if ok else 'WRONG'}")
 
-def test_stops_at_cap() -> None:
+def test_stops_at_cap():
     result = run_pipeline(AlwaysReject(), "anything", max_rounds=2)
     ok = (not result.approved) and len(result.rounds) == 2
     print(f"case 2 (never approved -> cap)     -> {'OK' if ok else 'WRONG'}")
@@ -544,19 +542,19 @@ async def call_tool(ticket, env=None):
             )
             return result.content[0].text
 
-async def test_returns_trace_and_reply() -> None:
+async def test_returns_trace_and_reply():
     text = await call_tool("My order #1001 was late - I want a full refund.")
     ok = "Compliance trace" in text and "Reply:" in text
     print(f"case 1 (trace + reply)   -> {'OK' if ok else 'WRONG'}")
 
-async def test_timeout_gives_partial() -> None:
+async def test_timeout_gives_partial():
     env = dict(os.environ)
     env["REPLY_TIMEOUT_SECONDS"] = "0.001"
     text = await call_tool("anything", env=env)
     ok = "PARTIAL" in text
     print(f"case 2 (timeout -> PARTIAL) -> {'OK' if ok else 'WRONG'}")
 
-async def main() -> None:
+async def main():
     await test_returns_trace_and_reply()
     await test_timeout_gives_partial()
 

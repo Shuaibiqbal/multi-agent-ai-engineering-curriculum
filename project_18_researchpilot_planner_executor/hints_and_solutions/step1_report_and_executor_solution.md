@@ -29,7 +29,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -37,7 +37,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -50,7 +50,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -68,9 +68,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -108,7 +106,7 @@ class Report(BaseModel):
 # engine needs no model or embeddings to test.
 from src.schemas import Finding
 
-def execute_plan(sub_questions, search) -> list:
+def execute_plan(sub_questions, search):
     findings = []
     for sub_question in sub_questions:
         text, source = search(sub_question)
@@ -127,10 +125,10 @@ def execute_plan(sub_questions, search) -> list:
 # from the same document share one citation number.
 from src.schemas import Report
 
-def compile_report(question: str, findings) -> Report:
+def compile_report(question, findings):
     return Report(question=question, findings=findings)
 
-def format_report(report: Report) -> str:
+def format_report(report):
     sources = []
     for finding in report.findings:
         if finding.source not in sources:
@@ -162,7 +160,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "RESEARCHPILOT_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -171,7 +169,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -197,7 +195,7 @@ TABLE = [
     ("embedding", ("Embeddings turn text into vectors.", "rag.md")),
 ]
 
-def fake_search(query: str):
+def fake_search(query):
     lowered = query.lower()
     for key, value in TABLE:
         if key in lowered:
@@ -209,14 +207,14 @@ def build_report():
     findings = execute_plan(plan, fake_search)
     return compile_report("RAG and agents", findings)
 
-def test_findings_appear() -> None:
+def test_findings_appear():
     text = format_report(build_report())
     result = "OK"
     if "An agent is an LLM in a loop." not in text:
         result = "WRONG"
     print(f"case 1 (findings in report)      -> {result}")
 
-def test_citations_dedup_sources() -> None:
+def test_citations_dedup_sources():
     text = format_report(build_report())
     result = "OK"
     # rag.md and embedding share source rag.md -> both cite [1]

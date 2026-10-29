@@ -30,7 +30,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -38,7 +38,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -51,7 +51,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -69,9 +69,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -95,7 +93,7 @@ class Finding(BaseModel):
 # src/diff.py
 # Parse a unified diff into the ADDED lines per file (like Doc08's chunking:
 # only look at what actually changed), and categorize a file by extension.
-def parse_diff(text: str) -> list:
+def parse_diff(text):
     files = []
     current = None
     for line in text.splitlines():
@@ -107,7 +105,7 @@ def parse_diff(text: str) -> list:
                 current["added"].append(line[1:])
     return files
 
-def categorize(path: str) -> str:
+def categorize(path):
     if path.endswith((".md", ".rst", ".txt")):
         return "docs"
     if path.endswith((".yaml", ".yml", ".json", ".toml", ".ini", ".cfg")):
@@ -139,7 +137,7 @@ UNSAFE_PATTERNS = [
     (r"pickle\.loads\(", "unsafe pickle.loads()"),
 ]
 
-def run_security(files) -> list:
+def run_security(files):
     findings = []
     for one_file in files:
         for line in one_file["added"]:
@@ -202,7 +200,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "CODEGUARD_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -211,7 +209,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -220,7 +218,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -247,7 +245,7 @@ DIFF = """--- a/app.py
 -removed line
 """
 
-def test_parses_added_lines_only() -> None:
+def test_parses_added_lines_only():
     files = parse_diff(DIFF)
     result = "OK"
     if len(files) != 1 or files[0]["path"] != "app.py":
@@ -256,7 +254,7 @@ def test_parses_added_lines_only() -> None:
         result = "WRONG"
     print(f"case 1 (added lines only) -> {result}")
 
-def test_categorize() -> None:
+def test_categorize():
     result = "OK"
     if categorize("README.md") != "docs":
         result = "WRONG"
@@ -287,7 +285,7 @@ CLEAN = """--- a/app.py
 +total = price * quantity
 """
 
-def test_flags_secret_and_eval() -> None:
+def test_flags_secret_and_eval():
     findings = run_security(parse_diff(DIRTY))
     messages = " ".join(f.message for f in findings)
     result = "OK"
@@ -295,7 +293,7 @@ def test_flags_secret_and_eval() -> None:
         result = "WRONG"
     print(f"case 1 (secret + eval flagged) -> {result}")
 
-def test_clean_diff_no_findings() -> None:
+def test_clean_diff_no_findings():
     findings = run_security(parse_diff(CLEAN))
     result = "OK"
     if findings != []:

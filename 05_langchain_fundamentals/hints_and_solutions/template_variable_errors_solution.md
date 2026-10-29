@@ -10,30 +10,20 @@
 # prompt_template_practice.py
 from langchain_core.prompts import ChatPromptTemplate
 
-def demonstrate_missing_variable(prompt: ChatPromptTemplate) -> None:
-    # why: catching KeyError specifically documents exactly what failure
-    # is expected here — a broad except would hide a genuinely different bug.
-    try:
-        prompt.invoke({})
-    except KeyError:
-        # how: the error message names the missing slot ('question') —
-        # print it with {e} when you need to see which one
-        print("Missing variable -> KeyError, before any API call")
+prompt = ChatPromptTemplate.from_template("Answer: {question}")
 
-def demonstrate_extra_variable(prompt: ChatPromptTemplate) -> None:
-    # when: an unused key in the input dict is silently ignored, not an
-    # error — worth confirming, since it's easy to assume the opposite.
-    result = prompt.invoke({"question": "What is LCEL?", "extra": "unused"})
-    # how: the filled prompt is a list of messages; [0] is the only one
-    print(f"Extra variable -> no error: {result.messages[0].content}")
+# A missing variable fails right away, before any API call. Catch KeyError
+# specifically, so a genuinely different bug would still surface.
+try:
+    prompt.invoke({})
+except KeyError:
+    print("Missing variable -> KeyError, before any API call")
 
-def main() -> None:
-    prompt = ChatPromptTemplate.from_template("Answer: {question}")
-    demonstrate_missing_variable(prompt)
-    demonstrate_extra_variable(prompt)
-
-if __name__ == "__main__":
-    main()
+# An extra, unused key is silently ignored — not an error. (Easy to assume
+# the opposite, so it's worth seeing once.) The filled prompt is a list of
+# messages; [0] is the only one here.
+result = prompt.invoke({"question": "What is LCEL?", "extra": "unused"})
+print(f"Extra variable -> no error: {result.messages[0].content}")
 ```
 **Expected output:**
 ```

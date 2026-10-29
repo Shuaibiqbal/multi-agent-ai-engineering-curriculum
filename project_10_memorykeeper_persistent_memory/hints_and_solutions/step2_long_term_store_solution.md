@@ -19,18 +19,18 @@ def build_store():
     return InMemoryStore()
 
 
-def namespace_for(user_id: str) -> tuple:
+def namespace_for(user_id):
     return ("memories", user_id)
 
 
-def recall_facts(store, user_id: str) -> list:
+def recall_facts(store, user_id):
     facts = []
     for item in store.search(namespace_for(user_id)):
         facts.append(item.value["fact"])
     return facts
 
 
-def save_fact(store, user_id: str, key: str, fact: str) -> None:
+def save_fact(store, user_id, key, fact):
     store.put(namespace_for(user_id), key, {"fact": fact})
 ```
 
@@ -40,12 +40,10 @@ def save_fact(store, user_id: str, key: str, fact: str) -> None:
 
 ```python
 # src/nodes.py  (add this; chat_node from Step 1 is unchanged)
-from langgraph.store.base import BaseStore
 
 from src.memory.store import recall_facts
 
-
-def recall_node(state, *, store: BaseStore):
+def recall_node(state, *, store):
     facts = recall_facts(store, state["user_id"])
     return {"recalled": "; ".join(facts)}
 ```
@@ -89,7 +87,7 @@ save_fact(store, "sam", "preferred_name", "Name is Sam")
 from src.memory.store import build_store, recall_facts, save_fact
 
 
-def test_save_then_recall() -> None:
+def test_save_then_recall():
     store = build_store()
     save_fact(store, "sam", "preferred_name", "Name is Sam")
     result = "OK"
@@ -98,7 +96,7 @@ def test_save_then_recall() -> None:
     print(f"case 1 (save then recall)      -> {result}")
 
 
-def test_recall_is_per_user() -> None:
+def test_recall_is_per_user():
     store = build_store()
     save_fact(store, "sam", "preferred_name", "Name is Sam")
     result = "OK"
@@ -107,7 +105,7 @@ def test_recall_is_per_user() -> None:
     print(f"case 2 (another user sees none) -> {result}")
 
 
-def test_same_key_updates() -> None:
+def test_same_key_updates():
     store = build_store()
     save_fact(store, "sam", "preferred_name", "Name is Sam")
     save_fact(store, "sam", "preferred_name", "Name is Sammy")

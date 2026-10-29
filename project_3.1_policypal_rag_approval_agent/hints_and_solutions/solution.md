@@ -125,7 +125,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -133,7 +133,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -146,7 +146,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -163,7 +163,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/utils/prompts.py
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -172,9 +172,7 @@ def load_prompt(name: str) -> str:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -185,7 +183,7 @@ def get_model(config: Config) -> ChatOpenAI:
 ```python
 # src/rag/chunking.py
 # Split a document into paragraph chunks (Doc08). Small docs stay whole.
-def chunk_by_paragraph(text: str) -> list:
+def chunk_by_paragraph(text):
     chunks = []
     for block in text.split("\n\n"):
         cleaned = block.strip()
@@ -225,7 +223,7 @@ import os
 from src.rag.chunking import chunk_by_paragraph
 from src.utils.logger import get_logger
 
-def build_vector_store(collection, policies_dir: str = "data/policies"):
+def build_vector_store(collection, policies_dir="data/policies"):
     logger = get_logger(__name__)
     ids = []
     documents = []
@@ -249,7 +247,7 @@ def build_vector_store(collection, policies_dir: str = "data/policies"):
 ```python
 # src/rag/retriever.py
 # retrieve(): the k closest chunks as dicts with their source and distance.
-def retrieve(collection, query: str, k: int = 3) -> list:
+def retrieve(collection, query, k=3):
     found = collection.query(query_texts=[query], n_results=k)
     passages = []
     for index in range(len(found["documents"][0])):
@@ -275,7 +273,7 @@ class DocState(TypedDict):
     approved: bool
     result: str
 
-def start_state(question: str) -> DocState:
+def start_state(question):
     return {
         "question": question,
         "kind": "",
@@ -302,14 +300,14 @@ from src.utils.logger import get_logger
 
 MAX_DISTANCE = 1.2   # squared-L2; above this a chunk isn't really relevant
 
-def classify_kind(question: str) -> str:
+def classify_kind(question):
     lowered = question.lower()
     for word in ["file", "submit", "request", "book", "cancel", "apply"]:
         if word in lowered:
             return "action"
     return "question"
 
-def search(collection, question: str) -> list:
+def search(collection, question):
     logger = get_logger(__name__)
     passages = retrieve(collection, question)
     relevant = []
@@ -344,7 +342,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def answer_grounded(model, question: str, passages: list) -> str:
+def answer_grounded(model, question, passages):
     logger = get_logger(__name__)
     if len(passages) == 0:
         logger.info("no passages -> not found")
@@ -361,9 +359,8 @@ def answer_grounded(model, question: str, passages: list) -> str:
 # src/agents/approval_agent.py
 # The approval role: build a human checklist of the action, then PAUSE the
 # graph with interrupt() and wait. A separate run resumes with yes/no.
-from src.utils.logger import get_logger
 
-def build_checklist(question: str) -> str:
+def build_checklist(question):
     return (
         "PolicyPal is about to take an action on your behalf:\n"
         f"  - request: {question}\n"
@@ -542,7 +539,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "POLICYPAL_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -551,7 +548,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -560,7 +557,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -579,14 +576,14 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_chunking
 from src.rag.chunking import chunk_by_paragraph
 
-def test_splits_paragraphs() -> None:
+def test_splits_paragraphs():
     chunks = chunk_by_paragraph("one\n\ntwo\n\nthree")
     result = "OK"
     if chunks != ["one", "two", "three"]:
         result = "WRONG"
     print(f"case 1 (splits on blank lines) -> {result}")
 
-def test_drops_empty() -> None:
+def test_drops_empty():
     chunks = chunk_by_paragraph("one\n\n\n\n   \n\ntwo")
     result = "OK"
     if chunks != ["one", "two"]:
@@ -604,13 +601,13 @@ if __name__ == "__main__":
 #   python -m tests.unit.test_routing
 from src.agents.retriever_agent import classify_kind
 
-def test_question_routes_to_question() -> None:
+def test_question_routes_to_question():
     result = "OK"
     if classify_kind("How many paid leave days do I get?") != "question":
         result = "WRONG"
     print(f"case 1 (plain question) -> {result}")
 
-def test_action_routes_to_action() -> None:
+def test_action_routes_to_action():
     result = "OK"
     if classify_kind("File a leave request for Monday") != "action":
         result = "WRONG"
@@ -655,7 +652,7 @@ def build():
     collection = get_collection(embedding_function=KeywordEmbedding())
     return build_vector_store(collection)
 
-def test_relevant_question_retrieves() -> None:
+def test_relevant_question_retrieves():
     passages = search(build(), "how many paid leave days")
     result = "OK"
     if len(passages) == 0:
@@ -664,7 +661,7 @@ def test_relevant_question_retrieves() -> None:
         result = "WRONG"
     print(f"case 1 (leave question -> leave_policy.md) -> {result}")
 
-def test_offtopic_is_not_found() -> None:
+def test_offtopic_is_not_found():
     passages = search(build(), "wifi password berlin")
     result = "OK"
     if len(passages) != 0:
@@ -681,7 +678,7 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_approval_checks
 from src.agents.approval_agent import build_checklist
 
-def test_checklist_names_the_action() -> None:
+def test_checklist_names_the_action():
     text = build_checklist("File a leave request for Monday")
     result = "OK"
     if "File a leave request for Monday" not in text:
@@ -719,17 +716,17 @@ def run(app, question, thread):
     result = app.invoke(start_state(question), cfg)
     return app, cfg, result
 
-def test_grounded_answer_cites_source() -> None:
+def test_grounded_answer_cites_source():
     app, cfg, result = run(build_app(), "How many paid leave days?", "g")
     ok = "20" in result["answer"] and "leave_policy.md" in result["answer"]
     print(f"case 1 (grounded + cited)   -> {'OK' if ok else 'WRONG'}")
 
-def test_not_found() -> None:
+def test_not_found():
     app, cfg, result = run(build_app(), "What's the Berlin wifi password?", "n")
     ok = "isn't covered" in result["answer"]
     print(f"case 2 (not found)          -> {'OK' if ok else 'WRONG'}")
 
-def test_action_approved() -> None:
+def test_action_approved():
     app = build_app()
     cfg = {"configurable": {"thread_id": "a"}}
     app.invoke(start_state("File a leave request for Monday"), cfg)
@@ -737,7 +734,7 @@ def test_action_approved() -> None:
     ok = final["approved"] and "Recorded" in final["result"]
     print(f"case 3 (action approved)    -> {'OK' if ok else 'WRONG'}")
 
-def test_action_rejected() -> None:
+def test_action_rejected():
     app = build_app()
     cfg = {"configurable": {"thread_id": "r"}}
     app.invoke(start_state("File a leave request for Monday"), cfg)

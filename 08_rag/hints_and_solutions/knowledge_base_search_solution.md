@@ -91,17 +91,16 @@ def ask(collection, question: str) -> None:
     print(results["documents"][0])
     print()
 
-def main() -> None:
-    write_sample_docs("docs", DOCS)
-    collection = build_vector_store("docs")
-    questions = [
-        "What grind size should I use for a French press?",
-        "How hot should the water be when brewing?",
-        "How long does ground coffee stay fresh?",
-    ]
-    for question in questions:
-        ask(collection, question)
+# Set up: write a few sample coffee docs, then build the vector store.
+write_sample_docs("docs", DOCS)
+collection = build_vector_store("docs")
 
-if __name__ == "__main__":
-    main()
+# Ask questions — each prints the 3 closest documents.
+questions = [
+    "What grind size should I use for a French press?",
+    "How hot should the water be when brewing?",
+    "How long does ground coffee stay fresh?",
+]
+for question in questions:
+    ask(collection, question)
 ```

@@ -42,7 +42,7 @@ class Config:
     log_level: str
     db_path: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -50,7 +50,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -64,7 +64,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -82,9 +82,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -105,7 +103,7 @@ FORBIDDEN_WORDS = [
     "create", "replace", "truncate", "attach", "pragma",
 ]
 
-def is_safe_select(sql: str) -> bool:
+def is_safe_select(sql):
     cleaned = sql.strip().rstrip(";").strip()
     lowered = cleaned.lower()
     if not lowered.startswith("select"):
@@ -140,7 +138,7 @@ LOANS = [
     (3, 1, "alan", 1),
 ]
 
-def build_sample_db(db_path: str) -> None:
+def build_sample_db(db_path):
     if os.path.exists(db_path):
         return
     folder = os.path.dirname(db_path)
@@ -175,7 +173,7 @@ def build_sample_db(db_path: str) -> None:
 # needs the schema to know which tables and columns it can use.
 import sqlite3
 
-def schema_text(db_path: str) -> str:
+def schema_text(db_path):
     connection = sqlite3.connect(db_path)
     try:
         cursor = connection.execute(
@@ -197,7 +195,7 @@ def schema_text(db_path: str) -> str:
 # has approved the query.
 import sqlite3
 
-def run_select(db_path: str, sql: str) -> list:
+def run_select(db_path, sql):
     connection = sqlite3.connect(db_path)
     try:
         cursor = connection.execute(sql)
@@ -234,7 +232,7 @@ SQL_PROMPT = (
     "Schema:\n{schema}\n\nQuestion: {question}"
 )
 
-def generate_sql(model, schema: str, question: str) -> str:
+def generate_sql(model, schema, question):
     prompt = ChatPromptTemplate.from_template(SQL_PROMPT)
     chain = prompt | model.with_structured_output(SQLQuery)
     result = chain.invoke({"schema": schema, "question": question})
@@ -254,7 +252,7 @@ ANSWER_PROMPT = (
     "Question: {question}\nRows: {rows}"
 )
 
-def summarize_answer(model, question: str, rows) -> str:
+def summarize_answer(model, question, rows):
     prompt = ChatPromptTemplate.from_template(ANSWER_PROMPT)
     chain = prompt | model
     reply = chain.invoke({"question": question, "rows": str(rows)})
@@ -276,7 +274,7 @@ from src.guard import is_safe_select
 from src.sql_agent import generate_sql
 from src.utils.logger import get_logger
 
-def ask(model, db_path: str, question: str):
+def ask(model, db_path, question):
     logger = get_logger(__name__)
     schema = schema_text(db_path)
     sql = generate_sql(model, schema, question)
@@ -335,7 +333,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "SHELFQUERY_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -344,7 +342,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -362,12 +360,12 @@ if __name__ == "__main__":
 # Run from the repo root: python -m tests.unit.test_guard
 from src.guard import is_safe_select
 
-def test_plain_select_passes() -> None:
+def test_plain_select_passes():
     sql = "SELECT count(*) FROM loans WHERE returned = 0"
     result = "OK" if is_safe_select(sql) else "WRONG"
     print(f"case 1 (plain SELECT allowed)     -> {result}")
 
-def test_writes_are_rejected() -> None:
+def test_writes_are_rejected():
     bad = [
         "DELETE FROM books",
         "UPDATE books SET available = 0",
@@ -396,7 +394,7 @@ from src.db.runner import run_select
 from src.db.schema import schema_text
 from src.db.seed import build_sample_db
 
-def test_seed_and_select() -> None:
+def test_seed_and_select():
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_library.db")
     build_sample_db(db_path)
@@ -409,7 +407,7 @@ def test_seed_and_select() -> None:
         result = "WRONG"
     print(f"case 1 (2 books on loan)      -> {result}")
 
-def test_schema_has_tables() -> None:
+def test_schema_has_tables():
     folder = tempfile.mkdtemp()
     db_path = os.path.join(folder, "test_library.db")
     build_sample_db(db_path)
@@ -451,7 +449,7 @@ from src.db.seed import build_sample_db
 from src.models.llm import get_model
 from src.pipeline import ask
 
-def test_counts_books_on_loan() -> None:
+def test_counts_books_on_loan():
     config = load_config()
     build_sample_db(config.db_path)
     model = get_model(config)
@@ -461,7 +459,7 @@ def test_counts_books_on_loan() -> None:
     status = "OK" if ok else "WRONG"
     print(f"case 1 (books on loan counted) -> {status}")
 
-def test_lists_an_author() -> None:
+def test_lists_an_author():
     config = load_config()
     build_sample_db(config.db_path)
     model = get_model(config)

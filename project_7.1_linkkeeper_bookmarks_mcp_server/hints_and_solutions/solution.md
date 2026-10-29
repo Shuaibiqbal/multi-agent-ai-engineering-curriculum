@@ -88,7 +88,7 @@ class Config:
     log_level: str
 
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         db_path=os.getenv("LINKKEEPER_DB", "linkkeeper.sqlite"),
@@ -105,7 +105,7 @@ import os
 import sys
 
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -130,13 +130,13 @@ import sqlite3
 from src.exceptions import EmptyBookmarkError
 
 
-def connect(db_path: str):
+def connect(db_path):
     connection = sqlite3.connect(db_path)
     connection.row_factory = sqlite3.Row
     return connection
 
 
-def init_db(db_path: str) -> None:
+def init_db(db_path):
     connection = connect(db_path)
     connection.execute(
         "CREATE TABLE IF NOT EXISTS bookmarks ("
@@ -147,7 +147,7 @@ def init_db(db_path: str) -> None:
     connection.close()
 
 
-def add_bookmark(db_path: str, url: str, title: str, tag: str) -> None:
+def add_bookmark(db_path, url, title, tag):
     if not url.strip():
         raise EmptyBookmarkError("url cannot be empty")
     connection = connect(db_path)
@@ -159,7 +159,7 @@ def add_bookmark(db_path: str, url: str, title: str, tag: str) -> None:
     connection.close()
 
 
-def search_bookmarks(db_path: str, query: str) -> list:
+def search_bookmarks(db_path, query):
     connection = connect(db_path)
     rows = connection.execute("SELECT * FROM bookmarks").fetchall()
     connection.close()
@@ -171,7 +171,7 @@ def search_bookmarks(db_path: str, query: str) -> list:
     return hits
 
 
-def all_bookmarks(db_path: str) -> list:
+def all_bookmarks(db_path):
     connection = connect(db_path)
     rows = connection.execute("SELECT * FROM bookmarks").fetchall()
     connection.close()
@@ -207,7 +207,7 @@ mcp = MCPServer("linkkeeper-server")
 
 
 @mcp.tool()
-def add_bookmark(url: str, title: str, tag: str = "general") -> str:
+def add_bookmark(url, title, tag="general"):
     """Save a bookmark. Returns a confirmation, or an error if the url is
     empty. Use the tag to group related links."""
     try:
@@ -220,7 +220,7 @@ def add_bookmark(url: str, title: str, tag: str = "general") -> str:
 
 
 @mcp.tool()
-def search_bookmarks(query: str) -> str:
+def search_bookmarks(query):
     """Search saved bookmarks by a keyword in the title, tag, or url."""
     hits = db_search(CONFIG.db_path, query)
     if not hits:
@@ -229,7 +229,7 @@ def search_bookmarks(query: str) -> str:
 
 
 @mcp.resource("bookmarks://all")
-def all_bookmarks_resource() -> str:
+def all_bookmarks_resource():
     """Every saved bookmark, as text."""
     rows = db_all(CONFIG.db_path)
     if not rows:
@@ -238,7 +238,7 @@ def all_bookmarks_resource() -> str:
 
 
 @mcp.prompt()
-def reading_list() -> str:
+def reading_list():
     """A reusable prompt that turns the saved bookmarks into a reading list."""
     return (
         "Using the bookmarks resource, group the saved links into a short, "
@@ -264,7 +264,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
-async def main() -> None:
+async def main():
     params = StdioServerParameters(command="python", args=["server.py"])
     try:
         async with stdio_client(params) as (read, write):
@@ -334,7 +334,7 @@ import os
 from src.config import load_config
 
 
-def test_default_db_path() -> None:
+def test_default_db_path():
     os.environ.pop("LINKKEEPER_DB", None)
     config = load_config()
     result = "OK"
@@ -343,7 +343,7 @@ def test_default_db_path() -> None:
     print(f"case 1 (default db path)   -> {result}")
 
 
-def test_env_overrides_db_path() -> None:
+def test_env_overrides_db_path():
     os.environ["LINKKEEPER_DB"] = "custom.sqlite"
     config = load_config()
     result = "OK"
@@ -376,7 +376,7 @@ def fresh():
     init_db(DB)
 
 
-def test_add_and_search() -> None:
+def test_add_and_search():
     fresh()
     add_bookmark(DB, "https://docs.python.org", "Py Docs", "ref")
     hits = search_bookmarks(DB, "py")
@@ -386,7 +386,7 @@ def test_add_and_search() -> None:
     print(f"case 1 (add then find)        -> {result}")
 
 
-def test_empty_url_raises() -> None:
+def test_empty_url_raises():
     fresh()
     result = "WRONG"
     try:
@@ -396,7 +396,7 @@ def test_empty_url_raises() -> None:
     print(f"case 2 (empty url raises)     -> {result}")
 
 
-def test_all_lists_every_row() -> None:
+def test_all_lists_every_row():
     fresh()
     add_bookmark(DB, "https://a.com", "A", "x")
     add_bookmark(DB, "https://b.com", "B", "y")
@@ -407,7 +407,7 @@ def test_all_lists_every_row() -> None:
     print(f"case 3 (all lists every row)  -> {result}")
 
 
-def test_persists_across_connections() -> None:
+def test_persists_across_connections():
     fresh()
     add_bookmark(DB, "https://keep.me", "Keeper", "ref")
     # a new call = a new connection = proof it's really on disk
@@ -438,7 +438,7 @@ from mcp.client.stdio import stdio_client
 TEST_DB = "it_linkkeeper.sqlite"
 
 
-async def main() -> None:
+async def main():
     if os.path.exists(TEST_DB):
         os.remove(TEST_DB)
     os.environ["LINKKEEPER_DB"] = TEST_DB

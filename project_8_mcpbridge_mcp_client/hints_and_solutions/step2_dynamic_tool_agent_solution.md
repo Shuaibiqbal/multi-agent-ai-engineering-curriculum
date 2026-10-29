@@ -85,16 +85,12 @@ from src.tool_bridge import extract_text, mcp_tools_to_openai_schema
 import openai
 from openai import OpenAI
 
-from src.config import Config
-
 MODEL = "gpt-4o-mini"
 
-
-def create_client(config: Config) -> OpenAI:
+def create_client(config):
     return OpenAI(api_key=config.openai_api_key)
 
-
-def check_api_key_at_startup(client: OpenAI) -> bool:
+def check_api_key_at_startup(client):
     try:
         client.chat.completions.create(
             model=MODEL,
@@ -104,7 +100,6 @@ def check_api_key_at_startup(client: OpenAI) -> bool:
     except openai.AuthenticationError:
         return False
     return True
-
 
 def ask_model(client, messages, tools):
     response = client.chat.completions.create(
@@ -284,7 +279,7 @@ class FakeResult:
             self.content.append(FakeBlock(text))
 
 
-def test_schema_shape() -> None:
+def test_schema_shape():
     tool = FakeTool("search_notes", "Search notes.",
                     {"type": "object", "properties": {}})
     schemas = mcp_tools_to_openai_schema([("notes__search_notes", tool)])
@@ -301,7 +296,7 @@ def test_schema_shape() -> None:
     print(f"case 1 (openai schema shape)   -> {result}")
 
 
-def test_missing_description() -> None:
+def test_missing_description():
     tool = FakeTool("t", None, {"type": "object"})
     schemas = mcp_tools_to_openai_schema([("s__t", tool)])
     result = "OK"
@@ -310,7 +305,7 @@ def test_missing_description() -> None:
     print(f"case 2 (None description -> '') -> {result}")
 
 
-def test_extract_text_joins() -> None:
+def test_extract_text_joins():
     result_obj = FakeResult(["line one", "line two"])
     text = extract_text(result_obj)
     result = "OK"
@@ -360,7 +355,7 @@ async def connect(servers):
     return config, client, pool
 
 
-async def test_discovery_namespaced() -> None:
+async def test_discovery_namespaced():
     config, client, pool = await connect([NOTES])
     names = []
     for namespaced, tool in pool.named_tools:
@@ -374,7 +369,7 @@ async def test_discovery_namespaced() -> None:
     print(f"case 1 (tools discovered + namespaced) -> {result}")
 
 
-async def test_chained_single_server() -> None:
+async def test_chained_single_server():
     config, client, pool = await connect([NOTES])
     out = await run_agent("What does my note about the Q3 roadmap say?",
                           pool, client, config.max_iterations)
@@ -389,7 +384,7 @@ async def test_chained_single_server() -> None:
     print(f"case 2 (chained search then read)      -> {result}")
 
 
-async def main() -> None:
+async def main():
     await test_discovery_namespaced()
     await test_chained_single_server()
 

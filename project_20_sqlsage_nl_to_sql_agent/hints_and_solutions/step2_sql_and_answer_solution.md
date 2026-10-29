@@ -37,7 +37,7 @@ SQL_PROMPT = (
 )
 
 
-def generate_sql(model, schema: str, question: str) -> str:
+def generate_sql(model, schema, question):
     prompt = ChatPromptTemplate.from_template(SQL_PROMPT)
     chain = prompt | model.with_structured_output(SQLQuery)
     result = chain.invoke({"schema": schema, "question": question})
@@ -59,7 +59,7 @@ ANSWER_PROMPT = (
 )
 
 
-def summarize_answer(model, question: str, rows) -> str:
+def summarize_answer(model, question, rows):
     prompt = ChatPromptTemplate.from_template(ANSWER_PROMPT)
     chain = prompt | model
     reply = chain.invoke({"question": question, "rows": str(rows)})

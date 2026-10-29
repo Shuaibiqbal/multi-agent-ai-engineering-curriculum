@@ -120,7 +120,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -128,7 +128,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -141,7 +141,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -159,9 +159,7 @@ def get_logger(name: str) -> logging.Logger:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -191,7 +189,7 @@ class Receipt(BaseModel):
 # document loader (Doc08). The model only ever sees this text.
 from src.exceptions import UnsupportedFileError
 
-def load_receipt_text(path: str) -> str:
+def load_receipt_text(path):
     lower = path.lower()
     if lower.endswith((".txt", ".md")):
         with open(path) as receipt_file:
@@ -211,11 +209,10 @@ def load_receipt_text(path: str) -> str:
 # src/policy.py
 # The company expense policy as deterministic code, so the same receipt always
 # gets the same decision. Testable with hand-made Receipt objects - no model.
-from src.schemas import Receipt
 
 NOTE_THRESHOLD = 75.0
 
-def check_policy(receipt: Receipt) -> list:
+def check_policy(receipt):
     problems = []
     if not receipt.merchant:
         problems.append("missing merchant")
@@ -261,12 +258,12 @@ class Result:
     receipt: Receipt
     problems: list
 
-def extract_receipt(model, text: str) -> Receipt:
+def extract_receipt(model, text):
     prompt = ChatPromptTemplate.from_template(EXTRACT_PROMPT)
     chain = prompt | model.with_structured_output(Receipt)
     return chain.invoke({"text": text})
 
-def process_receipt(model, path: str) -> Result:
+def process_receipt(model, path):
     logger = get_logger(__name__)
     text = load_receipt_text(path)
     receipt = extract_receipt(model, text)
@@ -323,7 +320,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "RECEIPTRADAR_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -332,7 +329,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -354,27 +351,27 @@ no key**, using hand-made `Receipt` objects:
 from src.policy import check_policy
 from src.schemas import Receipt
 
-def has_problem(problems, text: str) -> bool:
+def has_problem(problems, text):
     for problem in problems:
         if text in problem:
             return True
     return False
 
-def test_small_receipt_is_approved() -> None:
+def test_small_receipt_is_approved():
     receipt = Receipt(merchant="Cafe", amount=12.0, category="meals")
     result = "OK"
     if check_policy(receipt) != []:
         result = "WRONG"
     print(f"case 1 (small receipt -> approved)   -> {result}")
 
-def test_over_limit_no_note_is_flagged() -> None:
+def test_over_limit_no_note_is_flagged():
     receipt = Receipt(merchant="Hotel", amount=200.0, category="lodging")
     result = "OK"
     if not has_problem(check_policy(receipt), "note threshold"):
         result = "WRONG"
     print(f"case 2 (over limit, no note -> flag) -> {result}")
 
-def test_over_limit_with_note_is_ok() -> None:
+def test_over_limit_with_note_is_ok():
     receipt = Receipt(merchant="Hotel", amount=200.0, category="lodging",
                       has_note=True)
     result = "OK"
@@ -382,7 +379,7 @@ def test_over_limit_with_note_is_ok() -> None:
         result = "WRONG"
     print(f"case 3 (over limit, with note -> ok) -> {result}")
 
-def test_banned_category_is_flagged() -> None:
+def test_banned_category_is_flagged():
     receipt = Receipt(merchant="Pub", amount=30.0, category="Alcohol")
     result = "OK"
     if not has_problem(check_policy(receipt), "not reimbursable"):
@@ -404,7 +401,7 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.pipeline import process_receipt
 
-def test_approved_receipt_clears() -> None:
+def test_approved_receipt_clears():
     config = load_config()
     model = get_model(config)
     result = process_receipt(model, "samples/approved.txt")
@@ -413,7 +410,7 @@ def test_approved_receipt_clears() -> None:
         status = "WRONG"
     print(f"case 1 (approved receipt clears) -> {status}")
 
-def test_over_limit_is_flagged() -> None:
+def test_over_limit_is_flagged():
     config = load_config()
     model = get_model(config)
     result = process_receipt(model, "samples/over_limit.txt")

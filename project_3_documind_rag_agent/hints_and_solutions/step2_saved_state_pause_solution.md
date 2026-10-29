@@ -25,7 +25,7 @@ class DocState(TypedDict):
     approved: bool
     answer: str
 
-def start_state(task: str) -> DocState:
+def start_state(task):
     return {"task": task, "path": [], "approved": False, "answer": ""}
 ```
 
@@ -38,10 +38,9 @@ def start_state(task: str) -> DocState:
 # so nothing above interrupt() may do a real action.
 from langgraph.types import interrupt
 
-from src.state import DocState
 from src.utils.logger import get_logger
 
-def approval_node(state: DocState) -> dict:
+def approval_node(state):
     logger = get_logger(__name__)
     reasons = ["every answer is checked by a person for now"]
 
@@ -109,13 +108,13 @@ from src.utils.logger import get_logger
 
 DB_PATH = "checkpoints.sqlite"
 
-def ask_human(request: dict) -> str:
+def ask_human(request):
     print("  -- needs your approval --")
     print(f"  answer: {request['answer']}")
     print(f"  why:   {', '.join(request['failed_checks'])}")
     return input("  Approve? (yes/no): ").strip().lower()
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -176,7 +175,7 @@ DB_PATH = "checkpoints.sqlite"
 THREAD_ID = "demo-1"
 TASK = "What is the refund policy? Send it to the customer."
 
-def main() -> None:
+def main():
     load_config()
     config = {"configurable": {"thread_id": THREAD_ID}}
     with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
@@ -208,7 +207,7 @@ from src.graph import build_graph
 DB_PATH = "checkpoints.sqlite"
 THREAD_ID = "demo-1"
 
-def main() -> None:
+def main():
     load_config()
     config = {"configurable": {"thread_id": THREAD_ID}}
     with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
@@ -249,9 +248,7 @@ ACTION_TASK = "What is the refund policy? Send it to the customer."
 
 
 # changed in Step 2: resumes a paused run with `decision` (None = don't)
-def run(
-    graph, thread_id: str, task: str, decision: str | None = "yes"
-) -> dict:
+def run(graph, thread_id, task, decision="yes"):
     config = {"configurable": {"thread_id": thread_id}}
     outcome = graph.invoke(start_state(task), config)
     if decision is not None and "__interrupt__" in outcome:
@@ -259,34 +256,34 @@ def run(
     return outcome
 
 
-def show(case: str, passed: bool, outcome: dict) -> None:
+def show(case, passed, outcome):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}: {outcome.get('path')}")
 
 
-def test_general_question(graph) -> None:
+def test_general_question(graph):
     outcome = run(graph, "t1", "What is the capital of France?")
     passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
     show("case 1 (general question)", passed, outcome)
 
 
 # new in Step 2
-def test_action_pauses(graph) -> None:
+def test_action_pauses(graph):
     outcome = run(graph, "t2", ACTION_TASK, decision=None)
     show("case 2 (pauses)          ", "__interrupt__" in outcome, outcome)
 
 
 # new in Step 2
-def test_human_says_yes(graph) -> None:
+def test_human_says_yes(graph):
     outcome = run(graph, "t3", ACTION_TASK, "yes")
     passed = outcome["approved"] and "human_approved" in outcome["path"]
     show("case 3 (human: yes)      ", passed, outcome)
 
 
 # new in Step 2
-def test_human_says_no(graph) -> None:
+def test_human_says_no(graph):
     outcome = run(graph, "t4", ACTION_TASK, "no")
     passed = outcome["answer"].startswith("Not approved")
     show("case 4 (human: no)       ", passed, outcome)

@@ -79,12 +79,12 @@ def run_graph(graph, task: str) -> dict:
     # why: the graph's version of Doc07's max_iterations
     return graph.invoke(start, config={"recursion_limit": 20})
 
-if __name__ == "__main__":
-    graph = build_graph()
-    result = run_graph(graph, "What is 12 + 30?")
-    print(f"answer: {result['messages'][-1].content}")
-    for step in result["steps"]:
-        print(f"  step: {step['tool']} -> {step['result']}")
+# Build the graph and run it on a task that needs the add tool.
+graph = build_graph()
+result = run_graph(graph, "What is 12 + 30?")
+print(f"answer: {result['messages'][-1].content}")
+for step in result["steps"]:
+    print(f"  step: {step['tool']} -> {step['result']}")
 ```
 **Expected output:**
 ```

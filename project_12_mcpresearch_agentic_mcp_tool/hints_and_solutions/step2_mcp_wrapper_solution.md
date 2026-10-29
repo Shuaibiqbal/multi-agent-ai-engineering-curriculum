@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 mcp = MCPServer("deep-research-service")
 
 @mcp.tool()
-def deep_research(topic: str) -> str:
+def deep_research(topic):
     """Research a topic through a fact-checked, multi-round pipeline and
     return a verified summary. One call runs a Researcher and a Fact-Checker
     until the summary is approved or a round cap is reached."""

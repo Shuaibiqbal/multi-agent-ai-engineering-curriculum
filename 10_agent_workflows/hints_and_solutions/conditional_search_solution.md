@@ -63,11 +63,11 @@ def build_graph(router: Callable[[QAState], str]):
 def run(graph, task: str) -> dict:
     return graph.invoke({"task": task, "sources": [], "answer": ""})
 
-if __name__ == "__main__":
-    graph = build_graph(should_search)
-    for task in ["How hot should the water be when brewing?", "What is 2 + 2?"]:
-        result = run(graph, task)
-        print(f"{task!r} -> searched: {len(result['sources']) > 0}")
+# Run the graph on a task that needs search, and one that doesn't.
+graph = build_graph(should_search)
+for task in ["How hot should the water be when brewing?", "What is 2 + 2?"]:
+    result = run(graph, task)
+    print(f"{task!r} -> searched: {len(result['sources']) > 0}")
 ```
 **Expected output:**
 ```

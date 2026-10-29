@@ -74,23 +74,21 @@ def score(results: dict) -> float:
             passed = passed + 1
     return passed / len(results)
 
-def run_regression_check() -> None:
-    baseline = run_eval_suite()
-    print(f"baseline score: {score(baseline):.2f}")
+# Measure the baseline, sabotage the prompt by hand, measure again, and
+# check the suite notices the drop.
+baseline = run_eval_suite()
+print(f"baseline score: {score(baseline):.2f}")
 
-    input("Delete the 30-day line from support_prompt.txt, save, "
-          "then press Enter...")
+input("Delete the 30-day line from support_prompt.txt, save, "
+      "then press Enter...")
 
-    after = run_eval_suite()
-    print(f"after sabotage score: {score(after):.2f}")
+after = run_eval_suite()
+print(f"after sabotage score: {score(after):.2f}")
 
-    if score(baseline) >= PASS_BAR and score(after) < PASS_BAR:
-        print("PASS: the suite caught the regression.")
-    else:
-        print("FAIL: the suite did NOT catch it. Tighten the rules.")
-
-if __name__ == "__main__":
-    run_regression_check()
+if score(baseline) >= PASS_BAR and score(after) < PASS_BAR:
+    print("PASS: the suite caught the regression.")
+else:
+    print("FAIL: the suite did NOT catch it. Tighten the rules.")
 ```
 **Expected output:**
 ```

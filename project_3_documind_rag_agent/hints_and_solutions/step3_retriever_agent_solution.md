@@ -13,7 +13,7 @@ After this step document questions are answered from your documents (still appro
 ```python
 # src/rag/chunking.py
 # Doc08's two chunkers: chunk_by_chars() and chunk_by_paragraph().
-def chunk_by_chars(text: str, chunk_size: int = 300) -> list[str]:
+def chunk_by_chars(text, chunk_size=300):
     chunks: list[str] = []
     i = 0
     while i < len(text):
@@ -21,7 +21,7 @@ def chunk_by_chars(text: str, chunk_size: int = 300) -> list[str]:
         i += chunk_size
     return chunks
 
-def chunk_by_paragraph(text: str) -> list[str]:
+def chunk_by_paragraph(text):
     raw_pieces = text.split("\n\n")
     chunks = []
     for piece in raw_pieces:
@@ -37,7 +37,6 @@ def chunk_by_paragraph(text: str) -> list[str]:
 # every .md/.txt file, embeds all chunks in one call, and stores them with
 # their file name and position. (Doc08's Build Task file.)
 from pathlib import Path
-from typing import Callable
 
 import chromadb
 from chromadb.errors import NotFoundError
@@ -50,11 +49,8 @@ EMBEDDING_MODEL = "text-embedding-3-small"
 
 chroma_client = chromadb.Client()
 
-def build_vector_store(
-    doc_folder: str,
-    chunk_fn: Callable[[str], list[str]] = chunk_by_paragraph,
-    collection_name: str = "docs",
-):
+def build_vector_store(doc_folder, chunk_fn=chunk_by_paragraph,
+                       collection_name="docs"):
     logger = get_logger(__name__)
     client = OpenAI()
     try:
@@ -104,7 +100,7 @@ from openai import OpenAI
 
 from src.rag.ingest import EMBEDDING_MODEL
 
-def retrieve(collection, query: str, k: int = 3) -> list[dict]:
+def retrieve(collection, query, k=3):
     if collection.count() == 0:
         return []
 
@@ -139,7 +135,7 @@ def retrieve(collection, query: str, k: int = 3) -> list[dict]:
 from src.rag.ingest import build_vector_store
 
 class StoreHolder:
-    def __init__(self) -> None:
+    def __init__(self):
         self.collection = None
 
 store = StoreHolder()
@@ -210,9 +206,8 @@ in the European Union.
 # src/agents/reasoner_agent.py
 # The Reasoner agent: reason_node() answers only from the found excerpts.
 # For now it quotes the best excerpt and names its file.
-from src.state import DocState
 
-def reason_node(state: DocState) -> dict:
+def reason_node(state):
     best = state["sources"][0]
     answer = best["text"] + " [" + best["source_file"] + "]"
     return {"answer": answer, "path": ["reason_node"]}
@@ -244,7 +239,7 @@ class DocState(TypedDict):
     approved: bool
     answer: str
 
-def start_state(task: str) -> DocState:
+def start_state(task):
     return {
         "task": task,
         "path": [],
@@ -265,7 +260,6 @@ def start_state(task: str) -> DocState:
 # an honest "not found".
 from src.rag.retriever import retrieve
 from src.rag.store import get_collection
-from src.state import DocState
 from src.utils.logger import get_logger
 
 SEARCH_KEYWORDS = [
@@ -275,14 +269,14 @@ SEARCH_KEYWORDS = [
 
 MAX_DISTANCE = 1.2
 
-def route_search(state: DocState) -> str:
+def route_search(state):
     task = state["task"].lower()
     for keyword in SEARCH_KEYWORDS:
         if keyword in task:
             return "search"
     return "skip"
 
-def is_relevant(sources: list[dict]) -> bool:
+def is_relevant(sources):
     if not sources:
         return False
     best = sources[0]["score"]
@@ -291,7 +285,7 @@ def is_relevant(sources: list[dict]) -> bool:
             best = source["score"]
     return best <= MAX_DISTANCE
 
-def retrieve_node(state: DocState) -> dict:
+def retrieve_node(state):
     logger = get_logger(__name__)
     sources = retrieve(get_collection(), state["task"], k=3)
     grounded = is_relevant(sources)
@@ -302,12 +296,12 @@ def retrieve_node(state: DocState) -> dict:
     return {"sources": sources, "grounded": grounded,
             "path": ["retrieve_node"]}
 
-def has_grounding(state: DocState) -> str:
+def has_grounding(state):
     if state["grounded"]:
         return "reason"
     return "no_grounding"
 
-def no_grounding_node(state: DocState) -> dict:
+def no_grounding_node(state):
     answer = "I couldn't find this in your documents, so I won't guess."
     return {"answer": answer, "path": ["no_grounding_node"]}
 ```
@@ -371,7 +365,7 @@ def build_graph(checkpointer=None):
 # Run from the repo root: python -m tests.unit.test_chunking
 from src.rag.chunking import chunk_by_chars, chunk_by_paragraph
 
-def test_chunk_by_chars() -> None:
+def test_chunk_by_chars():
     lengths = []
     for chunk in chunk_by_chars("a" * 650, chunk_size=300):
         lengths.append(len(chunk))
@@ -380,7 +374,7 @@ def test_chunk_by_chars() -> None:
         result = "WRONG"
     print(f"case 1 (650 chars, size 300) -> {result}: {lengths}")
 
-def test_chunk_by_paragraph() -> None:
+def test_chunk_by_paragraph():
     text = "First paragraph.\n\n\n\nSecond paragraph.\n\n   \n\n"
     chunks = chunk_by_paragraph(text)
     result = "OK"
@@ -404,36 +398,36 @@ from src.agents.retriever_agent import (
     route_search,
 )
 
-def show(case: str, passed: bool) -> None:
+def show(case, passed):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}")
 
-def test_document_question_searches() -> None:
+def test_document_question_searches():
     task = {"task": "What is the refund policy?"}
     show("case 1 (refund question searches) ", route_search(task) == "search")
 
-def test_general_question_skips() -> None:
+def test_general_question_skips():
     task = {"task": "What is the capital of France?"}
     show("case 2 (general question skips)   ", route_search(task) == "skip")
 
-def test_close_match_is_relevant() -> None:
+def test_close_match_is_relevant():
     sources = [{"score": 1.6}, {"score": 0.4}]
     show("case 3 (best score 0.4 counts)    ", is_relevant(sources))
 
-def test_far_match_is_not_relevant() -> None:
+def test_far_match_is_not_relevant():
     sources = [{"score": 1.7}, {"score": 1.9}]
     show("case 4 (best score 1.7 doesn't)   ", not is_relevant(sources))
 
-def test_nothing_found() -> None:
+def test_nothing_found():
     show("case 5 (no sources at all)        ", not is_relevant([]))
 
-def test_grounded_goes_to_reasoner() -> None:
+def test_grounded_goes_to_reasoner():
     choice = has_grounding({"grounded": True})
     show("case 6 (grounded -> reason)       ", choice == "reason")
 
-def test_not_grounded_says_so() -> None:
+def test_not_grounded_says_so():
     choice = has_grounding({"grounded": False})
     show("case 7 (not grounded -> honest no)", choice == "no_grounding")
 
@@ -465,48 +459,46 @@ from src.state import start_state
 
 ACTION_TASK = "What is the refund policy? Send it to the customer."
 
-def run(
-    graph, thread_id: str, task: str, decision: str | None = "yes"
-) -> dict:
+def run(graph, thread_id, task, decision="yes"):
     config = {"configurable": {"thread_id": thread_id}}
     outcome = graph.invoke(start_state(task), config)
     if decision is not None and "__interrupt__" in outcome:
         outcome = graph.invoke(Command(resume=decision), config)
     return outcome
 
-def show(case: str, passed: bool, outcome: dict) -> None:
+def show(case, passed, outcome):
     result = "OK"
     if not passed:
         result = "WRONG"
     print(f"{case} -> {result}: {outcome.get('path')}")
 
-def test_general_question(graph) -> None:
+def test_general_question(graph):
     outcome = run(graph, "t1", "What is the capital of France?")
     passed = "Paris" in outcome["answer"] and "answer_node" in outcome["path"]
     show("case 1 (general question)", passed, outcome)
 
-def test_action_pauses(graph) -> None:
+def test_action_pauses(graph):
     outcome = run(graph, "t2", ACTION_TASK, decision=None)
     show("case 2 (pauses)          ", "__interrupt__" in outcome, outcome)
 
-def test_human_says_yes(graph) -> None:
+def test_human_says_yes(graph):
     outcome = run(graph, "t3", ACTION_TASK, "yes")
     passed = outcome["approved"] and "human_approved" in outcome["path"]
     show("case 3 (human: yes)      ", passed, outcome)
 
-def test_human_says_no(graph) -> None:
+def test_human_says_no(graph):
     outcome = run(graph, "t4", ACTION_TASK, "no")
     passed = outcome["answer"].startswith("Not approved")
     show("case 4 (human: no)       ", passed, outcome)
 
 # new in Step 3
-def test_grounded_answer(graph) -> None:
+def test_grounded_answer(graph):
     outcome = run(graph, "t5", "What is the refund policy?")
     passed = outcome["grounded"] and "retrieve_node" in outcome["path"]
     show("case 5 (grounded)        ", passed, outcome)
 
 # new in Step 3
-def test_not_in_documents(graph) -> None:
+def test_not_in_documents(graph):
     outcome = run(graph, "t6", "What is the policy on remote work?")
     passed = outcome["path"][-1] == "no_grounding_node"
     show("case 6 (not found)       ", passed, outcome)

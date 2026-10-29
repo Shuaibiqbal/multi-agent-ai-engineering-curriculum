@@ -30,17 +30,14 @@ from src.extractor import extract_required_skills
 from src.matcher import match_skills
 from src.rag.resume_store import build_resume_store
 from src.rag.retriever import best_distance
-from src.schemas import MatchReport
 from src.utils.logger import get_logger
 
-
-def run_match(model, resume_text: str, job_text: str,
-              cutoff: float = 0.8) -> MatchReport:
+def run_match(model, resume_text, job_text, cutoff=0.8):
     logger = get_logger(__name__)
     collection = build_resume_store(resume_text)
     required = extract_required_skills(model, job_text).skills
 
-    def distance(skill: str) -> float:
+    def distance(skill):
         return best_distance(collection, skill)
 
     report = match_skills(required, distance, cutoff=cutoff)
@@ -107,7 +104,7 @@ RESUME = (
 JOB = "Required: Python, Docker, AWS, Kubernetes, and team leadership."
 
 
-def test_scores_high_and_finds_the_gap() -> None:
+def test_scores_high_and_finds_the_gap():
     config = load_config()
     model = get_model(config)
     report = run_match(model, RESUME, JOB, config.match_cutoff)

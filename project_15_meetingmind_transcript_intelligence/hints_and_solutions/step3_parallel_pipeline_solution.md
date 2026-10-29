@@ -27,9 +27,7 @@ from src.agents.actions import build_actions_chain
 from src.agents.decisions import build_decisions_chain
 from src.agents.summary import build_summary_chain
 from src.report import compile_report
-from src.schemas import MeetingReport
 from src.utils.logger import get_logger
-
 
 def build_pipeline(model):
     return RunnableParallel(
@@ -38,8 +36,7 @@ def build_pipeline(model):
         actions=build_actions_chain(model),
     )
 
-
-def run_meeting(model, transcript: str) -> MeetingReport:
+def run_meeting(model, transcript):
     logger = get_logger(__name__)
     pipeline = build_pipeline(model)
     parts = pipeline.invoke({"transcript": transcript})
@@ -104,7 +101,7 @@ TRANSCRIPT = (
 )
 
 
-def test_report_names_decision_and_action() -> None:
+def test_report_names_decision_and_action():
     config = load_config()
     model = get_model(config)
     report = run_meeting(model, TRANSCRIPT)
@@ -113,7 +110,7 @@ def test_report_names_decision_and_action() -> None:
     print(f"case 1 (names decision + action) -> {'OK' if ok else 'WRONG'}")
 
 
-def test_has_at_least_one_of_each() -> None:
+def test_has_at_least_one_of_each():
     config = load_config()
     model = get_model(config)
     report = run_meeting(model, TRANSCRIPT)

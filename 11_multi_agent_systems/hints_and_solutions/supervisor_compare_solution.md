@@ -113,19 +113,19 @@ def run_supervisor(topic: str) -> dict:
     }
 
 
-if __name__ == "__main__":
-    topics = ["climate change", "inflation", "sleep quality"]
-    for topic in topics:
-        sequential_report = run_sequential(topic)
-        supervisor_report = run_supervisor(topic)
-        seq_t = sequential_report["total_tokens"]
-        seq_s = sequential_report["total_seconds"]
-        sup_t = supervisor_report["total_tokens"]
-        sup_s = supervisor_report["total_seconds"]
-        print(f"\n{topic}")
-        print(f"  sequential: {seq_t} tokens, {seq_s:.2f}s")
-        print(f"  supervisor: {sup_t} tokens, {sup_s:.2f}s")
-        print(f"  routed: {supervisor_report['routing_log']}")
+# Compare the sequential and supervisor designs on the same topics.
+topics = ["climate change", "inflation", "sleep quality"]
+for topic in topics:
+    sequential_report = run_sequential(topic)
+    supervisor_report = run_supervisor(topic)
+    seq_t = sequential_report["total_tokens"]
+    seq_s = sequential_report["total_seconds"]
+    sup_t = supervisor_report["total_tokens"]
+    sup_s = supervisor_report["total_seconds"]
+    print(f"\n{topic}")
+    print(f"  sequential: {seq_t} tokens, {seq_s:.2f}s")
+    print(f"  supervisor: {sup_t} tokens, {sup_s:.2f}s")
+    print(f"  routed: {supervisor_report['routing_log']}")
 ```
 **Expected output** (exact numbers vary by run):
 ```

@@ -35,7 +35,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -43,7 +43,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     api_key = require_env("OPENAI_API_KEY")
     log_level = os.getenv("LOG_LEVEL", "INFO")
@@ -57,7 +57,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
 
     if not logger.handlers:
@@ -81,7 +81,7 @@ def get_logger(name: str) -> logging.Logger:
 # load_prompt(name): reads src/prompts/<name>.txt, so prompts live in text
 # files instead of Python strings. (Project 1's file.)
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     path = "src/prompts" + "/" + name + ".txt"
     with open(path) as prompt_file:
         return prompt_file.read().strip()
@@ -103,7 +103,7 @@ Also create empty `__init__.py` files in `src/utils/`, `src/models/` and `src/ag
 # OPENAI_API_KEY from the environment, filled by load_config().
 from langchain_openai import ChatOpenAI
 
-def get_model() -> ChatOpenAI:
+def get_model():
     return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
@@ -138,7 +138,7 @@ def build_writer_chain():
     prompt = ChatPromptTemplate.from_template(load_prompt("writer"))
     return prompt | get_model() | StrOutputParser()
 
-def run_writer(findings: str) -> str:
+def run_writer(findings):
     chain = build_writer_chain()
     return chain.invoke({"findings": findings})
 ```
@@ -164,7 +164,7 @@ TEST_FINDINGS = [
     "- Solar panels exist.",
 ]
 
-def main() -> None:
+def main():
     try:
         load_config()
     except MissingConfigError as e:
@@ -202,7 +202,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "CONTENTFORGE_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -211,7 +211,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -220,7 +220,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -249,7 +249,7 @@ FINDINGS = (
     "Rules:\n- EU e-bike motors are limited to 25 km/h. [eu-rules]\n"
 )
 
-def test_writer_keeps_sources() -> None:
+def test_writer_keeps_sources():
     draft = run_writer(FINDINGS)
     result = "OK"
     if "[" not in draft:

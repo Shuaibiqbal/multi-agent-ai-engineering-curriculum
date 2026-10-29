@@ -99,7 +99,7 @@ class Config:
     openai_api_key: str
     log_level: str
 
-def require_env(key: str) -> str:
+def require_env(key):
     value = os.getenv(key)
     if value is None or value == "":
         raise MissingConfigError(
@@ -107,7 +107,7 @@ def require_env(key: str) -> str:
         )
     return value
 
-def load_config() -> Config:
+def load_config():
     load_dotenv()
     return Config(
         openai_api_key=require_env("OPENAI_API_KEY"),
@@ -120,7 +120,7 @@ def load_config() -> Config:
 import logging
 import os
 
-def get_logger(name: str) -> logging.Logger:
+def get_logger(name):
     logger = logging.getLogger(name)
     if not logger.handlers:
         level_name = os.getenv("LOG_LEVEL", "INFO")
@@ -137,7 +137,7 @@ def get_logger(name: str) -> logging.Logger:
 ```python
 # src/utils/prompts.py
 
-def load_prompt(name: str) -> str:
+def load_prompt(name):
     with open("src/prompts" + "/" + name + ".txt") as prompt_file:
         return prompt_file.read().strip()
 ```
@@ -146,9 +146,7 @@ def load_prompt(name: str) -> str:
 # src/models/llm.py
 from langchain_openai import ChatOpenAI
 
-from src.config import Config
-
-def get_model(config: Config) -> ChatOpenAI:
+def get_model(config):
     return ChatOpenAI(
         model="gpt-4o-mini", temperature=0, api_key=config.openai_api_key
     )
@@ -198,7 +196,7 @@ CANNED_REPLY = (
     "staff member will follow up with you shortly."
 )
 
-def _unsure_category(_inputs) -> TicketCategory:
+def _unsure_category(_inputs):
     return TicketCategory(
         category="it_support",
         reason="could not classify confidently - needs a human",
@@ -208,7 +206,7 @@ def _unsure_category(_inputs) -> TicketCategory:
 def with_unsure_category(classifier_chain):
     return classifier_chain.with_fallbacks([RunnableLambda(_unsure_category)])
 
-def _canned(_inputs) -> str:
+def _canned(_inputs):
     return CANNED_REPLY
 
 def with_canned_reply(reply_chain):
@@ -244,7 +242,7 @@ def build_classifier_chain(model):
     structured = prompt | model.with_structured_output(TicketCategory)
     return with_unsure_category(structured)
 
-def classify_ticket(model, message: str) -> TicketCategory:
+def classify_ticket(model, message):
     logger = get_logger(__name__)
     category = build_classifier_chain(model).invoke({"message": message})
     logger.info(f"classified as {category.category} (sure={category.sure})")
@@ -262,12 +260,12 @@ import json
 
 from langchain_core.runnables import RunnableLambda, RunnableParallel
 
-def _load_students() -> dict:
+def _load_students():
     with open("data/students.json") as students_file:
         return json.loads(students_file.read())
 
 def _field(field_name):
-    def lookup(payload) -> str:
+    def lookup(payload):
         students = _load_students()
         record = students.get(payload["student"])
         if record is None:
@@ -325,7 +323,7 @@ from src.chains.replies import build_reply_chain
 from src.schemas import TicketRecord
 from src.utils.logger import get_logger
 
-def review_reasons(category, message: str) -> list:
+def review_reasons(category, message):
     reasons = []
     if not category.sure:
         reasons.append("classifier was not sure")
@@ -335,7 +333,7 @@ def review_reasons(category, message: str) -> list:
             reasons.append(f"urgent signal: {word}")
     return reasons
 
-def draft_reply(model, category: str, message: str, context: dict) -> tuple:
+def draft_reply(model, category, message, context):
     chain = build_reply_chain(model)
     pieces = []
     for piece in chain.stream(
@@ -348,7 +346,7 @@ def draft_reply(model, category: str, message: str, context: dict) -> tuple:
     used_fallback = reply.strip() == CANNED_REPLY
     return reply, used_fallback
 
-def handle_ticket(model, student: str, message: str) -> TicketRecord:
+def handle_ticket(model, student, message):
     logger = get_logger(__name__)
     category = classify_ticket(model, message)
     context = build_lookup_step().invoke({"student": student})
@@ -460,7 +458,7 @@ from src.exceptions import MissingConfigError
 
 TEST_SETTING = "CAMPUSDESK_TEST_SETTING"
 
-def test_missing_setting() -> None:
+def test_missing_setting():
     os.environ.pop(TEST_SETTING, None)
     result = "WRONG"
     try:
@@ -469,7 +467,7 @@ def test_missing_setting() -> None:
         result = "OK"
     print(f"case 1 (missing setting) -> {result}")
 
-def test_empty_setting() -> None:
+def test_empty_setting():
     os.environ[TEST_SETTING] = ""
     result = "WRONG"
     try:
@@ -478,7 +476,7 @@ def test_empty_setting() -> None:
         result = "OK"
     print(f"case 2 (empty setting)   -> {result}")
 
-def test_config_loads() -> None:
+def test_config_loads():
     os.environ["OPENAI_API_KEY"] = "sk-test-123"
     config = load_config()
     result = "OK"
@@ -499,14 +497,14 @@ from pydantic import ValidationError
 
 from src.schemas import TicketCategory, TicketRecord
 
-def test_category_builds() -> None:
+def test_category_builds():
     category = TicketCategory(category="enrollment", reason="adds a class")
     result = "OK"
     if category.sure is not True:
         result = "WRONG"
     print(f"case 1 (good category, sure defaults True) -> {result}")
 
-def test_category_rejects_unknown() -> None:
+def test_category_rejects_unknown():
     result = "WRONG"
     try:
         TicketCategory(category="sports", reason="x")
@@ -514,7 +512,7 @@ def test_category_rejects_unknown() -> None:
         result = "OK"
     print(f"case 2 (unknown category rejected)         -> {result}")
 
-def test_record_builds_with_defaults() -> None:
+def test_record_builds_with_defaults():
     record = TicketRecord(student="s-1", message="m", category="it_support",
                           reply="r")
     result = "OK"
@@ -540,7 +538,7 @@ from langchain_core.runnables import RunnableLambda, RunnableParallel
 
 from src.chains.lookups import build_lookup_step
 
-def test_merges_three_fields() -> None:
+def test_merges_three_fields():
     out = build_lookup_step().invoke({"student": "s-1001"})
     result = "OK"
     if set(out.keys()) != {"status", "open_requests", "deadline"}:
@@ -549,14 +547,14 @@ def test_merges_three_fields() -> None:
         result = "WRONG"
     print(f"case 1 (merges three lookups)   -> {result}")
 
-def test_unknown_student_is_safe() -> None:
+def test_unknown_student_is_safe():
     out = build_lookup_step().invoke({"student": "nobody"})
     result = "OK"
     if out["status"] != "unknown":
         result = "WRONG"
     print(f"case 2 (unknown student -> safe) -> {result}")
 
-def test_runs_in_parallel() -> None:
+def test_runs_in_parallel():
     def slow(_inputs):
         time.sleep(0.3)
         return "x"
@@ -592,7 +590,7 @@ from src.chains.fallback import (
 def _boom(_inputs):
     raise RuntimeError("model down")
 
-def test_canned_reply_on_failure() -> None:
+def test_canned_reply_on_failure():
     chain = with_canned_reply(RunnableLambda(_boom))
     reply = chain.invoke({"x": 1})
     result = "OK"
@@ -600,7 +598,7 @@ def test_canned_reply_on_failure() -> None:
         result = "WRONG"
     print(f"case 1 (reply fails -> canned)      -> {result}")
 
-def test_unsure_category_on_failure() -> None:
+def test_unsure_category_on_failure():
     chain = with_unsure_category(RunnableLambda(_boom))
     category = chain.invoke({"message": "x"})
     result = "OK"
@@ -626,21 +624,21 @@ def sure_category():
 def unsure_category():
     return TicketCategory(category="it_support", reason="r", sure=False)
 
-def test_clean_message_no_flag() -> None:
+def test_clean_message_no_flag():
     reasons = review_reasons(sure_category(), "How do I add a class?")
     result = "OK"
     if reasons != []:
         result = "WRONG"
     print(f"case 1 (clean message -> no flag)   -> {result}")
 
-def test_urgent_message_flagged() -> None:
+def test_urgent_message_flagged():
     reasons = review_reasons(sure_category(), "Tuition is due today!")
     result = "OK"
     if len(reasons) == 0:
         result = "WRONG"
     print(f"case 2 (urgent word -> flagged)     -> {result}")
 
-def test_unsure_flagged() -> None:
+def test_unsure_flagged():
     reasons = review_reasons(unsure_category(), "a normal message")
     result = "OK"
     if len(reasons) == 0:
@@ -661,12 +659,12 @@ from src.config import load_config
 from src.models.llm import get_model
 from src.services.pipeline import handle_ticket
 
-def test_routes_enrollment(model) -> None:
+def test_routes_enrollment(model):
     record = handle_ticket(model, "s-1001", "How do I add a class?")
     ok = record.category == "enrollment"
     print(f"case 1 (enrollment routed) -> {'OK' if ok else 'WRONG'}")
 
-def test_urgent_is_flagged(model) -> None:
+def test_urgent_is_flagged(model):
     record = handle_ticket(
         model, "s-2002", "My aid is late and tuition is due today."
     )

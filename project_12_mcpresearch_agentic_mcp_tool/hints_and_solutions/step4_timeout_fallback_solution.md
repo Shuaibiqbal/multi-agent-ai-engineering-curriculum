@@ -29,7 +29,7 @@ mcp = MCPServer("deep-research-service")
 
 
 @mcp.tool()
-async def deep_research(topic: str) -> str:
+async def deep_research(topic):
     """Research a topic through a fact-checked, multi-round pipeline; returns
     a verified summary plus a revision trace. Falls back to the best draft so
     far if it runs past the timeout."""
@@ -84,13 +84,13 @@ async def call_tool(topic, env=None):
             return result.content[0].text
 
 
-async def test_returns_trace_and_summary() -> None:
+async def test_returns_trace_and_summary():
     text = await call_tool("Retrieval-Augmented Generation (RAG)")
     ok = "Revision trace" in text and "Summary:" in text
     print(f"case 1 (trace + summary) -> {'OK' if ok else 'WRONG'}")
 
 
-async def test_timeout_gives_partial() -> None:
+async def test_timeout_gives_partial():
     # a 0-second timeout forces the partial path even on a fast topic
     env = dict(os.environ)
     env["DEEP_RESEARCH_TIMEOUT_SECONDS"] = "0.001"
@@ -99,7 +99,7 @@ async def test_timeout_gives_partial() -> None:
     print(f"case 2 (timeout -> PARTIAL) -> {'OK' if ok else 'WRONG'}")
 
 
-async def main() -> None:
+async def main():
     await test_returns_trace_and_summary()
     await test_timeout_gives_partial()
 

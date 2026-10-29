@@ -53,7 +53,7 @@ Ticket: {ticket}
 # all three lookups at the same time with RunnableParallel.
 import time
 
-from langchain_core.runnables import Runnable, RunnableParallel
+from langchain_core.runnables import RunnableParallel
 
 FAKE_ACCOUNTS = {
     "C-1001": "Pro plan, customer since 2023-04-12",
@@ -68,24 +68,24 @@ FAKE_ORDERS = {
 }
 LOOKUP_DELAY_SECONDS = 1
 
-def get_ticket_text(inputs: dict) -> str:
+def get_ticket_text(inputs):
     return inputs["ticket"]
 
-def get_account_info(inputs: dict) -> str:
+def get_account_info(inputs):
     time.sleep(LOOKUP_DELAY_SECONDS)
     customer_id = inputs["customer_id"]
     if customer_id in FAKE_ACCOUNTS:
         return FAKE_ACCOUNTS[customer_id]
     return "No account found for this customer."
 
-def get_order_history(inputs: dict) -> str:
+def get_order_history(inputs):
     time.sleep(LOOKUP_DELAY_SECONDS)
     customer_id = inputs["customer_id"]
     if customer_id in FAKE_ORDERS:
         return FAKE_ORDERS[customer_id]
     return "No recent orders."
 
-def build_lookup_step() -> Runnable:
+def build_lookup_step():
     return RunnableParallel(
         {
             "ticket": get_ticket_text,
@@ -105,13 +105,12 @@ def build_lookup_step() -> Runnable:
 # technical run the parallel lookups first; general needs no account data.
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import Runnable
 
 from src.chains.lookups import build_lookup_step     # new in Step 2
 from src.models.llm import get_model
 from src.utils.prompts import load_prompt
 
-def build_reply_chain(category: str) -> Runnable:
+def build_reply_chain(category):
     prompt = ChatPromptTemplate.from_template(load_prompt(category))
     chain = prompt | get_model() | StrOutputParser()
 
@@ -139,7 +138,7 @@ from src.chains.lookups import (
     get_order_history,
 )
 
-def main() -> None:
+def main():
     inputs = {"ticket": "test ticket", "customer_id": "C-1001"}
 
     start = time.time()
@@ -174,7 +173,7 @@ from src.chains.lookups import (
 )
 
 
-def test_known_customer() -> None:
+def test_known_customer():
     inputs = {"ticket": "hi", "customer_id": "C-1001"}
     ok = "OK"
     if "Pro plan" not in get_account_info(inputs):
@@ -184,7 +183,7 @@ def test_known_customer() -> None:
     print(f"case 1 (known customer)  -> {ok}")
 
 
-def test_unknown_customer() -> None:
+def test_unknown_customer():
     inputs = {"ticket": "hi", "customer_id": "C-9999"}
     ok = "OK"
     if "No account found" not in get_account_info(inputs):
@@ -194,7 +193,7 @@ def test_unknown_customer() -> None:
     print(f"case 2 (unknown customer) -> {ok}")
 
 
-def test_lookup_step() -> None:
+def test_lookup_step():
     inputs = {"ticket": "hi", "customer_id": "C-1002"}
     start = time.time()
     result = build_lookup_step().invoke(inputs)

@@ -14,35 +14,27 @@ from openai import OpenAI
 load_dotenv()
 client = OpenAI()
 
-def get_reply(history: list) -> str:
-    # why: this exact shape — take the whole history, return just the new
-    # reply text — is what the Build Task's send_message() needs to look like.
+# The whole trick: send the entire history every time, and get back just
+# the new reply. This is the shape the Build Task's send_message() needs.
+def get_reply(history):
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=history,
     )
     return response.choices[0].message.content
 
-def run_chat() -> None:
-    history = [
-        {"role": "system", "content": "You are a helpful assistant."}
-    ]
 
-    while True:
-        user_input = input("You: ")
-        if user_input == "quit":
-            break
+# A simple chat loop. The model has no memory of its own, so every earlier
+# turn is resent in `history` on every call.
+history = [{"role": "system", "content": "You are a helpful assistant."}]
 
-        # how: the model only ever sees history — it has no memory of its
-        # own, so every earlier turn has to be resent, every single time.
-        history.append({"role": "user", "content": user_input})
-
-        reply = get_reply(history)
-        history.append({"role": "assistant", "content": reply})
-
-        print("Assistant:", reply)
-
-if __name__ == "__main__":
-    run_chat()
+while True:
+    user_input = input("You: ")
+    if user_input == "quit":
+        break
+    history.append({"role": "user", "content": user_input})
+    reply = get_reply(history)
+    history.append({"role": "assistant", "content": reply})
+    print("Assistant:", reply)
 ```
 **Expected output:** a running conversation where the assistant remembers earlier turns — type `quit` to stop.

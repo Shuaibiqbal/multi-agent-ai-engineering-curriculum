@@ -49,7 +49,6 @@ greetings, small talk and general questions. Give a one-sentence reason.
 # src/agents/router.py
 # The router: decide() asks the model which agent should answer a message,
 # and falls back to the Concierge when the answer can't be used.
-from openai import OpenAI
 from pydantic import ValidationError
 
 from src.models.llm import MODEL
@@ -57,7 +56,7 @@ from src.schemas import RouteDecision
 from src.utils.logger import get_logger
 from src.utils.prompts import load_prompt
 
-def decide(client: OpenAI, message: str) -> RouteDecision:
+def decide(client, message):
     logger = get_logger(__name__)
     messages = [
         {"role": "system", "content": load_prompt("router")},
@@ -90,17 +89,16 @@ def decide(client: OpenAI, message: str) -> RouteDecision:
 # src/agents/concierge.py
 # The Concierge agent: start_history() begins a chat with its system
 # prompt, and concierge_agent() trims the chat and streams the reply.
-from openai import OpenAI
 
 from src.models.llm import stream_message
 from src.utils.history import trim_history
 from src.utils.prompts import load_prompt
 
-def start_history() -> list[dict]:
+def start_history():
     system_prompt = load_prompt("concierge")
     return [{"role": "system", "content": system_prompt}]
 
-def concierge_agent(client: OpenAI, history: list[dict], message: str) -> str:
+def concierge_agent(client, history, message):
     trim_history(history, 3000)
     return stream_message(client, history, message)
 ```
@@ -114,15 +112,13 @@ def concierge_agent(client: OpenAI, history: list[dict], message: str) -> str:
 # The app's flow, apart from the keyboard: handle_message() asks the router,
 # then calls the chosen agent. print_ticket() shows a ticket.
 # new in Step 4: every import except SupportTicket
-from openai import OpenAI
 
 from src.agents.concierge import concierge_agent
 from src.agents.router import decide
 from src.agents.triage import triage_agent
-from src.schemas import SupportTicket
 from src.utils.logger import get_logger
 
-def print_ticket(ticket: SupportTicket) -> None:
+def print_ticket(ticket):
     name = ticket.customer_name
     if name is None:
         name = "(not given)"
@@ -133,7 +129,7 @@ def print_ticket(ticket: SupportTicket) -> None:
     print(f"  summary:  {ticket.summary}")
 
 # new in Step 4
-def handle_message(client: OpenAI, history: list[dict], message: str) -> None:
+def handle_message(client, history, message):
     logger = get_logger(__name__)
     decision = decide(client, message)
 
@@ -172,7 +168,7 @@ from src.models.llm import check_api_key_at_startup, create_client
 from src.services.desk_service import handle_message
 from src.utils.logger import get_logger
 
-def main() -> None:
+def main():
     try:
         config = load_config()
     except MissingConfigError as e:
@@ -259,7 +255,7 @@ from pydantic import ValidationError
 
 from src.schemas import RouteDecision, SupportTicket
 
-def test_ticket_without_a_name() -> None:
+def test_ticket_without_a_name():
     ticket = SupportTicket(
         customer_name=None,
         issue_category="account_access",
@@ -271,7 +267,7 @@ def test_ticket_without_a_name() -> None:
         result = "WRONG"
     print(f"case 1 (no name allowed)  -> {result}")
 
-def test_ticket_rejects_unknown_urgency() -> None:
+def test_ticket_rejects_unknown_urgency():
     result = "WRONG"
     try:
         SupportTicket(
@@ -285,7 +281,7 @@ def test_ticket_rejects_unknown_urgency() -> None:
     print(f"case 2 (bad urgency)      -> {result}")
 
 # new in Step 4
-def test_route_rejects_unknown_agent() -> None:
+def test_route_rejects_unknown_agent():
     result = "WRONG"
     try:
         RouteDecision(agent="billing", reason="looks like billing")
@@ -323,21 +319,21 @@ from src.models.llm import (
     send_message,
 )
 
-def test_first_reply(client: OpenAI) -> None:
+def test_first_reply(client):
     reply = send_message(client, [], "What's 2+2?")
     result = "OK"
     if "4" not in reply:
         result = "WRONG"
     print(f"case 1 (first reply) -> {result}: {reply}")
 
-def test_bad_key() -> None:
+def test_bad_key():
     bad_client = OpenAI(api_key="sk-fake-key-123")
     result = "OK"
     if check_api_key_at_startup(bad_client):
         result = "WRONG"
     print(f"case 2 (bad key)     -> {result}")
 
-def test_memory(client: OpenAI) -> None:
+def test_memory(client):
     history = [{"role": "system", "content": "You are a helpful assistant."}]
     send_message(client, history, "My order number is 4471.")
     send_message(client, history, "Thanks, that's all for now.")
@@ -347,11 +343,11 @@ def test_memory(client: OpenAI) -> None:
         result = "WRONG"
     print(f"case 3 (memory)      -> {result}: {reply}")
 
-def load_samples() -> dict:
+def load_samples():
     with open("data/sample/messages.json") as samples_file:
         return json.loads(samples_file.read())
 
-def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
+def test_every_sample_gets_a_ticket(client, samples):
     for message in samples["triage"]:
         ticket = triage_agent(client, message)
         if ticket is None:
@@ -359,7 +355,7 @@ def test_every_sample_gets_a_ticket(client: OpenAI, samples: dict) -> None:
         else:
             print("case 4 (ticket)      -> OK:", ticket.issue_category)
 
-def test_no_invented_name(client: OpenAI, samples: dict) -> None:
+def test_no_invented_name(client, samples):
     ticket = triage_agent(client, samples["triage"][1])
     result = "OK"
     if ticket is None or ticket.customer_name is not None:
@@ -367,7 +363,7 @@ def test_no_invented_name(client: OpenAI, samples: dict) -> None:
     print(f"case 5 (no name)     -> {result}")
 
 # new in Step 4
-def test_routing(client: OpenAI, samples: dict) -> None:
+def test_routing(client, samples):
     for case in samples["routing"]:
         decision = decide(client, case["message"])
         result = "OK"
