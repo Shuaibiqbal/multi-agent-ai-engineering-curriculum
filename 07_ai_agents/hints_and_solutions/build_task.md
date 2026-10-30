@@ -40,7 +40,7 @@ def search_docs(query: str) -> str:
     ...
 ```
 
-`agent.py` is the Intermediate exercise's Approach 2 with `AGENT_TOOLS` instead of `ALL_TOOLS`. Finish the files, then compare against the [Solution](#solution).
+`agent.py` is the Intermediate exercise's loop, now with `AGENT_TOOLS` instead of `ALL_TOOLS`. Finish the files, then compare against the [Solution](#solution).
 
 > [Back to the Build Task](../README.md#build-task-project-2-tool-using-agent) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
@@ -95,7 +95,7 @@ def search_docs(query: str) -> str:
     return "No matching document found."
 ```
 
-**Story — `agent.py`:** the Intermediate exercise's loop (Approach 2), now with `AGENT_TOOLS` — two Doc06 tools and the fail-once search — and the same optional `tools` list, so a test can pass its own. **If not:** Project 2 would be the first place these pieces ever ran together.
+**Story — `agent.py`:** the Intermediate exercise's loop, now with `AGENT_TOOLS` — two Doc06 tools and the fail-once search — and the same optional `tools` list, so a test can pass its own. **If not:** Project 2 would be the first place these pieces ever ran together.
 
 ```python
 # agent.py

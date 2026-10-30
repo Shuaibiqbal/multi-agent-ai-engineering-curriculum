@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-2-a-real-react-agent-that-calls-a-discovered-tool) · [Hint 1](step2_dynamic_tool_agent_hints.md#hint-1) · [Hint 2](step2_dynamic_tool_agent_hints.md#hint-2)
 
-**Story:** the point of the whole project — an agent that acts on tools it never had written into it. The bridge turns discovered MCP tools into OpenAI's function shape; the loop sends them to the model and runs whatever the model picks, through the MCP client. **If not:** you'd be back to hardcoding a `@tool` function for every capability — exactly what MCP exists to avoid.
+**Story:** this is the point of the whole project — an agent that acts on tools it never had written into it ahead of time. The bridge turns the discovered MCP tools into OpenAI's expected function-calling shape; the agent loop sends them to the model and runs whatever the model picks, routing the call back through the MCP client. **If not:** you'd be back to hardcoding a `@tool` function for every single capability — exactly the thing MCP exists to avoid.
 
 ## `src/tool_bridge.py`
 
-**Story:** two small adapters. `mcp_tools_to_openai_schema` turns each discovered tool into the dict OpenAI's `tools` parameter wants — an MCP tool's `input_schema` is already JSON Schema, so it's mostly a copy. `extract_text` pulls the text out of a `CallToolResult`, which is a list of content blocks, not a plain string. **If not:** the model call would reject the tool shape, and printing a result would crash on an object that isn't a string.
+**Story:** these are two small but essential adapters between MCP's shapes and OpenAI's. `mcp_tools_to_openai_schema` turns each discovered tool into the dict OpenAI's `tools` parameter expects — an MCP tool's `input_schema` is already valid JSON Schema, so this is mostly a reshaping copy, not a rewrite. `extract_text` pulls the readable text out of a `CallToolResult`, which comes back as a list of content blocks, not a plain string. **If not:** the model call would reject the mismatched tool shape outright, and printing a result would crash on an object that isn't a string.
 
 ```python
 # Adapters between MCP's shapes and OpenAI's. Kept in one file so the loop
@@ -52,7 +52,7 @@ def extract_text(call_result):
 
 ## `src/server_pool.py` — two methods added
 
-**Story:** the pool now also hands out the OpenAI-shaped tool list and dispatches a call by its namespaced name. The loop calls these two methods and nothing else. **If not:** the agent would need to know about sessions and routing, instead of just "here are the tools, call this one."
+**Story:** the connection pool from Step 1 now also hands out the OpenAI-shaped tool list and dispatches a call by its namespaced `servername__toolname`. The agent loop calls these two methods and nothing else from the pool. **If not:** the agent would need to know about raw sessions and server routing itself, instead of the simpler "here are the tools, call this one by name."
 
 Add these two methods to the `MCPServerPool` class from Step 1:
 
@@ -77,7 +77,7 @@ from src.tool_bridge import extract_text, mcp_tools_to_openai_schema
 
 ## `src/models/llm.py`
 
-**Story:** the one file that talks to OpenAI — create the client, and one `ask_model()` that sends the conversation plus the discovered tools and returns the model's message. **If not:** OpenAI calls would be scattered through the loop, and swapping the model or adding a startup check would mean editing several files.
+**Story:** this is the one file that talks to the OpenAI SDK directly — it creates the client, and one `ask_model()` function that sends the conversation plus the discovered tools and returns the model's message. **If not:** OpenAI calls would be scattered through the agent loop, and swapping the model or adding a startup key check would mean editing several files.
 
 ```python
 # The only file that talks to the OpenAI SDK: the client, a startup key
@@ -110,7 +110,7 @@ def ask_model(client, messages, tools):
 
 ## `src/agent.py`
 
-**Story:** the hand-built ReAct loop (no `create_agent`/`AgentExecutor`) — ask the model, run any tool calls through the pool, append each result as a `tool` message, repeat until the model answers with no tool calls. A plain `max_iterations` cap stops a runaway loop. **If not:** a confused model could call tools forever, and the "discovered tools" idea would have no loop to prove it.
+**Story:** this is the hand-built ReAct loop (no `create_agent`/`AgentExecutor` from a library) — ask the model, run any tool calls it requests through the pool, append each result as a `tool` message, and repeat until the model answers with no further tool calls. A plain `max_iterations` cap stops a runaway loop from going forever. **If not:** a confused model could call tools indefinitely, and the "discovered tools" idea would have no actual loop to prove it works end to end.
 
 ```python
 # The ReAct loop: think (ask the model) -> act (call a discovered tool via
@@ -330,7 +330,7 @@ case 3 (extract_text joins)    -> OK
 
 ## `tests/integration/test_agent.py` (cases 1–2)
 
-**Story:** the real proof — launch the example server over a real MCP connection and confirm the agent discovers its tools and chains two calls. **If not:** a unit test with fakes could pass while the real protocol path was broken.
+**Story:** this is the real proof — launch the example server over a genuine MCP connection and confirm the agent actually discovers its tools and chains two real tool calls in one run. **If not:** a unit test built on fakes could pass while the real protocol path underneath it was silently broken.
 
 ```python
 # Integration test: launches the real example servers over MCP. Each case

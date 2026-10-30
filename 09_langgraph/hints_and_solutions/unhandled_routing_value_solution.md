@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-unhandled_routing_value) · [Hint 1](unhandled_routing_value_hints.md#hint-1) · [Hint 2](unhandled_routing_value_hints.md#hint-2) · [Solution](unhandled_routing_value_solution.md)
 
-**Story — `conditional_routing_practice.py` (Edge cases section):** an unmapped routing value has to fail loudly — this exercise proves it does, on purpose, before you ever see it happen by accident in a real graph. **If not:** the first unmapped routing value in a real graph would be a mystery `KeyError` several stack frames deep inside LangGraph, with no smaller example telling you what it means.
+**Story — `conditional_routing_practice.py` (Edge cases section):** a conditional edge's routing mapping doesn't have to cover every value its function could return — if the function returns a key that's missing from the mapping, LangGraph raises a `KeyError` with no obvious connection to your code. This exercise triggers that on purpose, so it fails loudly and recognizably, before you ever see it happen by accident in a real graph. **If not:** the first unmapped routing value in a real graph would be a mystery `KeyError` several stack frames deep inside LangGraph, with no smaller example telling you what it means.
 
 ## Solution
 

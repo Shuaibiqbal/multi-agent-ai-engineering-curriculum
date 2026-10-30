@@ -14,7 +14,7 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 Think of the Build Task as 3 layers, each one you've already built separately: the **API layer** (`chat_route` — typed request in, typed response out, 4xx/5xx handled correctly, real errors logged on the server only), the **storage layer** (`sqlite_persistence` + `validation_422` — but now with a `status` that changes as the run moves: `"started"` when the row is first written, `"completed"` or `"failed"` once it's done), and the **operations layer** (`db_failure_and_docker` — Dockerfile, secrets only via env vars, startup check — plus rate limiting).
 
-**Why status needs 3 states, not just "done":** a task run can fail partway through — an agent might crash, an API call might time out. Saving a `"started"` row *before* running the task (in its own `with conn:`), then updating it to `"completed"` or `"failed"` after, means a crashed run still leaves a real, honest record. That's the one deliberate difference from `validation_422`'s Approach 3, which rolled both writes back together.
+**Why status needs 3 states, not just "done":** a task run can fail partway through — an agent might crash, an API call might time out. Saving a `"started"` row *before* running the task (in its own `with conn:`), then updating it to `"completed"` or `"failed"` after, means a crashed run still leaves a real, honest record. That's the one deliberate difference from `validation_422`, which rolled both writes back together.
 
 **Why the request ID matters here specifically:** a multi-agent run writes many log lines per request. Without a shared ID on each, you can't tell which lines belong to which request once two people call your API at the same time.
 
@@ -30,7 +30,7 @@ The exact pieces:
 - `api/routes.py` → an `APIRouter` with the 3 routes, plus `check_rate_limit(caller_key)`, called with `http_request.client.host` (the caller's IP address).
 - `api/main.py` → the startup env check, `app.include_router(router)`, and the request-ID middleware.
 - `"\n".join(steps)` — turns the agent's list of steps into one text value for the `log` column.
-- `test_api.py` → `TestClient`, one check per row of the Test Cases table, printed with `# expected:` comments — like `health_route`'s Approach 2.
+- `test_api.py` → `TestClient`, one check per row of the Test Cases table, printed with `# expected:` comments — like `health_route`'s.
 
 > [Back to the Build Task](../README.md#build-task-project-4-as-an-api) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
@@ -178,7 +178,7 @@ class TaskResponse(BaseModel):
     status: str
 ```
 
-**Story — `api/routes.py`:** the three routes on an `APIRouter` (like `health_routes.py`), plus the rate limiter. `POST /run-task` is `chat_route`'s Approach 4 with a database around it: the same 400/500 split, the same `logger.exception`, the same `[request_id]` at the start of every log line. **If not:** a failed run would leave no trace in the logs, and one caller could run up your OpenAI bill with no limit at all.
+**Story — `api/routes.py`:** the three routes on an `APIRouter` (like `health_routes.py`), plus the rate limiter. `POST /run-task` is `chat_route`'s shape with a database wrapped around it: the same 400/500 split, the same `logger.exception`, the same `[request_id]` at the start of every log line. **If not:** a failed run would leave no trace in the logs, and one caller could run up your OpenAI bill with no limit at all.
 
 ```python
 # practice/build_task/api/routes.py
@@ -264,7 +264,7 @@ def get_run(run_id: int):
     return run
 ```
 
-**Story — `api/main.py`:** the one file uvicorn starts. It checks the required setting first, then builds the app, adds the routes, and adds the request-ID middleware from `chat_route`'s Approach 4. **If not:** a container started without its key would look healthy and fail on every real request, and log lines from two requests would be impossible to tell apart.
+**Story — `api/main.py`:** the one file uvicorn starts. It checks the required setting first, then builds the app, adds the routes, and adds the request-ID middleware from `chat_route`. **If not:** a container started without its key would look healthy and fail on every real request, and log lines from two requests would be impossible to tell apart.
 
 ```python
 # practice/build_task/api/main.py

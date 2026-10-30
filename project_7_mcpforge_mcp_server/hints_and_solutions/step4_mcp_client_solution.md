@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-4-a-real-client-that-connects-and-uses-all-three) · [Hint 1](step4_mcp_client_hints.md#hint-1) · [Hint 2](step4_mcp_client_hints.md#hint-2) · [Solution](step4_mcp_client_solution.md)
 
-**Story — Step 4:** a server nobody has connected to isn't proven to work. This step builds a standalone `client.py` — a real MCP client that launches the server, discovers what it offers at runtime, and uses all three building blocks in one run. The server itself doesn't change; this proves it from the outside, the way Claude Desktop or your own agent would. **If not:** you'd only have the Inspector's manual clicks, never the exact code path a real client uses, proven end to end.
+**Story — Step 4:** a server nobody has ever connected to with real client code isn't truly proven to work. This step builds a standalone `client.py` — a real MCP client that launches the server as a subprocess, discovers what it offers entirely at runtime, and exercises all three building blocks (Tools, Resources, Prompts) in one run. The server itself doesn't change at all; this proves it from the outside, exactly the way Claude Desktop or your own agent would connect to it. **If not:** you'd only have the Inspector's manual clicks to rely on, never the exact code path a real client uses, proven end to end.
 
 After this step the project is complete: `python client.py` runs the full connect → discover → use loop in one go. `server.py` is unchanged from Step 3.
 
 ## Solution — discover, then use all three, with a clear failure path
 
-**Story — `client.py`:** `StdioServerParameters` launches `server.py` as a subprocess; `stdio_client` + `ClientSession` open the connection. The client calls `list_tools()` / `list_resources()` / `list_prompts()` to see what's on offer — "discovered, not hardcoded" (Doc06): it never imports anything from `server.py`. Then it uses each one by name. The whole thing is wrapped so a connection failure prints one clear line instead of a traceback, and the empty-note call shows the clean, readable rejection the server returns. **If not:** a missing `server.py` would dump a raw async traceback, and you'd never confirm the error path works from a client's side.
+**Story — `client.py`:** `StdioServerParameters` launches `server.py` as a subprocess; `stdio_client` plus `ClientSession` then open the actual MCP connection to it over stdio. The client calls `list_tools()` / `list_resources()` / `list_prompts()` to see what's on offer at runtime — "discovered, not hardcoded" (Doc06's principle): it never imports anything from `server.py` directly. It then uses each one by the name it discovered. The whole thing is wrapped so a connection failure prints one clear line instead of a raw traceback, and the empty-note call demonstrates the clean, readable rejection the server returns rather than a crash. **If not:** a missing `server.py` would dump a raw async traceback, and you'd never confirm the error path actually works from a real client's side.
 
 ```python
 # client.py

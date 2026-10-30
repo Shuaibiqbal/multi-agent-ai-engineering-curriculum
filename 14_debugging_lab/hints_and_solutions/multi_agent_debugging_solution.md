@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#dbg-multi-agent) · [Round 1: Basic](multi_agent_debugging_hints.md#round-basic) · [Round 2: Intermediate](multi_agent_debugging_hints.md#round-intermediate) · [Round 3: Real-world](multi_agent_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](multi_agent_debugging_hints.md#round-multi-agent) · [Hints](multi_agent_debugging_hints.md)
 
-**Story — `multi_agent_debugging_practice.py`:** multi-agent bugs sit *between* agents — a route name, a state field, a description two agents share. Each fix here comes with a test that checks that boundary directly, with stand-in agents and (except Round 3) no model. **If not:** every agent would pass its own tests while the team as a whole kept failing.
+**Story — `multi_agent_debugging_practice.py`:** multi-agent bugs tend to live *between* agents, not inside any one of them — a mismatched route name, a state field one agent expects and another never sets, a tool description two agents both rely on. Each fix here comes with a test that checks that exact boundary directly, using stand-in agents and, except for Round 3, no model call at all. **If not:** every agent would keep passing its own isolated tests while the team as a whole kept failing in production.
 
 Every fix and test below goes in `practice/multi_agent_debugging_practice.py`, and runs with `pytest multi_agent_debugging_practice.py -v` from inside `practice/`. Only Round 3's test calls the real model (`OPENAI_API_KEY` in your `.env`).
 
@@ -16,7 +16,7 @@ Every fix and test below goes in `practice/multi_agent_debugging_practice.py`, a
 
 **Real cause:** a plain typo — `"Reserach"` instead of `"research_agent"`. `Command(goto=...)` has no fuzzy matching, and a `goto` to a name that isn't a node doesn't raise: LangGraph logs a warning ("wrote to unknown channel branch:to:Reserach, ignoring it") and the run simply ends. That's why nothing crashed — and why the warning line in the log is the only clue.
 
-**Story:** a failure with no exception is the hardest kind to notice. This round trains reading warning lines, not only errors, and keeping node names in one place so a typo can't happen. **If not:** runs would keep ending early and empty, and every error alert would stay quiet.
+**Story:** a failure that raises no exception at all is the hardest kind to notice, because nothing alerts you to it. This round trains actually reading warning-level log lines, not just scanning for errors, and keeping node names defined in one place so a typo between two references becomes structurally impossible. **If not:** runs would keep silently ending early and empty, and every error-monitoring alert would stay quiet the whole time.
 
 **The fix:**
 ```python
@@ -54,7 +54,7 @@ The test walks the supervisor through each stage and checks every name it can re
 
 **Real cause:** `research_node` writes to a key (`finding`) that `SharedState` never declared — the schema has `research_findings`. LangGraph quietly ignores an update to an undeclared key, so the Research agent "succeeds" and the Analysis agent correctly reads an empty `research_findings`. Each is right about its own narrow view; the mismatch exists only between them.
 
-**Story:** the log shows the data one line above where it goes missing — the gap is the hand-off itself. This round trains testing exactly which keys a node writes. **If not:** the pipeline would keep finishing "successfully" with weak, generic answers, and no error anywhere.
+**Story:** the log shows the data present one line above exactly where it goes missing — the gap is the hand-off between two nodes itself. This round trains writing a test that checks precisely which state keys a node actually writes, not just that it runs without crashing. **If not:** the pipeline would keep finishing "successfully" with weak, generic answers, and no error would ever surface anywhere to say why.
 
 **The fix:**
 ```python
@@ -92,7 +92,7 @@ Checking the *keys* a node writes catches silent naming drift that "did the pipe
 
 **Real cause:** the two specialist descriptions overlap for any task that needs both finding *and* interpreting — nothing tells the supervisor which one wins, so its choice (an LLM call) follows small wording differences. This is Doc11's "ambiguous routing" edge case: it looks like random model behavior, but it's a gap in how the specialists were described.
 
-**Story:** five near-identical tasks, two different routes — the pattern across runs is the evidence. This round trains fixing the descriptions the model chooses from, and testing with several wordings of one task. **If not:** you'd blame model randomness, lower the temperature, and keep the ambiguity.
+**Story:** five near-identical tasks come back routed two different ways — the pattern seen *across* several runs is the real evidence here, not any single run. This round trains fixing the actual tool or agent descriptions the model chooses between, and testing with several differently-worded versions of the same task to confirm the fix generalizes. **If not:** you'd blame model randomness, lower the temperature to mask it, and leave the real ambiguity in the descriptions untouched.
 
 **The fix:**
 ```python
@@ -152,7 +152,7 @@ One wording per task can never show wording sensitivity — the test has to send
 
 **Real cause:** Round 2's bug was "fixed" by *adding* a field (`finding`) instead of renaming, leaving two fields that look alike: `finding` (written by Research, read by Analysis) and `research_findings` (still declared, still read by the Reviewer, written by nobody). Each pair test used whichever field its author picked, so both pairs passed — the disagreement only shows when all 4 agents share one real state.
 
-**Story:** every pair of agents works; the team doesn't. This round trains running the whole pipeline once, with stand-in agents, so every hand-off is checked against the same state. **If not:** each agent's author would keep proving their own part correct while the Reviewer rejected every draft.
+**Story:** every pair of agents works fine when tested in isolation; the full team together doesn't. This round trains running the *whole* pipeline once, with stand-in agents, so every hand-off between every pair gets checked against the exact same shared state in one real run. **If not:** each agent's author would keep separately proving their own part correct, while the Reviewer kept rejecting every single draft the full team produced.
 
 **The fix:**
 ```python

@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-3-a-research-agent-that-looks-things-up-before-anyone-else-works) · [Hint 1](step3_research_agent_hints.md#hint-1) · [Hint 2](step3_research_agent_hints.md#hint-2) · [Solution](step3_research_agent_solution.md)
 
-**Story — Step 3:** everything downstream is only as true as the research it starts from. The Research agent **looks facts up with a tool first**, then turns what it found into notes — and when the tool finds nothing, it says so instead of inventing. It's built and tested alone, like the Writer. **If not:** the article would be built on whatever the model happened to remember about the topic.
+**Story — Step 3:** everything downstream in this pipeline is only as true as the research it starts from. The Research agent **looks facts up with a real tool first**, then turns what it found into notes — and when the tool finds nothing for a topic, it says so plainly instead of inventing something plausible. It's built and tested alone, exactly like the Writer was in Step 1. **If not:** the article would be built on whatever the model happened to remember about the topic, with no real grounding at all.
 
 After this step the project runs from a topic: research → write → review. Files not shown here don't change.
 
 ## The tool and its data
 
-**Story — `data/sample/facts.json` + `tools/lookup.py`:** a small local fact store with sources, behind a Doc06 `@tool`. Test the tool alone first: then, if a note looks wrong later, you already know whether it's the tool or the agent. (Also create an empty `src/tools/__init__.py`.) **If not:** you'd be debugging the tool and the agent's use of it at the same time.
+**Story — `data/sample/facts.json` + `tools/lookup.py`:** this is a small local fact store with sources, wrapped behind a Doc06-style `@tool`. Testing the tool alone first means that if a note looks wrong later, you already know whether the problem is the tool's data or the agent's use of it. (Also create an empty `src/tools/__init__.py`.) **If not:** you'd be debugging the tool and the agent's use of it at the same time, with no way to isolate which one is at fault.
 
 `data/sample/facts.json`
 
@@ -70,7 +70,7 @@ def lookup_facts(topic):
 
 ## Solution — look up first, then write notes from what was found
 
-**Story — `prompts/research.txt`:** turn the looked-up facts into notes: one line per fact, keep the `[source]` tag, add nothing. **If not:** the model could "improve" the notes with extra facts nobody looked up.
+**Story — `prompts/research.txt`:** this tells the model to turn the looked-up facts into notes with three rules: one line per fact, keep each fact's `[source]` tag attached, and add nothing beyond what was actually looked up. **If not:** the model could "improve" the notes with extra facts nobody looked up, undermining the whole point of grounding research in a real tool.
 
 `src/prompts/research.txt`
 
@@ -84,7 +84,7 @@ Looked-up facts:
 {facts}
 ```
 
-**Story — `agents/research_agent.py`:** `lookup_facts` runs first. If it returns nothing, `run_research()` returns `""` and logs a warning — no model call, no invented notes. **If not:** an unknown topic would still produce an article.
+**Story — `agents/research_agent.py`:** `lookup_facts` runs first, before any model call. If it returns nothing for the topic, `run_research()` returns an empty string and logs a warning — skipping the model call entirely, so there's no chance of invented notes. **If not:** an unknown topic would still produce an article, built on nothing real.
 
 ```python
 # src/agents/research_agent.py
@@ -184,7 +184,7 @@ if __name__ == "__main__":
 
 ## The Step 3 tests
 
-**Story — `tests/unit/test_lookup.py`:** the tool alone, no API key — a known topic returns its facts, an unknown one returns `""`. **If not:** a broken topic match would look like a bad model.
+**Story — `tests/unit/test_lookup.py`:** this checks the tool alone, with no API key needed: a known topic returns its facts, and an unknown one returns an empty string. **If not:** a broken topic match in the lookup would look exactly like a bad model, and you'd debug the wrong piece.
 
 ```python
 # tests/unit/test_lookup.py

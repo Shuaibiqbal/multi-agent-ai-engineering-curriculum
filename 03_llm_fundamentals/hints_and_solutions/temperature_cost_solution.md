@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-temperature_cost) · [Hint 1](temperature_cost_hints.md#hint-1) · [Hint 2](temperature_cost_hints.md#hint-2) · [Solution](temperature_cost_solution.md)
 
-**Story — `temperature_cost_practice.md`:** temperature changes how varied the answers are, and tokens decide what each call costs. Seeing both side by side, with real numbers, is the base for every later cost and quality decision. **If not:** you'd tune these by feel.
+**Story — `temperature_cost_practice.md`:** `temperature` controls how varied (random) the answers are — low for repeatable, high for creative — while the token count decides what each call costs. Seeing both side by side with real numbers is the base for every later cost-vs-quality decision. **If not:** you'd tune these by feel.
 
 ## Solution
 
-**Story:** the same two parts, with the mechanism behind temperature and the units written out in the cost sum. **If not:** a units mistake would put your cost estimate off by a factor of a million.
+**Story:** the same two parts, now with the mechanism behind `temperature` (it reshapes the next-token probability distribution — flatter means more variety) and the units spelled out in the cost sum (price per 1K tokens × number of tokens). **If not:** a units mistake would put your cost estimate off by a factor of a million.
 
 **Part 1 — temperature, explained mechanically.** At each step, the model computes a probability distribution over its whole vocabulary for "what comes next." `temperature=0` collapses that into effectively always taking the single highest-probability token — this is called greedy decoding, and it's why repeated calls converge on nearly identical output. `temperature=1` samples from the distribution closer to its natural shape, so tokens with real but lower probability get picked sometimes, and one different token early in the sentence compounds into a different sentence by the end, since each next token is chosen conditioned on everything before it.
 

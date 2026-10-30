@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-a-graph-with-only-short-term-checkpointer-memory) · [Hint 1](step1_checkpointer_only_hints.md#hint-1) · [Hint 2](step1_checkpointer_only_hints.md#hint-2)
 
-**Story:** a normal chat graph with only a `SqliteSaver` checkpointer — it remembers within one conversation, and forgets the moment you start a new thread. **If not:** you'd never feel the gap the Store exists to fill.
+**Story:** this builds a normal chat graph with only a `SqliteSaver` checkpointer attached — it genuinely remembers everything *within* one conversation thread, but forgets completely the moment you start a new `thread_id`, because a checkpointer's memory is scoped to one thread, not shared across them. **If not:** you'd never actually feel the real gap that the long-term Store in later steps exists to fill.
 
 ## Setup files
 

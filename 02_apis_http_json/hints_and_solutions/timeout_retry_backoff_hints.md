@@ -74,9 +74,9 @@ for attempt in range(MAX_ATTEMPTS):
             ...  # what goes here, once you're truly out of attempts?
         time.sleep(2 ** attempt)
 ```
-The `if attempt == MAX_ATTEMPTS - 1:` check is the part people forget — without it, the loop just quietly finishes without telling you it never succeeded. Fill in that branch yourself, then compare against the [Solution](timeout_retry_backoff_solution.md)'s Intermediate Approach 1.
+The `if attempt == MAX_ATTEMPTS - 1:` check is the part people forget — without it, the loop just quietly finishes without telling you it never succeeded. Fill in that branch yourself, then compare against the [Solution](timeout_retry_backoff_solution.md).
 
-Once that's working, go one step further — Approach 2, the shape the Build Task actually needs:
+Once that's working, go one step further — the fuller shape the Build Task actually needs:
 
 ```
 function compute_backoff_delay(attempt) -> float:
@@ -119,6 +119,6 @@ def get_with_retry(url: str, max_attempts: int = 5) -> requests.Response:
 ```
 **Expected output, once filled in and called against a real URL that will eventually succeed on attempt 0:** no timeout lines at all — `compute_backoff_delay` is never even called, since the first attempt returns immediately. You'll only see its effect by testing it directly: `print(compute_backoff_delay(3))` should print something a little over `8.0`.
 
-Fill in `compute_backoff_delay` yourself, then compare all of your finished versions against the [Solution](timeout_retry_backoff_solution.md) — its Approach 2 also explains exactly why this one function is worth pulling out on its own.
+Fill in `compute_backoff_delay` yourself, then compare all of your finished versions against the [Solution](timeout_retry_backoff_solution.md) — it also explains exactly why this one function is worth pulling out on its own.
 
 Full solution: [Show me the solution](timeout_retry_backoff_solution.md)

@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-4-a-router-that-sends-each-message-to-the-right-agent-automatically-final-2-agents) · [Hint 1](step4_router_hints.md#hint-1) · [Hint 2](step4_router_hints.md#hint-2) · [Solution](step4_router_solution.md)
 
-**Story — Step 4:** after Step 3, *you* choose the agent by typing `/extract`. This step hands that choice to a router, gives the Concierge its own file, and moves the "router → agent" flow into a service. That turns two modes of one script into a real 2-agent system. **If not:** users would have to know and type a command to file a ticket — exactly the manual sorting this project exists to remove.
+**Story — Step 4:** after Step 3, *you* choose the agent by typing `/extract`. This step hands that choice to a **router** — a small structured-output call that reads each message and decides which agent should handle it — gives the Concierge chat its own file, and moves the whole "router → agent" flow into the service layer. That's what turns two modes of one script into a real 2-agent system that sorts messages by itself. **If not:** users would have to know and type a command to file a ticket — exactly the manual sorting this project exists to remove.
 
 After this step the project is complete. Files from Steps 1-3 that aren't shown here (`config.py`, `exceptions.py`, `models/llm.py`, `agents/triage.py`, `prompts/concierge.txt`, `prompts/triage.txt`, everything in `utils/`, `tests/unit/test_history.py`, `scripts/triage_samples.py`) don't change.
 
@@ -10,7 +10,7 @@ After this step the project is complete. Files from Steps 1-3 that aren't shown 
 
 **Changed from Step 3:** `SupportTicket` is unchanged; `RouteDecision` is added below it.
 
-**Story — `schemas.py`:** adds `RouteDecision` next to `SupportTicket`. The router's answer is structured output too, the way Doc04's table suggests for "a supervisor picks the next agent". **If not:** you'd be parsing a free-text reply like "I think triage." by hand, and a typo'd agent name could slip through.
+**Story — `schemas.py`:** this adds a `RouteDecision` model next to `SupportTicket`. The router's answer is structured output too — the way Doc04's table recommends for "a supervisor picks the next agent" — so the choice comes back as a validated `agent` field plus a reason, not free text. **If not:** you'd be parsing a free-text reply like "I think triage." by hand, and a typo'd agent name could slip through to the dispatch code.
 
 ```python
 # src/schemas.py
@@ -32,7 +32,7 @@ class RouteDecision(BaseModel):
     reason: str
 ```
 
-**Story — `prompts/router.txt`:** says exactly what counts as "triage" and what counts as "concierge", and asks for a short reason. **If not:** the model would guess its own dividing line, and it would move from message to message.
+**Story — `prompts/router.txt`:** this defines the router's job in words: exactly what counts as a "triage" message and what counts as "concierge", and it asks the model for a short reason for its choice. Pinning the dividing line in the prompt keeps routing consistent across messages. **If not:** the model would guess its own dividing line, and that line would drift from one message to the next.
 
 `src/prompts/router.txt`
 
@@ -43,7 +43,7 @@ something broken, no access to an account). Choose 'concierge' for
 greetings, small talk and general questions. Give a one-sentence reason.
 ```
 
-**Story — `agents/router.py`:** one small structured call per message, which understands wording no keyword list covers. It starts from a safe default (Concierge) and only replaces it with a usable answer. Every decision is logged with its reason. **If not:** unclear messages would be misrouted with no trace, and a failed routing call could crash the loop or file a false ticket.
+**Story — `agents/router.py`:** this is the router agent — one small structured call per message that understands wording no keyword list could cover (so "I was double-charged" routes to triage without the word "triage" ever appearing). It starts from a **safe default** (Concierge) and only replaces it with a usable answer, and logs every decision with its reason. **If not:** unclear messages would be misrouted with no trace of why, and a failed routing call could crash the loop or file a false ticket.
 
 ```python
 # src/agents/router.py
@@ -83,7 +83,7 @@ def decide(client, message):
 
 **Moved from Step 3's `main.py`:** the system-prompt line, `MAX_HISTORY_TOKENS`, and the trim + stream lines of the chat branch. Nothing new is added — they're just given their own file.
 
-**Story — `agents/concierge.py`:** Step 3's chat branch becomes an agent: its own prompt (`start_history()`), its own token budget, one function to call. **If not:** the "Concierge" would only be a name for some lines inside `main.py`.
+**Story — `agents/concierge.py`:** this promotes Step 3's chat branch into a proper **agent**: its own prompt via `start_history()`, its own token budget, and one function to call. Giving the Concierge the same shape as the Triage agent is what makes them peers the router can choose between. **If not:** the "Concierge" would only ever be a name for some lines sitting inside `main.py`.
 
 ```python
 # src/agents/concierge.py
@@ -105,7 +105,7 @@ def concierge_agent(client, history, message):
 
 **Changed from Step 3:** `print_ticket()` stays exactly as it was; three imports and `handle_message()` are added below it. `handle_message()` holds the old `/extract`-or-chat `if`, but the router makes the choice now.
 
-**Story — `services/desk_service.py`:** the whole flow in one function: ask the router, run the agent it picked, show the result. **If not:** `main.py` would mix keyboard input with business logic, and Project 5's web API would have to copy this flow instead of calling it.
+**Story — `services/desk_service.py`:** this now holds the whole per-message flow in one function: ask the router which agent, run the agent it picked, show the result. Keeping this in the service layer means `main.py` stays about input and output, and anything else (like Project 5's web API) can call the exact same flow instead of re-implementing it. **If not:** `main.py` would mix keyboard input with business logic, and Project 5's web API would have to copy this flow instead of calling it.
 
 ```python
 # src/services/desk_service.py
@@ -150,7 +150,7 @@ def handle_message(client, history, message):
 
 **Changed from Step 3:** the startup and every `except` block are the same. What's gone: the `print_ticket` import, `MAX_HISTORY_TOKENS` and the `if/else` body (they now live in `desk_service.py` and `concierge.py`). What's new: `history = start_history()` and one call, `handle_message(...)`, inside the `try`.
 
-**Story — `main.py`:** now only startup, the input loop, and Step 3's error handling (unchanged). `/extract` is gone. **If not:** `main.py` would keep growing with every new agent, instead of staying a thin entry point.
+**Story — `main.py`:** with the flow moved into the service, `main.py` is now just three things: startup, the input loop, and Step 3's error handling (unchanged). The `/extract` command is gone, because routing is automatic. Keeping the entry point this thin is the whole point of the service layer. **If not:** `main.py` would keep growing with every new agent, instead of staying a thin entry point.
 
 ```python
 # main.py
@@ -214,7 +214,7 @@ if __name__ == "__main__":
 
 **Changed from Step 3:** the `"triage"` list is the same; the `"routing"` list is new.
 
-**Story — `data/sample/messages.json`:** adds routing cases — each message with the agent it should reach. **If not:** routing could only be checked by chatting by hand.
+**Story — `data/sample/messages.json`:** this adds routing cases to the sample data — each message paired with the agent it *should* reach. That turns routing into something the test suite can check automatically, instead of by hand. **If not:** routing could only be checked by chatting by hand, one message at a time.
 
 `data/sample/messages.json`
 
@@ -244,7 +244,7 @@ if __name__ == "__main__":
 
 **Changed from Step 3:** the import adds `RouteDecision`; cases 1-2 are the same; `test_route_rejects_unknown_agent()` is new.
 
-**Story — `tests/unit/test_schemas.py`:** one more case — `RouteDecision` rejects an agent name that doesn't exist. **If not:** someone could widen the `Literal` by mistake, and the router could return an agent `handle_message()` doesn't know.
+**Story — `tests/unit/test_schemas.py`:** this adds one more case — `RouteDecision` must reject an agent name that doesn't exist — locking the router's output to the two real agents. **If not:** someone could widen the `Literal` by mistake, and the router could return an agent name that `handle_message()` doesn't know how to run.
 
 ```python
 # tests/unit/test_schemas.py
@@ -298,7 +298,7 @@ if __name__ == "__main__":
 
 **Changed from Step 3:** one new import (`decide`), one new function (`test_routing()`), and one new call at the bottom. Cases 1-5 are the same.
 
-**Story — `tests/integration/test_live_agents.py`:** Step 3's checks plus case 6 — every routing case must reach its expected agent. **If not:** a small change to `router.txt` could quietly send complaints to the Concierge.
+**Story — `tests/integration/test_live_agents.py`:** this keeps Step 3's checks and adds case 6: every routing case in the sample data must reach its expected agent, against the live model. That's the end-to-end proof the finished 2-agent system sorts correctly. **If not:** a small change to `router.txt` could quietly start sending complaints to the Concierge, and nothing would catch it.
 
 ```python
 # tests/integration/test_live_agents.py

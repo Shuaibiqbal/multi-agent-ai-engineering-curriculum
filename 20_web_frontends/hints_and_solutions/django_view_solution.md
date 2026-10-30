@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-django_view) · [Hint 1](django_view_hints.md#hint-1) · [Hint 2](django_view_hints.md#hint-2)
 
-**Story:** the shape of Django — a view, a url, settings — so you feel why it's heavier, and know when its batteries (auth, admin, ORM) are worth the weight. **If not:** you'd reach for Django on a demo (overkill) or avoid it on a real product (where it saves weeks).
+**Story:** this builds the actual shape of a Django project — a view function, a `urls.py` entry routing to it, and the project-level settings tying it together — so you genuinely feel why Django carries more structure than Flask, and recognize when its built-in batteries (auth, the admin panel, the ORM) are actually worth that extra weight. **If not:** you'd reach for Django on a weekend demo where it's pure overkill, or avoid it on a real product where it would have saved you weeks of work.
 
 ## The shape of a real Django app
 

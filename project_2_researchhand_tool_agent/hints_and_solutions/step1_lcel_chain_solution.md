@@ -2,15 +2,15 @@
 
 > [Back to this step](../READING_README.md#step-1-a-single-lcel-chain-that-answers-one-question-no-tools) · [Hint 1](step1_lcel_chain_hints.md#hint-1) · [Hint 2](step1_lcel_chain_hints.md#hint-2) · [Solution](step1_lcel_chain_solution.md)
 
-**Story — Step 1:** before any tool or loop, prove the LangChain pieces work on their own: settings load, the model answers, and an LCEL chain (`prompt | model | parser`) turns a question into plain text. **If not:** in Step 2 a failure could come from the chain, the tool or the loop, and you'd be debugging three things at once.
+**Story — Step 1:** before any tool or loop, this step proves the LangChain foundations work on their own: settings load from `.env`, the model answers, and an LCEL chain (`prompt | model | parser`) turns a question into plain text. It's the smallest end-to-end slice — no tools, no agent loop yet — so if anything is misconfigured it fails here, in a few lines, where the cause is obvious. **If not:** in Step 2 a failure could come from the chain, the tool, or the loop, and you'd be debugging three things at once.
 
 After this step the project runs: `python main.py` answers questions from the model's memory — no tools yet, so a live question like today's weather gets a guess.
 
 ## The Doc01 files
 
-These are Doc01's Build Task files (Intermediate, Approach 1), **unchanged** — only the file location and the `from src...` import line differ. They're the same three files as Project 1.
+These are Doc01's Build Task files, **unchanged** — only the file location and the `from src...` import line differ. They're the same three files as Project 1.
 
-**Story — `src/exceptions.py`:** one file for every named error. Step 1 needs only Doc01's `MissingConfigError`; Step 3 adds more. **If not:** errors would be scattered over many files, and a caller wouldn't know where to import them from.
+**Story — `src/exceptions.py`:** this is the single home for the project's named error types. Step 1 needs only Doc01's `MissingConfigError`; Step 3 adds more as the agent grows. Keeping them in one file means any caller knows exactly where to import an error from, and can catch the specific one it cares about instead of a bare `Exception`. **If not:** errors would be scattered over many files, and a caller wouldn't know where to import them from.
 
 ```python
 # src/exceptions.py
@@ -22,7 +22,7 @@ class MissingConfigError(Exception):
     pass
 ```
 
-**Story — `src/config.py`:** the one place the project reads its settings from, failing loudly at startup. **If not:** a missing key would surface later as a confusing `AuthenticationError`.
+**Story — `src/config.py`:** this is the single place the whole project reads its settings from. On startup it loads `.env` and checks that every required value (like `OPENAI_API_KEY`) is present, stopping immediately with a clear `MissingConfigError` if one is missing — so the rest of the code can simply trust a valid `Config`. **If not:** a missing key would surface much later as a confusing `AuthenticationError` deep inside an API call.
 
 ```python
 # src/config.py
@@ -54,7 +54,7 @@ def load_config():
     return Config(openai_api_key=api_key, log_level=log_level)
 ```
 
-**Story — `src/utils/logger.py`:** every file logs the same way, from one setup function. **If not:** each file would set up logging on its own, and some lines would print twice.
+**Story — `src/utils/logger.py`:** this gives the whole project one logging setup from a single `get_logger(name)`: the same format everywhere, and a guard against adding a second handler to the same logger (the usual cause of every line printing twice). **If not:** each file would set up logging on its own, the format would drift from file to file, and some lines would print twice.
 
 ```python
 # src/utils/logger.py
@@ -90,7 +90,7 @@ Also create an empty `__init__.py` in `src/utils/`, so the folder is an importab
 
 ## Solution — a reusable chain, a model helper, and a prompt file
 
-**Story — `models/llm.py`:** the one place that builds the `ChatOpenAI` model, with the key from `load_config()`. Every chain and agent in later steps gets its model from here. **If not:** each file would build its own model with its own settings, and changing the model would mean editing every one of them.
+**Story — `models/llm.py`:** this is the one place that builds the `ChatOpenAI` model, using the key from `load_config()`. Every chain and agent in later steps gets its model from here, so the model name and settings live in exactly one spot. **If not:** each file would build its own model with its own settings, and changing the model would mean editing every one of them.
 
 ```python
 # src/models/llm.py
@@ -106,7 +106,7 @@ def get_model(config):
 
 Also create an empty `__init__.py` in `models/` and in `chains/`.
 
-**Story — `prompts/direct.txt` + `utils/prompts.py`:** the prompt text lives in a `.txt` file, loaded by name — the same pattern as Project 1. The `{question}` placeholder is filled in by the chain. **If not:** the wording would be buried in Python code.
+**Story — `prompts/direct.txt` + `utils/prompts.py`:** the prompt text lives in a `.txt` file and is loaded by name through `load_prompt()` — the same files-not-strings pattern as Project 1 — and its `{question}` placeholder is filled in by the chain at call time. This keeps wording out of code and editable by anyone, not just a programmer. **If not:** the wording would be buried in Python code, and tweaking it would mean a code change.
 
 `src/prompts/direct.txt`
 
@@ -127,7 +127,7 @@ def load_prompt(name):
         return prompt_file.read().strip()
 ```
 
-**Story — `chains/direct_answer.py`:** Doc05's `build_chain()` shape — prompt, model, parser — wrapped in a function so it can be imported. It stays in the project after this step: the compare script in Step 4 uses it to show how a from-memory answer differs from a tool-checked one. **If not:** the chain would be stuck inside `main.py`, and the whole point of the project (verified answers, not guesses) would have nothing to compare against.
+**Story — `chains/direct_answer.py`:** this wraps Doc05's `build_chain()` shape — `prompt | model | parser` — in a function so it can be imported and reused. It deliberately stays in the project after this step: the compare script in Step 4 uses it to show how an answer *from the model's own memory* differs from one *checked by a real tool*. **If not:** the chain would be stuck inside `main.py`, and the whole point of the project — verified answers, not guesses — would have nothing to compare against.
 
 ```python
 # src/chains/direct_answer.py
@@ -144,7 +144,7 @@ def build_direct_chain(model):
     return prompt | model | parser
 ```
 
-**Story — `main.py`:** config first, then the model and the chain, then a question loop. A wrong key gets one clear line and a clean exit (Doc04's error rule). **If not:** a missing or wrong key would show a long traceback.
+**Story — `main.py`:** this wires Step 1 together in order: load config, build the model and the chain, then run a question loop. A wrong key gets one clear line and a clean `sys.exit(1)` (Doc04's error rule), not a traceback. It's the thin entry point later steps build on. **If not:** a missing or wrong key would show a long traceback instead of a readable message.
 
 ```python
 # main.py
@@ -211,7 +211,7 @@ The second answer is exactly the problem this project solves: the model can only
 
 ## The Step 1 tests
 
-**Story — `tests/unit/test_config.py`:** the same three checks as Doc01's `test_config.py` — a missing setting, an empty one, and a config that loads — with no API call. It tests `require_env()` with a made-up setting name, so your real `.env` is never moved or rewritten. **If not:** the first sign of a broken `.env` would be a confusing OpenAI error.
+**Story — `tests/unit/test_config.py`:** this is the fast, no-cost safety net for the settings code: the same three checks as Doc01's `test_config.py` — a missing setting, an empty one, and a config that loads — all with no API call, so they run in milliseconds. It uses a made-up setting name (not your real keys), so running it never moves or rewrites your actual `.env`. **If not:** the first sign of a broken `.env` would be a confusing OpenAI error at runtime, instead of a clear `WRONG` from a test.
 
 ```python
 # tests/unit/test_config.py
@@ -258,7 +258,7 @@ if __name__ == "__main__":
     test_config_loads()
 ```
 
-**Story — `tests/integration/test_live_agents.py`:** the checks that need the real model. It starts with one case — the no-tools chain answers a question — and every later step adds its own cases to this same file. **If not:** "it works" would only mean "it worked the one time I tried it by hand".
+**Story — `tests/integration/test_live_agents.py`:** this holds the checks that genuinely need the real model, starting with one: the no-tools chain actually answers a question. Every later step adds its own cases to this *same* file, so the integration suite grows alongside the agent. **If not:** "it works" would only ever mean "it worked the one time I tried it by hand," with nothing to re-run after a change.
 
 ```python
 # tests/integration/test_live_agents.py

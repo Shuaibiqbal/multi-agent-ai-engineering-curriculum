@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-no_tool_needed) · [Hint 1](no_tool_needed_hints.md#hint-1) · [Hint 2](no_tool_needed_hints.md#hint-2) · [Solution](no_tool_needed_solution.md)
 
-**Story — `no_tool_needed_practice.py`:** an agent that reaches for a tool on every question wastes a full round trip each time. This checks that your loop lets the model answer directly when no tool fits. **If not:** the Build Task's "task needs no tool" Test Case would be checked for the first time there.
+**Story — `no_tool_needed_practice.py`:** an agent that reaches for a tool on every question — even ones a tool can't help with — wastes a full round trip (and the tokens) each time. This checks that `response.tool_calls` comes back empty for a question with no relevant tool, so your loop lets the model answer directly instead of forcing a tool call that doesn't make sense. **If not:** the Build Task's "task needs no tool" Test Case would be checked for the first time there.
 
 Run from inside `practice/`, next to `react_loop_practice.py`.
 

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-conditional_routing) · [Hint 1](conditional_routing_hints.md#hint-1) · [Hint 2](conditional_routing_hints.md#hint-2) · [Solution](conditional_routing_solution.md)
 
-**Story — `conditional_routing_practice.py`:** a plain edge always goes to the same next node — the moment the graph needs to decide, a conditional edge is the one piece of machinery every real agent graph, including Doc07's ReAct loop rebuilt as a graph, actually needs. **If not:** `agent_loop_to_graph` would be the first place you ever wired a decision into a graph, with no smaller example to check it against.
+**Story — `conditional_routing_practice.py`:** a plain `add_edge` always goes to the same next node — but a real agent needs to *decide* where to go next, based on what just happened. `add_conditional_edges` is that decision point: it takes a small routing function that inspects the state and returns a key, which picks the next node from a mapping you supply. This is the one piece of machinery every real agent graph, including Doc07's ReAct loop rebuilt as a graph, actually needs. **If not:** `agent_loop_to_graph` would be the first place you ever wired a decision into a graph, with no smaller example to check it against.
 
 ## Solution
 

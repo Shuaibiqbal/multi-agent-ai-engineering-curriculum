@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-conditional_search) · [Hint 1](conditional_search_hints.md#hint-1) · [Hint 2](conditional_search_hints.md#hint-2) · [Solution](conditional_search_solution.md)
 
-**Story — `search_tool_integration_practice.py`:** this is the exact conditional edge the Build Task needs at its very first step — decide, before anything else runs, whether this question needs the documents at all. **If not:** the Build Task would search on every question, paying for an embedding call and padding the prompt even for "what is 2 + 2?".
+**Story — `search_tool_integration_practice.py`:** this is the exact conditional edge the Build Task needs at its very first step: a small routing function looks at the question before any node runs and decides whether it needs the documents at all, routing straight to a direct answer when it doesn't. **If not:** the Build Task would search on every question, paying for an embedding call and padding the prompt even for "what is 2 + 2?".
 
 Uses the same `practice/` setup as the Basic exercise (Doc08's files, `docs/` and `kb.py`).
 

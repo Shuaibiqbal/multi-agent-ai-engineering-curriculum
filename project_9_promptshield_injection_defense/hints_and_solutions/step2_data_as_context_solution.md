@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-2-the-core-defense-retrieved-content-as-data-not-instructions) · [Hint 1](step2_data_as_context_hints.md#hint-1) · [Hint 2](step2_data_as_context_hints.md#hint-2)
 
-**Story:** the fix that does most of the work — wrap retrieved chunks in a labeled `<retrieved_context>` block and tell the model, in the **system** prompt, that nothing inside it is ever a command. Then re-run Step 1's exact attack and watch the outcome flip. **If not:** the model has no signal that a sentence in a document might be an instruction, so it obeys one.
+**Story:** this is the fix that does most of the actual work — wrap every retrieved chunk in a labeled `<retrieved_context>` block, and tell the model, in the **system** prompt specifically (not just the user message, which the attacker's text also sits near), that nothing inside that block is ever a command to follow. Re-running Step 1's exact same attack afterward and watching the outcome flip is the proof the fix works. **If not:** the model has no clear signal at all that a sentence sitting inside a document might secretly be an instruction, so it just obeys it like any other one.
 
 ## `src/security/context_builder.py` (new)
 
-**Story:** one function that marks retrieved text as data by wrapping it in an explicit, labeled block with each source — the structure the system prompt refers to. **If not:** "treat retrieved content as data" would have no *retrieved content* the model can actually point to.
+**Story:** this is one function that marks retrieved text as data, structurally, by wrapping it in an explicit, labeled block together with each chunk's source — exactly the structure the system prompt's rule refers back to. **If not:** "treat retrieved content as data" would be a rule with no actual *retrieved content block* the model can point to and recognize as such.
 
 ```python
 # src/security/context_builder.py
@@ -22,7 +22,7 @@ def build_context(chunks):
 
 ## `src/agent.py` (hardened branch added)
 
-**Story:** `run_agent` gains a `defended=True` parameter. When true, it wraps the context and uses a hardened system prompt that states the data/instruction boundary as a standing rule. When false, it's Step 1's raw path — kept so the red-team suite's negative control can prove the suite catches the vulnerability. **If not:** you couldn't show a true before/after on the same code.
+**Story:** `run_agent` gains a `defended=True` parameter. When true, it wraps the retrieved context and uses the hardened system prompt that states the data/instruction boundary as a standing rule. When false, it falls back to Step 1's raw, undefended path — kept deliberately so the red-team suite's negative control can prove the suite genuinely catches the vulnerability, not just passes by luck. **If not:** you couldn't show a true, fair before/after comparison on the exact same underlying code.
 
 ```python
 # src/agent.py

@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-5-an-approval-agent-that-only-asks-a-human-when-it-really-needs-to-final-3-agents) · [Hint 1](step5_approval_agent_hints.md#hint-1) · [Hint 2](step5_approval_agent_hints.md#hint-2) · [Solution](step5_approval_agent_solution.md)
 
-**Story — Step 5:** asking a person about **every** answer (Steps 2-4) is safe but too slow — nobody keeps a tool that stops on every question. The Approval agent now runs an explicit checklist on each answer: grounded? cites a source? asks for an action? If every check passes, it approves by itself. If any fails, it pauses for a human and says **which** check failed. **If not:** you'd have to choose between "a human checks everything" and "nobody checks anything".
+**Story — Step 5:** asking a person about **every** answer (Steps 2-4) is safe but too slow — nobody keeps a tool that stops them for every single question. The Approval agent now runs an explicit checklist of plain-Python checks on each answer: is it grounded in the retrieved excerpts? does it cite a source? does it ask for an action the agent can't actually take? If every check passes, it approves by itself and lets the answer through. If any fails, it pauses for a human via `interrupt()` and says **which specific check** failed. **If not:** you'd have to choose between "a human checks everything" (too slow to use) and "nobody checks anything" (unsafe).
 
 After this step the project is complete. Only `agents/approval_agent.py` and the tests change — the graph, `main.py` and the pause/resume scripts already work with it.
 
@@ -10,7 +10,7 @@ After this step the project is complete. Only `agents/approval_agent.py` and the
 
 **Changed from Step 2:** `approval_node` keeps its name, its pause and its yes/no handling. Two things change: the one fixed line of `reasons` becomes `run_checks(state)`, and an "all passed → approve" block is added before the pause. The check functions above it are new.
 
-**Story — `agents/approval_agent.py`:** each check is its own small function, and `run_checks()` returns the list of checks that **failed**. An empty list means auto-approve. Otherwise `interrupt()` pauses with the answer and the failed checks, so the person knows *why* they're being asked. **If not:** one vague "is this okay?" model call couldn't tell you which rule a wrongly-approved answer slipped past.
+**Story — `agents/approval_agent.py`:** each checklist item is its own small, independently testable function, and `run_checks()` collects and returns the list of checks that **failed**. An empty list means auto-approve, no model call needed to decide. Otherwise `interrupt()` pauses with the answer and the specific failed checks attached, so the person reviewing knows exactly *why* they're being asked, not just that something's off. **If not:** one vague "is this okay?" model call couldn't tell you which rule a wrongly-approved answer slipped past.
 
 ```python
 # src/agents/approval_agent.py
@@ -67,7 +67,7 @@ def approval_node(state):
 
 `main.py` doesn't change: since Step 2, `ask_human()` already prints the answer and the reasons it receives.
 
-**Story — `tests/unit/test_approval_checks.py`:** each checklist item, on hand-made states, one function per case printing `OK` or `WRONG`. **If not:** a broken check (say, citations never matching) would send every answer to a human, or none.
+**Story — `tests/unit/test_approval_checks.py`:** this tests each checklist item on its own with hand-made states — no model, no graph — one function per case printing `OK` or `WRONG`. Because the checks are plain Python, they can be exercised exhaustively and instantly. **If not:** a broken check (say, citations never matching) would send every answer to a human, or none, and nobody would notice until usage patterns looked wrong.
 
 ```python
 # tests/unit/test_approval_checks.py

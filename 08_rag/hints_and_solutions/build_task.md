@@ -11,14 +11,14 @@ Only 2 hints — work through them in order, and don't jump ahead until you've g
 
 ## Hint 1 — What you're building, and the exact pieces {: #hint-1 }
 
-The same files, written the way the Intermediate approaches of the exercises wrote them:
+The same files, written the way the exercises wrote them:
 
-- **`Path(folder).glob("*")` and `path.suffix`** — the Real-world exercise's Approach 5, to keep only `.txt` / `.md` files.
-- **`chunk_fn: Callable[[str], list[str]]`** — the Intermediate exercise's Approach 4: the chunker is a parameter, so `build_vector_store(folder, chunk_by_chars)` swaps the method without editing `ingest.py`.
+- **`Path(folder).glob("*")` and `path.suffix`** — from the Real-world exercise, to keep only `.txt` / `.md` files.
+- **`chunk_fn: Callable[[str], list[str]]`** — from the Intermediate exercise: the chunker is a parameter, so `build_vector_store(folder, chunk_by_chars)` swaps the method without editing `ingest.py`.
 - **One id per chunk, built from the file and position:** `f"{path.name}-{chunk_index}"`. The same file always gives the same ids, never random ones.
-- **Embeddings in batches** — the Failure exercise's Approach 2: one call per 1,000 texts, never one call per chunk.
-- **A clean rebuild** — the Real-world exercise's Approach 6: `delete_collection()`, catching `chromadb.errors.NotFoundError` on the first run, then `create_collection()`.
-- **LangChain's `Chroma`** — the Real-world exercise's Approach 7: `OpenAIEmbeddings(model=...)`, `Chroma(collection_name=..., persist_directory=...)`, `delete_collection()`, `Chroma.from_texts(...)` and `similarity_search_with_score()` (each result has `.page_content` and `.metadata`).
+- **Embeddings in batches** — from the Failure exercise: one call per 1,000 texts, never one call per chunk.
+- **A clean rebuild** — from the Real-world exercise: `delete_collection()`, catching `chromadb.errors.NotFoundError` on the first run, then `create_collection()`.
+- **LangChain's `Chroma`** — from the Real-world exercise: `OpenAIEmbeddings(model=...)`, `Chroma(collection_name=..., persist_directory=...)`, `delete_collection()`, `Chroma.from_texts(...)` and `similarity_search_with_score()` (each result has `.page_content` and `.metadata`).
 - **`test_retriever.py` with PASS / FAIL** — each case checks its own result, instead of you reading every line.
 
 Think past "ingest once and it works," too. Ask: **what happens if `build_vector_store()` runs a second time on the same folder?** With a plain `create_collection()`, it crashes — the collection already exists. And `collection.add()` with an id that's already stored is silently ignored, so an edited file would keep its old text. The answer is the clean rebuild: delete the collection and build it again from the files as they are now.
@@ -75,13 +75,13 @@ def load_chunks(
 
 The empty-store check has to happen *before* you search — searching an empty store is exactly the case the requirements call out as "must not crash."
 
-Then sketch the clean rebuild and the batched embedding call yourself — both are in the exercises (Real-world Approach 6, Failure Approach 2) — before checking the Solution.
+Then sketch the clean rebuild and the batched embedding call yourself — both are in the exercises (the Real-world and Failure sections) — before checking the Solution.
 
 > [Back to the Build Task](../README.md#build-task-retriever-module) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)
 
 ## Solution {: #solution }
 
-**Story — `ingest.py` (Intermediate):** `load_chunks()` reads and chunks the files (the Real-world exercise's Approach 5), and `chunk_fn` is typed as `Callable[[str], list[str]]` (the Intermediate exercise's Approach 4). Every id is built from the file and position. **If not:** reading files and talking to Chroma would be tangled in one long function, and nothing would say what kind of function `chunk_fn` must be.
+**Story — `ingest.py` (Intermediate):** `load_chunks()` reads and chunks the files (from the Real-world exercise), and `chunk_fn` is typed as `Callable[[str], list[str]]` (from the Intermediate exercise). Every id is built from the file and position. **If not:** reading files and talking to Chroma would be tangled in one long function, and nothing would say what kind of function `chunk_fn` must be.
 
 `chunking.py` gets type hints (`text: str`, `-> list[str]`); nothing else changes.
 

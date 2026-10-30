@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-context_limit_error) · [Hint 1](context_limit_error_hints.md#hint-1) · [Hint 2](context_limit_error_hints.md#hint-2) · [Solution](context_limit_error_solution.md)
 
-**Story — `context_limit_practice.py`:** Doc03 had you guess how many turns fit in a context window — this is where that guess meets a real, deliberately-triggered `BadRequestError`. Seeing the exact exception type and message once means you recognize it instantly later, instead of panicking at an unfamiliar crash. **If not:** the Build Task's "handle a too-long conversation gracefully" requirement would ask you to catch an error you'd never actually seen fire.
+**Story — `context_limit_practice.py`:** Doc03 had you guess how many turns fit in a context window — this is where that guess meets a real, deliberately-triggered `BadRequestError`: the API rejects the request outright because the messages exceed the model's context window. Seeing the exact exception type and message once means you recognize it instantly later, instead of panicking at an unfamiliar crash. **If not:** the Build Task's "handle a too-long conversation gracefully" requirement would ask you to catch an error you'd never actually seen fire.
 
 ## Solution
 

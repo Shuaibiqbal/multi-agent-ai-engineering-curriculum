@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-structured_parser_swap) · [Hint 1](structured_parser_swap_hints.md#hint-1) · [Hint 2](structured_parser_swap_hints.md#hint-2) · [Solution](structured_parser_swap_solution.md)
 
-**Story — `structured_output_practice.py` (Intermediate section):** `.with_structured_output(Model)` is LangChain's version of the same constrained-decoding call Doc04 made with `.parse()`. This exercise is where you see that the two are the same idea — including the same trap: a required field forces the model to invent a value. **If not:** the Build Task's `model.with_structured_output(ExtractedInfo)` would be the first time you met LangChain's structured-output call.
+**Story — `structured_output_practice.py`:** `.with_structured_output(Model)` wraps a chat model so that, instead of returning free text, it returns a filled-in instance of your Pydantic `Model` — LangChain tells the model the exact shape to produce and parses the reply back into typed Python for you. It's the same constrained-decoding idea you met in Doc04 with the raw SDK's `.parse()`, just the LangChain way of asking for it. This exercise is where you prove to yourself the two are the same tool — including the same trap: if a field is *required*, the model has no way to say "I don't know," so it will invent a plausible-looking value rather than leave it blank. Making a field optional (`str | None`) is what lets the model honestly return nothing. **If not:** the Build Task's `model.with_structured_output(ExtractedInfo)` would be the first time you met LangChain's structured-output call.
 
 ## Solution
 
@@ -48,4 +48,4 @@ Extract: Maria is 34 years old. -> name='Maria' age=34
 Extract: the sky is blue today. -> None
 ```
 
-**Which one should you write?** Intermediate's — it's the same pattern as Doc04's `extract_info()`, now through LangChain, and it's what the Build Task's chain relies on.
+**Note:** this is the same pattern as Doc04's `extract_info()`, now through LangChain — it's what the Build Task's chain relies on.

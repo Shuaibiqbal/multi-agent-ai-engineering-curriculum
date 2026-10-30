@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-html_js_frontend) · [Hint 1](html_js_frontend_hints.md#hint-1) · [Hint 2](html_js_frontend_hints.md#hint-2)
 
-**Story:** "frontend" sometimes means a real HTML page whose JavaScript calls your API — the backend-plus-frontend split a production app (or a React client) uses. **If not:** you only ever know Streamlit, and you can't connect a real web frontend to your pipeline or explain how one would.
+**Story:** "frontend" sometimes means a genuinely separate HTML page whose JavaScript calls your API over `fetch()` — the real backend-plus-frontend split a production app, or a React client, actually uses in practice. **If not:** you'd only ever know Streamlit, and you couldn't connect a real web frontend to your pipeline, or even explain clearly how one would work.
 
 ## The backend: a page and a JSON API
 

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-agent_executor_comparison) · [Hint 1](agent_executor_comparison_hints.md#hint-1) · [Hint 2](agent_executor_comparison_hints.md#hint-2) · [Solution](agent_executor_comparison_solution.md)
 
-**Story — `agent_executor_comparison_practice.py`:** now that you've built the loop, `create_agent` should look familiar — the same think → act → observe turns, pre-built and tested. Running both on the same prompts shows you exactly what the library does for you. **If not:** you'd either trust the library blindly, or rebuild it every time without knowing it already exists.
+**Story — `agent_executor_comparison_practice.py`:** now that you've built the loop by hand, LangChain's `create_agent` should look familiar — it's the same think → act → observe turns, pre-built, tested, and handling the same edge cases you just wrote yourself. Running your hand-built loop and `create_agent` on the same prompts side by side shows you exactly what the library does for you, and that it's doing the same thing, not something mysterious. **If not:** you'd either trust the library blindly, or rebuild it every time without knowing it already exists.
 
 Needs `pip install langchain langgraph`.
 

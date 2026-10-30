@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-token_rule_exceptions) · [Hint 1](token_rule_exceptions_hints.md#hint-1) · [Hint 2](token_rule_exceptions_hints.md#hint-2) · [Solution](token_rule_exceptions_solution.md)
 
-**Story — `token_rule_exceptions_practice.md`:** the ¾-word rule works for plain English and breaks for code, other languages, and data. Finding the exceptions on purpose tells you when to count tokens properly. **If not:** a prompt full of JSON or Urdu text would cost and overflow far more than you planned.
+**Story — `token_rule_exceptions_practice.md`:** the "~¾ of a word per token" rule works for plain English but breaks badly for code, non-English languages, and structured data, where a single word can cost many tokens. Finding those exceptions on purpose tells you when a rough estimate is fine and when you must count tokens properly. **If not:** a prompt full of JSON or Urdu text would cost and overflow far more than you planned.
 
 ## Solution
 
-**Story:** the same cases with the reason behind the gap — how the tokenizer's vocabulary was built. **If not:** you'd memorise exceptions instead of being able to predict new ones.
+**Story:** the same cases, plus the reason behind the gap: the tokenizer's vocabulary was trained mostly on English prose, so text unlike that (code, Urdu, JSON) gets split into many more, smaller tokens. **If not:** you'd memorise exceptions instead of being able to predict new ones.
 
 **Code:** `print('hello world')`
 ```

@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-connect-to-one-mcp-server-and-list-its-tools) · [Hint 1](step1_connect_and_list_tools_hints.md#hint-1) · [Hint 2](step1_connect_and_list_tools_hints.md#hint-2)
 
-**Story:** prove the smallest real piece before building on it — a client that launches a server over stdio, does the MCP handshake, and lists what the server offers. No agent, no model. **If not:** every later bug would be two bugs at once — a broken loop *and* a broken connection — and you'd never know which.
+**Story:** prove the smallest real piece before building anything on top of it — a client that launches a server as a subprocess over stdio, completes the MCP `initialize()` handshake, and lists exactly what the server offers. No agent yet, no model call yet. **If not:** every later bug would really be two bugs at once — a broken agent loop *and* a broken connection underneath it — and you'd never know which one you were actually chasing.
 
 Every file lives under the repo folder. `main.py` runs from the repo root. All of this code runs against the example server with no API key.
 
@@ -89,7 +89,7 @@ def get_logger(name):
 
 ## `servers/notes_server.py`
 
-**Story:** a tiny real MCP server so the whole project runs with no external setup — a `MCPServer`, two `@mcp.tool()`s, `mcp.run(transport="stdio")`. The docstring is the tool's description, which the client shows the model. **If not:** you'd need Node.js and a public server just to test Step 1.
+**Story:** this is a tiny real MCP server, built so the whole project runs with no external setup required — an `MCPServer` instance, two `@mcp.tool()`-decorated functions, and `mcp.run(transport="stdio")` to start it. Each function's docstring becomes its tool description, which the client later hands to the model. **If not:** you'd need Node.js and a public third-party server just to test Step 1 at all.
 
 ```python
 # A minimal MCP server (notes). The client launches this as a subprocess
@@ -142,7 +142,7 @@ SERVERS = [
 
 ## `src/server_pool.py` (Step 1 version)
 
-**Story:** one place owns every server connection. `connect_all()` launches each server over stdio, does the `initialize()` handshake, lists its tools, and stores each one under a namespaced name `servername__toolname` with a routing entry back to its real server + tool. **If not:** connection code would be scattered through the agent, and there'd be nowhere clean to add multi-server routing (Step 3) or resilience (Step 4).
+**Story:** this is the one place that owns every server connection. `connect_all()` launches each configured server over stdio, performs the `initialize()` handshake, lists its tools, and stores each discovered tool under a namespaced name `servername__toolname`, with a routing entry pointing back to its real server and tool name. **If not:** connection code would be scattered through the agent, and there'd be nowhere clean to add multi-server routing (Step 3) or resilience to a dead server (Step 4).
 
 ```python
 # MCPServerPool: connect to every configured server, discover each one's
@@ -197,7 +197,7 @@ class MCPServerPool:
 
 ## `main.py` (Step 1 version)
 
-**Story:** connect, and print exactly what the model will later be handed. Looking at the real `input_schema` now — not what you assume it looks like — is the whole point of Step 1. **If not:** Step 2's schema bridge would be guessing at a shape you never checked.
+**Story:** this connects and prints exactly what the model will later be handed — the real tool names and their real `input_schema`. Looking at the actual schema now, not what you assume it looks like, is the whole point of Step 1. **If not:** Step 2's schema bridge would be guessing at a shape you never actually checked.
 
 ```python
 # Step 1 demo: connect to the configured servers and print every

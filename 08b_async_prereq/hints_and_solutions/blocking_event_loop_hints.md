@@ -89,6 +89,6 @@ async def fixed_task() -> str:
 async def main_fixed() -> None:
     await time_it("fixed + good (to_thread):", fixed_task(), good_task())
 ```
-Add this third comparison to your `main()` from the Basic version, run all 3, and confirm `"fixed + good"` comes back close to 3 seconds — not 6, like `"blocking + good"` did — then compare against the [Solution](blocking_event_loop_solution.md).
+Add this third comparison to your `main()`, run all 3, and confirm `"fixed + good"` comes back close to 3 seconds — not 6, like `"blocking + good"` did — then compare against the [Solution](blocking_event_loop_solution.md).
 
 Full solution: [Show me the solution](blocking_event_loop_solution.md)

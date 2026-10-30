@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-1-one-specialists-drafting-logic-working-alone-no-agent-behavior) · [Hint 1](step1_writer_chain_hints.md#hint-1) · [Hint 2](step1_writer_chain_hints.md#hint-2) · [Solution](step1_writer_chain_solution.md)
 
-**Story — Step 1:** a team is only as good as each member. Start with one specialist — the Writer, because it needs no tools — and prove its core skill alone: findings in, article out, as one LCEL chain. **If not:** in Step 5, a bad article could come from the Writer, the Reviewer, the routing or the state, and you'd be debugging all four at once.
+**Story — Step 1:** a multi-agent team is only as good as each member. Start with one specialist — the Writer, because it needs no tools — and prove its core skill alone, outside any graph: research findings go in, a complete article comes out, as one LCEL chain (`prompt | model | parser`). **If not:** in Step 5, a bad article could come from the Writer, the Reviewer, the routing, or the shared state, and you'd be debugging all four at once.
 
 After this step the project runs: `python main.py` writes three test articles from made-up findings, and the test files print `OK`.
 
@@ -10,7 +10,7 @@ After this step the project runs: `python main.py` writes three test articles fr
 
 These are the same files as Projects 1-3 — Doc01's config, errors and logger, and Project 1's prompt loader — with the package folder `src`, and the prompts folder changed to `src/prompts`. Project 3's `get_model()` comes with them.
 
-**Story — `exceptions.py`, `config.py`, `utils/logger.py`, `utils/prompts.py`:** settings load and fail loudly at startup, logging is set up once, prompts live in `.txt` files. **If not:** each agent would repeat this setup its own way.
+**Story — `exceptions.py`, `config.py`, `utils/logger.py`, `utils/prompts.py`:** these are the by-now-familiar foundations: settings load from `.env` and fail loudly at startup, one `get_logger()` sets up logging everywhere, and prompts live in `.txt` files loaded by name. **If not:** each of the four agents in this project would repeat this setup its own way, and a fix would need four edits instead of one.
 
 ```python
 # src/exceptions.py
@@ -95,7 +95,7 @@ Also create empty `__init__.py` files in `src/utils/`, `src/models/` and `src/ag
 
 ## Solution — a reusable Writer with strict rules, tested on 3 inputs
 
-**Story — `models/llm.py`:** one place builds the model for every agent — the same `get_model()` as Project 3, since Step 5's graph nodes only receive the state. **If not:** four agents would build four models with four settings.
+**Story — `models/llm.py`:** this one place builds the model for every agent in the team — the same `get_model()` pattern as Project 3, needed because Step 5's graph nodes only ever receive the state, never a pre-built model object. **If not:** four agents would build four models with four separate, possibly-drifting settings.
 
 ```python
 # src/models/llm.py
@@ -107,7 +107,7 @@ def get_model():
     return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
-**Story — `prompts/writer.txt`:** the Writer's rules: a titled 150-250-word article, **only** the given findings, and keep each fact's `[source]` tag. **If not:** the article could quietly mix in facts nobody researched.
+**Story — `prompts/writer.txt`:** this spells out the Writer's rules in words a schema can't enforce: produce a titled 150-250-word article, use **only** the given findings, and keep each fact's `[source]` tag attached so later agents (and readers) can trace where it came from. **If not:** the article could quietly mix in facts nobody actually researched.
 
 `src/prompts/writer.txt`
 
@@ -122,7 +122,7 @@ Findings:
 
 (Step 2 adds a feedback section to this prompt.)
 
-**Story — `agents/writer_agent.py`:** `build_writer_chain()` is the Writer's whole skill; `run_writer()` is the one function other code calls. **If not:** the chain would live inside `main.py`, and Step 2 couldn't wrap it.
+**Story — `agents/writer_agent.py`:** `build_writer_chain()` builds the Writer's whole skill as one LCEL chain; `run_writer()` is the one function every other piece of code calls to use it, hiding the chain's internals behind a plain function signature. **If not:** the chain would live inside `main.py`, and Step 2 couldn't wrap it in a revision loop without duplicating it.
 
 ```python
 # src/agents/writer_agent.py
@@ -143,7 +143,7 @@ def run_writer(findings):
     return chain.invoke({"findings": findings})
 ```
 
-**Story — `main.py`:** three test inputs, including a nearly empty one **on purpose** — to see now what the Writer does with almost nothing, before Research ever feeds it something thin. **If not:** you'd first see that behavior in the full pipeline, with four agents to suspect.
+**Story — `main.py`:** this runs the Writer against three test inputs, including a nearly empty one **on purpose** — so you see now, with just one agent running, what it does with almost nothing to work from, before the real Research agent ever feeds it something thin. **If not:** you'd first see that behavior in the full pipeline, with four agents to suspect instead of one.
 
 ```python
 # main.py
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
 ## The Step 1 tests
 
-**Story — `tests/unit/test_config.py`:** the same three checks as Doc01's `test_config.py` — a missing setting, an empty one, and a config that loads — with no API call. It tests `require_env()` with a made-up setting name, so your real `.env` is never touched. **If not:** a broken `.env` would first show up as a confusing OpenAI error.
+**Story — `tests/unit/test_config.py`:** this is the fast, no-cost safety net for the settings code: the same three checks as Doc01's `test_config.py` — a missing setting, an empty one, and a config that loads — all with no API call. It uses a made-up setting name, so your real `.env` is never touched. **If not:** a broken `.env` would first show up as a confusing OpenAI error deep inside one of the four agents.
 
 ```python
 # tests/unit/test_config.py
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     test_config_loads()
 ```
 
-**Story — `tests/integration/test_live_agents.py`:** the checks that need the real model. It starts with one case — the Writer turns findings into an article that keeps its `[source]` tag — and every later step adds its own cases to this same file. **If not:** "the Writer works" would mean "it worked the one time I tried it".
+**Story — `tests/integration/test_live_agents.py`:** this holds the checks that genuinely need the real model, starting with one: the Writer turns findings into an article that keeps its `[source]` tag intact. Every later step adds its own cases to this same growing file, one per agent. **If not:** "the Writer works" would mean "it worked the one time I tried it," with nothing to re-run after a prompt change.
 
 ```python
 # tests/integration/test_live_agents.py

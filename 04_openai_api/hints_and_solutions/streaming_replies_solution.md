@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-streaming_replies) · [Hint 1](streaming_replies_hints.md#hint-1) · [Hint 2](streaming_replies_hints.md#hint-2) · [Solution](streaming_replies_solution.md)
 
-**Story — `streaming_practice.py`:** a normal call waits for the entire reply before showing you anything — for a long answer, that's several seconds of silence. Streaming prints each piece as it arrives, which is the difference between a chatbot that feels instant and one that feels stuck. **If not:** the Build Task's `stream_message()` would be the first time you ever saw a chunk-by-chunk response, with no smaller version to check your understanding against.
+**Story — `streaming_practice.py`:** a normal call waits for the entire reply before showing you anything — for a long answer, that's several seconds of silence. Passing `stream=True` makes the API send the reply in small chunks, and you print each piece as it arrives — the difference between a chatbot that feels instant and one that feels stuck. **If not:** the Build Task's `stream_message()` would be the first time you ever saw a chunk-by-chunk response, with no smaller version to check your understanding against.
 
 ## Solution
 

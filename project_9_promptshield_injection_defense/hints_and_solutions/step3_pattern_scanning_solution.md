@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-3-a-second-layer-scanning-retrieved-content-for-injection-patterns) · [Hint 1](step3_pattern_scanning_hints.md#hint-1) · [Hint 2](step3_pattern_scanning_hints.md#hint-2)
 
-**Story:** a second, independent layer — a scanner that flags a suspicious chunk before it reaches the model and logs a warning. It doesn't need the model to behave to notice something looks wrong. **If not:** if Step 2's framing ever didn't hold, nothing would even *notice* the attack — you'd have no way to answer "how would we know this happened?"
+**Story:** this adds a second, fully independent layer of defense — a scanner that flags a suspicious chunk *before* it ever reaches the model, and logs a warning about it. It doesn't depend on the model behaving correctly to notice that something looks wrong, which is exactly what makes it independent. **If not:** if Step 2's framing-based defense ever didn't hold for some reason, nothing would even *notice* the attack happened — you'd have no way to answer "how would we know this occurred?"
 
 ## `src/security/injection_scanner.py` (new)
 
-**Story:** plain pattern checks that return readable warnings — a tripwire. The honest limit is written into the file on purpose: a reworded attack slips past, and that's expected. **If not:** treating pattern matching as a guarantee is exactly the false confidence this project warns against.
+**Story:** these are plain string and regex pattern checks that return readable warning messages — a tripwire, not a wall. The honest limit is written into the file as a comment on purpose: a cleverly reworded attack slips past the patterns, and that's expected, not a bug to chase down. **If not:** treating pattern matching as a guarantee rather than a tripwire is exactly the false confidence this whole project exists to warn against.
 
 ```python
 # src/security/injection_scanner.py
@@ -44,7 +44,7 @@ def scan_for_injection_patterns(text):
 
 ## `src/rag/retriever.py` (now logs a warning)
 
-**Story:** after retrieval, each chunk goes through the scanner and a trip is logged (via the logger, not `print`) naming the source document and the matched pattern — so the planted doc shows up in the logs the moment it's retrieved. **If not:** the scanner would run silently and prove nothing.
+**Story:** after retrieval, each chunk is run through the scanner, and any trip is logged through the real logger (never a plain `print`), naming the source document and exactly which pattern matched — so the planted malicious document shows up in the logs the very moment it's retrieved, not only if the agent happens to fall for it. **If not:** the scanner would run silently in the background and prove absolutely nothing was ever caught.
 
 ```python
 # src/rag/retriever.py  (Step 3 version)

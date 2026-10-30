@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-4-a-test-suite-that-catches-a-bad-change-before-it-ships-final) · [Hint 1](step4_eval_suite_hints.md#hint-1) · [Hint 2](step4_eval_suite_hints.md#hint-2) · [Solution](step4_eval_suite_solution.md)
 
-**Story — Step 4:** the API tests prove the **service** works. They say nothing about whether the **articles** are still good — the team is faked there on purpose. This step adds Doc13's eval suite: 10 fixed topics, each with a check written **before** anything runs, a judge for the parts code can't check, and a regression check that makes a prompt worse on purpose and proves the score drops. **If not:** a prompt edit that quietly drops the `[source]` tags would pass every test and ship.
+**Story — Step 4:** the API tests from Step 1 prove the **service** works — routes, status codes, the database. They say nothing about whether the **articles themselves** are still good, because the team is deliberately faked there. This step adds Doc13's eval suite against the real pipeline: 10 fixed topics, each with a check written **before** anything runs (so the rules can't bend to match whatever came out), an LLM judge for the parts plain code can't check, and a regression check that makes a prompt worse on purpose and proves the eval score actually drops when quality really drops. **If not:** a prompt edit that quietly drops the `[source]` tags would pass every test and ship straight to production.
 
 After this step the project is complete. Files not shown here don't change.
 
@@ -14,7 +14,7 @@ Project 4's test files stay exactly as they were — plain OK/WRONG scripts; thi
 
 ## Solution — part 1: the suite, one job per file
 
-**Story — `evals/tasks.py`:** the fixed test set, written **before** anything runs (Doc13). Source tags are exact, so they get a free code check; "says how long panels take to pay back" needs the judge; unknown topics must produce **no** article. (Also create an empty `evals/__init__.py`.) **If not:** you'd write the rules after reading the output, and they'd describe whatever the team wrote.
+**Story — `evals/tasks.py`:** this is the fixed test set, with each task's pass criteria written **before** anything runs (Doc13's rule, so the bar can't drift to match whatever output you happen to see). Source tags are exact strings, so they get a free, instant code check; a semantic claim like "says how long panels take to pay back" can't be checked by exact match, so it needs the judge; unknown topics must produce **no** article at all. (Also create an empty `evals/__init__.py`.) **If not:** you'd write the rules after reading the output, and they'd quietly describe whatever the team happened to write, not what it should write.
 
 ```python
 # src/evals/tasks.py
@@ -53,7 +53,7 @@ TASKS = [
 ]
 ```
 
-**Story — `evals/judge.py`:** Doc13's judge, unchanged except two lines: the model name comes from `models/llm.py`, and the OpenAI client is made inside `call_model()`. Typed result, versioned prompt, `temperature=0`. **If not:** creating the client at import time would crash before `load_config()` had read `.env`.
+**Story — `evals/judge.py`:** this is Doc13's LLM-judge pattern, unchanged except two lines: the model name comes from the project's own `models/llm.py`, and the OpenAI client is built *inside* `call_model()` rather than at import time. The verdict is a typed Pydantic result, the judge prompt is versioned, and `temperature=0` keeps judging repeatable. **If not:** creating the client at import time would crash before `load_config()` ever had the chance to read `.env`.
 
 ```python
 # src/evals/judge.py
@@ -105,7 +105,7 @@ def score_with_judge(task_input, output, rules):
     return JudgeResult(verdict=verdict, reason=reason)
 ```
 
-**Story — `evals/run_eval.py`:** Doc13's runner, pointed at `run_pipeline()` — the same door the API uses, so the suite tests exactly what ships. The cheapest check that works for each task; a reason for every failure; a saved `report.json`. **If not:** a run's result would live only in your terminal, with no reason for a failure.
+**Story — `evals/run_eval.py`:** this is Doc13's eval runner, pointed at the exact same `run_pipeline()` the API uses — so the suite tests precisely what ships, not a separate code path that could drift from it. Each task gets the cheapest check that actually proves its claim (exact match before reaching for the judge), every failure gets a logged reason, and the whole run is saved to `report.json`. **If not:** a run's result would live only in your terminal, with no saved reason for a failure to look back on.
 
 ```python
 # src/evals/run_eval.py
@@ -179,7 +179,7 @@ Passed 10/10 (score: 1.00)
 
 ### Part 2 — prove the judge, and prove the suite catches a regression
 
-**Story — `tests/integration/test_judge.py`:** Doc13's calibration set, for this suite's rules: the judge must PASS a titled, tagged article and FAIL an off-topic one and one with no tags. **If not:** a judge that approves everything would make every run look perfect.
+**Story — `tests/integration/test_judge.py`:** this is Doc13's calibration-set pattern, adapted to this suite's own rules: the judge must correctly PASS a titled, properly-tagged article and correctly FAIL both an off-topic one and one with no source tags. Calibrating the judge against known-good and known-bad cases is what makes its verdicts trustworthy. **If not:** a judge that approves everything would make every single run look perfect, judge included.
 
 ```python
 # tests/integration/test_judge.py
@@ -212,7 +212,7 @@ def test_judge_calibration():
         assert result.verdict == case["expected_verdict"], result.reason
 ```
 
-**Story — `evals/regression_check.py`:** Doc13's pass bar and per-task list, run against the real suite. The sabotage is in **Research's** prompt: without "each ending with its [source] tag", the notes lose their sources, and nothing later in the team can put them back. **If not:** "the suite would catch a bad change" would stay a belief, never a result.
+**Story — `evals/regression_check.py`:** this runs Doc13's pass-bar check against the real suite, before and after deliberately sabotaging one prompt. The sabotage targets **Research's** prompt specifically: removing the instruction "each ending with its `[source]` tag" means the notes lose their sources, and nothing downstream in the team — Analysis, Writer, Reviewer — can ever put a missing source back. **If not:** "the suite would catch a bad change" would stay an untested belief, never an actual proven result.
 
 ```python
 # src/evals/regression_check.py

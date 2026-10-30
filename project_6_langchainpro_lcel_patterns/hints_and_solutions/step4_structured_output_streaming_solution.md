@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-4-stream-the-reply-live-and-build-one-structured-record-per-ticket) · [Hint 1](step4_structured_output_streaming_hints.md#hint-1) · [Hint 2](step4_structured_output_streaming_hints.md#hint-2) · [Solution](step4_structured_output_streaming_solution.md)
 
-**Story — Step 4:** one reply is needed in two shapes. A support agent watching the screen wants to see it **as it's written**. The ticketing system wants a **checked record** — category, reply, fallback used, needs a human — to store and route on. Both must come from the same reply, and the unclear ticket and every fallback must be flagged for a person, not quietly decided. **If not:** the agent stares at a blank screen, and the ambiguity Step 1 revealed disappears without a trace.
+**Story — Step 4:** one reply is actually needed in two different shapes at once. A support agent watching the screen wants to see it **as it's being written**, via `.stream()`. The ticketing system wants a **checked record** — category, reply, whether the fallback was used, whether it needs a human — to store and route on. Both must be built from the exact same reply, not two separate model calls that could disagree, and the unclear ticket from Step 1 plus every fallback from Step 3 must now be flagged for a person to actually look at, not quietly auto-decided. **If not:** the agent stares at a blank screen while waiting, and the ambiguity Step 1 revealed disappears without a trace.
 
 After this step the project is complete: every reply streams live, and every ticket ends with a record that says whether a human should look at it.
 
@@ -10,7 +10,7 @@ After this step the project is complete: every reply streams live, and every tic
 
 **Changed from Step 3:** `TicketRecord` adds two fields, both with defaults.
 
-**Story — `schemas.py`:** `needs_human_review` is the flag a ticketing system routes on; `review_reasons` says **which** rule fired. **If not:** a person would see `True` and have to guess why.
+**Story — `schemas.py`:** `needs_human_review` is the boolean flag a real ticketing system would route on; `review_reasons` is a list that names **which specific rule** fired, not just that something did. **If not:** a person would see a bare `True` on a flagged ticket and have to guess why it was flagged.
 
 ```python
 # src/schemas.py
@@ -37,7 +37,7 @@ class TicketRecord(BaseModel):
 
 **Changed from Step 3:** `handle_ticket()` now streams the reply and fills the two new fields. Its name, inputs and return type stay the same.
 
-**Story — `services/pipeline.py`:** `stream_reply()` prints each piece and returns the full text; `review_reasons()` holds the rules as plain code (fallback used, or not sure); `handle_ticket()` builds the record from the **same** streamed reply the customer saw. **If not:** a second model call for the record could quietly say something different from the reply.
+**Story — `services/pipeline.py`:** `stream_reply()` prints each chunk as it arrives via `.stream()` and also collects and returns the full text once done; `review_reasons()` holds the flagging rules as plain, testable Python (fallback was used, or the classifier wasn't sure); `handle_ticket()` builds the final record from the **exact same** streamed reply the customer already saw, never a second call. **If not:** a second model call made just to build the record could quietly say something different from the reply the customer actually read.
 
 ```python
 # src/services/pipeline.py
@@ -92,7 +92,7 @@ def handle_ticket(ticket, customer_id):
 
 **Changed from Step 3:** `print_record()` adds the review flag and its reasons; the reply itself was already streamed.
 
-**Story — `main.py`:** the loop only shows results; the review reasons are listed under each ticket. **If not:** a flagged ticket would look the same as a clean one.
+**Story — `main.py`:** the loop simply displays results now; any review reasons for a ticket are listed right under it, visibly. **If not:** a flagged ticket would print identically to a clean one, defeating the whole point of flagging it.
 
 ```python
 # main.py
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — the tests:** `test_review.py` checks each review rule with hand-made inputs, no key needed. `test_schemas.py` is unchanged: its Step 1 record still builds, because the new fields have defaults. The integration test now checks the unclear ticket really gets flagged. **If not:** a rule could stop firing and nobody would notice.
+**Story — the tests:** `test_review.py` checks each flagging rule on its own with hand-made inputs, no API key needed, since the rules are plain Python. `test_schemas.py` is unchanged from Step 1: its old record still builds fine, because the new fields all have defaults. The integration test now adds a real check that the deliberately unclear ticket genuinely gets flagged by the live pipeline. **If not:** a flagging rule could silently stop firing and nobody would notice until a ticket slipped through unreviewed.
 
 ```python
 # tests/unit/test_review.py

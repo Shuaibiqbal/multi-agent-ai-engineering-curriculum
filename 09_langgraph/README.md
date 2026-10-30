@@ -759,7 +759,7 @@ practice/
 ├── agent.py ... tools.py              Doc07's Build Task files, copied in
 │                                       (for the Real-world exercise)
 ├── agent_loop_to_graph_practice.py    Real-world
-├── approval_graph.py                  Failure (Approach 3)
+├── approval_graph.py                  Failure
 ├── conditional_routing_practice.py    Intermediate + Edge cases
 │                                       (two sections)
 ├── first_graph_practice.py            Basic

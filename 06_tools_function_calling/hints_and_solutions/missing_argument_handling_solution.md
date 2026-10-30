@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-missing_argument_handling) · [Hint 1](missing_argument_handling_hints.md#hint-1) · [Hint 2](missing_argument_handling_hints.md#hint-2) · [Solution](missing_argument_handling_solution.md)
 
-**Story — `missing_argument_practice.py`:** when a required argument is missing from the user's message, the model can ask, guess, or send an empty value — and which one it does tells you whether your tool needs to design for a clarifying question or a graceful default. **If not:** the Build Task's Pydantic argument models would be guessing at a problem you'd never actually watched happen.
+**Story — `missing_argument_practice.py`:** when a required argument is missing from the user's message (they say "what's the weather?" with no city), the model has three choices — ask a clarifying question, guess a value, or send an empty string — and *which* it does decides how your tool must defend itself. This exercise makes you watch that behavior directly, so you know whether to design for a clarifying question or a graceful default, and so a bad value (an empty city) is caught rather than sent to the API. **If not:** the Build Task's Pydantic argument models would be guessing at a problem you'd never actually watched happen.
 
 ## Solution
 

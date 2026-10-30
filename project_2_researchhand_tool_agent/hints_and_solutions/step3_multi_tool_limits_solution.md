@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-3-scaling-to-3-tools-with-a-hard-step-limit-and-failure-recovery) · [Hint 1](step3_multi_tool_limits_hints.md#hint-1) · [Hint 2](step3_multi_tool_limits_hints.md#hint-2) · [Solution](step3_multi_tool_limits_solution.md)
 
-**Story — Step 3:** a one-tool demo never shows what breaks for real. Real tools call networks that fail, and real questions leave the model choosing between tools. This step adds two tools — one real API, one that fails on purpose — and the Worker from Step 2 handles them **without any change to its loop**: `run_tool()` already turns failures into observations, and the step limit already exists. **If not:** the first real network failure would crash the app — or you'd rewrite the loop now, instead of just adding tools.
+**Story — Step 3:** a one-tool demo never shows what breaks for real. Real tools call networks that fail, and real questions force the model to *choose* between tools. This step adds two more tools — one real API (weather) and one that fails on purpose — and the Worker from Step 2 handles them **without any change to its loop**: `run_tool()` already turns failures into observations, and the step limit already exists. Proving the loop absorbs real-world mess without edits is the whole payoff of having built it properly in Step 2. **If not:** the first real network failure would crash the app — or you'd be rewriting the loop now, instead of just adding tools.
 
 After this step the Worker answers live weather, company policy and conversions, and recovers from a tool failure. Files not shown here don't change.
 
@@ -40,7 +40,7 @@ class MaxIterationsExceeded(Exception):
         super().__init__(message)
 ```
 
-**Story — `utils/http_client.py`:** Doc02's Build Task client (Intermediate), with one change: the logger is fetched inside the function, like every other file here, so `LOG_LEVEL` from `.env` is loaded first. **If not:** the weather tool would call `requests` directly, with no timeout and no retry.
+**Story — `utils/http_client.py`:** this is Doc02's Build Task HTTP client, with one change: the logger is fetched *inside* the function (like every other file here) so `LOG_LEVEL` from `.env` is loaded before logging starts. Reusing it means the weather tool gets timeouts and retries for free, instead of calling `requests` raw. **If not:** the weather tool would call `requests` directly, with no timeout and no retry, and one hung connection could freeze the agent.
 
 ```python
 # src/utils/http_client.py
@@ -97,7 +97,7 @@ def request_with_retry(method, url, max_attempts=5, **kwargs):
         raise PermanentHTTPError(response.status_code, response.text)
 ```
 
-**Story — `tools/docs_search.py`:** a small, local policy "search" with known answers. It **fails on its first call on purpose**, using Doc07's `FlakyToolState`, so every run proves the Worker recovers. **If not:** failure recovery could only be tested by waiting for a real outage.
+**Story — `tools/docs_search.py`:** this is a small, local policy "search" with known answers — and it **fails on its first call on purpose**, using Doc07's `FlakyToolState`. That deliberate flakiness means every single run exercises the Worker's recovery path, instead of you hoping to catch it during a real outage. **If not:** failure recovery could only be tested by waiting for a real network outage to happen.
 
 ```python
 # src/tools/docs_search.py
@@ -138,7 +138,7 @@ def search_docs(query):
 
 ## Solution — a weather tool on Doc02's client, and a Worker that only gains tools
 
-**Story — `tools/weather.py`:** Doc06's real-API tool, calling Doc02's `request_with_retry("GET", ...)`, so it gets timeouts and retries. The description says when *not* to use it — with 3 tools, the description is how the model chooses. **If not:** the model could reach for the weather tool on a policy question, and one slow response could hang the run.
+**Story — `tools/weather.py`:** this is Doc06's real-API tool, calling Doc02's `request_with_retry("GET", ...)` so it inherits timeouts and retries. Its description deliberately says when *not* to use it — because with three tools available, the tool **description** is literally how the model decides which one to call. **If not:** the model could reach for the weather tool on a policy question, and one slow response could hang the whole run.
 
 ```python
 # src/tools/weather.py
@@ -183,7 +183,7 @@ def get_weather(city):
 
 **Changed from Step 2:** `prompts/worker.txt` is rewritten for 3 tools and the retry rule.
 
-**Story — `prompts/worker.txt`:** says which kinds of questions need tools, that a failed tool may be tried once more, and that the answer must come from what the tools returned. **If not:** the model might answer a policy question from memory, or give up after the first error.
+**Story — `prompts/worker.txt`:** this spells out three things for the Worker: which kinds of questions actually need a tool, that a failed tool may be retried once, and that the final answer must come from what the tools returned (not the model's memory). With multiple tools now in play, these rules are what keep the Worker grounded and decisive. **If not:** the model might answer a policy question from memory, or give up after the very first error.
 
 `src/prompts/worker.txt`
 
@@ -281,7 +281,7 @@ def run_worker(model, task, max_iterations):
 
 **Changed from Step 2:** `tests/unit/test_tools.py` adds cases 3, 4 and 5 — three new functions and their imports.
 
-**Story — `tests/unit/test_tools.py`:** cases 3 and 4 check the weather tool's coordinate lookup without the network (a known city, and an unknown one); case 5 proves the search tool fails once and then works. **If not:** a broken tool would only show up as a strange agent answer.
+**Story — `tests/unit/test_tools.py`:** this adds cases that check the new tools with no network: cases 3 and 4 check the weather tool's coordinate lookup (a known city, and an unknown one), and case 5 proves the search tool fails once and then succeeds. Testing the tools in isolation keeps tool bugs from masquerading as agent bugs. **If not:** a broken tool would only show up indirectly, as a strange agent answer that's hard to trace.
 
 ```python
 # tests/unit/test_tools.py

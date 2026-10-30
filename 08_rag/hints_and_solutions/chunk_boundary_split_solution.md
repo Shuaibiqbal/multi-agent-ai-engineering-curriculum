@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-chunk_boundary_split) · [Hint 1](chunk_boundary_split_hints.md#hint-1) · [Hint 2](chunk_boundary_split_hints.md#hint-2) · [Solution](chunk_boundary_split_solution.md)
 
-**Story — `chunking_practice.py` (Edge cases section):** you build this exact failure on purpose, here, where nothing's at stake — so the first time it happens for real, in the Build Task's knowledge base, you recognize it immediately instead of trusting a confident, half-right answer. **If not:** "the model gave a plausible but incomplete answer" would look identical to "the model doesn't know," and you'd have no idea which one you were debugging.
+**Story — `chunking_practice.py` (Edge cases section):** this exercise builds a document where one fact gets split across a chunk boundary, so half the fact ends up in each chunk — you create this exact failure on purpose, here, where nothing's at stake, and watch the model answer confidently from only half the information. Seeing it once means that the first time it happens for real, in the Build Task's knowledge base, you recognize it immediately instead of trusting a confident, half-right answer. **If not:** "the model gave a plausible but incomplete answer" would look identical to "the model doesn't know," and you'd have no idea which one you were debugging.
 
 ## Solution
 

@@ -37,7 +37,7 @@ approval_node(state):
 
 `answer_node` does **not** change — the node reviews its `answer` field. Add `approved` to the state.
 
-`build_graph(checkpointer=None)` takes the checkpointer as a parameter (Doc09's Build Task, Approach 2) and uses `MemorySaver()` only if none is given.
+`build_graph(checkpointer=None)` takes the checkpointer as a parameter (Doc09's Build Task) and uses `MemorySaver()` only if none is given.
 
 <hr class="page-break">
 

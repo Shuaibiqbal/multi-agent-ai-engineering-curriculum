@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-json_edge_cases) · [Hint 1](json_edge_cases_hints.md#hint-1) · [Hint 2](json_edge_cases_hints.md#hint-2) · [Solution](json_edge_cases_solution.md)
 
-**Story — `response_validation_practice.py`:** a 200 status code only proves the transport worked — it says nothing about whether the body actually parses, or has the field your code expects. This exercise separates "the network succeeded" from "the content is usable," on purpose. **If not:** `http_client.py` would call `.json()` and index into the result directly, and the first time a server sends back an HTML error page with a 200 status, the whole client crashes with a confusing `JSONDecodeError` deep inside unrelated code.
+**Story — `response_validation_practice.py`:** a 200 status code only proves the transport worked — it says nothing about whether `.json()` will actually parse the body, or whether the parsed object has the field your code expects. This exercise separates "the network succeeded" from "the content is usable," on purpose: check the status, then try to parse, then check the shape — three distinct steps, each with its own failure. **If not:** `http_client.py` would call `.json()` and index into the result directly, and the first time a server sends back an HTML error page with a 200 status, the whole client crashes with a confusing `JSONDecodeError` deep inside unrelated code.
 
 ## Solution
 

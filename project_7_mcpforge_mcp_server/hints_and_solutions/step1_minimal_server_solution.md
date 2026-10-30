@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-1-a-minimal-server-with-one-tool) · [Hint 1](step1_minimal_server_hints.md#hint-1) · [Hint 2](step1_minimal_server_hints.md#hint-2) · [Solution](step1_minimal_server_solution.md)
 
-**Story — Step 1:** every later layer (real storage, a Resource, a Prompt, a client) is worthless if the protocol handshake itself doesn't work. Prove that first, with the smallest possible server: one Tool, an in-memory list, nothing else. **If not:** when Step 3's Resource misbehaves, you won't know whether the bug is the Resource or the connection under it.
+**Story — Step 1:** every later layer this project adds (real storage, a Resource, a Prompt, a real client) is worthless if the Model Context Protocol handshake itself doesn't work. This step proves that first, with the smallest possible server: one `@mcp.tool()`-decorated function, backed by an in-memory list, and nothing else to go wrong. **If not:** when Step 3's Resource misbehaves, you won't know whether the bug is in the Resource or in the connection underneath it.
 
 After this step the server runs: `mcp dev server.py` opens the Inspector and `add_note` responds, and the test files print `OK`.
 
@@ -10,7 +10,7 @@ After this step the server runs: `mcp dev server.py` opens the Inspector and `ad
 
 Doc01's config and logger, in the `src/` package. This server calls no LLM, so there's no API key — only `LOG_LEVEL` and `NOTES_DB_PATH`, both optional.
 
-**Story — `exceptions.py`, `config.py`, `utils/logger.py`:** settings load from one place; logging goes to **stderr**, not stdout. **If not:** on the stdio transport stdout *is* the protocol channel, so one stray log line to stdout would corrupt every message the client reads.
+**Story — `exceptions.py`, `config.py`, `utils/logger.py`:** settings load from one place as usual, but logging is deliberately configured to write to **stderr**, not stdout. **If not:** on the stdio transport, stdout *is* the protocol channel itself, so one stray log line sent to stdout would corrupt every message the client tries to read.
 
 ```python
 # src/exceptions.py
@@ -80,7 +80,7 @@ Also create empty `__init__.py` files in `src/` and `src/utils/`.
 
 ## Solution — one tool, an in-memory list, over stdio
 
-**Story — `server.py`:** the smallest real MCP server — a `MCPServer` instance, one `@mcp.tool()`, and `mcp.run(transport="stdio")`. The note goes in a plain in-memory list; it forgets everything when the process stops, which is exactly the problem Step 2 fixes. The docstring is the tool's description, which an MCP client shows the model — Doc06's "a tool's description is really a prompt" idea. **If not:** without `mcp.run()` the server never starts listening, and without the stderr logger a `print()` would break the protocol.
+**Story — `server.py`:** this is the smallest real MCP server — an `MCPServer` instance, one `@mcp.tool()`-decorated function, and `mcp.run(transport="stdio")` to actually start listening. The note goes in a plain in-memory list, which means it forgets everything the moment the process stops — exactly the problem Step 2 fixes with real storage. The function's docstring becomes the tool's description, which an MCP client hands straight to the model — Doc06's "a tool's description is really a prompt" idea, now over MCP instead of LangChain. **If not:** without `mcp.run()` the server never actually starts listening, and without the stderr-only logger, a stray `print()` would corrupt the protocol.
 
 ```python
 # server.py
@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
 ## The Step 1 tests
 
-**Story — `tests/unit/test_config.py`:** the settings code, checked with no server and a made-up setting name so your `.env` is never touched. **If not:** a broken config would surface as a confusing error deep inside the server at startup.
+**Story — `tests/unit/test_config.py`:** this checks the settings code with no server running and a made-up setting name, so your real `.env` is never touched. **If not:** a broken config would surface as a confusing error deep inside the server at startup, far from the actual cause.
 
 ```python
 # tests/unit/test_config.py
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     test_config_loads_defaults()
 ```
 
-**Story — `tests/integration/test_server.py`:** an MCP server can only be exercised through a client, so this test *is* a tiny client — it launches `server.py` over stdio, lists the tools, and calls `add_note`. Later steps add cases to this same file. **If not:** "the server works" would mean "the Inspector showed something once". This proves the exact code path a real client uses.
+**Story — `tests/integration/test_server.py`:** an MCP server can only really be exercised through a client, so this test *is* a tiny client itself — it launches `server.py` as a subprocess over stdio, lists the tools, and calls `add_note` for real. Later steps add their own cases to this same growing file. **If not:** "the server works" would mean "the Inspector showed something once by hand," with nothing automated to re-run. This proves the exact code path a real client actually uses.
 
 ```python
 # tests/integration/test_server.py

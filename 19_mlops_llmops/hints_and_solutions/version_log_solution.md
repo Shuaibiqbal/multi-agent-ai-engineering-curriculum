@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-version_log) · [Hint 1](version_log_hints.md#hint-1) · [Hint 2](version_log_hints.md#hint-2) · [Solution](version_log_solution.md)
 
-**Story — `version_log_practice.py`:** a release gate needs something to compare against, and "which prompt was live last Tuesday?" needs a record. This log is that record — every version saved with its text and time, never overwritten. **If not:** the Build Task's gate would have nothing to check against, and a bad answer couldn't be traced back to the prompt that produced it.
+**Story — `version_log_practice.py`:** a release gate needs something real to compare a new version against, and a question like "which prompt was actually live last Tuesday?" needs a genuine historical record to answer. This log is exactly that record — every version saved with its full text and timestamp, and never overwritten by a later save. **If not:** the Build Task's gate would have nothing real to check against, and a bad answer in production could never be traced back to the exact prompt that produced it.
 
 All examples below use a stand-in for Doc13's real test suite, `run_eval_suite(prompt_text)`, so the script runs on its own. In your real Project 5 code, swap it for your actual Doc13 suite import.
 
 ## Solution
 
-**Story:** a log you rewrite from scratch each run isn't a history. Load first, then append, and stop loudly if the file is damaged. **If not:** a half-written file would quietly become an empty list, and the next save would wipe every version.
+**Story:** a log file you simply rewrite from scratch on every run isn't actually a history at all — it's just the latest snapshot. The correct pattern is load the existing file first, then append the new entry to it, and stop loudly with a clear error if the file turns out damaged rather than silently treating it as empty. **If not:** a half-written or corrupted file would quietly become treated as an empty list, and the very next save would wipe out every previously saved version.
 
 ```python
 # version_log_practice.py

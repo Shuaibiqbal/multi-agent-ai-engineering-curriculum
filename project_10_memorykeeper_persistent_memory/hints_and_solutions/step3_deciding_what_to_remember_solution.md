@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-3-deciding-whats-worth-remembering-and-writing-it-back) · [Hint 1](step3_deciding_what_to_remember_hints.md#hint-1) · [Hint 2](step3_deciding_what_to_remember_hints.md#hint-2)
 
-**Story:** a `write_back_node` that decides, for the user's last message, whether it holds a durable fact worth saving — and saves it under a stable key, so a rename updates instead of duplicating. The real skill is saying *no* far more than yes. **If not:** the Store fills with "pasta tonight" noise and three contradictory spellings of the user's name.
+**Story:** this adds a `write_back_node` that decides, for the user's most recent message, whether it actually holds a durable fact worth remembering — and if so, saves it under a stable, reusable key, so a later correction updates the same entry instead of creating a duplicate. The real skill this step teaches is saying *no* far more often than yes. **If not:** the Store would fill up with "pasta tonight" noise and three contradictory spellings of the user's own name, none of them cleaned up.
 
 ## `src/memory/writer.py` (new)
 
-**Story:** a structured decision. `decide_memory` asks the model to return a `MemoryDecision` — save or not, under which stable key, and the fact to store. The prompt does the hard part: durable facts yes, ephemera no, and reuse a key like `preferred_name` so a change updates it. **If not:** parsing free text for "should I remember this?" would be fragile, and nothing would enforce stable keys.
+**Story:** this is a genuinely structured decision, not a guess. `decide_memory` asks the model to return a typed `MemoryDecision` — whether to save at all, under which stable key, and what fact to actually store. The prompt does the hard judgment work: durable facts yes, passing ephemera no, and reuse a consistent key like `preferred_name` so a later change updates it rather than adding a new entry. **If not:** parsing free text for "should I remember this?" would be fragile, and nothing would enforce the stable keys that make updates work correctly.
 
 ```python
 # src/memory/writer.py
@@ -49,7 +49,7 @@ User message: {message}
 
 ## `src/nodes.py` — add `write_back_node`
 
-**Story:** after the chat, look at the user's last message, ask `decide_memory`, and save only if it said yes — under the key it chose, so a later value for the same key replaces the old one. **If not:** the assistant would never learn anything on its own, or would hoard everything.
+**Story:** after the chat response, the node looks at the user's last message, asks `decide_memory` to judge it, and saves only if the decision said yes — under the exact key the decision chose, so a later value for that same key cleanly replaces the old one. **If not:** the assistant would either never learn anything about the user on its own, or would hoard absolutely everything said to it.
 
 ```python
 # src/nodes.py  (add this; recall_node and chat_node unchanged)

@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-ambiguous_routing) · [Hint 1](ambiguous_routing_hints.md#hint-1) · [Hint 2](ambiguous_routing_hints.md#hint-2) · [Solution](ambiguous_routing_solution.md)
 
-**Story — `supervisor_routing_practice.py`:** routing looks fine until two specialists both plausibly fit a task. This file makes that happen on purpose, counts how often the supervisor wobbles, and adds a way to recover. **If not:** Project 4's Research-vs-Analysis boundary would misroute in production, with no test that ever showed it.
+**Story — `supervisor_routing_practice.py`:** routing looks fine right up until two specialists both plausibly fit the same task. This file constructs exactly that ambiguous case on purpose, runs it repeatedly to count how often the supervisor's choice actually wobbles between the two, and adds a way to recover when it picks wrong. **If not:** Project 4's Research-vs-Analysis boundary would misroute in production, with no test that ever caught it happening.
 
 ## Solution
 
-**Story:** one run per task can't tell a stable choice from a coin flip; three runs of the same task can. **If not:** an inconsistent route would pass every one-shot test and fail at random for users.
+**Story:** a single run on one task can't tell a genuinely stable routing choice from a lucky coin flip; running the exact same ambiguous task three times and comparing the choices can. **If not:** an inconsistent router would pass every one-shot test cleanly and then fail at random for real users.
 
 ```python
 # supervisor_routing_practice.py

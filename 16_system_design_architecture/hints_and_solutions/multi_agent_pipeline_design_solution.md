@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-multi_agent_pipeline_design) · [Hint 1](multi_agent_pipeline_design_hints.md#hint-1) · [Hint 2](multi_agent_pipeline_design_hints.md#hint-2) · [Solution](multi_agent_pipeline_design_solution.md)
 
-**Story — `multi_agent_pipeline_design.md`:** Project 4's shape, designed fresh from a request instead of followed from a guide — phases, pattern, state, and what happens when a check fails. **If not:** you'd only ever have built multi-agent systems someone else already designed.
+**Story — `multi_agent_pipeline_design.md`:** this is Project 4's shape, but designed completely fresh from a one-sentence request instead of followed from a ready-made guide — you decide the phases, the pattern, the shared state, and what happens when a check fails, all yourself. **If not:** you'd only ever have built multi-agent systems someone else had already designed for you.
 
 Write your own design first, in `practice/multi_agent_pipeline_design.md`.
 
@@ -10,7 +10,7 @@ The request: "research a topic, draft an article, fact-check it, only publish if
 
 ## Solution
 
-**Story:** a loop without a limit, and a single "try again" for every kind of failure, are the two places this pipeline breaks for real. A cap, an escalation path, and two different loop-back targets fix both. **If not:** some articles would loop forever, and missing research would be sent to the writer to "fix" by rewording.
+**Story:** a revision loop without a hard limit, and a single generic "try again" response for every kind of failure, are the two places this pipeline genuinely breaks in practice. A revision cap, a real escalation path to a human, and two *different* loop-back targets (one for the writer, one for research) fix both problems at once. **If not:** some articles would loop forever with no way out, and a missing-research problem would keep getting sent to the writer to "fix" by rewording something that was never the actual issue.
 
 Same three agents, hardened where an unbounded loop and an underspecified state object would actually fail:
 
@@ -20,6 +20,6 @@ Same three agents, hardened where an unbounded loop and an underspecified state 
 - **Monitoring on revision_count and route taken**, so articles that consistently hit the cap become a visible signal that a specific topic or source set is the problem — not just individual bot failures nobody's tracking in aggregate.
 - **The fact-checker flags, it doesn't rewrite** — named as a deliberate trade-off, not an unquestioned default: at the scale this exercise describes, the extra round-trip cost of sending it back to the writer is worth the cleaner separation of concerns and the auditability of "the fact-checker's only output is a pass/fail plus notes." At very high volume, this is exactly the kind of choice worth revisiting.
 
-**Why this is the stronger design, and what the weaker one gets wrong:** The Basic version's "try again" loop has no answer for what happens when fact-check simply never passes — which is not an edge case, it's a certainty for some articles (a genuinely contradictory topic, a core claim the writer keeps reintroducing). Without a cap, that's an infinite loop burning tokens and never resolving; a reviewer will ask about this immediately, and "it just keeps retrying" is not an acceptable answer. It also treats every fact-check failure the same way, which means a missing-research problem gets sent to the writer to fix by rewording — something rewording can't actually fix. The stronger design isn't adding complexity for its own sake: the cap, the escalation path, and the two loop-back destinations each trace directly to a specific way the simple loop breaks.
+**Why each piece is here, not added for its own sake:** A plain "try again" loop has no answer for what happens when fact-check simply never passes — which is not an edge case, it's a certainty for some articles (a genuinely contradictory topic, a core claim the writer keeps reintroducing). Without a cap, that's an infinite loop burning tokens and never resolving; a reviewer will ask about this immediately, and "it just keeps retrying" is not an acceptable answer. Treating every fact-check failure the same way sends a missing-research problem to the writer to fix by rewording — something rewording can't actually fix. The cap, the escalation path, and the two loop-back destinations each trace directly to a specific way the simple loop breaks.
 
-**Which one should you actually present in an interview?** Present the Basic version's shape first — it's the correct instinct on phases and the loop-back concept. Then, unprompted, raise "what happens if fact-check never passes" and walk through the cap and escalation path yourself — that's the exact behavior Doc16 expects, and it's usually the question that decides whether the interviewer sees you as someone who's actually thought about failure, not just the happy path.
+**Presenting this in an interview:** Present the shape first — phases and the loop-back concept are the correct instinct. Then, unprompted, raise "what happens if fact-check never passes" and walk through the cap and escalation path yourself — that's the exact behavior Doc16 expects, and it's usually the question that decides whether the interviewer sees you as someone who's actually thought about failure, not just the happy path.

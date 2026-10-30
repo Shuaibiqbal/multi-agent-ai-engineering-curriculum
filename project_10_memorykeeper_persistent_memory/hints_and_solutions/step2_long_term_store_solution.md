@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-2-add-a-long-term-store-and-a-node-that-reads-it) · [Hint 1](step2_long_term_store_hints.md#hint-1) · [Hint 2](step2_long_term_store_hints.md#hint-2)
 
-**Story:** the fix for Step 1's amnesia — a Store keyed by `user_id` (not `thread_id`) and a `recall_node` that reads it before the chat, so a brand-new conversation still knows the user. **If not:** every new thread would meet a stranger, no matter how many times they'd talked before.
+**Story:** this is the actual fix for Step 1's amnesia — a LangGraph Store keyed by `user_id` instead of `thread_id`, so facts about a person persist across every conversation they ever have, plus a `recall_node` that reads from it *before* the chat node runs, so a brand-new conversation still recognizes the returning user. **If not:** every new thread would meet a complete stranger, no matter how many times that person had talked to it before.
 
 ## `src/memory/store.py` (new)
 
-**Story:** thin helpers over LangGraph's Store. The namespace is keyed by `user_id`, so facts belong to the *person*, not a conversation. Saving under the same key **updates** rather than duplicates. **If not:** facts keyed by thread would vanish with each new conversation, exactly like the checkpointer.
+**Story:** these are thin helper functions wrapped around LangGraph's Store API. The namespace itself is keyed by `user_id`, so saved facts belong to the *person*, not to any one conversation thread. Saving a fact under the same key **updates** the existing entry rather than creating a duplicate. **If not:** facts keyed by thread would vanish with each new conversation, exactly the same problem the checkpointer alone had.
 
 ```python
 # src/memory/store.py
@@ -36,7 +36,7 @@ def save_fact(store, user_id, key, fact):
 
 ## `src/nodes.py` — add `recall_node`
 
-**Story:** `recall_node` runs before the chat. It reads the user's facts from the Store and puts them in `state["recalled"]`, which `chat_node` already folds into its system prompt. The Store reaches the node because the node declares a `store` parameter and the graph was compiled with `store=...`. **If not:** the facts would never make it into the prompt the model sees.
+**Story:** `recall_node` runs before the chat node, every single turn. It reads the user's saved facts from the Store and puts them into `state["recalled"]`, which `chat_node` then folds directly into its system prompt. The Store actually reaches inside the node because the node function declares a `store` parameter, and the graph itself was compiled with `store=...` passed in. **If not:** the recalled facts would never actually make it into the prompt the model sees, no matter how well they were saved.
 
 ```python
 # src/nodes.py  (add this; chat_node from Step 1 is unchanged)

@@ -388,7 +388,7 @@ practice/
 ├── db_failure_and_docker_practice.py  Failure (+ Dockerfile,
 │                                     .dockerignore, requirements.txt)
 ├── health_route_practice.py        Basic
-├── health_routes.py                  its APIRouter (Approach 3)
+├── health_routes.py                  its APIRouter
 ├── logging_setup.py                copied from Doc01, unchanged
 ├── runs_db.py                        its SQL helper functions
 └── sqlite_persistence_practice.py  Real-world + Edge cases
@@ -501,14 +501,14 @@ Why group by topic instead of by level: if you save each exercise by difficulty 
 
 **Why each file exists:**
 
-- `api/main.py` — the one file uvicorn starts; it refuses to start without `OPENAI_API_KEY`, and tags every request with an ID (`chat_route` Approach 4, `db_failure_and_docker` Approach 2).
-- `api/routes.py` — the routes on an `APIRouter` (`health_route` Approach 3), with `chat_route`'s 400/500 handling and the rate limiter.
+- `api/main.py` — the one file uvicorn starts; it refuses to start without `OPENAI_API_KEY`, and tags every request with an ID (`chat_route`, `db_failure_and_docker`).
+- `api/routes.py` — the routes on an `APIRouter` (`health_route`), with `chat_route`'s 400/500 handling and the rate limiter.
 - `api/schemas.py` — the API's request/reply contract in one place, like `chat_schemas.py`.
 - `db/database.py` — every SQL statement behind small named functions, like `runs_db.py`, using `validation_422`'s `INSERT` → `lastrowid` → `UPDATE` pieces.
 - `db/models.py` — the checked shape of a saved run, like `RunRecord`.
 - `.dockerignore`, `Dockerfile` — `db_failure_and_docker`'s, pointed at `api.main:app`.
 - `logging_setup.py` — Doc01's `get_logger()`, so logging works the same as in every earlier document.
-- `test_api.py` — proves every row of the Test Cases table below in one command, using `TestClient` like `health_route` Approach 2.
+- `test_api.py` — proves every row of the Test Cases table below in one command, using `TestClient` like `health_route`.
 
 **Functions/Components to build:**
 

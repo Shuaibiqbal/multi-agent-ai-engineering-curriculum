@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-4-forgetting-and-a-privacy-respecting-delete) · [Hint 1](step4_forgetting_and_delete_hints.md#hint-1) · [Hint 2](step4_forgetting_and_delete_hints.md#hint-2)
 
-**Story:** a system that remembers you must be able to truly forget you. `forget_user` deletes **every** stored item for a user — not just one key — and a fresh conversation afterward knows nothing. **If not:** a "forget me" that clears only the name while leaving preferences behind is a privacy promise you didn't keep.
+**Story:** a system that remembers a user must be genuinely able to forget them too, completely, not just partially. `forget_user` deletes **every** stored item in that user's namespace — not just one known key — so a fresh conversation afterward truly knows nothing about them. **If not:** a "forget me" that clears only the name while quietly leaving preferences and other facts behind is a privacy promise you only half kept.
 
 ## `src/memory/store.py` — add `forget_user`
 
-**Story:** list every item in the user's namespace and delete each one. Step 3 may have written several keys (`preferred_name`, a preference, …), so a one-key delete isn't a real forget. **If not:** stale facts survive the delete and resurface in the next conversation.
+**Story:** this lists every item actually sitting in the user's namespace and deletes each one individually. Step 3 may have written several different keys over time (`preferred_name`, a dietary preference, and more), so a delete that only clears one known key isn't a real forget at all. **If not:** stale facts would survive the "delete" and quietly resurface in the user's very next conversation.
 
 ```python
 # src/memory/store.py  (add this)

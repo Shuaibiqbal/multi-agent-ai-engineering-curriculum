@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-3-retries-then-a-safe-fallback-when-a-model-call-fails) · [Hint 1](step3_retry_fallback_drafting_hints.md#hint-1) · [Hint 2](step3_retry_fallback_drafting_hints.md#hint-2) · [Solution](step3_retry_fallback_drafting_solution.md)
 
-**Story — Step 3:** real API calls time out, hit rate limits, and sometimes just fail. The retry part is already there: the OpenAI client under `ChatOpenAI` retries timeouts, connection errors, 429s and 5xx errors **2 times with backoff** (Doc04's error topic). Adding `.with_retry()` on top would stack a second retry layer — the mistake Doc02, Doc04 and Doc05 all warn about. What's missing is the part **after** the retries run out: today, the ticket crashes. This step gives every model call a safe backup. **If not:** one bad minute at OpenAI empties your whole queue into tracebacks.
+**Story — Step 3:** real API calls time out, hit rate limits, and sometimes just fail outright. The retry part is already there for free: the OpenAI client underlying `ChatOpenAI` retries timeouts, connection errors, 429s and 5xx errors **2 times with backoff** on its own (Doc04's error topic). Adding `.with_retry()` on top of that would stack a second, redundant retry layer — the exact mistake Doc02, Doc04 and Doc05 all warn against. What's actually missing is the part **after** the retries run out: today, the ticket just crashes. This step gives every model call a safe fallback chain to fall back to instead. **If not:** one bad minute at OpenAI empties your whole queue into tracebacks.
 
 After this step the project runs as before, and when the model can't be reached, the ticket gets a safe canned reply instead of a crash. Files not shown here don't change.
 
@@ -12,7 +12,7 @@ After this step the project runs as before, and when the model can't be reached,
 
 **Changed from Step 2:** `TicketRecord` gets its first new field, `used_fallback`, with a default.
 
-**Story — `schemas.py`:** the record says whether the safe canned reply was sent. The default `False` means the Step 1 test that builds a record still works unchanged. **If not:** a fallback reply would look exactly like a real one in your data.
+**Story — `schemas.py`:** this adds a field to `TicketRecord` recording whether the safe canned reply was sent instead of a real one. Giving it a default of `False` means the Step 1 test that builds a `TicketRecord` without setting this field still works unchanged. **If not:** a fallback reply would look exactly like a real one in your data, with no way to tell them apart later.
 
 ```python
 # src/schemas.py
@@ -35,7 +35,7 @@ class TicketRecord(BaseModel):
     used_fallback: bool = False     # new in Step 3
 ```
 
-**Story — `main.py`:** only the errors a person must fix reach this loop now, and `print_record()` shows one more line. **If not:** a rate limit would still skip the ticket instead of answering it.
+**Story — `main.py`:** with the fallback absorbing transient failures, only the errors a person must actually fix (like a bad key) still reach this loop; `print_record()` now shows one more line reporting whether the fallback fired. **If not:** a transient rate limit would still skip the ticket entirely instead of answering it with a safe canned reply.
 
 ```python
 # main.py
@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
 ## Solution — `.with_fallbacks()` on each chain, only for transient errors
 
-**Story — `chains/fallback.py`:** the backups, in one file. `TRANSIENT_ERRORS` lists only failures that pass on their own. `with_canned_reply()` and `with_unsure_category()` wrap any chain with `.with_fallbacks([...], exceptions_to_handle=TRANSIENT_ERRORS)` (Doc05's LCEL topic); `RunnableLambda` turns a plain function into a step `.with_fallbacks()` accepts. The design decision: a canned reply is fine even for a double charge, because it promises nothing and every fallback gets flagged (Step 4). **If not:** a bug in your own code (a `KeyError`) would be silently hidden behind a polite canned reply.
+**Story — `chains/fallback.py`:** this holds both backups in one file. `TRANSIENT_ERRORS` is a tuple listing only the failures that genuinely resolve on their own (timeouts, connection errors, rate limits) — it's passed to `exceptions_to_handle` so the fallback catches only those, never a real bug. `with_canned_reply()` and `with_unsure_category()` each wrap a chain with `.with_fallbacks([...], exceptions_to_handle=TRANSIENT_ERRORS)` (Doc05's LCEL pattern); `RunnableLambda` turns a plain Python function into a step `.with_fallbacks()` can accept as its backup. The design decision worth naming: a canned reply is fine even for a double charge, because it promises nothing specific, and every fallback use gets flagged for a human (Step 4). **If not:** a bug in your own code (say, a `KeyError`) would be silently hidden behind a polite canned reply, with `exceptions_to_handle` making sure that can't happen.
 
 ```python
 # src/chains/fallback.py
@@ -146,7 +146,7 @@ def with_unsure_category(chain):
 
 **Changed from Step 2:** the classifier chain is wrapped with its backup.
 
-**Story — `chains/classifier.py`:** if the classifier can't be reached, the ticket becomes "general, not sure" — and still gets a reply. **If not:** a classifier outage would stop every ticket before any reply chain even ran.
+**Story — `chains/classifier.py`:** wrapped with `with_unsure_category()`, if the classifier itself can't be reached, the ticket falls back to "general, not sure" — and still gets a reply instead of stalling. **If not:** a classifier outage would stop every ticket before any reply chain even ran, even though the reply chains themselves might be perfectly fine.
 
 ```python
 # src/chains/classifier.py
@@ -188,7 +188,7 @@ def classify_ticket(ticket):
 
 **Changed from Step 2:** every reply chain is wrapped with the canned reply.
 
-**Story — `chains/replies.py`:** the wrapper goes around the **whole** chain, lookups included, so any transient failure in it falls back. **If not:** you'd wrap three chains three times.
+**Story — `chains/replies.py`:** the `with_canned_reply()` wrapper goes around the **whole** reply chain, lookups included, so a transient failure anywhere inside it — not just the final model call — triggers the same fallback. **If not:** you'd need to wrap the lookup step and the reply step separately, three times over for three categories.
 
 ```python
 # src/chains/replies.py
@@ -216,7 +216,7 @@ def build_reply_chain(category):
 
 **Changed from Step 2:** the record says whether the fallback ran.
 
-**Story — `services/pipeline.py`:** the canned reply is always the exact same text, so comparing to `FALLBACK_REPLY` tells you it was used. **If not:** a fallback would be invisible in your data — Step 4 needs this flag.
+**Story — `services/pipeline.py`:** the canned reply is always the exact same fixed text, so a simple string comparison against `FALLBACK_REPLY` is all `handle_ticket()` needs to tell whether it was used, and set the new flag accordingly. **If not:** a fallback would be invisible in your saved data — Step 4's human-review flag needs this to exist.
 
 ```python
 # src/services/pipeline.py
@@ -246,7 +246,7 @@ def handle_ticket(ticket, customer_id):
     )
 ```
 
-**Story — `tests/unit/test_fallback.py`:** a fallback you can't prove fires — and can't prove stays quiet — isn't tested. Case 1 points a real `ChatOpenAI` at a port where nothing listens: a real, forced outage with no key and no cost. Case 2 proves a working chain never touches the fallback. Case 3 proves a bug is **not** hidden. **If not:** you'd find out the fallback doesn't work during a real outage.
+**Story — `tests/unit/test_fallback.py`:** a fallback you can't prove fires — and can't prove stays quiet when nothing's wrong — isn't really tested at all. Case 1 points a real `ChatOpenAI` at a port where nothing is listening, forcing a genuine connection failure with no API key and no cost. Case 2 proves a healthy, working chain never touches the fallback unnecessarily. Case 3 proves a real bug in your own code is **not** silently swallowed by it. **If not:** you'd find out the fallback doesn't actually work during a real production outage.
 
 ```python
 # tests/unit/test_fallback.py

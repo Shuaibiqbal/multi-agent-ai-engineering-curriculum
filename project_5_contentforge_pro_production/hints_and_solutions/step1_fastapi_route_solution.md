@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-1-contentforge-reachable-over-http-for-the-first-time) · [Hint 1](step1_fastapi_route_hints.md#hint-1) · [Hint 2](step1_fastapi_route_hints.md#hint-2) · [Solution](step1_fastapi_route_solution.md)
 
-**Story — Step 1:** Project 4 works, but only for someone sitting at the terminal. This step gives it a front door: `POST /run-task` takes a topic as JSON and returns the team's article. The five agents don't change at all — the API calls them through **one** function, `run_pipeline()`. **If not:** every caller would need Python, your code and your key on their own machine.
+**Story — Step 1:** Project 4's multi-agent team works, but only for someone sitting at the terminal with your code and your key. This step gives it a front door with FastAPI: `POST /run-task` takes a topic as JSON and returns the team's finished article as JSON. The five agents don't change at all — the API calls them through **one** function, `run_pipeline()`, so the web layer is a thin wrapper, not a rewrite. **If not:** every caller would need Python, your code and your key installed on their own machine.
 
 After this step the project runs as a web API: `uvicorn src.api.main:app --reload`, then `/docs` in the browser. Project 4's files (copied in during Setup) don't change.
 
 ## Solution — one door into the team, typed shapes, 400/500, and tests with a faked team
 
-**Story — `pipeline.py`:** the **one** function that runs Project 4's team and turns its final state into plain values: the article, whether it was accepted, why the run stopped, and one text line per routing step. **If not:** the route would reach into the graph's state itself — and a test couldn't swap the team for a fake in one place.
+**Story — `pipeline.py`:** this is the **one** function that invokes Project 4's team graph and turns its raw final state into plain values an API response can hold: the article text, whether it was accepted, why the run stopped, and one readable text line per routing step. **If not:** the route would reach into the graph's state dict directly — and a test couldn't swap the whole team for a fake in one single place.
 
 ```python
 # src/pipeline.py
@@ -36,7 +36,7 @@ def run_pipeline(topic):
     }
 ```
 
-**Story — `api/schemas.py`:** the API's contract, written once (Doc12's `chat_schemas.py`). `Field(min_length=1, max_length=200)` rejects an empty or huge topic with a 422 before any model is called. **If not:** a 5,000-word "topic" would be sent to five agents, and a typo in a reply field would only be found by the client.
+**Story — `api/schemas.py`:** these are the API's request and response contracts, written once as Pydantic models (Doc12's `chat_schemas.py` pattern). `Field(min_length=1, max_length=200)` on the request means FastAPI rejects an empty or huge topic with a 422 automatically, *before* any model is ever called. **If not:** a 5,000-word "topic" would be sent straight to five expensive agents, and a typo in a reply field would only be found by the client parsing bad JSON.
 
 ```python
 # src/api/schemas.py
@@ -53,7 +53,7 @@ class TaskResponse(BaseModel):
     article: str
 ```
 
-**Story — `api/routes.py`:** the routes on an `APIRouter` (Doc12's `health_routes.py`). `POST /run-task` is Doc12's `chat_route`: our own 400 for a blank topic, and any crash turned into a plain 500 while `logger.exception()` keeps the real traceback on the server. (Also create an empty `api/__init__.py`.) **If not:** a client could see file paths from a traceback, and nobody on the server would know why a run failed.
+**Story — `api/routes.py`:** these routes live on an `APIRouter` (Doc12's `health_routes.py` pattern). `POST /run-task` follows Doc12's `chat_route` shape: a deliberate 400 for a blank topic, and any unexpected crash caught and turned into a plain 500 response — while `logger.exception()` still writes the real traceback to the server's own logs, just never to the client. (Also create an empty `api/__init__.py`.) **If not:** a client could see raw file paths from a traceback, and nobody on the server would know why a run actually failed.
 
 ```python
 # src/api/routes.py
@@ -94,7 +94,7 @@ def run_task(request):
     )
 ```
 
-**Story — `api/main.py`:** the one file uvicorn starts. `load_config()` runs first — it reads `.env` (the agents need the key) and stops the app at once if `OPENAI_API_KEY` is missing. **If not:** the server would start "fine" and fail on every real request.
+**Story — `api/main.py`:** this is the one file `uvicorn` actually starts. `load_config()` runs first, at import time — it reads `.env` (the agents need the key) and stops the app from starting at all if `OPENAI_API_KEY` is missing. **If not:** the server would start "fine" and then fail on every single real request, which is a far worse failure to debug.
 
 ```python
 # src/api/main.py
@@ -111,7 +111,7 @@ app = FastAPI(title="ContentForge Pro")
 app.include_router(router)
 ```
 
-**Story — `tests/api/test_routes.py`:** API tests with pytest and `TestClient` (Doc12, Doc13), with the team **faked**: `monkeypatch` swaps `routes.run_pipeline` for a function that returns a fixed answer, or crashes on purpose (Doc13's integration-test pattern). No model calls, no cost, the same result every run. **If not:** every API test would run five real agents — slow, paid, and never the same twice.
+**Story — `tests/api/test_routes.py`:** this tests the API layer with pytest and `TestClient` (Doc12, Doc13's pattern), with the agent team **faked out**: `monkeypatch` swaps `routes.run_pipeline` for a function that returns a fixed answer, or one that crashes on purpose (Doc13's integration-test pattern). That means no model calls, no cost, and the exact same result every single run — true unit testing of the route logic alone. **If not:** every API test would run five real agents — slow, paid, and never quite the same twice.
 
 ```python
 # tests/api/test_routes.py

@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-3-a-retriever-agent-that-judges-its-own-search-results) · [Hint 1](step3_retriever_agent_hints.md#hint-1) · [Hint 2](step3_retriever_agent_hints.md#hint-2) · [Solution](step3_retriever_agent_solution.md)
 
-**Story — Step 3:** the first searching agent. The Retriever searches your documents with Doc08's retriever — and then **judges** what it found against a written-down relevance bar, instead of passing along "the closest thing" no matter how far off it is. A question with no real match goes to an honest "not found" path; questions that aren't about the documents skip the search. The Reasoner's file and node also appear here, starting simple: it quotes the best excerpt. **If not:** every question would get an answer built on whatever the search happened to return.
+**Story — Step 3:** the first real searching agent. The Retriever searches your documents with Doc08's retriever — and then **judges** what it found against a written-down distance threshold, instead of passing along "the closest thing" no matter how far off it actually is. A question with no real match (every chunk's distance is past the threshold) goes to an honest "not found" path; questions that aren't about the documents skip the search entirely via keyword routing. The Reasoner's file and node also appear here, starting as simply as possible: it quotes the best excerpt verbatim, no model call yet. **If not:** every question would get an answer built on whatever the search happened to return, grounded or not.
 
 After this step document questions are answered from your documents (still approved by you). `answer_node`, `approval_node` and `main.py` don't change. Files not shown here don't change.
 
 ## The RAG files
 
-**Story — `rag/chunking.py`, `rag/ingest.py`, `rag/retriever.py`:** Doc08's Build Task (Intermediate, Approach 2), with two small changes: the OpenAI client is created *inside* each function (so the key from `.env` is loaded first, like the logger), and `build_vector_store()` logs what it ingested. **If not:** you'd rewrite chunking, embedding and search from scratch — and lose Doc08's safe delete-then-rebuild.
+**Story — `rag/chunking.py`, `rag/ingest.py`, `rag/retriever.py`:** this is Doc08's Build Task retriever, with two small changes: the OpenAI client is created *inside* each function (so the key from `.env` is loaded first, like the logger), and `build_vector_store()` logs what it ingested. **If not:** you'd rewrite chunking, embedding and search from scratch — and lose Doc08's safe delete-then-rebuild.
 
 ```python
 # src/rag/chunking.py
@@ -126,7 +126,7 @@ def retrieve(collection, query, k=3):
     return documents
 ```
 
-**Story — `rag/store.py`:** builds the vector store **once**, the first time a node needs it, and keeps it — Doc07's small "state holder" class pattern. **If not:** building at import time would run before the key is loaded, and building in the node would re-embed every document for every question.
+**Story — `rag/store.py`:** this builds the vector store **once**, the first time a node needs it, and keeps the reference for every later call — a small lazy-singleton class, Doc07's "state holder" pattern. **If not:** building at import time would run before the key is loaded, and building fresh inside the node would re-embed every document for every single question.
 
 ```python
 # src/rag/store.py
@@ -200,7 +200,7 @@ Paying yearly gives two months free. Prices include tax for customers
 in the European Union.
 ```
 
-**Story — `agents/reasoner_agent.py`:** the Reasoner's file and node, starting as simply as possible: `reason_node` answers with the best excerpt, word for word, plus its file name — no model yet. Step 4 keeps this node and upgrades what's inside it. **If not:** a model-written answer would arrive at the same time as the search, and a bad answer couldn't be pinned on either one.
+**Story — `agents/reasoner_agent.py`:** this is the Reasoner's file and node, starting as simply as possible: `reason_node` answers by quoting the best-matching excerpt word for word, plus its source file name — no model call involved yet. Step 4 keeps this exact node name and upgrades what runs inside it to a real model call. **If not:** a model-written answer would arrive at the same time as the search, and a bad answer couldn't be pinned on either one.
 
 ```python
 # src/agents/reasoner_agent.py
@@ -221,7 +221,7 @@ def reason_node(state):
 
 **Changed from Step 2:** `state.py` adds `sources` and `grounded`.
 
-**Story — `state.py`:** the found chunks live **in the state**. A run paused for approval keeps its evidence, and resuming never searches again. **If not:** a resumed run would have its answer but no record of where it came from.
+**Story — `state.py`:** the found chunks live **in the state** itself, not in a local variable that disappears between nodes. Because the state is what the checkpointer saves, a run paused for approval keeps its evidence intact, and resuming never searches again — the chunks are already there. **If not:** a resumed run would have its answer but no record of where it came from.
 
 ```python
 # src/state.py
@@ -250,7 +250,7 @@ def start_state(task):
     }
 ```
 
-**Story — `agents/retriever_agent.py`:** four small functions. `route_search()` decides search-or-skip by keyword (Doc10). `is_relevant()` is the relevance bar: the **best** distance must be at most `MAX_DISTANCE` (lower = closer, Doc08). `retrieve_node()` searches and records the verdict. `no_grounding_node()` gives the honest answer. **If not:** "grounded" would mean "the search returned something" — which is always true.
+**Story — `agents/retriever_agent.py`:** four small functions do the whole job. `route_search()` decides search-or-skip by keyword, before any node runs (Doc10's pattern). `is_relevant()` is the relevance bar itself: the **best** chunk's distance must be at most `MAX_DISTANCE` (lower distance means closer match, Doc08's convention). `retrieve_node()` runs the search and records the verdict in state. `no_grounding_node()` returns the honest "not found" answer when nothing clears the bar. **If not:** "grounded" would mean "the search returned something" — which is always true, since a vector search always returns its closest chunks.
 
 ```python
 # src/agents/retriever_agent.py
@@ -308,7 +308,7 @@ def no_grounding_node(state):
 
 **Changed from Step 2:** two conditional edges and three new nodes. General answers and "not found" end the run; only a document answer goes to `approval_node`. This is the graph's **final** shape — Steps 4 and 5 don't change this file.
 
-**Story — `graph.py`:** `add_conditional_edges(node, function, map)` — the function's return value picks the next node (Doc09). **If not:** every path would look the same, and a "not found" answer would wait for approval for no reason.
+**Story — `graph.py`:** `add_conditional_edges(node, function, map)` is the decision point — the routing function's return value picks the next node from the mapping you supply (Doc09's pattern). Here it routes a grounded answer toward approval and an honest "not found" answer straight to the end. **If not:** every path would look the same, and a "not found" answer would wait for human approval for no real reason.
 
 ```python
 # src/graph.py
@@ -356,7 +356,7 @@ def build_graph(checkpointer=None):
     return builder.compile(checkpointer=checkpointer)
 ```
 
-**Story — `tests/unit/test_chunking.py` + `tests/unit/test_routing.py`:** check the chunkers and the routing/relevance rules with hand-made inputs — no API key. One function per rule, each printing `OK` or `WRONG`. **If not:** a wrong `MAX_DISTANCE` comparison (`>` instead of `<=`) would only show up as strange answers.
+**Story — `tests/unit/test_chunking.py` + `tests/unit/test_routing.py`:** these check the chunkers and the routing/relevance rules with hand-made inputs and no API key needed — pure logic, instant to run. One function per rule, each printing `OK` or `WRONG`. **If not:** a wrong `MAX_DISTANCE` comparison (`>` instead of `<=`) would only show up later as strange, ungrounded answers.
 
 ```python
 # tests/unit/test_chunking.py
@@ -443,7 +443,7 @@ if __name__ == "__main__":
 
 **Changed from Step 2:** cases 5 and 6 are added; cases 1-4 stay the same.
 
-**Story — `tests/integration/test_live_graph.py`:** the two new paths against the real API: a document question that is searched and grounded (case 5), and a question the documents don't cover, which must end at `no_grounding_node` (case 6). **If not:** "the not-found path works" would be a hope.
+**Story — `tests/integration/test_live_graph.py`:** this checks the two new paths against the real API: a document question that gets searched and comes back grounded (case 5), and a question the documents don't cover, which must route all the way to `no_grounding_node` (case 6). **If not:** "the not-found path works" would be a hope, not something verified against the real search and model.
 
 ```python
 # tests/integration/test_live_graph.py

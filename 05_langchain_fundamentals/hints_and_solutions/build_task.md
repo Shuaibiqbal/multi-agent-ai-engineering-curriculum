@@ -121,8 +121,8 @@ class ComparisonRow:
     matched: bool
 
 def run_comparison(test_inputs: list[str]) -> list[ComparisonRow]:
-    # why: copied from the Real-world exercise's Approach 2 — only the
-    # chain now comes from chain.py
+    # why: the same comparison loop as the Real-world exercise — only
+    # the chain now comes from chain.py
     client = create_client()
     lcel_chain = build_extraction_chain()
     rows = []

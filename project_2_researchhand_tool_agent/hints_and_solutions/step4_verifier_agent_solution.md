@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-4-a-verifier-agent-that-catches-the-workers-bad-answers-final-2-agents) · [Hint 1](step4_verifier_agent_hints.md#hint-1) · [Hint 2](step4_verifier_agent_hints.md#hint-2) · [Solution](step4_verifier_agent_solution.md)
 
-**Story — Step 4:** the Worker can still be confidently wrong — misread a tool result, or answer from memory when it shouldn't. A model re-reading its own answer shares the same blind spots. This step adds a second agent with a different job and a different prompt: check the answer against what the tools really returned, and flag it if it doesn't hold up. **If not:** a wrong answer would reach the user looking exactly as trustworthy as a right one.
+**Story — Step 4:** the Worker can still be confidently wrong — it can misread a tool result, or answer from memory when it shouldn't. And a model re-reading its *own* answer shares the exact same blind spots, so self-checking doesn't help. This step adds a **second agent** with a different job and a different prompt: check the Worker's answer against what the tools actually returned, and flag it if it doesn't hold up. **If not:** a wrong answer would reach the user looking exactly as trustworthy as a right one.
 
 After this step the project is complete. Files not shown here don't change.
 
 ## Solution — a structured verdict, tool evidence, and one retry
 
-**Story — `schemas.py`:** the Verifier's answer as a Pydantic model, so it comes back checked (Doc05's `with_structured_output`). **If not:** you'd be searching free text for "APPROVED", and "NOT APPROVED" would pass.
+**Story — `schemas.py`:** this is the Verifier's verdict as a Pydantic model, so it comes back checked and typed (Doc05's `with_structured_output`) — an `approved` boolean plus a reason, not prose to parse. **If not:** you'd be searching free text for "APPROVED", and a reply like "NOT APPROVED" would sneak past a naive substring check.
 
 ```python
 # src/schemas.py
@@ -21,7 +21,7 @@ class VerifierVerdict(BaseModel):
     reason: str
 ```
 
-**Story — `prompts/verifier.txt`:** a separate, strict prompt. It never sees the Worker's instructions, so it judges the answer instead of defending it. It fills in the question, the answer and the tool evidence. **If not:** a Verifier sharing the Worker's prompt would tend to agree with it.
+**Story — `prompts/verifier.txt`:** this is a separate, strict prompt that never sees the Worker's instructions — so the Verifier *judges* the answer instead of defending it. It's filled in with the question, the proposed answer, and the tool evidence. Keeping the two prompts isolated is exactly what makes the second opinion genuinely independent. **If not:** a Verifier sharing the Worker's prompt would tend to rubber-stamp whatever the Worker said.
 
 `src/prompts/verifier.txt`
 
@@ -39,7 +39,7 @@ Evidence from tools:
 Answer to check: {answer}
 ```
 
-**Story — `agents/verifier.py`:** the Verifier chain, plus `collect_evidence()`, which passes along only what the tools *successfully* returned — not the Worker's failed attempts or retries. The Verifier judges the answer, not the effort (like a grader who sees the exam paper, not how long the student worked). **If not:** without evidence it can only guess; with the whole step log it tends to reward effort.
+**Story — `agents/verifier.py`:** this is the Verifier chain plus `collect_evidence()`, which passes along *only what the tools successfully returned* — not the Worker's failed attempts or retries. The Verifier judges the answer against that clean evidence, not the effort behind it (like a grader who sees the exam paper, not how long the student worked). **If not:** with no evidence it can only guess; handed the whole messy step log, it tends to reward effort rather than correctness.
 
 ```python
 # src/agents/verifier.py
@@ -76,7 +76,7 @@ def verify(verifier_chain, question, result):
     return verdict
 ```
 
-**Story — `services/research_service.py`:** the whole handoff in one function: the Worker answers, the Verifier checks, and on a rejection the Worker gets **one** retry with the Verifier's reason added to its task. The retry's answer is judged against the *original* question. (Also create an empty `services/__init__.py`.) **If not:** `main.py` would mix input handling with the agent flow, and a rejected answer would get no chance to be fixed.
+**Story — `services/research_service.py`:** this holds the whole handoff in one function: the Worker answers, the Verifier checks, and on a rejection the Worker gets **one** retry with the Verifier's reason added to its task — and that retry's answer is judged against the *original* question. Keeping this flow in the service layer (not `main.py`) means it can be reused and tested on its own. (Also create an empty `services/__init__.py`.) **If not:** `main.py` would mix input handling with the agent flow, and a rejected answer would get no chance to be fixed.
 
 ```python
 # src/services/research_service.py
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
 **Changed from Step 3:** the integration test adds cases 7 and 8. Case 7 matters most: a Verifier that has never rejected anything hasn't been tested.
 
-**Story — cases 7 and 8:** a hand-made `AgentResult` whose tools said 64.4°F but whose answer says 90°F must be **rejected**; the same evidence (`lahore_steps()`) with the right answer must be **approved**. Each is its own test function. **If not:** a Verifier that approves everything would look exactly like one that works.
+**Story — cases 7 and 8:** these are the Verifier's own tests, built from hand-made evidence so no model is needed: an `AgentResult` whose tools said 64.4°F but whose answer claims 90°F must be **rejected**, and the same evidence (`lahore_steps()`) with the correct answer must be **approved**. Each is its own function, so a failure points straight at the gap. **If not:** a Verifier that just approves everything would look exactly like one that works.
 
 ```python
 # tests/integration/test_live_agents.py
@@ -390,7 +390,7 @@ if __name__ == "__main__":
     test_verifier_approves_right_answer(verifier_chain)
 ```
 
-**Story — `data/sample/tasks.json` + `scripts/compare_with_tools.py`:** asks each sample task two ways — Step 1's from-memory chain, and the Worker + Verifier — and prints both side by side. It's for *you* to read, which is why it's a script, not a test. **If not:** the project's whole claim ("verified answers, not guesses") would never be shown in one place.
+**Story — `data/sample/tasks.json` + `scripts/compare_with_tools.py`:** this asks each sample task two ways — Step 1's from-memory chain, and the full Worker + Verifier pipeline — and prints both answers side by side. It's meant for *you* to read and compare, which is why it's a script, not a pass/fail test. **If not:** the project's whole claim — "verified answers, not guesses" — would never actually be shown in one place.
 
 `data/sample/tasks.json`
 

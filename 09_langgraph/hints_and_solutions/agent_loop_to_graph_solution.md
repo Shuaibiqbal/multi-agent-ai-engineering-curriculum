@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-agent_loop_to_graph) · [Hint 1](agent_loop_to_graph_hints.md#hint-1) · [Hint 2](agent_loop_to_graph_hints.md#hint-2) · [Solution](agent_loop_to_graph_solution.md)
 
-**Story — `agent_loop_to_graph_practice.py`:** this is where Doc07's whole ReAct loop gets rebuilt as a graph — the same "think, act, observe, repeat" shape, with nodes and edges instead of a `for` loop, and Doc07's own `AGENT_TOOLS` and `run_tool()` doing the real work. **If not:** the Build Task's graph would be the first place you ever turned a loop into a graph, with no smaller version to trust it against.
+**Story — `agent_loop_to_graph_practice.py`:** this is where Doc07's whole ReAct loop gets rebuilt as a graph — the same "think, act, observe, repeat" shape, but now as a `think` node and an `act` node connected by edges instead of a `for` loop, with Doc07's own `AGENT_TOOLS` and `run_tool()` still doing the real work inside the `act` node. Seeing the exact same logic wear graph clothing is what makes a `StateGraph` feel like a structuring choice, not a different kind of agent. **If not:** the Build Task's graph would be the first place you ever turned a loop into a graph, with no smaller version to trust it against.
 
 ## Solution
 

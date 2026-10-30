@@ -217,7 +217,7 @@ _You don't need any of these to understand the Core Concepts above — use them 
 
 ## Practice Exercises
 
-**Setup:** same venv as before — if it's not active, `cd 08b_async_prereq && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). Packages for this document: `pip install openai langchain langchain-openai requests` (`langchain` for the Real-world exercise's Approach 5, `requests` for the Failure exercise's Approach 3).
+**Setup:** same venv as before — if it's not active, `cd 08b_async_prereq && source ../01_python_foundations/.venv/bin/activate` (or your own venv for this folder). Packages for this document: `pip install openai langchain langchain-openai requests` (`langchain` for the Real-world exercise, `requests` for the Failure exercise).
 
 **Where your code lives:** all of it under `08b_async_prereq/practice/` (`mkdir -p practice`), never loose beside this README. Exercises are grouped **by topic, not by level** — two of them share one file, each in its own labelled section — the same convention as Doc01 and Doc02.
 

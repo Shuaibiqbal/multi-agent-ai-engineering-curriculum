@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-health_route) · [Hint 1](health_route_hints.md#hint-1) · [Hint 2](health_route_hints.md#hint-2) · [Solution](health_route_solution.md)
 
-**Story — `health_route_practice.py`:** every real service needs one tiny route that answers "are you up?", and it is the smallest FastAPI app possible — so it's the right place to learn the app, the decorator, and uvicorn before any real logic is involved. **If not:** your first FastAPI route would be the Build Task's `/run-task`, with a database and an agent behind it, and any mistake in the basic setup would be buried under all of that.
+**Story — `health_route_practice.py`:** every real service needs one tiny route that just answers "are you up?" — and because it's the smallest possible FastAPI app, it's the right place to learn `FastAPI()`, the `@app.get(...)` decorator, and `uvicorn` itself, before any real logic is in the picture at all. **If not:** your first FastAPI route would be the Build Task's `/run-task`, with a database and an agent sitting behind it, and any mistake in the basic setup would be buried under everything else.
 
 The solution below runs from inside `practice/` with `uvicorn health_route_practice:app --reload`, and is checked with `curl localhost:8000/health`.
 
 ## Solution
 
-**Story:** a bare dict can silently change shape (a typo like `"stauts"`) and no one notices until a client breaks. A `response_model` makes FastAPI check every reply and document it. **If not:** the Build Task's replies would have no written contract, and a wrong field name would only be found by the client.
+**Story:** a bare dict returned from a route can silently change shape — a typo like `"stauts"` instead of `"status"` — and nobody notices until a client breaks in production. Declaring a `response_model` makes FastAPI validate every reply against it and document the exact shape automatically. **If not:** the Build Task's replies would have no written contract at all, and a wrong field name would only ever be discovered by the client failing.
 
 ```python
 # practice/health_route_practice.py

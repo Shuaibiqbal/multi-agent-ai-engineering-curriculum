@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-runnable_routing) · [Hint 1](runnable_routing_hints.md#hint-1) · [Hint 2](runnable_routing_hints.md#hint-2) · [Solution](runnable_routing_solution.md)
 
-**Story — `runnable_routing_practice.py`:** a real support desk doesn't answer every ticket the same way — a billing question, a bug report, and a random hello each need a different reply. This exercise builds exactly that: one reply chain per category, a `RunnableBranch` that routes each ticket to the right one, and a `RunnableLambda` that tags the result. **If not:** Project 6's ticket-triage pipeline (and Doc11's Supervisor) would be the first time you met routing with `RunnableBranch`, in a much bigger file.
+**Story — `runnable_routing_practice.py`:** a real support desk doesn't answer every ticket the same way — a billing question, a bug report, and a random hello each need a different reply. This exercise builds exactly that, and introduces the two LCEL pieces that make it work. A `RunnableBranch` is an if/elif/else for chains: you give it `(condition, chain)` pairs and it sends each input to the first chain whose condition is true, with a default for everything else — so each category gets its own dedicated reply chain. A `RunnableLambda` wraps a plain Python function so it can sit inside a chain like any other step; here it tags the routed result so you can see which branch handled it. Together they turn "pick the right responder, then label the output" into one composable chain. **If not:** Project 6's ticket-triage pipeline (and Doc11's Supervisor) would be the first time you met routing with `RunnableBranch`, in a much bigger file.
 
 ## Solution
 
@@ -74,8 +74,9 @@ print("case 2 (unknown -> default + tag)  ->",
 **Expected output (the tests, no key needed):**
 
 ```
-case 1 (each category -> right branch) -> OK
-case 2 (unknown -> default + tagged)   -> OK
+case 1 (billing -> billing branch) -> True
+case 1 (technical -> tech branch) -> True
+case 2 (unknown -> default + tag) -> True
 ```
 
 **What you proved:** the three chain shapes together — sequential (`|`), your own function (`RunnableLambda`), and conditional (`RunnableBranch`) — in one real pipeline, with the routing checked for free.

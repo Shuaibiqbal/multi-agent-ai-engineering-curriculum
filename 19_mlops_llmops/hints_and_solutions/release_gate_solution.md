@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-release_gate) · [Hint 1](release_gate_hints.md#hint-1) · [Hint 2](release_gate_hints.md#hint-2) · [Solution](release_gate_solution.md)
 
-**Story — `release_gate_practice.py` (Intermediate section):** "test before you release" is a habit people forget under pressure. A gate turns it into a rule the code enforces: no passing score, no update to what's live. **If not:** the Build Task's `deploy()` would be the first gate you ever wrote, guarding Project 5's real prompts.
+**Story — `release_gate_practice.py`:** "test before you release" is exactly the kind of habit people forget under real deadline pressure. A release gate turns that habit into a rule the code itself enforces: no passing eval score means no update to what's actually live, no matter who's asking or how urgently. **If not:** the Build Task's `deploy()` would be the very first gate you ever wrote, guarding Project 5's real prompts with no smaller version to trust it against.
 
 All examples below assume `versions.json` already has `v1` (score 0.6) and `v2` (score 1.0) saved, the same way the `version_log` exercise builds it, and reuse the `run_eval_suite` stub from that exercise.
 
 ## Solution
 
-**Story:** a missing version should be a clear message, not a confusing crash, and the release bar is a team decision that shouldn't silently fall back to a default. **If not:** a typo in a version name would crash with `NoneType`, and a lost `.env` line could quietly lower the bar.
+**Story:** a missing version name should raise a clear, named error message, not a confusing crash deep in unrelated code, and the actual pass-score bar is a real team decision that should never silently fall back to some hardcoded default. **If not:** a simple typo in a version name would crash with an opaque `NoneType` error, and a lost `.env` line could quietly lower the release bar with nobody noticing.
 
 ```python
 # release_gate_practice.py

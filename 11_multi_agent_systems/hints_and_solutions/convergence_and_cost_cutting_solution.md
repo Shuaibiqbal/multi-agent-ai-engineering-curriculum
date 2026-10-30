@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-convergence_and_cost_cutting) · [Hint 1](convergence_and_cost_cutting_hints.md#hint-1) · [Hint 2](convergence_and_cost_cutting_hints.md#hint-2) · [Solution](convergence_and_cost_cutting_solution.md)
 
-**Story — `convergence_and_cost_cutting_practice.py`:** two production risks in one file: a revision loop that never agrees, and a pipeline that costs too much. Both are proven here with a hard limit and a measured cut, before Project 4 depends on either. **If not:** Project 4's Writer/Reviewer pair could loop without a clear report, and a "cheaper" prompt could quietly break answers.
+**Story — `convergence_and_cost_cutting_practice.py`:** this file covers two real production risks at once: a Writer/Reviewer revision loop that never actually converges on an agreement, and a pipeline that costs more than it needs to. Both get proven here directly — a hard revision cap with a clear stop report, and a measured, verified cost cut — before Project 4 ever depends on either pattern for real. **If not:** Project 4's Writer/Reviewer pair could loop without a clear report on why it stopped, and a "cheaper" prompt could quietly break the quality of answers with nobody noticing.
 
 The exercise has two parts, both in one file: a generator↔critic loop that
 never converges (and reports *why*), and a cost-cutting pass that proves a

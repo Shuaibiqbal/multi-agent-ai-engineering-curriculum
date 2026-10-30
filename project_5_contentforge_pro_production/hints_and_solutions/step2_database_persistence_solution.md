@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-2-every-run-saved-to-a-database-and-findable-by-id) · [Hint 1](step2_database_persistence_hints.md#hint-1) · [Hint 2](step2_database_persistence_hints.md#hint-2) · [Solution](step2_database_persistence_solution.md)
 
-**Story — Step 2:** after Step 1 a run's result lives only in the HTTP reply — once it's sent, it's gone. This step saves every run to SQLite (Doc12): a `"started"` row **before** the team runs, then `"completed"` or `"failed"` after, so even a crashed run leaves an honest record. `GET /runs/{id}` reads one back, and a request ID ties each request's log lines together. **If not:** "what happened on that run yesterday?" has no answer.
+**Story — Step 2:** after Step 1, a run's result lives only in the one HTTP reply it was sent in — once that response is gone, there's no record it ever happened. This step saves every run to SQLite (Doc12's pattern): a `"started"` row is written **before** the team even runs, then updated to `"completed"` or `"failed"` after — so even a run that crashes mid-way leaves an honest, queryable record instead of silently vanishing. `GET /runs/{id}` reads one back by id, and a request ID ties each request's scattered log lines together into one traceable story. **If not:** "what happened on that run yesterday?" has no answer at all.
 
 After this step the project runs: every `POST /run-task` saves a row, and `GET /runs/1` shows it. Files not shown here don't change.
 
@@ -33,7 +33,7 @@ class TaskResponse(BaseModel):
 
 ## Solution — a `db/` package, a checked run shape, and a request ID
 
-**Story — `db/database.py`:** every SQL statement behind a small named function — Doc12's `runs_db.py` and Build Task, unchanged except for `DB_PATH`. Each write has its own `with conn:`, so the `"started"` row is saved on its own. `?` placeholders keep a topic like `x'); DROP TABLE runs; --` plain text. (Also create an empty `db/__init__.py`.) **If not:** SQL would be scattered through the routes, and a crashed run could vanish or stay `"started"` forever.
+**Story — `db/database.py`:** this puts every SQL statement behind a small, named function — Doc12's `runs_db.py` and Build Task, unchanged except for `DB_PATH`. Each write wraps its own `with conn:` block, so the `"started"` row is committed on its own, immediately, rather than waiting on the whole request to finish. `?` placeholders (never string-formatted SQL) keep a topic like `x'); DROP TABLE runs; --` safely treated as plain text, never as SQL syntax. (Also create an empty `db/__init__.py`.) **If not:** SQL would be scattered through the routes, and a crashed run could vanish or stay stuck at `"started"` forever.
 
 ```python
 # src/db/database.py
@@ -90,7 +90,7 @@ def fetch_run(conn, run_id):
     return dict(row)
 ```
 
-**Story — `db/models.py`:** one saved run's shape, used as `GET /runs/{id}`'s `response_model` (Doc12's `RunRecord`). **If not:** a column added later — say, a cost figure — would leak to every client.
+**Story — `db/models.py`:** this defines one saved run's exact public shape as a Pydantic model, used as `GET /runs/{id}`'s `response_model` (Doc12's `RunRecord` pattern) — FastAPI filters the response to only these fields, regardless of what's actually in the database row. **If not:** a column added to the database later — say, an internal cost figure — would leak straight through to every client.
 
 ```python
 # src/db/models.py

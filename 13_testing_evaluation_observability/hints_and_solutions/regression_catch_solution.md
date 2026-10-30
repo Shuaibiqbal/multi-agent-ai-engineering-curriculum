@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-regression_catch) · [Hint 1](regression_catch_hints.md#hint-1) · [Hint 2](regression_catch_hints.md#hint-2) · [Solution](regression_catch_solution.md)
 
-**Story — `regression_catch_practice.py`:** a green test suite only means something if you've seen it turn red for a real reason. Deleting one key instruction on purpose, and watching the score drop, is the proof. **If not:** the Build Task's regression check would be the first time you ever made a prompt worse on purpose — and you wouldn't know whether a missing drop meant "the prompt change was harmless" or "the suite is blind".
+**Story — `regression_catch_practice.py`:** a green test suite only means something if you've actually watched it turn red for a real reason at least once. Deleting one key instruction from a prompt on purpose, then re-running the eval and watching the score genuinely drop, is that proof. **If not:** the Build Task's regression check would be the first time you ever deliberately made a prompt worse — and you'd have no way to tell whether a missing score drop meant "the prompt change was harmless" or "the suite itself is blind."
 
 All versions use this prompt file — create it in `practice/` first:
 ```
@@ -16,7 +16,7 @@ The solution calls the real OpenAI API, and runs from inside `practice/` with `p
 
 ## Solution
 
-**Story:** "the score dropped" can mean one task out of four wobbled. Deciding the bar *before* the sabotage — how many passes count as OK — stops you from explaining the result away afterwards. **If not:** any small dip could be read as "caught it", and a real hole in the suite could be read as noise.
+**Story:** "the score dropped" could just mean one task out of four wobbled randomly, nothing more. Deciding the pass bar — exactly how many passes still counts as OK — *before* the sabotage happens, not after, is what stops you from explaining the result away once you see it. **If not:** any small dip could be read after the fact as "caught it," and a real hole in the suite could just as easily be waved off as noise.
 
 ```python
 # practice/regression_catch_practice.py

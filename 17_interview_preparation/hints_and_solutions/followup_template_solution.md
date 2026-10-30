@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-followup_template) · [Hint 1](followup_template_hints.md#hint-1) · [Hint 2](followup_template_hints.md#hint-2) · [Solution](followup_template_solution.md)
 
-**Story — `followup_template.md`:** interviews are won in the follow-ups, not the first answer. This exercise answers a scenario and then asks the standing follow-ups yourself, before the interviewer does. **If not:** every "why not X?" would arrive as a surprise.
+**Story — `followup_template.md`:** interviews are genuinely won or lost in the follow-up questions, not the first answer you give. This exercise answers a scenario and then asks yourself the standing follow-ups that always come next, before a real interviewer ever gets the chance to. **If not:** every "why not X instead?" would arrive as a surprise you have to improvise through, live.
 
 Write your own answer first, in `practice/followup_template.md`, then compare.
 
@@ -10,7 +10,7 @@ Write your own answer first, in `practice/followup_template.md`, then compare.
 
 ## Solution
 
-**Story:** the same order, but every follow-up names a specific, checkable mechanism, and "what if it fails again" becomes a design fix. **If not:** your answers would stay at the category level, and a strong interviewer would keep asking "how, specifically?"
+**Story:** this keeps the same order of follow-ups, but now every one names a specific, checkable mechanism rather than a vague category, and "what if it fails again" turns into an actual concrete design fix, not just an acknowledgment. **If not:** your answers would stay stuck at the category level, and a strong interviewer would keep pressing with "how, specifically?" until you ran out of depth.
 
 **First answer:** "I'd isolate the layer first — pull the actual retrieved chunks for a handful of the bad live queries and check relevance directly, before assuming it's the retriever at all, since a prompt or generation regression can look identical to a retrieval regression from the outside."
 

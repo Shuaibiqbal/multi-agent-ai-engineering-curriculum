@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-first_tool_call) · [Hint 1](first_tool_call_hints.md#hint-1) · [Hint 2](first_tool_call_hints.md#hint-2) · [Solution](first_tool_call_solution.md)
 
-**Story — `first_tool_call_practice.py`:** this is the exact primitive every agent in this entire curriculum is built from — a model deciding to call a function instead of answering directly. Seeing it work once, standalone, before combining it with anything else, is what makes the Build Task's `run_with_tools()` obvious instead of magic. **If not:** the first time you'd see a tool call requested and executed would be inside a bigger harness already juggling 2-3 tools, making it harder to tell which part is "the round trip" and which part is everything else.
+**Story — `first_tool_call_practice.py`:** this is the exact primitive every agent in this entire curriculum is built from: you bind a tool to the model with `.bind_tools([...])`, and the model decides — on its own — to *request* a function call (which comes back in `response.tool_calls`) instead of answering in text; your code then runs that function and could feed the result back. Seeing this one round trip work standalone, before combining it with anything else, is what makes the Build Task's `run_with_tools()` loop obvious instead of magic. **If not:** the first time you'd see a tool call requested and executed would be inside a bigger harness already juggling 2-3 tools, making it harder to tell which part is "the round trip" and which part is everything else.
 
 ## Solution
 

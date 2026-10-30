@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-fastapi_service) · [Hint 1](fastapi_service_hints.md#hint-1) · [Hint 2](fastapi_service_hints.md#hint-2)
 
-**Story:** the JSON API shape a real frontend calls — typed input, automatic validation, free docs — with a tiny HTML form on top. This is Doc12's FastAPI, standalone. **If not:** a frontend (or another service) has nothing clean to call, and you hand-roll validation a Pydantic model does for free.
+**Story:** this builds the exact JSON API shape a real frontend actually calls — typed Pydantic input, automatic request validation, and interactive docs generated for free — with a tiny HTML form layered on top to exercise it. This is Doc12's FastAPI pattern, now standalone and focused purely on the API contract. **If not:** a frontend, or another service entirely, would have nothing clean to call, and you'd end up hand-rolling validation logic a Pydantic model already gives you for free.
 
 ## The FastAPI service
 

@@ -6,7 +6,7 @@
 
 **Builds on:** your practice file of that same file — you are testing *that* loader against the two tricky `.env` states, so keep both sections in the one file. The `MissingConfigError` used below is the same class the [Build Task](../README.md#build-task-config-logging-foundation) ends up with in `practice/build_task/exceptions.py`.
 
-**Story — `env_config_practice.py` (Edge cases section):** "missing" isn't one thing — a key that was never set and a key set to an empty string are two different states that look the same to a careless check. This exercise decides, on purpose, which one a required secret should tolerate. **If not:** `require_env()` in the Build Task would ship with an untested assumption about empty strings, and a genuinely blank API key could sail through as if it were valid.
+**Story — `env_config_practice.py` (Edge cases section):** "missing" isn't one thing — `os.getenv()` returns `None` for a key that was never set, but an empty string `""` for one that's set to nothing, and a careless `if not value` check treats the two identically. This exercise decides, on purpose, which of those states a required secret should tolerate and which it must reject. **If not:** `require_env()` in the Build Task would ship with an untested assumption about empty strings, and a genuinely blank API key could sail through as if it were valid.
 
 ## Solution
 

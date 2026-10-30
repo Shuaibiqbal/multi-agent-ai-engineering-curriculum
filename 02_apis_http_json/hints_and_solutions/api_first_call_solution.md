@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-api_first_call) · [Hint 1](api_first_call_hints.md#hint-1) · [Hint 2](api_first_call_hints.md#hint-2) · [Solution](api_first_call_solution.md)
 
-**Story — `api_first_call_practice.py`:** every later exercise in this document assumes you've already seen, once, that a bad URL and a bad response are two completely different kinds of failure — one never reaches the network, the other comes back from a real server. This script is where you see that split for the first time, with nothing else going on. **If not:** the first time you'd meet that distinction would be buried inside a retry loop or an error-classification function, where it's much harder to isolate what's actually different about the two failure types.
+**Story — `api_first_call_practice.py`:** every later exercise in this document assumes you've already seen, once, that a bad URL and a bad response are two completely different kinds of failure: a bad URL raises a `requests` exception *before any server is reached*, while a 4xx/5xx is a real response that came back and you inspect with `.status_code`. This script is where you see that split for the first time, with nothing else going on. **If not:** the first time you'd meet that distinction would be buried inside a retry loop or an error-classification function, where it's much harder to isolate what's actually different about the two failure types.
 
 ## Solution
 

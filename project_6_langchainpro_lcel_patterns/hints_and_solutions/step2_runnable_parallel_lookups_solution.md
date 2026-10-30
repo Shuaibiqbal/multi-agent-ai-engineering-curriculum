@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-2-customer-lookups-that-run-at-the-same-time) · [Hint 1](step2_runnable_parallel_lookups_hints.md#hint-1) · [Hint 2](step2_runnable_parallel_lookups_hints.md#hint-2) · [Solution](step2_runnable_parallel_lookups_solution.md)
 
-**Story — Step 2:** a good billing or technical reply needs the customer's account and recent orders. Those are two separate lookups, and neither needs the other's result — so there's no reason to wait for one before starting the other. This step adds both lookups, first one after another, then in parallel, and measures the difference. **If not:** every billing ticket would wait twice as long as it needs to, for no benefit.
+**Story — Step 2:** a good billing or technical reply needs the customer's account info and their recent orders. Those are two separate, independent lookups — neither needs the other's result to run — so there's no real reason to wait for one before starting the other. This step adds both lookups, times them first run one after another, then run together with `RunnableParallel`, and measures the real difference between the two. **If not:** every billing ticket would wait twice as long as it needs to, for no benefit at all.
 
 After this step the project runs: billing and technical replies use the account and order details, and `python -m scripts.time_lookups` shows about 2 s one after another vs. about 1 s in parallel. Files not shown here don't change.
 
@@ -44,7 +44,7 @@ Ticket: {ticket}
 
 ## Solution — both lookups at the same time with `RunnableParallel`
 
-**Story — `chains/lookups.py`:** the same two lookups, plus `get_ticket_text()` to carry the ticket through. `build_lookup_step()` puts all three in a `RunnableParallel`: every function gets the same input, they run at the same time, and the result is a dict with the same keys (Doc05's LCEL topic: "a dict becomes a step that runs each value in parallel"). **If not:** the wait grows with every lookup you add.
+**Story — `chains/lookups.py`:** this holds the same two lookups, plus `get_ticket_text()` to carry the original ticket through unchanged. `build_lookup_step()` puts all three in a `RunnableParallel`: every function receives the same input, they all run at the same time rather than in sequence, and the combined result comes back as one dict keyed by each step's name (Doc05's LCEL rule: a plain dict of runnables becomes a step that runs each value in parallel). **If not:** the wait would grow with every lookup you add, instead of staying flat.
 
 ```python
 # src/chains/lookups.py
@@ -97,7 +97,7 @@ def build_lookup_step():
 
 **Changed from Step 1:** billing and technical chains start with the lookup step. General stays as it was.
 
-**Story — `chains/replies.py`:** the lookup step's dict (`ticket`, `account`, `orders`) fills the prompt directly — its keys match the prompt's slots on purpose. **If not:** you'd need glue code to rename keys between the two steps.
+**Story — `chains/replies.py`:** the lookup step's output dict (`ticket`, `account`, `orders`) fills the reply prompt's template slots directly, because its keys were named to match the prompt's placeholders on purpose. **If not:** you'd need glue code in between just to rename keys from one step's output to the next step's expected input.
 
 ```python
 # src/chains/replies.py
@@ -123,7 +123,7 @@ def build_reply_chain(category):
     return full_chain
 ```
 
-**Story — `scripts/time_lookups.py`:** the proof. It times the two lookups one after another, then the parallel step, and prints both numbers. **If not:** "it's faster" would be a claim, not a measurement.
+**Story — `scripts/time_lookups.py`:** this is the actual proof, not a claim. It times the two lookups run one after another with `time.time()`, then times the exact same two lookups run through the `RunnableParallel` step, and prints both numbers side by side. **If not:** "it's faster" would be a claim, not a measurement you watched yourself.
 
 ```python
 # scripts/time_lookups.py
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/unit/test_lookups.py`:** known and unknown customers, the three keys, and a time check — all with no API key, each printing `OK` or `WRONG`. **If not:** a later change could quietly make the lookups run one after another again.
+**Story — `tests/unit/test_lookups.py`:** this checks a known customer, an unknown one, that the result dict has exactly the three expected keys, and that the parallel step is actually meaningfully faster than running sequentially — all with no API key, each case printing `OK` or `WRONG`. **If not:** a later change could quietly make the lookups run one after another again, and nothing would catch the regression.
 
 ```python
 # tests/unit/test_lookups.py

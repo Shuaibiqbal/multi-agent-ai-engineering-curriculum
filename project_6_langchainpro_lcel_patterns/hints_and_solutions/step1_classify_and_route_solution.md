@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-1-a-classifier-that-sends-each-ticket-to-the-right-reply-chain) · [Hint 1](step1_classify_and_route_hints.md#hint-1) · [Hint 2](step1_classify_and_route_hints.md#hint-2) · [Solution](step1_classify_and_route_solution.md)
 
-**Story — Step 1:** every later step makes one part of this pipeline stronger — faster lookups, safer failures, a live reply, a record. Before any of that, prove the basic shape works: one chain decides the category, and a second chain, picked by that category, writes the reply. **If not:** when Step 3's fallback fires, you won't know whether the problem is the fallback or the routing under it.
+**Story — Step 1:** every later step makes one part of this pipeline stronger — faster lookups, safer failures, a live reply, a saved record. Before any of that, this step proves the basic shape works: one LCEL chain classifies the ticket into a category (structured output), and a second chain, *picked* by that category, writes the reply. **If not:** when Step 3's fallback fires, you won't know whether the problem is the fallback or the routing logic underneath it.
 
 After this step the project runs: `python main.py` classifies the 4 sample tickets and prints a reply for each.
 
@@ -10,7 +10,7 @@ After this step the project runs: `python main.py` classifies the 4 sample ticke
 
 The same files as Project 1 — Doc01's config, errors and logger, and Project 1's prompt loader — in the `src/` package, with the prompts folder `src/prompts`.
 
-**Story — `exceptions.py`, `config.py`, `utils/logger.py`, `utils/prompts.py`:** settings load and fail loudly at startup, every file logs the same way, and prompts live in `.txt` files. **If not:** a missing key would surface deep inside a chain as a confusing error.
+**Story — `exceptions.py`, `config.py`, `utils/logger.py`, `utils/prompts.py`:** the by-now-familiar foundations — settings load from `.env` and fail loudly at startup, every file logs the same way through `get_logger()`, and prompts live in `.txt` files loaded by name. **If not:** a missing key would surface deep inside a chain as a confusing error.
 
 ```python
 # src/exceptions.py
@@ -95,7 +95,7 @@ Also create empty `__init__.py` files in `src/utils/` and `src/models/`.
 
 ## Solution — schema, chains, prompts and a service, each in its own file
 
-**Story — `models/llm.py`:** one place builds the chat model, so the model choice lives in one line, never scattered (the rule from Doc05's Build Task). **If not:** every chain would build its own `ChatOpenAI` with its own settings.
+**Story — `models/llm.py`:** this one place builds the `ChatOpenAI` model, so the model choice lives in one line, never scattered across every chain (Doc05's Build Task rule). **If not:** every chain would build its own `ChatOpenAI` with its own settings, drifting apart over time.
 
 ```python
 # src/models/llm.py
@@ -107,7 +107,7 @@ def get_model():
     return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
-**Story — `schemas.py`:** the classifier's answer is a contract: `category` can only be one of three values, `reason` explains the choice, and `sure` says whether the ticket could fit more than one category. `TicketRecord` is the result of one ticket — customer, ticket, category and reply — checked when it's built. Later steps only **add** fields to it, each with a default. **If not:** a typo like `"Billing"` would silently match no branch, and every caller would guess the keys of a loose dict.
+**Story — `schemas.py`:** the classifier's answer is a Pydantic contract: `category` is a `Literal` limited to exactly three values, `reason` explains the choice, and `sure` flags whether the ticket could plausibly fit more than one category. `TicketRecord` is the checked shape of one processed ticket — customer, ticket, category and reply — validated the moment it's built. Later steps only **add** fields to it, each with a default, so existing code never breaks. **If not:** a typo like `"Billing"` would silently match no branch, and every caller would be guessing the keys of a loose dict.
 
 ```python
 # src/schemas.py
@@ -130,7 +130,7 @@ class TicketRecord(BaseModel):
     reply: str
 ```
 
-**Story — `prompts/classifier.txt`:** the rules for sorting, in plain text. `{ticket}` is the one slot the template fills. **If not:** rewording the classifier would mean editing Python.
+**Story — `prompts/classifier.txt`:** this spells out the rules for sorting a ticket into billing/technical/general, in plain text that anyone can edit. `{ticket}` is the one placeholder the `ChatPromptTemplate` fills in with the actual message at call time. **If not:** rewording the classifier's rules would mean editing Python.
 
 `src/prompts/classifier.txt`
 
@@ -147,7 +147,7 @@ fit more than one category.
 Ticket: {ticket}
 ```
 
-**Story — the three reply prompts:** one per category, named exactly like the category. Each has its own rules — billing never promises a refund, technical asks for a missing detail, general never invents a company fact. **If not:** one prompt trying to cover all three would do each one worse.
+**Story — the three reply prompts:** one `.txt` file per category, named exactly like the category so the router can pick the right file by string alone. Each carries its own specific rules — billing never promises a refund, technical asks for a missing detail instead of guessing, general never invents a company fact. **If not:** one prompt trying to cover all three categories at once would do each one worse than a dedicated prompt would.
 
 `src/prompts/billing.txt`
 
@@ -180,7 +180,7 @@ fact, say a team member will follow up. Never make one up.
 Ticket: {ticket}
 ```
 
-**Story — `chains/classifier.py`:** `build_classifier_chain()` returns the chain (Doc05's Build Task shape: a function that returns a `Runnable`). `classify_ticket()` runs it, catches `ValidationError` by name (Doc05's Intermediate exercise, `extract_person()`), and logs every decision with its reason, like Project 1's router. **If not:** one unreadable answer would crash the whole queue.
+**Story — `chains/classifier.py`:** `build_classifier_chain()` returns the chain itself (Doc05's Build Task shape: a function that returns a `Runnable`, not the result of calling one). `classify_ticket()` runs it, catches `ValidationError` by name (the same pattern as Doc05's Intermediate exercise, `extract_person()`), and logs every decision along with its reason, just like Project 1's router. **If not:** one unreadable or malformed answer would crash the whole ticket queue.
 
 ```python
 # src/chains/classifier.py
@@ -220,7 +220,7 @@ def classify_ticket(ticket):
     return result
 ```
 
-**Story — `chains/replies.py`:** the branch. The category picks the prompt file, and the rest of the chain is the same for all three. **If not:** three nearly-identical functions, one per category.
+**Story — `chains/replies.py`:** this is the branch: the classified category picks which prompt file to load, and from there the rest of the chain — model, parser — is identical for all three categories. **If not:** you'd end up with three nearly-identical functions, one per category, drifting apart as each gets edited separately.
 
 ```python
 # src/chains/replies.py
@@ -238,7 +238,7 @@ def build_reply_chain(category):
     return chain
 ```
 
-**Story — `services/pipeline.py`:** the flow — classify, pick, reply — in one function, `handle_ticket()`, that prints the reply and returns a `TicketRecord`. The tests and `main.py` call the exact same code. **If not:** the flow would live inside `main.py`'s loop and nothing else could reuse it.
+**Story — `services/pipeline.py`:** this holds the whole flow — classify, pick the reply chain, write the reply — in one function, `handle_ticket()`, which prints the reply and returns a `TicketRecord`. Both the tests and `main.py` call this exact same function. **If not:** the flow would live inside `main.py`'s loop, and nothing else — not a test, not a future API — could reuse it.
 
 ```python
 # src/services/pipeline.py
@@ -264,7 +264,7 @@ def handle_ticket(ticket, customer_id):
     )
 ```
 
-**Story — `data/sample/tickets.json`:** the 4 test tickets, including the unclear one. **If not:** the tickets would be retyped in `main.py` and in every test.
+**Story — `data/sample/tickets.json`:** this stores the 4 test tickets in one file, including the deliberately unclear one that could fit more than one category. **If not:** the tickets would be retyped separately in `main.py` and in every test, and the copies would drift.
 
 `data/sample/tickets.json`
 
@@ -293,7 +293,7 @@ def handle_ticket(ticket, customer_id):
 ]
 ```
 
-**Story — `main.py`:** config first, then every sample ticket through `handle_ticket()`; `print_record()` shows the result under each ticket. A bad key stops the app; a rate limit skips one ticket (Doc04's error table). **If not:** the first API error would end the run with a traceback.
+**Story — `main.py`:** this wires Step 1 together: load config first, then run every sample ticket through `handle_ticket()`, with `print_record()` showing the result under each one. A bad key stops the whole app at startup; a rate limit on one ticket just skips that ticket and moves on (Doc04's error table). **If not:** the first API error of any kind would end the whole run with a raw traceback.
 
 ```python
 # main.py
@@ -354,7 +354,7 @@ Also create empty `__init__.py` files in `src/chains/` and `src/services/`.
 
 ## The Step 1 tests
 
-**Story — `tests/unit/test_config.py`:** the same three checks as Doc01's `test_config.py`, with no API call, using a made-up setting name so your `.env` is never touched. **If not:** a broken `.env` would first show up as a confusing OpenAI error.
+**Story — `tests/unit/test_config.py`:** this runs the same three checks as Doc01's `test_config.py` — missing, empty, and loaded — with no API call, using a made-up setting name so your real `.env` is never touched. **If not:** a broken `.env` would first show up as a confusing OpenAI error during a real classification call.
 
 ```python
 # tests/unit/test_config.py
@@ -401,7 +401,7 @@ if __name__ == "__main__":
     test_config_loads()
 ```
 
-**Story — `tests/unit/test_schemas.py`:** no key needed — it proves an unknown category is rejected and that a record builds from the 4 Step 1 fields. **If not:** a typo category would silently match no branch, and you'd only notice on a real ticket.
+**Story — `tests/unit/test_schemas.py`:** no API key needed here — it proves the `Literal` rejects an unknown category and that a `TicketRecord` builds correctly from the 4 Step 1 fields. **If not:** a typo'd category value would silently match no branch, and you'd only notice it on a real ticket going unanswered.
 
 ```python
 # tests/unit/test_schemas.py
@@ -447,7 +447,7 @@ if __name__ == "__main__":
     test_record()
 ```
 
-**Story — `tests/integration/test_live_pipeline.py`:** the checks that need the real model — each sample gets the right category, and a billing ticket runs all the way to a reply. Every later step adds its own cases here. **If not:** you'd only know the classifier works on the tickets you happened to try by hand.
+**Story — `tests/integration/test_live_pipeline.py`:** this holds the checks that need the real model: each sample ticket gets the right category, and a billing ticket runs all the way through to a reply. Every later step adds its own cases to this same growing file. **If not:** you'd only know the classifier works on the tickets you happened to try by hand.
 
 ```python
 # tests/integration/test_live_pipeline.py

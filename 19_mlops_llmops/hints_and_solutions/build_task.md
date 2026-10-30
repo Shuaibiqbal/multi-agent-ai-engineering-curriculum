@@ -119,7 +119,7 @@ from versioning import get_version
 class VersionNotFoundError(Exception):
     pass
 
-# why: the gate's decision as real fields — release_gate's Approach 2
+# why: the gate's decision as real fields — release_gate's DeployResult
 @dataclass
 class DeployResult:
     version_name: str
@@ -253,7 +253,7 @@ def get_version(name: str,
     return None
 ```
 
-**Story — `deploy_gate.py`:** `release_gate`'s gate with its `DeployResult` (Approach 2), plus `gate_bypass`'s idea taken one step further: every gate decision is a timestamped event in an append-only history, and "what's live" is worked out from that history — there is no pointer file to edit. **If not:** the Build Task's "not skippable by accident" constraint would rest on nobody touching a file.
+**Story — `deploy_gate.py`:** `release_gate`'s gate with its `DeployResult`, plus `gate_bypass`'s idea taken one step further: every gate decision is a timestamped event in an append-only history, and "what's live" is worked out from that history — there is no pointer file to edit. **If not:** the Build Task's "not skippable by accident" constraint would rest on nobody touching a file.
 
 ```python
 # practice/build_task/deploy_gate.py
@@ -267,7 +267,7 @@ from versioning import get_version
 class VersionNotFoundError(Exception):
     pass
 
-# why: the gate's decision as real fields — release_gate's Approach 2
+# why: the gate's decision as real fields — release_gate's DeployResult
 @dataclass
 class DeployResult:
     version_name: str

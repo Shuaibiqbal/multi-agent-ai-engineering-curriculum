@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-seven_step_practice) · [Hint 1](seven_step_practice_hints.md#hint-1) · [Hint 2](seven_step_practice_hints.md#hint-2) · [Solution](seven_step_practice_solution.md)
 
-**Story — `seven_step_practice.md`:** the 7 steps only become a habit once you've run them on a real, messy request — this one small scenario is that first run, done on paper, before any project depends on it. **If not:** the first time you tried the process for real would be at the start of Project 1, with a whole project's worth of decisions riding on it.
+**Story — `seven_step_practice.md`:** the 7-step planning process only actually becomes a habit once you've run it on a real, messy request, not just read about it. This one small scenario is that first real run, done on paper with no code at stake, before any actual project depends on getting it right. **If not:** the first time you ever tried the process for real would be at the very start of Project 1, with a whole project's worth of decisions riding on getting the process itself right.
 
 Write your own answer in `practice/seven_step_practice.md` first, then compare.
 
@@ -10,7 +10,7 @@ Scenario: *"Build something that reads a team's daily emails and flags the urgen
 
 ## Solution
 
-**Story:** a plan that says "an urgency-checker" can't be built without more meetings; one that says `judge_urgency(email) -> (is_urgent, reason)` can. Naming real functions and data shapes turns the plan into work you can start today. **If not:** every vague step would turn into a design argument halfway through coding.
+**Story:** a plan that says "an urgency-checker" needs more meetings before anyone can actually build it; one that says `judge_urgency(email) -> (is_urgent, reason)` can be started right now, by anyone. Naming real function signatures and concrete data shapes is what turns a plan from an idea into work you can genuinely start today. **If not:** every vague step in the plan would turn into a design argument halfway through coding, after time has already been spent.
 
 1. **Problem:** a team's shared inbox receives more email than anyone reads carefully; genuinely urgent messages (a client escalation, a deadline today) sometimes sit unread alongside routine ones. We need a system that reviews new emails once a day and surfaces the ones that need immediate attention, without anyone having to read every message.
 

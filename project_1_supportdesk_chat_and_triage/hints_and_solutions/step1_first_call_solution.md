@@ -2,15 +2,15 @@
 
 > [Back to this step](../READING_README.md#step-1-a-script-that-sends-one-message-and-prints-the-reply) · [Hint 1](step1_first_call_hints.md#hint-1) · [Hint 2](step1_first_call_hints.md#hint-2) · [Solution](step1_first_call_solution.md)
 
-**Story — Step 1:** before any chat, memory or agents, prove the three foundations work together: settings load from `.env`, logging works, and one call to the model comes back. Each piece goes in its final folder from day one, so later steps only *add* files. **If not:** a wrong key or a broken import would first show up in Step 3, mixed in with ticket logic, and you'd debug three things at once.
+**Story — Step 1:** before any chat, memory, or agents, this step proves the three foundations of the whole project work together: settings load from `.env`, logging is set up, and one real call to the model comes back. It's deliberately the smallest possible end-to-end slice — one message in, one reply out — so that if anything in your setup is wrong (a bad key, a missing package, a broken import), it fails *here*, in a handful of lines, where the cause is obvious. Each file also goes straight into its final `src/` folder from day one, so every later step only *adds* code rather than moving things around. **If not:** a wrong key or a broken import would first show up in Step 3, tangled together with ticket logic, and you'd be debugging three unrelated things at once.
 
 After this step the project already runs: `python main.py` sends one message and prints the reply.
 
 ## The Doc01 files
 
-These three files are Doc01's Build Task code (Intermediate, Approach 1), **unchanged** — only the file locations and the `from src...` import line differ.
+These three files are Doc01's Build Task code, **unchanged** — only the file locations and the `from src...` import line differ.
 
-**Story — `src/exceptions.py`:** `load_config()` needs a way to say "a required setting is missing" that's more specific than a bare `Exception`. **If not:** `main.py` would have to catch every `Exception`, which also hides real bugs.
+**Story — `src/exceptions.py`:** this file holds the project's own named error types. `load_config()` needs a way to say specifically "a required setting is missing" — a custom `MissingConfigError` — rather than raising a bare `Exception`. A named error lets the code that calls it catch *exactly* that problem and react (print a clean setup message and exit), while letting genuine bugs crash loudly instead of being swallowed. **If not:** `main.py` would have to catch every `Exception` to handle a missing key, which also silently hides real bugs like a typo in a variable name.
 
 ```python
 # src/exceptions.py
@@ -21,7 +21,7 @@ class MissingConfigError(Exception):
     pass
 ```
 
-**Story — `src/config.py`:** the one place the project reads its settings from, failing loudly at startup. **If not:** every file would read `os.environ` itself, and a missing key would surface as a confusing `AuthenticationError` later.
+**Story — `src/config.py`:** this is the single place the whole project reads its settings from. On startup it loads `.env`, then checks that every required value (like `OPENAI_API_KEY`) is actually present — and if one is missing, it stops immediately with a clear `MissingConfigError` instead of letting the program run half-configured. Centralizing this means the rest of the code can simply trust that a `Config` object is complete and valid. **If not:** every file would read `os.environ` itself, nobody would own the "is this set?" check, and a missing key would only surface later as a confusing `AuthenticationError` deep inside an API call.
 
 ```python
 # src/config.py
@@ -55,7 +55,7 @@ def load_config():
 
 `load_dotenv()` looks for `.env` starting from this file's folder and walking up, so it finds the `.env` in the repo root.
 
-**Story — `src/utils/logger.py`:** every file logs the same way, from one setup function. **If not:** each file would configure its own handler, and some lines would print twice.
+**Story — `src/utils/logger.py`:** this gives the whole project one logging setup, from a single `get_logger(name)` function: every file that calls it gets the same format (a timestamp, the file's name, the level) and the same output. The function also guards against adding a second handler to the same logger, which is the usual cause of every line printing twice. **If not:** each file would configure its own handler, the format would drift from file to file, and some lines would print twice.
 
 ```python
 # src/utils/logger.py
@@ -91,7 +91,7 @@ Also create the empty `src/models/__init__.py` and `src/utils/__init__.py`, so b
 
 ## Solution — typed, logged, and the key checked at startup
 
-**Story — `models/llm.py`:** the only file in the project that talks to the OpenAI SDK. It adds a `MODEL` constant and a startup key check. The key check sends a 1-token request, which costs almost nothing and tests the exact endpoint every agent will use. **If not:** a wrong key would first appear as a crash in the middle of the user's first real message.
+**Story — `models/llm.py`:** this is the only file in the project that talks to the OpenAI SDK directly — everything else goes through it, so if the API ever changes you have one place to fix. It defines the `MODEL` constant (so the model name isn't scattered as a string across the codebase), creates the client, and runs a startup key check that sends a tiny 1-token request: that costs almost nothing but exercises the exact endpoint every agent will later use, so a bad key is caught at launch. **If not:** a wrong key would first appear as a crash in the middle of the user's first real message, after they'd already typed it.
 
 ```python
 # src/models/llm.py
@@ -124,7 +124,7 @@ def send_message(client, history, user_input):
     return reply
 ```
 
-**Story — `main.py`:** the entry point. Settings first, then the logger, then the key check, then the one real call. Each failure gets one clear line and a clean exit. **If not:** a missing or wrong key would print a long traceback that means nothing to a user.
+**Story — `main.py`:** this is the entry point — the file you actually run — and it wires the foundations together in a deliberate order: load settings, set up the logger, check the key, then make the one real call. Each thing that can go wrong (missing config, a bad key) is caught and turned into a single clear line plus a clean `sys.exit(1)`, so the user sees a readable message, not a stack trace. That ordering is the template every later step follows. **If not:** a missing or wrong key would dump a long Python traceback that means nothing to a user, instead of a plain "check OPENAI_API_KEY in your .env file."
 
 ```python
 # main.py
@@ -184,7 +184,7 @@ Both exit with code 1 and no traceback.
 
 ## The Step 1 tests
 
-**Story — `tests/unit/test_config.py`:** the same three checks as Doc01's `test_config.py` — a missing setting, an empty one, and a config that loads — with no API call. It tests `require_env()` with a made-up setting name, so your real `.env` is never moved or rewritten. **If not:** the first sign of a broken `.env` would be a confusing OpenAI error.
+**Story — `tests/unit/test_config.py`:** this is the fast, no-cost safety net for your settings code: the same three checks as Doc01's `test_config.py` — a required setting that's missing, one that's present but empty, and a config that loads cleanly — all with no API call, so they run in milliseconds. It deliberately exercises `require_env()` with a made-up setting name (not your real keys), so running the test never moves or rewrites your actual `.env`. Each case prints `OK` or `WRONG`, so you never have to eyeball the output. **If not:** the first sign of a broken `.env` would be a confusing OpenAI error at runtime, instead of a clear `WRONG` from a test.
 
 ```python
 # tests/unit/test_config.py
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     test_config_loads()
 ```
 
-**Story — `tests/integration/test_live_agents.py`:** the checks that need the real model. It starts small — one real reply, and the startup key check — and every later step adds its own cases to this same file. It's the same style as Doc04's `test_chat_client.py`. **If not:** "it works" would only mean "it worked the one time I tried it by hand".
+**Story — `tests/integration/test_live_agents.py`:** this holds the checks that genuinely need the real model — the ones a unit test can't cover. It starts with just two: one real reply comes back and contains the expected answer, and the startup key check correctly rejects a bad key. Every later step adds its own cases to this *same* file, so the integration suite grows with the project (the same style as Doc04's `test_chat_client.py`). **If not:** "it works" would only ever mean "it worked the one time I tried it by hand," with nothing to re-run after a change.
 
 ```python
 # tests/integration/test_live_agents.py

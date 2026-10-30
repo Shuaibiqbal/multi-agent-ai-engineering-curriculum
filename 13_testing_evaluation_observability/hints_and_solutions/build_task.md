@@ -16,7 +16,7 @@ Keep the pieces in separate files, one job each:
 
 1. **`tasks.py`** — at least 10 tasks, written *before* you run anything. A task has either `"expected"` (one short phrase that must appear — a free code check) or `"rules"` (checked by the judge).
 2. **`pipeline.py`** — `run_project_4(task_input)`. In this solution it's a small stand-in: one model call with the writer's prompt read from `writer_prompt.txt`. Swap its body for your real Project 4 graph. Reading the prompt from a file on every call is what lets the regression check edit it mid-run, like `regression_catch`.
-3. **`judge.py`** — `llm_judge_scoring`'s Approach 1 (typed `JudgeResult`, saved `JUDGE_PROMPT_VERSION`, `temperature=0`), unchanged.
+3. **`judge.py`** — `llm_judge_scoring`'s judge (typed `JudgeResult`, saved `JUDGE_PROMPT_VERSION`, `temperature=0`), unchanged.
 4. **`run_eval.py`** — loops over `TASKS`: runs Project 4, uses a code check or the judge, prints a summary with the reason for each failure, and saves `report.json`.
 5. **`regression_check.py`** — `regression_catch`'s pass bar plus per-task comparison, pointed at `run_eval_suite()`.
 6. **`test_unit_layer.py`** — plain pytest tests for the chunker and the tools, like `chunking_unit_test` and `tool_test_no_llm`. No model, no API key.
@@ -136,7 +136,7 @@ def run_project_4(task_input: str) -> str:
     return response.choices[0].message.content
 ```
 
-**Story — `judge.py`:** `llm_judge_scoring`'s Approach 1, unchanged — a typed result, a versioned prompt, `temperature=0`. **If not:** the Build Task would bring in a second, different judge, with no calibration behind it.
+**Story — `judge.py`:** this reuses `llm_judge_scoring`'s judge unchanged — a typed result, a versioned prompt, `temperature=0`. **If not:** the Build Task would bring in a second, different judge, with no calibration behind it.
 
 ```python
 # practice/build_task/judge.py

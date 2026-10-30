@@ -2,13 +2,13 @@
 
 > [Back to the step](../READING_README.md#step-4-a-fallback-when-a-server-is-unreachable-and-a-full-working-demo) · [Hint 1](step4_fallback_and_demo_hints.md#hint-1) · [Hint 2](step4_fallback_and_demo_hints.md#hint-2)
 
-**Story:** every step so far assumed every server works. Production doesn't. A server can be down for a deploy, misconfigured, or slow — and an agent that can't tell "one tool source is gone" from "everything is broken" isn't trustworthy. This step makes an unreachable server a logged-and-skipped non-event, a mid-task tool failure a clear observation, and a runaway loop a named error. **If not:** one missing server would hang or crash the whole agent on the day you demo it.
+**Story:** every step so far quietly assumed every server works. Production doesn't work that way. A server can be down for a deploy, misconfigured, or just slow — and an agent that can't tell "one tool source is gone" from "everything is broken" isn't trustworthy enough to run unattended. This step makes an unreachable server a logged-and-skipped non-event rather than a crash, a mid-task tool failure a clear observation the model can react to, and a runaway loop a named, catchable error. **If not:** one missing server would hang or crash the whole agent on the exact day you're demoing it.
 
 This is the **final** version of `server_pool.py`, `main.py`, and `test_agent.py`.
 
 ## `src/server_pool.py` (final)
 
-**Story:** `connect_all` now times out each server's handshake and wraps it in `try/except` — a failed server is logged and skipped, the rest still connect. `call_tool` wraps its dispatch too, so a server that drops mid-task returns a clear `Error:` string instead of crashing the loop. **If not:** a single unreachable or flaky server would take the whole agent down.
+**Story:** `connect_all` now puts a timeout on each server's handshake and wraps the whole attempt in `try/except` — a failed server is logged and skipped, while every other server still connects normally. `call_tool` wraps its own dispatch too, so a server that drops mid-task returns a clear `Error:` string the model can read, instead of crashing the whole agent loop. **If not:** a single unreachable or flaky server would take the whole agent down with it.
 
 ```python
 # MCPServerPool: connect to every configured server, discover and namespace
@@ -98,7 +98,7 @@ class MCPServerPool:
 
 ## `main.py` (final demo)
 
-**Story:** the whole project in one run — connect to the configured servers (with one deliberately broken), show what connected, run the both-servers task, and finish cleanly either way. **If not:** you'd have no single command that proves the agent degrades gracefully.
+**Story:** this ties the whole project together in one runnable demo — connect to the configured servers (with one deliberately broken), show exactly what connected and what didn't, run a task that needs both working servers, and finish cleanly either way. **If not:** you'd have no single command that proves, end to end, that the agent degrades gracefully instead of just claiming to.
 
 ```python
 # Final demo: connect to whatever servers are reachable (one is
@@ -165,7 +165,7 @@ filesystem tools — no hang, no crash.
 
 ## `tests/integration/test_agent.py` (final — add case 4)
 
-**Story:** the resilience proof — give the pool a broken server alongside a good one and confirm the broken one is skipped while the agent still runs. **If not:** "it degrades gracefully" would be a claim you never tested.
+**Story:** this is the resilience proof — give the pool one deliberately broken server alongside one good one, and confirm the broken one is skipped while the agent still runs normally on what's left. **If not:** "it degrades gracefully" would be a claim you never actually tested against a real failure.
 
 Add the broken server and this case:
 

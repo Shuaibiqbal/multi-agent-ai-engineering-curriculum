@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-auth_error_cost_compare) · [Hint 1](auth_error_cost_compare_hints.md#hint-1) · [Hint 2](auth_error_cost_compare_hints.md#hint-2) · [Solution](auth_error_cost_compare_solution.md)
 
-**Story — `auth_and_cost_practice.py`:** two failures worth seeing on purpose, once: a wrong API key (so you recognize `AuthenticationError` instead of a scary generic crash), and a system prompt quietly costing far more than it looks like (Doc03's cost formula, now driven by a real `response.usage` count instead of hand math). **If not:** the Build Task's "handle a bad key without a scary stack trace" requirement would ask you to catch an error type you'd never actually triggered, and a bloated system prompt in a real app could go unnoticed until the bill arrives.
+**Story — `auth_and_cost_practice.py`:** two failures worth seeing on purpose, once: a wrong API key (so you recognize the specific `openai.AuthenticationError` exception instead of a scary generic crash), and a system prompt quietly costing far more than it looks like — measured now with Doc03's cost formula driven by a real `response.usage.total_tokens` count instead of hand math. **If not:** the Build Task's "handle a bad key without a scary stack trace" requirement would ask you to catch an error type you'd never actually triggered, and a bloated system prompt in a real app could go unnoticed until the bill arrives.
 
 ## Solution
 

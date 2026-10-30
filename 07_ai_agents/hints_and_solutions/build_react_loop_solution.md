@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-build_react_loop) · [Hint 1](build_react_loop_hints.md#hint-1) · [Hint 2](build_react_loop_hints.md#hint-2) · [Solution](build_react_loop_solution.md)
 
-**Story — `react_loop_practice.py` (Intermediate section):** an agent is not a new idea — it's Doc06's tool round trip, repeated until the model stops asking for tools. Building the loop yourself, once, is what makes `create_agent` and Project 2's Worker readable instead of magic. **If not:** the Build Task's `agent.py` would be the first loop you ever wrote, with no smaller version to trust.
+**Story — `react_loop_practice.py`:** an agent is not a new idea — it's Doc06's tool round trip (ask the model, run the tool it requests, feed the result back) repeated in a loop until the model stops asking for tools and gives a final answer. Building this loop yourself, by hand, once, is what makes LangChain's `create_agent` and Project 2's Worker readable instead of magic — you've already written the thing they wrap. **If not:** the Build Task's `agent.py` would be the first loop you ever wrote, with no smaller version to trust.
 
 ## Solution
 
-**Story — `run_agent()`:** the loop becomes a function a caller can use: it returns an `AgentResult` (the answer plus every step), and running out of steps raises `MaxIterationsExceeded` with the partial log. **If not:** a run that never finished would look the same as one that finished with an empty answer.
+**Story — `run_agent()`:** this wraps the loop into a function a caller can actually use: on success it returns an `AgentResult` holding the answer plus every step taken, and if it runs out of steps it raises `MaxIterationsExceeded` carrying the partial log instead of just stopping. That distinction — a real `AgentResult` versus a raised exception — is what lets the caller tell success from failure programmatically. **If not:** a run that never finished would look the same as one that finished with an empty answer.
 
 ```python
 # react_loop_practice.py

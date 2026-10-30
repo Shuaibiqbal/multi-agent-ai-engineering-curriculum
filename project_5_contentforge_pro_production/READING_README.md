@@ -520,7 +520,7 @@ The root files — `.gitignore`, `.env`, `.env.example`, `requirements.txt` and 
 - **How:** `insert_started_run()` **before** the team runs → `finish_run()` or `fail_run()` after, each in its own `with conn:`; a middleware makes the request ID; `fetch_run()` + 404.
 - **Working after this step:** every `POST /run-task` saves a row; `GET /runs/1` shows its input, article, routing log and status.
 
-**Read first:** [Doc12 — SQLite persistence](../12_production_engineering/README.md#ex-sqlite_persistence), [Doc12 — validation 422](../12_production_engineering/README.md#ex-validation_422), [Doc12 — chat route](../12_production_engineering/README.md#ex-chat_route) (Approach 4, the request ID).
+**Read first:** [Doc12 — SQLite persistence](../12_production_engineering/README.md#ex-sqlite_persistence), [Doc12 — validation 422](../12_production_engineering/README.md#ex-validation_422), [Doc12 — chat route](../12_production_engineering/README.md#ex-chat_route) (the request ID).
 
 **Stuck on this step?** [Hint 1](hints_and_solutions/step2_database_persistence_hints.md#hint-1) · [Hint 2](hints_and_solutions/step2_database_persistence_hints.md#hint-2) · [Show me the solution](hints_and_solutions/step2_database_persistence_solution.md)
 

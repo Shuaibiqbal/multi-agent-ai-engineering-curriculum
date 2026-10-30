@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-token_count_guessing) · [Hint 1](token_count_guessing_hints.md#hint-1) · [Hint 2](token_count_guessing_hints.md#hint-2) · [Solution](token_count_guessing_solution.md)
 
-**Story — `token_count_guessing_practice.md`:** every cost and every context limit is counted in tokens, not words. Guessing first and then checking shows where the quick rule works and where it breaks. **If not:** you'd plan prompts and budgets with a rule you've never tested.
+**Story — `token_count_guessing_practice.md`:** every cost and every context limit is counted in *tokens* — sub-word chunks the model actually reads — not words. Guessing with a quick rule first, then checking against a real tokenizer count, shows exactly where the rule holds and where it breaks. **If not:** you'd plan prompts and budgets with a rule you've never tested.
 
 ## Solution
 
-**Story:** two quick estimates next to the real count, so you can see which one fails on which kind of text — and why. **If not:** you'd keep one rule of thumb and never notice its blind spots.
+**Story:** two quick estimates (one by word count, one by characters ÷ 4) placed next to the real tokenizer count, so you can see which rule fails on which kind of text — and why. **If not:** you'd keep one rule of thumb and never notice its blind spots.
 
 The same table, with both estimation methods shown side by side, and the actual mechanism explained for each surprising row:
 

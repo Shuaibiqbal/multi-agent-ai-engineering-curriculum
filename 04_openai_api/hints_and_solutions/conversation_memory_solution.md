@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-conversation_memory) · [Hint 1](conversation_memory_hints.md#hint-1) · [Hint 2](conversation_memory_hints.md#hint-2) · [Solution](conversation_memory_solution.md)
 
-**Story — `conversation_memory_practice.py`:** an LLM API call has no memory of its own — every call is stateless. "Memory" is really just resending the whole conversation so far, every single time. Building that resend-everything loop by hand, once, here, is what makes the Build Task's `chat_client.py` obvious instead of magic. **If not:** you'd be handed `send_message(history, user_input)` in the Build Task without ever having seen why it needs the whole `history` list passed in every time, not just the newest message.
+**Story — `conversation_memory_practice.py`:** an LLM API call has no memory of its own — every call is stateless. "Memory" is really just resending the whole conversation (the full `messages` list of every user and assistant turn so far) on every single call. Building that resend-everything loop by hand, once, here, is what makes the Build Task's `chat_client.py` obvious instead of magic. **If not:** you'd be handed `send_message(history, user_input)` in the Build Task without ever having seen why it needs the whole `history` list passed in every time, not just the newest message.
 
 ## Solution
 

@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-3-add-the-resource-and-the-prompt) · [Hint 1](step3_resource_and_prompt_hints.md#hint-1) · [Hint 2](step3_resource_and_prompt_hints.md#hint-2) · [Solution](step3_resource_and_prompt_solution.md)
 
-**Story — Step 3:** the code here is tiny; the point is the decision. A plain listing of notes *could* be a third Tool, and a summary prompt *could* be a string you type by hand — but a read-only listing is a **Resource** (nothing to act on), and a reusable template is a **Prompt** (not hardcoded in one app). Getting that split right is the actual skill this project teaches. **If not:** cramming everything into Tools is the real mistake real MCP servers make — a client that only wants to *read* your notes shouldn't go through a Tool call, with its own approval model, to do it.
+**Story — Step 3:** the code here is tiny; the point is the architectural decision. A plain listing of notes *could* be built as a third Tool, and a summary prompt *could* just be a string you type by hand — but MCP gives you two other primitives built exactly for this: a read-only listing with nothing to act on belongs as a **Resource**, and a reusable, parameterized template belongs as a **Prompt**, not hardcoded inside one app. Getting that split right is the actual skill this step teaches. **If not:** cramming everything into Tools is the real mistake real MCP servers make — a client that only wants to *read* your notes shouldn't have to go through a Tool call, with its own approval model, just to do it.
 
 After this step the project runs: `add_note` and `search_notes` are unchanged, and the server also exposes `notes://all` (Resource) and `summarize_notes` (Prompt). Files not shown here don't change.
 
@@ -10,7 +10,7 @@ After this step the project runs: `add_note` and `search_notes` are unchanged, a
 
 **Changed from Step 2:** `db.py` gains `list_all_notes`; `server.py` gains the Resource and the Prompt. The two Tools don't change at all — they stay Tools, on purpose.
 
-**Story — `db.py` → `list_all_notes`:** a plain `SELECT` of every row, oldest first, for the Resource to format. **If not:** the Resource would build its own query inline, duplicating what belongs in `db.py`.
+**Story — `db.py` → `list_all_notes`:** this is a plain `SELECT` of every row, ordered oldest first, that the Resource then formats for display. **If not:** the Resource function would build its own query inline, duplicating logic that belongs in `db.py`.
 
 ```python
 # src/db.py (new function — add alongside Step 2's functions)
@@ -23,7 +23,7 @@ def list_all_notes(path):
     return rows
 ```
 
-**Story — `server.py` → the Resource and the Prompt:** `@mcp.resource("notes://all")` takes no arguments and has no side effect — it only hands back data to read, with an explicit `"No notes yet."` when the store is empty. `@mcp.prompt()` returns the *text of a prompt*, filled with the two dates — the server never calls a model or reads the database here; it points the caller at the `notes://all` Resource for the actual content. A Resource's and a Prompt's docstrings matter to a client's UI exactly as a Tool's does to a model. **If not:** a Prompt that quietly re-reads the database is the same mistake as a Tool with a vague description — it works today and confuses everyone the moment the server grows.
+**Story — `server.py` → the Resource and the Prompt:** `@mcp.resource("notes://all")` takes no arguments and has no side effects — it only ever hands back data to read, with an explicit `"No notes yet."` string when the store is empty rather than nothing at all. `@mcp.prompt()` returns the *text of a prompt template*, filled in with the two date placeholders — the server never calls a model or reads the database itself here; it simply points the caller at the `notes://all` Resource for the actual content. A Resource's and a Prompt's docstrings matter to a client's UI exactly the way a Tool's does to the model. **If not:** a Prompt that quietly re-reads the database itself is the same mistake as a Tool with a vague description — it works today and confuses everyone the moment the server grows more complex.
 
 ```python
 # server.py (new pieces — add below the two Tools, from Step 2)

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-chunking_methods) · [Hint 1](chunking_methods_hints.md#hint-1) · [Hint 2](chunking_methods_hints.md#hint-2) · [Solution](chunking_methods_solution.md)
 
-**Story — `chunking_practice.py`:** the same document, split two different ways, can hand the model two different answers to the same question — this is the exercise that makes "chunking is a real design decision" something you watched happen, not something you took on faith. **If not:** the Build Task's chunker would be the first place a split fact ever bit you, in a pipeline with far more moving parts to debug through.
+**Story — `chunking_practice.py`:** this exercise splits the same document two different ways — by a fixed character count, and by paragraph boundaries — and shows that the two methods can hand the model two different answers to the same question, because a fact lands whole in one chunking and split across a boundary in the other. That's what makes "chunking is a real design decision" something you watched happen, not something you took on faith. **If not:** the Build Task's chunker would be the first place a split fact ever bit you, in a pipeline with far more moving parts to debug through.
 
 All examples below use the same test document and question — put them at the top of your practice file:
 

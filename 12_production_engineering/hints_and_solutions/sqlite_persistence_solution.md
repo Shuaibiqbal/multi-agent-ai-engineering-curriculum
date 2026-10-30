@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-sqlite_persistence) · [Hint 1](sqlite_persistence_hints.md#hint-1) · [Hint 2](sqlite_persistence_hints.md#hint-2) · [Solution](sqlite_persistence_solution.md)
 
-**Story — `sqlite_persistence_practice.py`:** this is the Build Task's run history in miniature — save every request's input and output, then read one back by its ID. Doing it first on a one-line fake chat keeps the SQL the only new thing. **If not:** the Build Task's `runs` table, its `GET /runs/{id}` route, and its 404 case would all be first attempts, mixed in with a multi-agent pipeline.
+**Story — `sqlite_persistence_practice.py`:** this is the Build Task's run history pattern in miniature — save every request's input and output to SQLite, then read one back later by its ID. Practicing it first on a one-line fake chat function keeps the SQL itself as the only genuinely new thing to learn. **If not:** the Build Task's `runs` table, its `GET /runs/{id}` route, and its 404 case would all be first attempts, tangled up with a real multi-agent pipeline at the same time.
 
 The solution below creates `runs.db` in `practice/` the first time it runs. Delete that file between tries if you want a clean slate.
 
 ## Solution
 
-**Story:** a client reading `row[2]` has to know the table's column order by heart, and breaks the day a column is added. Named fields fix that. **If not:** the Build Task's `GET /runs/{id}` would hand back a bare list, and no response model could check it.
+**Story:** code reading `row[2]` has to know the table's exact column order by heart, and breaks silently the day a column is added or reordered. Converting each row to named fields (`dict(row)` or a Pydantic model) fixes that for good. **If not:** the Build Task's `GET /runs/{id}` would hand back a bare positional list, and no `response_model` could ever check or document it.
 
 ```python
 # practice/sqlite_persistence_practice.py — Real-world section

@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-2-saved-state-and-a-human-pause-before-anything-goes-out) · [Hint 1](step2_saved_state_pause_hints.md#hint-1) · [Hint 2](step2_saved_state_pause_hints.md#hint-2) · [Solution](step2_saved_state_pause_solution.md)
 
-**Story — Step 2:** a graph can do something a hand-written loop can't: **stop in the middle, save everything, and continue later** — even after the program was closed. That's what lets a person approve an answer before it goes out. This step adds the Approval agent's file and node — `approval_node`, which for now asks a person about **every** answer — plus a checkpointer and a thread id per run. **If not:** Step 5 would have to build the pause, the saved state and the node at the same time as its checks.
+**Story — Step 2:** a LangGraph graph can do something a hand-written loop can't: **stop in the middle, save everything to disk, and continue later** — even after the program was closed and restarted. The mechanism is `interrupt()` inside a node plus a checkpointer that persists state outside the Python process. That's what lets a real person approve an answer before it goes out. This step adds the Approval agent's file and node — `approval_node`, which for now asks a person about **every** answer — plus a checkpointer and a thread id per run. **If not:** Step 5 would have to build the pause, the saved state and the node all at the same time as its real approval checks.
 
 After this step every answer waits for your yes/no, and a paused run survives a restart. `answer_node` and `clean_task` don't change. Files not shown here don't change.
 
@@ -29,7 +29,7 @@ def start_state(task):
     return {"task": task, "path": [], "approved": False, "answer": ""}
 ```
 
-**Story — `agents/approval_agent.py`:** the Approval agent's file, with its node from day one. `approval_node` calls `interrupt()`, which pauses the graph and saves the state; whatever you pass to `Command(resume=...)` comes back as `decision` (Doc09). For now its list of `reasons` is one fixed line, so **every** answer goes to a person — Step 5 replaces that one line with real checks. (Also create an empty `agents/__init__.py`.) **If not:** answers would go out with no human check at all.
+**Story — `agents/approval_agent.py`:** this is the Approval agent's file, with its node present from day one. `approval_node` calls `interrupt()`, which genuinely pauses graph execution right there and checkpoints the state; whatever value you later pass to `Command(resume=...)` comes back as that call's return value — here captured as `decision` (Doc09's pattern). For now its list of `reasons` is one fixed line, so **every** answer goes to a person; Step 5 replaces that one line with real checks that decide when review is actually needed. (Also create an empty `agents/__init__.py`.) **If not:** answers would go out with no human check at all.
 
 ```python
 # src/agents/approval_agent.py
@@ -55,7 +55,7 @@ def approval_node(state):
 
 **Changed from Step 1:** a third node, and `build_graph()` now takes a checkpointer.
 
-**Story — `graph.py`:** the checkpointer is **passed in** (Doc09's Build Task): `main.py` passes a SQLite one that writes to disk, tests pass a `MemorySaver`. **If not:** the checkpointer would be hard-coded, and a test and the app couldn't each use their own.
+**Story — `graph.py`:** the checkpointer is **passed in** as a parameter to `build_graph()` (Doc09's pattern), not hard-coded inside it: `main.py` passes a real `SqliteSaver` that writes to disk, while tests pass a `MemorySaver` that lives only in RAM and leaves no files behind. **If not:** the checkpointer would be hard-coded, and a test and the real app couldn't each use the kind that suits them.
 
 ```python
 # src/graph.py
@@ -86,7 +86,7 @@ def build_graph(checkpointer=None):
 
 **Changed from Step 1:** `main.py` opens a `SqliteSaver`, gives each question its own thread id, and handles the pause with `ask_human()`.
 
-**Story — `main.py`:** `SqliteSaver.from_conn_string(DB_PATH)` stores every checkpoint in `checkpoints.sqlite` (add it to `.gitignore`). Each question gets its own `thread_id`, so runs never mix. When the result contains `"__interrupt__"`, `ask_human()` shows the answer and the reason, asks yes/no, and the app resumes with `Command(resume=decision)`. **If not:** a paused run would be lost on restart, and two questions could share one saved state.
+**Story — `main.py`:** `SqliteSaver.from_conn_string(DB_PATH)` stores every checkpoint in a real `checkpoints.sqlite` file (add it to `.gitignore`), not in memory. Each question gets its own `thread_id`, which is what keeps separate runs' saved states from colliding. When the graph's result contains `"__interrupt__"`, `ask_human()` shows the answer and the reason, asks yes/no, and the app resumes the exact paused run with `Command(resume=decision)`. **If not:** a paused run would be lost on restart, and two questions could share one saved state.
 
 ```python
 # main.py
@@ -158,7 +158,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `scripts/pause_demo.py` + `scripts/resume_demo.py`:** the real proof. Part 1 starts a run and stops at the pause, then exits. Part 2 is a **separate process**: it finds the paused run in the SQLite file with `graph.get_state(config)` and finishes it. (Doc09 showed `MemorySaver` fails exactly this test.) **If not:** "it resumes" might only mean "the objects were still in memory".
+**Story — `scripts/pause_demo.py` + `scripts/resume_demo.py`:** this is the real proof the pause survives a restart, not just a claim. Part 1 starts a run, stops at the `interrupt()`, and then the process **exits entirely** — no Python objects survive. Part 2 is run later, as a genuinely **separate process**: it finds the paused run sitting in the SQLite file using `graph.get_state(config)` and finishes it with `Command(resume=...)`. (Doc09 showed `MemorySaver` fails exactly this test, because its state lives only in RAM.) **If not:** "it resumes" might only mean "the objects were still in memory," which isn't what a real pause-for-approval feature needs.
 
 ```python
 # scripts/pause_demo.py
@@ -228,7 +228,7 @@ if __name__ == "__main__":
 
 **Changed from Step 1:** `tests/integration/test_live_graph.py` gets cases 2-4. `run()` gains one optional parameter, `decision`: if the run paused, it resumes with that answer (`None` means "leave it paused"). The test builds the graph with a fresh `MemorySaver`, so nothing is written to disk.
 
-**Story — `tests/integration/test_live_graph.py`:** the pause is this step's feature, so it gets three checks: an action task pauses, "yes" approves it, and "no" stops it. **If not:** a pause that didn't stop anything — or a "no" that still sent the answer — would go unnoticed.
+**Story — `tests/integration/test_live_graph.py`:** the pause is this step's headline feature, so it gets three checks against the real model and a real `MemorySaver`: a task pauses at the interrupt, resuming with "yes" approves and returns the answer, and resuming with "no" stops it from going out. **If not:** a pause that didn't actually stop anything — or a "no" that still silently sent the answer — would go unnoticed.
 
 ```python
 # tests/integration/test_live_graph.py

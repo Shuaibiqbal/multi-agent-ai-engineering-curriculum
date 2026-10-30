@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-db_failure_and_docker) · [Hint 1](db_failure_and_docker_hints.md#hint-1) · [Hint 2](db_failure_and_docker_hints.md#hint-2) · [Solution](db_failure_and_docker_solution.md)
 
-**Story — `db_failure_and_docker_practice.py`:** error handling you never saw fail is error handling you only hope works. This exercise breaks the database on purpose, then ships the app in a container and proves no secret went in with it. **If not:** the Build Task's "fake internal error → 500" and "missing env var → clear error at startup" test cases, and its Dockerfile, would all be first attempts. For Docker, put a `requirements.txt` in `practice/` (`fastapi`, `uvicorn[standard]`) and run `docker build` from there.
+**Story — `db_failure_and_docker_practice.py`:** error handling you never actually watched fail is error handling you only hope works. This exercise deliberately breaks the database connection to prove the app degrades correctly, then ships the app in a real Docker container and proves no secret ever went into the built image. **If not:** the Build Task's "fake internal error → 500" and "missing env var → clear error at startup" test cases, and its Dockerfile, would all be first attempts, untested until they mattered. For Docker, put a `requirements.txt` in `practice/` (`fastapi`, `uvicorn[standard]`) and run `docker build` from there.
 
 ## Solution
 
-**Story:** real apps open their database connection once, at startup, like `sqlite_persistence` did — but then a bad path would crash the whole app before `/health` could even answer. Guarding the connect keeps the app up and fails only the routes that need the database. A `.dockerignore` keeps `.env` out of the image, and `docker history` proves it. **If not:** one wrong path would take down every route, and "no secret in the image" would be a hope, not a checked fact.
+**Story:** real apps open their database connection once, at startup, exactly like `sqlite_persistence` did — but an unguarded connect means a single bad path would crash the whole app before even `/health` could answer. Wrapping the connect in a check keeps the app up and running, failing only the specific routes that genuinely need the database. A `.dockerignore` keeps `.env` out of the built image entirely, and running `docker history` is how you actually prove it, rather than assume it. **If not:** one wrong database path would take down every single route, and "no secret in the image" would stay a hope instead of a checked, verified fact.
 
 ```python
 # practice/db_failure_and_docker_practice.py

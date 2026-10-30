@@ -641,11 +641,19 @@ class KeywordEmbedding(EmbeddingFunction):
         vectors = []
         for text in texts:
             lowered = text.lower()
-            counts = [float(lowered.count(word)) for word in VOCAB]
-            norm = math.sqrt(sum(value * value for value in counts))
+            counts = []
+            for word in VOCAB:
+                counts.append(float(lowered.count(word)))
+            total = 0.0
+            for value in counts:
+                total = total + value * value
+            norm = math.sqrt(total)
             if norm == 0:
                 norm = 1.0
-            vectors.append([value / norm for value in counts])
+            normalized = []
+            for value in counts:
+                normalized.append(value / norm)
+            vectors.append(normalized)
         return vectors
 
 def build():

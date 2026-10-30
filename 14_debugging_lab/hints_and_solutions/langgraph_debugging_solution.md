@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#dbg-langgraph) · [Round 1: Basic](langgraph_debugging_hints.md#round-basic) · [Round 2: Intermediate](langgraph_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langgraph_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langgraph_debugging_hints.md#round-multi-agent) · [Hints](langgraph_debugging_hints.md)
 
-**Story — `langgraph_debugging_practice.py`:** graph bugs live in the wiring — route names, how state is merged, when a loop stops — not in any one node's code. Each fix here comes with a test that runs a tiny real graph, or checks the routing function directly, with stand-in nodes and no model. **If not:** you'd only see these bugs in a full, slow, paid run, and blame the model for a wiring mistake.
+**Story — `langgraph_debugging_practice.py`:** graph bugs tend to live in the wiring itself — route key names, how state fields get merged, when exactly a loop is supposed to stop — not inside any single node's own code. Each fix here comes with a test that either runs a tiny real graph, or checks the routing function directly, using stand-in nodes and no model call at all. **If not:** you'd only ever see these bugs during a full, slow, paid run, and end up blaming the model for what's really a wiring mistake.
 
 Every fix and test below goes in `practice/langgraph_debugging_practice.py`, and runs with `pytest langgraph_debugging_practice.py -v` from inside `practice/`. None of the tests need an API key.
 
@@ -16,7 +16,7 @@ Every fix and test below goes in `practice/langgraph_debugging_practice.py`, and
 
 **Real cause:** `route()` returns `"finish"`, but the mapping given to `add_conditional_edges()` only has the keys `"call_tool"` and `"done"`. LangGraph looks the returned word up in the mapping, doesn't find it, and raises `KeyError: 'finish'` — a plain naming mismatch between the routing function and its mapping. This is Doc09's own Edge cases exercise (`unhandled_routing_value`).
 
-**Story:** a bare `KeyError: 'finish'` gives almost nothing to go on, so this round trains searching your code for that exact word to find who produces it and who's supposed to accept it. **If not:** you'd go looking inside LangGraph for a bug that's a one-word mismatch in your own file.
+**Story:** a bare `KeyError: 'finish'` gives you almost nothing to go on by itself, so this round trains the move of searching your own code for that exact string, to find who produces it and who's actually supposed to accept it in the routing map. **If not:** you'd go digging inside LangGraph's own source for a bug that's really a one-word mismatch sitting in your own file.
 
 **The fix:**
 ```python
@@ -67,7 +67,7 @@ One test per branch: a suite that only ever tested the "keep going" branch would
 
 **Real cause:** for a plain state field (no reducer), each node's update simply **replaces** the old value. `calculate_node`'s `{"findings": {"calc": 42}}` doesn't merge with `search_node`'s earlier `{"findings": {"search": ...}}` — it overwrites the whole dict, because nothing told LangGraph how to combine two updates to the same field.
 
-**Story:** the log says "the model forgot" — but the state itself lost the data before the model ever saw it. This round trains checking state at each step before blaming reasoning. **If not:** you'd add "remember earlier findings" to the prompt, and nothing would change.
+**Story:** the log makes it look like "the model forgot" — but the state itself actually lost the data before the model ever had a chance to see it. This round trains inspecting the state at each step of the graph before blaming the model's reasoning for something that was never in front of it. **If not:** you'd add "remember earlier findings" to the prompt, and absolutely nothing would change, because the data genuinely isn't there.
 
 **The fix:**
 ```python
@@ -117,7 +117,7 @@ The test has to run both nodes through a real graph — only the graph applies t
 
 **Real cause:** `route()` only checks confidence against a fixed threshold — there's no counter of how many search rounds have happened. Most questions pass 0.5 within a couple of rounds. A certain kind of ambiguous question stays "somewhat relevant, never enough" forever, and with nothing else to stop it, the loop runs to LangGraph's hard recursion limit — the *symptom* (a recursion error) fires 25 steps after the *real cause* (a loop with only one way out) let it start.
 
-**Story:** `GraphRecursionError` has no frame from your own node, which is the clue: nothing crashed, the *routing* never let go. This round trains giving every loop two exits — "good enough" and "tried enough". **If not:** you'd raise the recursion limit, and the same questions would just loop longer and cost more.
+**Story:** `GraphRecursionError` shows no stack frame from your own node code, and that absence is the real clue: nothing actually crashed, the *routing itself* simply never let the graph exit. This round trains giving every loop two separate exits — "good enough to stop" and "tried enough times to give up" — not just one. **If not:** you'd just raise the recursion limit, and the exact same questions would simply loop longer and cost more before failing the same way.
 
 **The fix:**
 ```python
@@ -154,7 +154,7 @@ The routing function is plain Python, so the "never confident" case can be teste
 
 **Real cause:** two bugs stacked on top of each other. First, `review_route` has the same problem as Round 3 — no cap on revision rounds. Second, the Reviewer keeps rejecting because the "compliance detail" it wants was never written into `research_findings` at all (a Research-agent gap), so the Writer is asked, every round, for something it can't produce. Neither shows up testing the Writer/Reviewer pair with hand-written examples, because those always include findings the Writer *can* satisfy.
 
-**Story:** the loop has two causes, and each fix covers a different one — the cap stops the endless loop no matter why, and looking one layer back finds why it looped. This round trains fixing both, not just the one you saw first. **If not:** the cap alone would turn "loops forever" into "gives up every time", and the missing compliance detail would stay missing.
+**Story:** the loop here actually has two distinct causes, and each fix addresses a different one — a hard cap stops the endless loop regardless of *why* it's looping, while looking one layer back uncovers the actual reason it loops at all. This round trains fixing both causes, not stopping at the first one you happen to notice. **If not:** the cap alone would just turn "loops forever" into "gives up every single time," and the real missing compliance detail would stay missing, unaddressed.
 
 **The fix:**
 ```python

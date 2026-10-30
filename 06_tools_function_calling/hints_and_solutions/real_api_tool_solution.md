@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-real_api_tool) · [Hint 1](real_api_tool_hints.md#hint-1) · [Hint 2](real_api_tool_hints.md#hint-2) · [Solution](real_api_tool_solution.md)
 
-**Story — `real_api_tool_practice.py`:** a tool that only returns hardcoded data teaches you nothing about the failure modes real tools actually have — timeouts, bad responses, rate limits. Wrapping Doc02's `request_with_retry()` inside a `@tool` is what makes this real, not simulated. **If not:** the Build Task's "one tool that calls a real service" requirement would be the first time you ever put your Doc02 retry logic behind a tool, with no smaller version to trust it against.
+**Story — `real_api_tool_practice.py`:** a tool that only returns hardcoded data teaches you nothing about the failure modes real tools actually have — timeouts, bad responses, rate limits. This exercise wraps Doc02's `request_with_retry()` inside a `@tool`, so the tool is backed by a *real* network call with real timeout-and-retry handling — which is the whole difference between a simulated tool and one you could ship. **If not:** the Build Task's "one tool that calls a real service" requirement would be the first time you ever put your Doc02 retry logic behind a tool, with no smaller version to trust it against.
 
 ## Solution
 

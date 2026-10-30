@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-a-normal-rag-agent-and-proving-its-vulnerable) · [Hint 1](step1_vulnerable_baseline_hints.md#hint-1) · [Hint 2](step1_vulnerable_baseline_hints.md#hint-2)
 
-**Story:** build the undefended agent and watch it fall for a hidden injection, for real. No defenses yet — retrieved text goes straight into the prompt. **If not:** every later "the fix works" would be a guess, with no failure to compare against.
+**Story:** this step builds the undefended agent and watches it genuinely fall for a hidden prompt injection — no defenses yet at all, so the retrieved text goes straight into the model's prompt, exactly as written, with nothing to stop a planted instruction inside it from being followed. **If not:** every later "the fix works" claim would be a guess, with no real baseline failure to measure improvement against.
 
 Every file lives under the repo folder; `main.py` runs from the root.
 

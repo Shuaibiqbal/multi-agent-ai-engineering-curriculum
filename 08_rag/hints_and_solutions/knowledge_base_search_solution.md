@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-knowledge_base_search) · [Hint 1](knowledge_base_search_hints.md#hint-1) · [Hint 2](knowledge_base_search_hints.md#hint-2) · [Solution](knowledge_base_search_solution.md)
 
-**Story — `knowledge_base_search_practice.py`:** writing every document yourself means you're your own ground truth — when a search comes back wrong, you know it's wrong immediately, instead of having to guess whether the retrieval or the answer is at fault. **If not:** the Build Task's knowledge base would be the first place you ever had to debug a retrieval bug without knowing what the right answer was supposed to be.
+**Story — `knowledge_base_search_practice.py`:** writing every document in the small knowledge base yourself means you're your own ground truth — you already know exactly which document should answer which question. So when a search comes back with the wrong chunk, you know it's wrong immediately, instead of having to guess whether the retrieval or the answer is at fault. **If not:** the Build Task's knowledge base would be the first place you ever had to debug a retrieval bug without knowing what the right answer was supposed to be.
 
 Every example below assumes the same 6 sample documents (`docs/*.txt`):
 ```python

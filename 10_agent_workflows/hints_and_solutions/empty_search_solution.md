@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-empty_search) · [Hint 1](empty_search_hints.md#hint-1) · [Hint 2](empty_search_hints.md#hint-2) · [Solution](empty_search_solution.md)
 
-**Story — `empty_search_practice.py`:** an empty result list is the easy case — a real vector search almost never returns nothing; it returns the *closest* chunks, relevant or not. This exercise handles both. **If not:** the Build Task would answer from thin or empty context, confidently, which is exactly what its Constraints forbid.
+**Story — `empty_search_practice.py`:** an empty result list is the easy case to handle — a real vector search almost never returns nothing; it returns the *closest* chunks regardless of whether they're actually relevant, since distance never says "I don't know." This exercise handles both: a genuinely empty store, and a non-empty one whose best match is still too far (past a distance threshold) to be trusted. **If not:** the Build Task would answer from thin or empty context, confidently, which is exactly what its Constraints forbid.
 
 Uses the same `practice/` setup as the Basic exercise (Doc08's files, `docs/` and `kb.py`). The only way to get a truly empty result is an empty store, so the code also builds one from an empty folder (Doc08's Build Task test did the same).
 

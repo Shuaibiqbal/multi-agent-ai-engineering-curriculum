@@ -6,7 +6,7 @@
 
 **Used later by:** the [Real-world wiring exercise](../README.md#ex-config_logging_wiring) and the [Build Task](../README.md#build-task-config-logging-foundation). Neither imports this file — they re-write the same one-line custom-error pattern as `MissingConfigError` in `practice/config_logging_wiring/exceptions.py` and `practice/build_task/exceptions.py`.
 
-**Story — `custom_errors_practice.py` (Basic section):** this is the smallest possible version of a pattern used everywhere later — a named exception class instead of a generic one, raised the moment something's actually wrong. Written this way so the habit ("name the failure, raise it right at the source") is muscle memory before Doc01's Build Task needs it for real. **If not:** every later exercise's first encounter with a custom error would be inside a bigger, more distracting file (config loading, logging setup), making it harder to see the pattern in isolation.
+**Story — `custom_errors_practice.py`:** this is the smallest possible version of a pattern used everywhere later — defining your own exception type (a one-line class that inherits from `Exception`) and raising it the moment something's actually wrong, instead of a generic `Exception` or `ValueError`. A named type matters because a caller can then `except` *that specific failure* and nothing else. Written this way so the habit ("name the failure, raise it right at the source") is muscle memory before Doc01's Build Task needs it for real. **If not:** every later exercise's first encounter with a custom error would be inside a bigger, more distracting file (config loading, logging setup), making it harder to see the pattern in isolation.
 
 ## Solution
 

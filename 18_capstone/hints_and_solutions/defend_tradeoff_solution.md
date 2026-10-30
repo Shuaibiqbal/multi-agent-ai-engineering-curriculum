@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-defend_tradeoff) · [Hint 1](defend_tradeoff_hints.md#hint-1) · [Hint 2](defend_tradeoff_hints.md#hint-2) · [Solution](defend_tradeoff_solution.md)
 
-**Story — `defend_tradeoff.md`:** a decision you've only defended against a weak objection isn't defended. This exercise picks one real, debatable decision and holds it against the strongest objection you can build. **If not:** the first strong objection would come from a reviewer, in the moment, with no prepared reasoning.
+**Story — `defend_tradeoff.md`:** a decision you've only ever defended against a weak objection isn't really defended at all. This exercise picks one real, genuinely debatable decision from your own capstone and holds it up against the strongest objection you can honestly build yourself. **If not:** the first truly strong objection you ever face would come from a real reviewer, live, in the moment, with no prepared reasoning ready.
 
 Write your own version first, in `practice/defend_tradeoff.md`, then compare.
 
@@ -10,7 +10,7 @@ Write your own version first, in `practice/defend_tradeoff.md`, then compare.
 
 ## Solution
 
-**Story:** name what the alternative would really have cost, show the mitigation you actually built, and say what would change your mind. **If not:** "it's simpler" would be your only defence, and it doesn't answer "it's riskier".
+**Story:** this names exactly what the alternative approach would really have cost, shows the actual mitigation you built for the risk you took on instead, and states plainly what would genuinely change your mind. **If not:** "it's simpler" would be your only defense, and that alone never actually answers "but it's riskier."
 
 "I designed the shared LangGraph state object as mostly-shared, with each agent also holding a small private scratch field. The alternative — fully private state per agent, passed explicitly between them — is the more conservative, more encapsulated choice, and it's the one a strict software-engineering instinct favors: less surface area for one agent's bug to corrupt another agent's data.
 

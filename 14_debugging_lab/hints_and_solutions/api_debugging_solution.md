@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#dbg-api) · [Round 1: Basic](api_debugging_hints.md#round-basic) · [Round 2: Intermediate](api_debugging_hints.md#round-intermediate) · [Round 3: Real-world](api_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](api_debugging_hints.md#round-multi-agent) · [Hints](api_debugging_hints.md)
 
-**Story — `api_debugging_practice.py`:** every round here is a bug in a teammate's copy of Doc02's `request_with_retry()` — the one wrapper every later document calls through. Putting each fix and its test in one file lets you prove each fix without touching the network. **If not:** you'd only ever "test" these by waiting for a real outage, which is exactly when you don't have time to.
+**Story — `api_debugging_practice.py`:** every round here is a bug planted in a teammate's copy of Doc02's `request_with_retry()` — the one wrapper every later document calls through for its HTTP needs. Putting each buggy function, its fix, and its test in one file lets you prove each fix works without ever touching a real network. **If not:** you'd only ever "test" these bugs by waiting for a real outage to happen, which is exactly the moment you don't have time to debug calmly.
 
 Every fix and test below goes in `practice/api_debugging_practice.py`, and runs with `pytest api_debugging_practice.py -v` from inside `practice/`. None of the tests call the network.
 
@@ -16,7 +16,7 @@ Every fix and test below goes in `practice/api_debugging_practice.py`, and runs 
 
 **Real cause:** in this copy, `max_attempts` and `timeout` are keyword-only (everything after the bare `*` in the signature). The caller passed `3` as a third *positional* argument, which Python won't accept — the function only takes 2 positional arguments (`method`, `url`).
 
-**Story:** the error fires before any network code runs, so this round trains reading a `TypeError` about arguments as "go to the function's signature", not "the network is broken". **If not:** you'd start checking URLs and API keys for a bug that's entirely in one call line.
+**Story:** the error here fires before any network code even runs, so this round trains reading a `TypeError` about mismatched arguments correctly: "go check the function's signature," not "the network must be broken." **If not:** you'd start checking URLs and API keys for a bug that's entirely contained in one mistyped call line.
 
 **The fix:**
 ```python
@@ -43,7 +43,7 @@ The buggy `fetch()` fails this test with the same `TypeError`, with no network i
 
 **Real cause:** the error-handling code assumed a failed response's body is always JSON, and called `.json()` on it without checking. When the final failed response is an HTML gateway error page (common for a struggling server), `.json()` itself throws — before the intended `TransientHTTPError` is ever raised. The traceback shows this inside Doc04's `ask()`, one layer above where the real bug lives (`http_client.py`) — reading from the bottom of the trace gets you to the right spot; reading from the top points at the wrong document.
 
-**Story:** the error-building code is itself a place bugs hide. Pulling "read the error body" into its own small function makes it testable with a fake response, no server needed. **If not:** the only way to test this path would be to wait for a real gateway error.
+**Story:** the error-building code itself is a place bugs can easily hide, since it only runs during a failure. Pulling "read the error body" out into its own small function makes it directly testable with a hand-made fake response object, no real server needed at all. **If not:** the only way to test this error path would be to wait for a real gateway error to happen in production.
 
 **The fix:**
 ```python
@@ -84,7 +84,7 @@ The test has to feed a non-JSON error body on purpose — a fake that always ret
 
 **Real cause:** `time.sleep(2 ** attempt)` has no randomness. Every caller that hits the same rate limit at the same moment waits the exact same times, so they all wake up and retry together, again and again — a "thundering herd", colliding with the same limit on every attempt. (Doc02's own `compute_backoff_delay()` already adds jitter; this copy dropped it.)
 
-**Story:** the log shows three agents retrying at the same second — the pattern, not any single line, is the clue. This round trains reading a log for timing patterns across callers. **If not:** you'd raise the retry count, and the herd would just collide more times.
+**Story:** the log shows three agents all retrying at the exact same second — the *pattern* across the log, not any single line in isolation, is the actual clue here. This round trains reading a log for timing patterns across multiple callers, not just scanning for an error message. **If not:** you'd just raise the retry count, and the same thundering herd would simply collide more times at the new interval.
 
 **The fix:**
 ```python
@@ -114,7 +114,7 @@ One caller in isolation can't show this bug — it's about many callers at once,
 
 **Real cause:** a cap on attempt *count* doesn't limit total time when the backoff keeps growing — 5 attempts can still add up to 30+ seconds of silent waiting inside one tool call, which the graph's log can't see. From the Supervisor's log alone, that looks exactly like a stuck graph, which sends debugging to the wrong layer (LangGraph edges and state, when the real problem is inside the HTTP retry wrapper).
 
-**Story:** the symptom shows up in the graph log, the cause sits two layers down. This round trains checking the lower layer's timing before blaming the graph. Pulling the time rule into a small function makes it testable without any real waiting. **If not:** a test with a fake, instant transport would keep passing, while real runs kept hanging for 30 seconds.
+**Story:** the symptom shows up in the graph's own log, but the actual cause sits two layers further down. This round trains checking the lower layer's timing configuration before assuming the bug is in the graph logic itself. Pulling the timeout rule into its own small function makes it directly testable without any real waiting involved. **If not:** a test using a fake, instant transport would keep passing cleanly, while real runs kept hanging for a real 30 seconds each time.
 
 **The fix:**
 ```python

@@ -42,8 +42,11 @@ Three 0.3s lookups take ≈0.3s together, not 0.9s. Prove it with `data/time_loo
 ```python
 CANNED_REPLY = "Thanks for your message... a staff member will follow up..."
 
+def give_canned_reply(_input):
+    return CANNED_REPLY
+
 def with_canned_reply(reply_chain):
-    return reply_chain.with_fallbacks([RunnableLambda(lambda _: CANNED_REPLY)])
+    return reply_chain.with_fallbacks([RunnableLambda(give_canned_reply)])
 
 def with_unsure_category(classifier_chain):
     # _unsure returns a TicketCategory with sure=False

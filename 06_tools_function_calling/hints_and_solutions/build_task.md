@@ -39,7 +39,7 @@ Then `run_with_tools()` is the Failure exercise's round trip: append the model's
 
 ## Solution {: #solution }
 
-`tools.py` is the same as the Basic version above.
+`tools.py` is the same as above.
 
 **Story — `tool_harness.py`:** `run_tool()` turns bad arguments into an error string (Edge cases), and `run_with_tools()` sends every result back tagged with its `tool_call_id` and asks the model again (Failure) — so `final_answer` shows how the model really reacted. Every pick is logged with Doc01's `get_logger()`. **If not:** a failing tool's error would never reach the model, and one bad argument would crash the whole test run.
 

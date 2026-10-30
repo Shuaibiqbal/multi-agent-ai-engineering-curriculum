@@ -23,8 +23,8 @@ And one trap worth knowing before you add a "too old to approve" check: when a p
 run_with_approval(graph, task, decision, thread_id):
     invoke the task, then invoke Command(resume=decision)
 
-Approach 2: resume with {"decision", "by", "at"}; save approved_by/at
-Approach 3: draft_node also saves drafted_at (datetime.now(...)
+Resume with {"decision", "by", "at"}; save approved_by/at.
+draft_node also saves drafted_at (datetime.now(...)
             .isoformat()); is_stale(drafted_at) compares its age with
             timedelta(hours=MAX_APPROVAL_AGE_HOURS)
 ```

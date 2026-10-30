@@ -2,13 +2,13 @@
 
 > [Back to the step](../READING_README.md#step-3-multiple-mcp-servers-at-once-with-tool-namespacing) · [Hint 1](step3_multi_server_namespacing_hints.md#hint-1) · [Hint 2](step3_multi_server_namespacing_hints.md#hint-2)
 
-**Story:** a real agent needs tools from more than one source — a notes server *and* a filesystem server. Two servers can expose the same tool name, so each discovered tool is namespaced `servername__toolname`, and a routing table maps that back to the real server + tool. The pool already did this in Step 1; this step is where it earns its keep. **If not:** two `search` tools would collide, and a call meant for one server would silently hit the other.
+**Story:** a real agent needs tools from more than one source at once — a notes server *and* a filesystem server, say. Two independent servers can easily expose a tool with the same plain name, so each discovered tool is namespaced as `servername__toolname`, and a routing table maps that namespaced name back to its real server and real tool name. The pool already built this in Step 1; this step is where that design actually earns its keep, with two real servers connected at once. **If not:** two `search` tools from different servers would collide under one name, and a call meant for one server could silently hit the other.
 
 The pool code doesn't change this step — it already namespaces and routes. What's new is a **second server** and a task that needs both.
 
 ## `servers/files_server.py`
 
-**Story:** a second tiny server, a different domain. Now there are two independent tool sources, exactly like two teams' services. **If not:** you could never prove routing actually picks the right server — one server can't collide with itself.
+**Story:** this adds a second tiny server in a genuinely different domain, so there are now two independent tool sources — exactly the shape of two separate teams each running their own MCP service. **If not:** you could never actually prove routing picks the right server, since one server can't meaningfully collide with itself.
 
 ```python
 # A second minimal MCP server (files), launched as its own subprocess.

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-search_failure) · [Hint 1](search_failure_hints.md#hint-1) · [Hint 2](search_failure_hints.md#hint-2) · [Solution](search_failure_solution.md)
 
-**Story — `search_failure_practice.py`:** a checkpointer's whole promise is that a crash doesn't erase earlier progress — this exercise proves it, by making search fail on purpose. **If not:** the Build Task's first real outage would also be your first time finding out what's left after a crash.
+**Story — `search_failure_practice.py`:** a checkpointer's whole promise is that a crash doesn't erase earlier progress — the graph can resume from its last saved state instead of starting over. This exercise proves it directly: it makes the search node fail on purpose partway through a run, then shows the checkpoint still holds everything completed before the failure. **If not:** the Build Task's first real outage would also be your first time finding out what's left after a crash.
 
 ## Solution
 

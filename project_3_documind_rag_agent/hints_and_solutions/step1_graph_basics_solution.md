@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-1-a-2-node-graph-with-no-branching-just-to-prove-the-mechanics) · [Hint 1](step1_graph_basics_hints.md#hint-1) · [Hint 2](step1_graph_basics_hints.md#hint-2) · [Solution](step1_graph_basics_solution.md)
 
-**Story — Step 1:** every later step adds nodes and branches to one graph. Before any of that, prove the mechanics on the smallest graph that does something real: a typed state, two nodes, plain edges, and one model call. **If not:** when Step 3's branching misbehaves, you won't know if the problem is the branch or your understanding of how state flows.
+**Story — Step 1:** every later step adds nodes and branches onto one LangGraph graph. Before any of that, this step proves the mechanics work on the smallest graph that does something real: a typed `State`, two nodes (plain functions that take the state and return field updates), plain edges connecting them, and one real model call inside a node. **If not:** when Step 3's branching misbehaves, you won't know if the problem is the branch or your understanding of how state flows.
 
 After this step the project runs: `python main.py` answers questions through a 2-node graph, and prints which nodes ran.
 
@@ -10,7 +10,7 @@ After this step the project runs: `python main.py` answers questions through a 2
 
 These are the same files as Projects 1 and 2 — Doc01's config, errors and logger, and Project 1's prompt loader — with only the package name changed to `src`.
 
-**Story — `exceptions.py`, `config.py`, `utils/logger.py`:** settings load and fail loudly at startup; every file logs the same way. **If not:** a missing key would surface deep inside a graph node as a confusing error.
+**Story — `exceptions.py`, `config.py`, `utils/logger.py`:** these are Doc01's familiar foundations: a named `MissingConfigError`, a `Config` that loads `.env` and fails loudly the moment a required setting is missing, and one `get_logger(name)` shared by every file. **If not:** a missing key would surface deep inside a graph node as a confusing error, far from where the real cause is.
 
 ```python
 # src/exceptions.py
@@ -84,7 +84,7 @@ Also create empty `__init__.py` files in `src/utils/` and `src/models/`.
 
 ## Solution — state, nodes and graph in their own files, with a path log
 
-**Story — `models/llm.py`:** one place builds the model. Graph nodes only receive the state, so each node calls `get_model()` instead of being handed a model. **If not:** every node would build its own `ChatOpenAI` with its own settings.
+**Story — `models/llm.py`:** this is the one place that builds the `ChatOpenAI` model. Graph nodes only ever receive the state (that's the whole contract LangGraph nodes follow), so each node calls `get_model()` for itself rather than being handed a model object. **If not:** every node would build its own `ChatOpenAI` with its own settings, scattering the model configuration across the codebase.
 
 ```python
 # src/models/llm.py
@@ -96,7 +96,7 @@ def get_model():
     return ChatOpenAI(model="gpt-4o-mini", temperature=0)
 ```
 
-**Story — `state.py`:** the graph's whole public surface in one typed shape (Doc09). `path` uses `operator.add`, so each node *appends* its name — the graph keeps its own log of what ran. `start_state()` gives every field a known starting value. **If not:** field names would drift between nodes, and you'd need print statements to see the route taken.
+**Story — `state.py`:** this `TypedDict` is the graph's whole public surface — every field every node can read or write (Doc09's pattern). `path` is annotated with `operator.add`, so when a node returns `{"path": ["answer_node"]}` LangGraph *appends* it to the existing list instead of replacing it — the graph ends up keeping its own log of what ran. `start_state()` gives every field a known starting value, so no node ever reads an unset field. **If not:** field names would drift between nodes, and you'd need print statements to see the route taken.
 
 ```python
 # src/state.py
@@ -115,7 +115,7 @@ def start_state(task):
     return {"task": task, "path": [], "answer": ""}
 ```
 
-**Story — `prompts/general.txt` + `utils/prompts.py`:** the prompt text lives outside the code — Project 1's loader, with the folder changed to `src/prompts`. **If not:** the wording would be buried in a node.
+**Story — `prompts/general.txt` + `utils/prompts.py`:** the prompt text lives outside the code in a `.txt` file, loaded by name through Project 1's `load_prompt()` loader (folder changed to `src/prompts`). **If not:** the wording would be buried inside a node function, and tweaking it would mean a code change.
 
 `src/prompts/general.txt`
 
@@ -136,7 +136,7 @@ def load_prompt(name):
         return prompt_file.read().strip()
 ```
 
-**Story — `nodes.py`:** each node takes the state and returns only the fields it changes (Doc09's rule). `answer_node` is a Doc05 LCEL chain inside a node; it labels its answer as general knowledge, because later steps add answers from your documents. This file doesn't change again after this step. **If not:** a node returning the whole state could overwrite fields it never meant to touch.
+**Story — `nodes.py`:** each node function takes the state and returns only a dict of the fields it changes, never the whole state (Doc09's rule). `answer_node` wraps a Doc05 LCEL chain inside a node and labels its answer as coming from general knowledge, because later steps add answers grounded in your actual documents. This file doesn't change again after this step — later steps add *new* node files instead. **If not:** a node returning the whole state could overwrite fields it never meant to touch.
 
 ```python
 # src/nodes.py
@@ -159,7 +159,7 @@ def answer_node(state):
     return {"answer": answer, "path": ["answer_node"]}
 ```
 
-**Story — `graph.py`:** `build_graph()` wires nodes and edges and returns the compiled graph. Keeping it in a function means `main.py`, tests and scripts can all build the same graph. **If not:** the graph would exist only while one script runs top to bottom.
+**Story — `graph.py`:** `build_graph()` creates the `StateGraph`, adds the nodes, wires the edges, and returns the compiled graph — a graph object `main.py` or a test can run with `.invoke()`. Keeping this in a function (not top-level script code) means `main.py`, the tests, and later scripts can all build the exact same graph. **If not:** the graph would exist only while one script runs top to bottom, with no reusable way to build it elsewhere.
 
 ```python
 # src/graph.py
@@ -181,7 +181,7 @@ def build_graph():
     return builder.compile()
 ```
 
-**Story — `main.py`:** config first, then the graph, then a question loop that prints the path and the answer. **If not:** you couldn't see the graph working.
+**Story — `main.py`:** this wires Step 1 together in order: load config, build the graph once, then run a question loop that invokes the graph and prints both the `path` it took and the final answer — so you can see the graph's internal routing, not just its output. **If not:** you couldn't see the graph working, only its final answer with no visibility into how it got there.
 
 ```python
 # main.py
@@ -248,7 +248,7 @@ You: /quit
 
 ## The Step 1 tests
 
-**Story — `tests/unit/test_config.py`:** the same three checks as Doc01's `test_config.py` — a missing setting, an empty one, and a config that loads — with no API call. It tests `require_env()` with a made-up setting name, so your real `.env` is never touched. **If not:** a broken `.env` would first show up as a confusing OpenAI error.
+**Story — `tests/unit/test_config.py`:** this is the fast, no-cost safety net for the settings code — the same three checks as Doc01's `test_config.py`: a missing setting, an empty one, and a config that loads, all with no API call. It uses a made-up setting name, so your real `.env` is never touched. **If not:** a broken `.env` would first show up as a confusing OpenAI error deep in a graph node.
 
 ```python
 # tests/unit/test_config.py
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     test_config_loads()
 ```
 
-**Story — `tests/unit/test_nodes.py`:** `clean_task()` and `start_state()` are plain functions, so they're checked with hand-made input — no model, no graph. **If not:** a node that forgot its `path` entry would only show up as a strange path in a real run.
+**Story — `tests/unit/test_nodes.py`:** `clean_task()` and `start_state()` are plain functions with no model call inside them, so they're checked with hand-made input — no model, no graph, instant and free. **If not:** a node that forgot to set its `path` entry would only show up as a strange, incomplete path in a real run.
 
 ```python
 # tests/unit/test_nodes.py
@@ -328,7 +328,7 @@ if __name__ == "__main__":
     test_start_state()
 ```
 
-**Story — `tests/integration/test_live_graph.py`:** the checks that need the real model. It starts with one case — a general question goes through both nodes and gets a real answer — and every later step adds its own cases to this same file. **If not:** "the graph works" would mean "it worked the one time I tried it".
+**Story — `tests/integration/test_live_graph.py`:** this holds the checks that genuinely need the real model and a real graph run. It starts with one case — a general question goes through both nodes and comes back with a real answer — and every later step adds its own cases to this same growing file. **If not:** "the graph works" would mean "it worked the one time I tried it," with nothing to re-run after a change.
 
 ```python
 # tests/integration/test_live_graph.py

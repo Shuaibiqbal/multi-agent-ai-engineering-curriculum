@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-trace_loop_by_hand) · [Hint 1](trace_loop_by_hand_hints.md#hint-1) · [Hint 2](trace_loop_by_hand_hints.md#hint-2) · [Solution](trace_loop_by_hand_solution.md)
 
-**Story — `react_loop_practice.py` (Basic section):** if you can't trace a ReAct loop by hand, on paper, you can't debug it in code — this is the cheapest possible way to catch a wrong mental model, before a single line of Python is at stake. **If not:** the first time you'd trace a loop's real steps would be inside a debugger, under time pressure, with no smaller version of this skill to fall back on.
+**Story — `react_loop_practice.py`:** if you can't trace a ReAct loop by hand, on paper — writing out each think → act → observe turn and what the model sees at each one — you can't debug it in code either. Doing it on paper first is the cheapest possible way to catch a wrong mental model, before a single line of Python is at stake. **If not:** the first time you'd trace a loop's real steps would be inside a debugger, under time pressure, with no smaller version of this skill to fall back on.
 
 ## Solution
 

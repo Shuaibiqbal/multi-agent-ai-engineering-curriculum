@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-streamlit_ui) · [Hint 1](streamlit_ui_hints.md#hint-1) · [Hint 2](streamlit_ui_hints.md#hint-2)
 
-**Story:** the fastest possible web UI — a Python script Streamlit turns into a live page, plus a chat version that remembers the conversation. **If not:** every project stays a terminal script nobody but you can run.
+**Story:** this is the fastest possible way to get a real web UI — a plain Python script that Streamlit turns into a live, interactive page with no HTML or JavaScript written at all, plus a chat version that remembers the conversation using `st.session_state`. **If not:** every project would stay a terminal script that nobody but you could ever run or share.
 
 ## The pipeline (shared by every exercise)
 

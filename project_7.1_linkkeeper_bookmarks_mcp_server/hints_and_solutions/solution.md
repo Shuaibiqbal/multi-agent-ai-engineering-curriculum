@@ -272,11 +272,22 @@ async def main():
                 await session.initialize()
 
                 tools = await session.list_tools()
-                print("tools:", [t.name for t in tools.tools])
+                tool_names = []
+                for t in tools.tools:
+                    tool_names.append(t.name)
+                print("tools:", tool_names)
+
                 resources = await session.list_resources()
-                print("resources:", [str(r.uri) for r in resources.resources])
+                resource_uris = []
+                for r in resources.resources:
+                    resource_uris.append(str(r.uri))
+                print("resources:", resource_uris)
+
                 prompts = await session.list_prompts()
-                print("prompts:", [p.name for p in prompts.prompts])
+                prompt_names = []
+                for p in prompts.prompts:
+                    prompt_names.append(p.name)
+                print("prompts:", prompt_names)
 
                 added = await session.call_tool(
                     "add_bookmark",
@@ -447,30 +458,43 @@ async def main():
         async with ClientSession(read, write) as session:
             await session.initialize()
 
-            tool_names = [t.name for t in (await session.list_tools()).tools]
-            r1 = "OK" if "add_bookmark" in tool_names else "WRONG"
+            discovered = await session.list_tools()
+            tool_names = []
+            for t in discovered.tools:
+                tool_names.append(t.name)
+            r1 = "WRONG"
+            if "add_bookmark" in tool_names:
+                r1 = "OK"
             print(f"case 1 (tools discovered)   -> {r1}")
 
             added = await session.call_tool(
                 "add_bookmark",
                 {"url": "https://x.com", "title": "X", "tag": "ref"},
             )
-            r2 = "OK" if "Saved" in added.content[0].text else "WRONG"
+            r2 = "WRONG"
+            if "Saved" in added.content[0].text:
+                r2 = "OK"
             print(f"case 2 (add works)          -> {r2}")
 
             bad = await session.call_tool(
                 "add_bookmark", {"url": "  ", "title": "oops"}
             )
-            r3 = "OK" if bad.content[0].text.startswith("Error") else "WRONG"
+            r3 = "WRONG"
+            if bad.content[0].text.startswith("Error"):
+                r3 = "OK"
             print(f"case 3 (empty url -> Error)  -> {r3}")
 
             res = await session.read_resource("bookmarks://all")
-            r4 = "OK" if "X" in res.contents[0].text else "WRONG"
+            r4 = "WRONG"
+            if "X" in res.contents[0].text:
+                r4 = "OK"
             print(f"case 4 (resource read)      -> {r4}")
 
             prompt = await session.get_prompt("reading_list")
             text = prompt.messages[0].content.text
-            r5 = "OK" if "reading list" in text.lower() else "WRONG"
+            r5 = "WRONG"
+            if "reading list" in text.lower():
+                r5 = "OK"
             print(f"case 5 (prompt fetched)     -> {r5}")
 
 

@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-2-that-specialist-now-a-real-agent-that-can-improve-its-own-work) · [Hint 1](step2_writer_reviewer_loop_hints.md#hint-1) · [Hint 2](step2_writer_reviewer_loop_hints.md#hint-2) · [Solution](step2_writer_reviewer_loop_solution.md)
 
-**Story — Step 2:** a first draft is rarely the best one. This step gives the Writer a way to improve: a Reviewer scores each draft, and a small loop sends the feedback back to the Writer — up to a hard limit. It's still just two agents in a plain Python loop, with no graph. **If not:** Step 5 would be the first place the revision loop ever ran, inside a much bigger system.
+**Story — Step 2:** a first draft is rarely the best one. This step gives the Writer a way to improve: a Reviewer agent scores each draft against written criteria, and a small `while` loop sends the feedback back to the Writer for another attempt — bounded by a hard `MAX_REVISIONS` limit so it can't run forever. It's still just two agents in a plain Python loop, with no graph yet — that comes in Step 5. **If not:** Step 5 would be the first place the revision loop ever ran, inside a much bigger system with a graph to debug alongside it.
 
 After this step the project runs: it writes an article, has it reviewed, and revises it until it passes or the limit is reached. Files not shown here don't change.
 
@@ -10,7 +10,7 @@ After this step the project runs: it writes an article, has it reviewed, and rev
 
 **Changed from Step 1:** `writer.txt` gets a feedback section; `run_writer()` gets a `feedback` parameter.
 
-**Story — `prompts/writer.txt` + `agents/writer_agent.py`:** the chain is the same; now it can be told what to fix. An empty feedback becomes the word "none", so the prompt always reads cleanly. **If not:** the Writer would redraft blindly, and could repeat the same mistake every round.
+**Story — `prompts/writer.txt` + `agents/writer_agent.py`:** the chain itself is unchanged; it now accepts a `feedback` field so it can be told specifically what to fix on a revision. An empty feedback (the first draft, with nothing to revise yet) becomes the literal word "none", so the prompt always reads as a complete sentence instead of leaving a blank. **If not:** the Writer would redraft blindly, and could repeat the exact same mistake every round.
 
 `src/prompts/writer.txt`
 
@@ -48,7 +48,7 @@ def run_writer(findings, feedback=""):
     return chain.invoke({"findings": findings, "feedback": feedback})
 ```
 
-**Story — `schemas.py`:** the verdict as a checked object: a score from 1 to 10 and the feedback text (Doc05's `with_structured_output`). **If not:** you'd parse "GOOD"/"BAD" out of free text.
+**Story — `schemas.py`:** this defines the Reviewer's verdict as a checked Pydantic object — a score from 1 to 10 and the feedback text — returned through `with_structured_output` (Doc05's pattern) instead of free text. **If not:** you'd be parsing something like "GOOD"/"BAD" out of prose, hoping the model's wording never drifts.
 
 ```python
 # src/schemas.py
@@ -61,7 +61,7 @@ class ReviewVerdict(BaseModel):
     feedback: str
 ```
 
-**Story — `prompts/reviewer.txt`:** three written criteria — clarity, grounding, completeness — and "7 or more only if all three are met". **If not:** a vague Reviewer approves the first draft almost every time, and the loop never gets tested.
+**Story — `prompts/reviewer.txt`:** this spells out three concrete criteria — clarity, grounding in the findings, completeness — and the explicit rule "score 7 or higher only if all three are genuinely met." Without named criteria a model has nothing specific to judge against. **If not:** a vague Reviewer approves the first draft almost every time, and the revision loop never actually gets exercised.
 
 `src/prompts/reviewer.txt`
 
@@ -81,7 +81,7 @@ Draft:
 {draft}
 ```
 
-**Story — `agents/reviewer_agent.py`:** the model scores; **the code** decides the pass mark (`PASS_SCORE = 7`). **If not:** "pass" would drift with the model's mood from run to run.
+**Story — `agents/reviewer_agent.py`:** the model's job is only to produce a score; deciding what counts as "passing" is **plain Python** (`PASS_SCORE = 7`), not something the model decides for itself. Keeping the threshold in code means it's one constant you can see, test, and change in one place. **If not:** "pass" would drift with the model's mood from run to run, with no fixed line anyone could point to.
 
 ```python
 # src/agents/reviewer_agent.py
@@ -101,7 +101,7 @@ def run_reviewer(findings, draft):
     return chain.invoke({"findings": findings, "draft": draft})
 ```
 
-**Story — `main.py`:** `write_with_review()` is the Generator → Critic loop (Doc11): write, review, pass the feedback back, stop at `MAX_REVISIONS`. It returns a dict with the **same keys the Step 5 team will use** (`draft`, `accepted`, `feedback_history`, `revision_count`), and `print_report(result)` prints it — never showing a rejected draft as finished. `print_report()` keeps its name and its input for the rest of the project. **If not:** a Writer and Reviewer that never agree would loop forever, and Step 5 would have to rewrite how results are printed.
+**Story — `main.py`:** `write_with_review()` is the Generator → Critic loop (Doc11's pattern): write a draft, review it, if rejected pass the feedback back to the Writer, repeat until accepted or `MAX_REVISIONS` is hit. It returns a dict with the **same keys the Step 5 team will use** (`draft`, `accepted`, `feedback_history`, `revision_count`), and `print_report(result)` prints it, carefully never showing a rejected draft as if it were finished. Keeping `print_report()`'s name and input shape stable is deliberate — the rest of the project builds on calling it the same way. **If not:** a Writer and Reviewer that never agree would loop forever, and Step 5 would have to rewrite how results are printed.
 
 ```python
 # main.py
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/integration/test_live_agents.py`:** the one check that matters most here — a weak draft must **fail** (case 2). **If not:** a Reviewer that passes everything looks exactly like one that works.
+**Story — `tests/integration/test_live_agents.py`:** this adds the one check that matters most for this step: a deliberately weak, thin draft must **fail** the Reviewer's checks (case 2), against the real model. A Reviewer that approves good drafts proves little on its own. **If not:** a Reviewer that passes everything looks exactly like one that actually works.
 
 ```python
 # tests/integration/test_live_agents.py

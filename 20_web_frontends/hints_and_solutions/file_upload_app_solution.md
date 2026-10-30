@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-file_upload_app) · [Hint 1](file_upload_app_hints.md#hint-1) · [Hint 2](file_upload_app_hints.md#hint-2)
 
-**Story:** half the real AI apps take a file, not typed text — a PDF to extract, a resume to match. This is the file half of the UI. **If not:** your app only works on text someone pastes by hand, and the document projects (InvoiceIQ, JobMatch) have no front door.
+**Story:** half of real AI applications take a file as input, not typed text — a PDF invoice to extract fields from, a resume to match against a job. This is the file-upload half of the UI that those apps actually need. **If not:** your app would only ever work on text someone pastes in by hand, and document-driven projects like InvoiceIQ or JobMatch would have no real front door for users to reach them through.
 
 ## The pipeline
 

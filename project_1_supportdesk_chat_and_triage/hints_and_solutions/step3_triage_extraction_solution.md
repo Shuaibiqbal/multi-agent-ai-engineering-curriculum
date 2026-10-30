@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-3-a-triage-agent-that-extracts-a-structured-ticket-from-free-text) · [Hint 1](step3_triage_extraction_hints.md#hint-1) · [Hint 2](step3_triage_extraction_hints.md#hint-2) · [Solution](step3_triage_extraction_solution.md)
 
-**Story — Step 3:** the chat can't file tickets yet. This step adds the first real agent — Triage — which turns a complaint into a checked `SupportTicket`. For now you trigger it by hand with `/extract`, so you can test it on its own before Step 4 automates the choice. This is also where the app learns to survive every common failure. **If not:** a support desk that can't produce structured tickets is just a chatbot, and one rate limit or bad reply would crash the whole session.
+**Story — Step 3:** the chat can't file tickets yet. This step adds the first real agent — **Triage** — which turns a free-text complaint into a checked `SupportTicket` using structured output (the Doc04/Doc05 pattern). For now you trigger it by hand with `/extract`, so you can test the agent on its own before Step 4 automates the choice of when to use it. This is also where the app learns to survive every common failure — bad key, rate limit, too-long message, unusable model output — instead of crashing. **If not:** a support desk that can't produce structured tickets is just a chatbot, and one rate limit or bad reply would crash the whole session.
 
 After this step the project runs as a chat app that can also file tickets. Files from Steps 1-2 that aren't shown here don't change.
 
 ## Solution — a strict agent, every failure handled, sample data and tests
 
-**Story — `schemas.py`:** the contract between the model and your code. `str | None` lets "no name given" be a real answer, and `Literal` limits category and urgency to exact values. **If not:** a required `customer_name` would force the model to invent one, and a free-text category could come back as "Billing issue" — valid text that breaks any `if category == "billing"`.
+**Story — `schemas.py`:** this is the **contract** between the model and your code — a Pydantic `SupportTicket` model that says exactly which fields a ticket has and what types they are. Two choices do the heavy lifting: `str | None` makes "no name given" a *real, allowed* answer (so the model can honestly leave it blank), and `Literal[...]` restricts `category` and `urgency` to an exact set of values, so anything off-list is rejected at parse time. **If not:** a required `customer_name` would force the model to invent one, and a free-text category could come back as "Billing issue" — valid text that quietly breaks any `if category == "billing"`.
 
 ```python
 # src/schemas.py
@@ -24,7 +24,7 @@ class SupportTicket(BaseModel):
     summary: str
 ```
 
-**Story — `prompts/triage.txt`:** a strict prompt for a strict job — it says outright never to guess a name, and when urgency is "high". **If not:** the schema allows `None`, but nothing *tells* the model to use it, so it may still fill in a name.
+**Story — `prompts/triage.txt`:** this is a strict prompt for a strict job. The schema *allows* `None` for a missing name, but a schema can't tell the model *when* to use it — the prompt does, by saying outright never to guess a name, and spelling out exactly when urgency counts as "high." Keeping these rules in the prompt (not the code) is what makes the model's behavior match the schema's intent. **If not:** the schema allows `None`, but nothing *tells* the model to use it, so it may still fill in a plausible-sounding name.
 
 `src/prompts/triage.txt`
 
@@ -35,7 +35,7 @@ name - otherwise leave it null, never guess one. Use urgency 'high'
 only if the customer says it is urgent or needed today.
 ```
 
-**Story — `agents/triage.py`:** the Triage agent — its own prompt, no chat history, one structured call. It checks `refusal` before reading `parsed`, and returns `None` on any unusable answer, so the caller has exactly two cases to handle. **If not:** a refusal would come back as `parsed=None` with no explanation, and invalid output could reach code that trusts it.
+**Story — `agents/triage.py`:** this is the **Triage agent**: its own prompt, no chat history (each complaint is judged on its own), and a single structured-output call that returns a `SupportTicket`. It checks the model's `refusal` field *before* reading `parsed`, and returns `None` on any unusable answer — so the caller always has exactly two clean cases to handle: a valid ticket, or nothing. **If not:** a refusal would come back as `parsed=None` with no explanation, and invalid output could slip through to code that trusts it.
 
 ```python
 # src/agents/triage.py
@@ -71,7 +71,7 @@ def triage_agent(client, message):
 
 Also create an empty `src/agents/__init__.py`.
 
-**Story — `services/desk_service.py`:** the file for the app's "business flow" — what happens to a message, apart from reading the keyboard. In this step it holds one function, `print_ticket()`, which shows a ticket in a readable way. Step 4 adds the router → agent flow to **this same file**, so nothing has to move later. (Also create an empty `src/services/__init__.py`.) **If not:** `print_ticket()` would sit in `main.py` now and have to move in Step 4.
+**Story — `services/desk_service.py`:** this is the home for the app's **business flow** — what happens to a message, separate from reading the keyboard. In this step it holds just one function, `print_ticket()`, which displays a ticket readably. It's created now, even for one function, because Step 4 adds the whole router → agent flow to *this same file* — so putting it here now means nothing has to move later. (Also create an empty `src/services/__init__.py`.) **If not:** `print_ticket()` would sit in `main.py` now and have to be moved in Step 4, churning both files.
 
 ```python
 # src/services/desk_service.py
@@ -90,7 +90,7 @@ def print_ticket(ticket):
 
 **Changed from Step 2:** the startup and the chat branch are the same. What's new: 3 imports, the `/extract` branch that calls `print_ticket()`, and the `try` / `except` blocks around the loop body.
 
-**Story — `main.py`:** Step 2's loop plus `/extract` and one `except` per failure. Each failure gets the reaction Doc04's error table gives it: exit on a bad key, ask the user to wait on a rate limit, and drop a too-long message. (The 4th failure, bad structured output, is already handled inside `triage_agent()`.) **If not:** any one of these would end the session with a traceback, and the user would lose the whole conversation.
+**Story — `main.py`:** this is Step 2's loop plus the `/extract` command and one `except` clause per failure mode. Each failure gets the exact reaction Doc04's error table prescribes: exit on a bad key, ask the user to wait on a rate limit, and drop a too-long message. (The fourth failure — bad structured output — is already handled inside `triage_agent()`, which returns `None`.) Handling each error where the user can see a clean message keeps one bad call from ending the session. **If not:** any one of these would end the session with a traceback, and the user would lose the whole conversation.
 
 ```python
 # main.py
@@ -172,7 +172,7 @@ if __name__ == "__main__":
 
 Why these `except` blocks sit in `main.py`: this is the only place that knows how to talk to the *user* (print a message, or exit). The agents just raise or return `None`.
 
-**Story — `data/sample/messages.json`:** the 3 test complaints from the README, stored once. **If not:** the script and the test would each keep their own copy, and the copies would drift apart.
+**Story — `data/sample/messages.json`:** this stores the 3 test complaints from the README once, in one file. Both the sample-runner script and the integration test read from it, so there's a single source of truth for the examples. **If not:** the script and the test would each keep their own copy of the complaints, and the two copies would quietly drift apart over time.
 
 `data/sample/messages.json`
 
@@ -188,7 +188,7 @@ Why these `except` blocks sit in `main.py`: this is the only place that knows ho
 
 (The first message is wrapped onto 2 lines here only to fit the page — in your file keep it on **one** line, because a JSON string can't contain a line break.)
 
-**Story — `scripts/triage_samples.py`:** runs Triage on every sample and prints each ticket, for *you* to judge — for example after rewording `triage.txt`. **If not:** checking a prompt change would mean typing 3 complaints by hand each time.
+**Story — `scripts/triage_samples.py`:** this runs the Triage agent on every sample complaint and prints each resulting ticket, for *you* to eyeball — for example right after rewording `triage.txt`, to see whether the change helped or hurt. It's a judgement tool, not a pass/fail test. **If not:** checking a prompt change would mean typing the 3 complaints in by hand every single time.
 
 ```python
 # scripts/triage_samples.py
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/unit/test_schemas.py`:** checks the schema allows a missing name and rejects an unknown urgency — free and instant. **If not:** someone could change `customer_name` to a plain `str` and nothing would warn them until the model started inventing names.
+**Story — `tests/unit/test_schemas.py`:** this checks the schema's two key promises without any model or network — free and instant: that a ticket is accepted with a missing name (`None`), and that an unknown `urgency` value is rejected. It pins the schema's behavior in place so a future change can't quietly loosen it. **If not:** someone could change `customer_name` to a plain `str` and nothing would warn them until the model started inventing names in production.
 
 ```python
 # tests/unit/test_schemas.py
@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
 **Changed from Step 2:** `tests/integration/test_live_agents.py` gets cases 4 and 5 — `load_samples()`, two test functions, their imports, and three new lines at the bottom.
 
-**Story — `tests/integration/test_live_agents.py`:** the Triage agent is this step's feature, so the 3 sample complaints must each become a ticket — and the one with no name must not get an invented name. **If not:** a prompt change could start inventing customer names, and nothing would notice.
+**Story — `tests/integration/test_live_agents.py`:** the Triage agent is this step's feature, so it gets a real check against the live model: each of the 3 sample complaints must come back as a valid ticket, and the one complaint with no name must *not* get an invented one. This case is added to the same growing integration file. **If not:** a prompt change could start inventing customer names, and nothing would catch it until a user noticed.
 
 ```python
 # tests/integration/test_live_agents.py

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-tool_selection_ambiguity) · [Hint 1](tool_selection_ambiguity_hints.md#hint-1) · [Hint 2](tool_selection_ambiguity_hints.md#hint-2) · [Solution](tool_selection_ambiguity_solution.md)
 
-**Story — `tool_selection_practice.py` (Intermediate section):** "tool descriptions are prompts too" stops being an abstract idea the moment you register two overlapping tools and watch the split happen across 5 real runs. **If not:** the Build Task's test harness would be the first place you ever saw a model split its picks between similar tools, with no smaller version to explain why that's expected, not a bug.
+**Story — `tool_selection_practice.py`:** "tool descriptions are prompts too" stops being an abstract slogan the moment you register two *overlapping* tools and watch the model split its picks between them across 5 real runs. This exercise shows that the **description** — not just the name — is what the model reads to decide which tool to call, so two similar descriptions produce inconsistent, hard-to-predict choices. **If not:** the Build Task's test harness would be the first place you ever saw a model split its picks between similar tools, with no smaller version to explain why that's expected, not a bug.
 
 ## Solution
 

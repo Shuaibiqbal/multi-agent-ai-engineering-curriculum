@@ -752,10 +752,10 @@ _You don't need any of these to understand the Core Concepts above — use them 
 ```
 practice/
 ├── react_loop_practice.py        Basic + Intermediate: run_agent()
-├── react_loop_raw_sdk.py         Intermediate, Approach 5: raw SDK
+├── react_loop_raw_sdk.py         Intermediate: the same loop, raw SDK
 ├── agent_executor_comparison_practice.py   Real-world
 ├── no_tool_needed_practice.py    Edge cases
-├── test_no_tool_needed.py        Edge cases, Approach 2: pytest
+├── test_no_tool_needed.py        Edge cases: pytest
 ├── loop_safety_cost_practice.py  Failure
 ├── tools.py                      copied from Doc06, unchanged
 ├── http_client.py                copied from Doc06, unchanged
@@ -853,7 +853,7 @@ practice/
 
 **Inputs:** any text task typed into the terminal. **Outputs:** a final answer, plus a full step-by-step log of how it got there. **Constraints:** no unlimited loops, for any input. Every tool call's arguments must pass Pydantic checking before the tool actually runs.
 
-**Builds on:** the [Intermediate](#ex-build_react_loop) loop (Approach 2 — `find_tool()`, `run_tool()`, the logger), the [Edge cases](#ex-no_tool_needed) no-tool check, and the [Failure](#ex-infinite_loop_cost) step limit with its log. `exceptions.py` reuses Doc01's named-error pattern as `MaxIterationsExceeded`, carrying the partial step log exactly as the [step-limit topic](#setting-a-limit-on-the-number-of-steps) requires.
+**Builds on:** the [Intermediate](#ex-build_react_loop) loop (`find_tool()`, `run_tool()`, the logger), the [Edge cases](#ex-no_tool_needed) no-tool check, and the [Failure](#ex-infinite_loop_cost) step limit with its log. `exceptions.py` reuses Doc01's named-error pattern as `MaxIterationsExceeded`, carrying the partial step log exactly as the [step-limit topic](#setting-a-limit-on-the-number-of-steps) requires.
 
 **Suggested files:**
 ```
@@ -869,7 +869,7 @@ practice/
 ```
 
 - `main.py` — **What/Why:** the thin entry point that turns typed input into one `run_agent()` call and prints its result — or the partial log, if the limit was hit.
-- `agent.py` — **What/Why:** the Intermediate exercise's loop (Approach 2), with two Doc06 tools and the fail-once search.
+- `agent.py` — **What/Why:** the Intermediate exercise's loop, with two Doc06 tools and the fail-once search.
 - `docs_search.py` — **What/Why:** a tool that fails once on command, so "recovers from a failure" is a repeatable test, not luck.
 - `test_agent.py` — **What/Why:** proves the 4 Test Cases, in the plain `case` print style of Doc04–06 — run it every time `agent.py` changes.
 - `exceptions.py` — **What/Why:** Doc06's named errors plus `MaxIterationsExceeded`, which carries the partial step log.

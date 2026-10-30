@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-2-a-real-terminal-chat-with-memory-and-live-streaming) · [Hint 1](step2_chat_memory_hints.md#hint-1) · [Hint 2](step2_chat_memory_hints.md#hint-2) · [Solution](step2_chat_memory_solution.md)
 
-**Story — Step 2:** the model remembers nothing between calls (Doc03). So the app keeps a growing `history` list and resends it every turn — that list *is* the memory. Streaming makes the reply appear as it's written. Trimming keeps a long chat under the model's limit. **If not:** every reply would forget the previous one, the user would stare at a blank line while the whole reply is generated, and a long chat would eventually crash with a 400 error.
+**Story — Step 2:** the model is stateless — it remembers nothing between API calls (Doc03). The only way to give it memory is to keep the whole conversation yourself in a growing `history` list and resend it every turn, so that list *is* the memory. This step adds three things on top of Step 1's single call: that history list; **streaming**, which prints the reply token-by-token as the model writes it so the user isn't staring at a blank line; and **trimming**, which drops the oldest turns once the conversation gets long so it stays under the model's context limit. **If not:** every reply would forget the previous one, the user would stare at a blank line while the whole reply is generated, and a long chat would eventually crash with a 400 error.
 
 After this step the project is a working chat app. Files from Step 1 that aren't shown here (`config.py`, `exceptions.py`, `utils/logger.py`) don't change.
 
@@ -10,7 +10,7 @@ After this step the project is a working chat app. Files from Step 1 that aren't
 
 **Changed from Step 1:** one new function at the bottom, `stream_message()`. Everything above it is Step 1's code, unchanged.
 
-**Story — `models/llm.py`:** Step 1's file plus Doc04's `stream_message()`. The one change from Doc04 is `flush=True`. **If not:** the terminal holds printed text back until the line ends, so the "stream" would appear all at once at the end.
+**Story — `models/llm.py`:** this is Step 1's file plus a new `stream_message()` (from Doc04): instead of waiting for the whole reply, it asks the API for a stream and prints each chunk the moment it arrives. The one change from Doc04 is `print(..., end="", flush=True)` — `flush=True` forces Python to write each chunk to the terminal *immediately* rather than buffering it until a newline, which is what actually makes the text appear live. **If not:** the terminal holds printed text back until the line ends, so the "stream" would appear all at once at the end — defeating the point.
 
 ```python
 # src/models/llm.py
@@ -59,7 +59,7 @@ def stream_message(client, history, user_input):
     return full_reply
 ```
 
-**Story — `prompts/concierge.txt`:** the assistant's personality, as plain text. (It's called "concierge" already, because in Step 4 this chat becomes the Concierge agent.) **If not:** changing the tone would mean editing Python code.
+**Story — `prompts/concierge.txt`:** this is the assistant's personality — its system prompt — kept as a plain `.txt` file instead of a string buried in code. Keeping prompts as files means anyone can tweak the tone without touching Python, and prompts can be versioned and diffed like any other text. It's named "concierge" already because in Step 4 this chat becomes the **Concierge** agent. **If not:** changing the assistant's tone would mean editing Python code, and the prompt would be tangled up with program logic.
 
 `src/prompts/concierge.txt`
 
@@ -68,7 +68,7 @@ You are the SupportDesk concierge. Be friendly and brief.
 Answer general questions and small talk about the service.
 ```
 
-**Story — `utils/prompts.py`:** one function that reads a prompt file by name, so no agent opens files itself. **If not:** every agent would repeat the same `open(...)` code, each with its own copy of the folder path.
+**Story — `utils/prompts.py`:** this is one small helper — `load_prompt(name)` — that reads a prompt file from the `prompts/` folder by name and returns its text. Centralizing it means no agent ever opens a file itself or hard-codes the folder path; they just ask for a prompt by name, and when the folder or the loading changes there's one place to fix. **If not:** every agent would repeat the same `open(...)` code, each with its own copy of the folder path, and moving the folder would break several files at once.
 
 ```python
 # src/utils/prompts.py
@@ -81,7 +81,7 @@ def load_prompt(name):
         return prompt_file.read().strip()
 ```
 
-**Story — `utils/history.py`:** estimates the size of the history (Doc03's "about 4 characters per token") and drops the oldest turns until it fits a budget. The system prompt always stays. **If not:** a long chat would hit the context limit and fail with a 400 error mid-conversation — or, if you dropped from the front blindly, the assistant would lose its personality.
+**Story — `utils/history.py`:** this keeps the conversation from outgrowing the model's context window. It estimates the history's size using Doc03's rule of thumb (about 4 characters per token), and if that's over a set budget it drops the *oldest* turns one at a time until it fits — but it always keeps the system prompt (the first message), because that's the assistant's personality and instructions. Running this before every call means a conversation can go on indefinitely without ever hitting the limit. **If not:** a long chat would hit the context limit and fail with a 400 error mid-conversation — or, if you dropped messages from the front blindly, the assistant would lose its personality along with the old turns.
 
 ```python
 # src/utils/history.py
@@ -103,7 +103,7 @@ def trim_history(history, max_tokens):
 
 **Changed from Step 1:** the startup part of `main()` is the same. What's new: 2 imports, `MAX_HISTORY_TOKENS`, and the loop that replaces the single `send_message()` call.
 
-**Story — `main.py`:** Step 1's startup, then a loop. It skips empty lines, trims before every call, and loads the system prompt from its file. **If not:** an empty Enter would cost an API call, and nothing would stop the history from growing past the limit.
+**Story — `main.py`:** this takes Step 1's startup (config, logger, key check) and wraps the model call in a read-reply loop: read the user's line, skip it if it's empty, trim the history to fit the budget, send it, and stream the reply back. It loads the system prompt from the `concierge.txt` file once at startup. The trimming happens *before* every call, so the limit is respected continuously, not just once. **If not:** an empty Enter would cost a wasted API call, and nothing would stop the history from growing past the model's limit.
 
 ```python
 # main.py
@@ -160,7 +160,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/unit/test_history.py`:** proves trimming keeps the system prompt and the newest turn, with no API key and no network. Each case prints `OK` or `WRONG`, like the Step 1 tests. **If not:** a trimming bug would only show up as a strange reply after a long chat — very hard to trace back here.
+**Story — `tests/unit/test_history.py`:** this proves the trimming logic is correct with no API key and no network: it builds an over-long fake history, trims it, and checks the two things that must always hold — the system prompt is still there, and the newest turn (the user's latest message) survived. Because trimming is pure Python with no model involved, it can be tested exhaustively and instantly. Each case prints `OK` or `WRONG`, like the Step 1 tests. **If not:** a trimming bug would only show up as a strange reply after a long chat — a symptom that's very hard to trace back to the trimming code.
 
 ```python
 # tests/unit/test_history.py
@@ -220,7 +220,7 @@ Case 3 checks the two things that matter: the system prompt is still first, and 
 
 **Changed from Step 1:** `tests/integration/test_live_agents.py` gets case 3 — one new function and one new call.
 
-**Story — `tests/integration/test_live_agents.py`:** memory is this step's feature, so it gets a real check: turn 3 must use what was said in turn 1. **If not:** a bug that forgets the history would only show up when a user complained.
+**Story — `tests/integration/test_live_agents.py`:** memory is this step's headline feature, so it gets a real end-to-end check against the live model: the test holds a short conversation and verifies that turn 3's reply actually uses something stated back in turn 1 — proving the resent history is really giving the model memory, not just being stored. This case is added to the *same* integration file Step 1 started. **If not:** a bug that silently forgets the history would only show up when a real user complained that the bot "doesn't remember."
 
 ```python
 # tests/integration/test_live_agents.py

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-streaming_ui) · [Hint 1](streaming_ui_hints.md#hint-1) · [Hint 2](streaming_ui_hints.md#hint-2)
 
-**Story:** a long reply should type out like ChatGPT, not appear after a blank 15-second wait. The web layer just forwards the tokens your chain already yields. **If not:** every slow answer is a frozen screen, and the app feels broken even when it's working.
+**Story:** a long model reply should type itself out on screen the way ChatGPT does, not appear all at once after a blank, silent 15-second wait. The web layer's job here is simple — it just forwards the tokens your chain already yields one by one, as they arrive. **If not:** every slow answer would look like a frozen, broken screen, even while the app is actually working perfectly underneath.
 
 ## The token generator
 

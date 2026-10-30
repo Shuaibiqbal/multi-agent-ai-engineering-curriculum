@@ -64,7 +64,7 @@ Everything this project needs was taught in Docs 01-04. Use this table when a st
 | `load_config()`, `MissingConfigError` | [Doc01 — Errors](../01_python_foundations/README.md#errors-a-clean-way-to-say-something-specific-went-wrong) + [Doc01 Build Task](../01_python_foundations/README.md#build-task-config-logging-foundation) | Step 1 |
 | `get_logger()`, why not `print()` | [Doc01 — Logging](../01_python_foundations/README.md#logging-better-than-print) | Step 1 onward |
 | The client and the message list | [Doc04 — The client](../04_openai_api/README.md#the-client-and-the-list-of-messages) | Step 1 |
-| Prompts in `.txt` files: `load_prompt()`, `.read()` | [Doc04 — Basic exercise, Approach 2](../04_openai_api/README.md#ex-first_chat_call) | Step 2 onward |
+| Prompts in `.txt` files: `load_prompt()`, `.read()` | [Doc04 — Basic exercise](../04_openai_api/README.md#ex-first_chat_call) | Step 2 onward |
 | Why the model forgets everything | [Doc03 — No memory](../03_llm_fundamentals/README.md#no-memory-theres-nothing-remembered-inside-the-model) | Step 2 |
 | Tokens and the "4 characters" rule | [Doc03 — Tokens](../03_llm_fundamentals/README.md#tokens-what-the-model-actually-reads) | Step 2 |
 | The context window limit | [Doc03 — Context window](../03_llm_fundamentals/README.md#context-window-a-shared-budget-not-just-how-much-you-can-paste-in) | Step 2 |

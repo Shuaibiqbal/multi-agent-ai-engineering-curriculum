@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-5-the-full-team-a-supervisor-routing-4-specialists-via-command-final-5-agents) · [Hint 1](step5_supervisor_command_hints.md#hint-1) · [Hint 2](step5_supervisor_command_hints.md#hint-2) · [Solution](step5_supervisor_command_solution.md)
 
-**Story — Step 5:** four specialists, each proven alone. Now a **Supervisor** runs the team: it reads the shared state, decides who works next, logs why, and routes with LangGraph's `Command` (Doc11). The Writer ↔ Reviewer loop moves from `main.py` into the graph — same limit, same pass mark. The agents' inner `run_...()` functions don't change; each only gets a small node wrapper. **If not:** the order of work would stay hard-coded in `main.py`, with no shared state to inspect and no routing log to explain a bad run.
+**Story — Step 5:** four specialists, each already proven alone in Steps 1-4. Now a **Supervisor** node runs the whole team: it reads the shared state, decides which agent works next, logs *why* it chose that agent, and routes directly with LangGraph's `Command(goto=...)` (Doc11's pattern), instead of fixed graph edges. The Writer ↔ Reviewer loop moves from Step 2's `main.py` `while` loop into the graph itself — same `MAX_REVISIONS` limit, same `PASS_SCORE`. Crucially, the agents' inner `run_...()` functions don't change at all; each just gets a small node wrapper around the function you already tested. **If not:** the order of work would stay hard-coded in `main.py`, with no shared state to inspect and no routing log to explain a bad run.
 
 After this step the project is complete. Files not shown here don't change.
 
 ## Solution — a testable routing function, a reason for every move, one writer per field
 
-**Story — `state.py`:** the shared state, with **one writer per field** (Doc11's rule) — Research writes the notes, Analysis the findings, and so on; only the Supervisor writes the routing log. `research_done` records that Research ran even if it found nothing, so it's never repeated. **If not:** one agent's working notes could overwrite another's, and the Supervisor couldn't tell "not run yet" from "ran, found nothing".
+**Story — `state.py`:** this is the shared `TypedDict` state, built with **one writer per field** (Doc11's rule) — Research is the only node that writes the notes field, Analysis the only one that writes findings, and so on; only the Supervisor writes the routing log. `research_done` is a separate boolean that records Research *ran* even when it found nothing, which is what stops the Supervisor from sending the same topic back to Research forever. **If not:** one agent's working notes could overwrite another's, and the Supervisor couldn't tell "not run yet" from "ran, found nothing."
 
 ```python
 # src/state.py
@@ -41,7 +41,7 @@ def start_state(topic):
     }
 ```
 
-**Story — `agents/supervisor.py`:** `decide_next()` is a plain function of the state that returns `(next step, reason)` — testable with a hand-made dict. `supervisor()` logs the decision and returns `Command(update=..., goto=...)`. The order of the rules is the whole routing policy: research → stop if nothing found → analysis → stop if accepted or at the limit → writer → reviewer. **If not:** routing bugs could only be found by running the whole team.
+**Story — `agents/supervisor.py`:** `decide_next()` is a plain function of the state — no model call — that returns `(next step, reason)`, which makes it testable directly with a hand-made state dict, no graph needed. `supervisor()` wraps it as a node: logs the decision, then returns `Command(update=..., goto=...)`, which both updates the state and picks the next node in one return value. The *order* the rules are checked in **is** the whole routing policy: research first → stop if nothing was found → analysis → stop if the draft is accepted or the revision limit is hit → writer → reviewer. **If not:** routing bugs could only be found by running the whole team end to end, every time.
 
 ```python
 # src/agents/supervisor.py
@@ -166,7 +166,7 @@ def writer_node(state):
     return Command(update={"draft": draft}, goto="supervisor")
 ```
 
-**Story — `reviewer_node`:** Step 2's loop logic, now as a node. On a pass it sets `accepted`. On a fail it adds the feedback to the history and counts the revision — and while revisions are left, it **clears the draft**, which is what makes the Supervisor send the work back to the Writer (Doc11). `MAX_REVISIONS` now lives in the Supervisor, the one place that stops the loop. **If not:** the loop would have no memory of past feedback, or no way back to the Writer.
+**Story — `reviewer_node`:** this is Step 2's loop logic, now as a graph node instead of a `while` loop body. On a pass it sets `accepted` in the state. On a fail it adds the feedback to the history and counts the revision — and crucially, while revisions are still left, it **clears the draft** field. An empty draft is exactly what the Supervisor's routing rules read as "needs the Writer again" — that's the mechanism that sends work back (Doc11's pattern). `MAX_REVISIONS` now lives in the Supervisor, the one place that decides when to stop the loop entirely. **If not:** the loop would have no memory of past feedback, or no way back to the Writer.
 
 ```python
 # src/agents/reviewer_agent.py
@@ -206,7 +206,7 @@ def reviewer_node(state):
     return Command(update=update, goto="supervisor")
 ```
 
-**Story — `graph.py`:** five nodes and **one** edge (`START → supervisor`). Every other move is a `Command(goto=...)` returned at run time. **If not:** you'd draw fixed edges, and the Supervisor would have nothing to decide.
+**Story — `graph.py`:** this graph has five nodes but only **one** fixed edge (`START → supervisor`). Every other move between nodes is a `Command(goto=...)` returned by a node at run time, not a pre-drawn edge — that's what makes the Supervisor an actual decision-maker rather than a fixed pipeline wearing a graph's clothes. **If not:** you'd draw fixed edges for every transition, and the Supervisor would have nothing left to decide.
 
 ```python
 # src/graph.py
@@ -295,7 +295,7 @@ if __name__ == "__main__":
 
 ## The Step 5 tests
 
-**Story — `tests/unit/test_supervisor.py`:** the routing rules on hand-made states — every step in order, and every way the run can stop. No model, no graph, no key. **If not:** a wrong rule order would only show up as a strange, expensive run.
+**Story — `tests/unit/test_supervisor.py`:** this checks `decide_next()`'s routing rules against hand-made states — every step in its expected order, and every way the run can stop (nothing found, accepted, limit hit) — with no model, no graph, and no API key needed, since routing is pure Python. **If not:** a wrong rule order would only show up as a strange, expensive run through the whole team.
 
 ```python
 # tests/unit/test_supervisor.py

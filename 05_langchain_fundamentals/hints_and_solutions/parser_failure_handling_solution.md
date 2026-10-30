@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-parser_failure_handling) · [Hint 1](parser_failure_handling_hints.md#hint-1) · [Hint 2](parser_failure_handling_hints.md#hint-2) · [Solution](parser_failure_handling_solution.md)
 
-**Story — `structured_output_practice.py` (Failure section):** you need to know, before it happens in production, exactly which exception a bad reply raises. "Shape during" almost never fails, so this exercise uses "check after" — a `PydanticOutputParser` — where a reply in the wrong shape really does fail. **If not:** the Build Task's "a reply that doesn't fit the shape raises a clear, named error" test would check an error you had never seen fire.
+**Story — `structured_output_practice.py` (Failure section):** you need to know, before it happens in production, exactly which exception a bad reply raises — and that depends on *how* you asked for structure. The "shape during" approach (`.with_structured_output()`) constrains the model as it decodes, so a wrong shape almost never gets through and you rarely see it fail. This exercise deliberately uses the other approach, "check after" — a `PydanticOutputParser` that takes the model's free-text reply and validates it afterwards — because that's where a reply in the wrong shape *really does* raise, as an `OutputParserException`. Triggering it on purpose here means you've seen the exact error, and its message, before you ever have to catch it for real. **If not:** the Build Task's "a reply that doesn't fit the shape raises a clear, named error" test would check an error you had never seen fire.
 
 ## Solution
 
@@ -62,4 +62,4 @@ case 2 (with instructions) -> score=9
 case 3 (parse by hand)     -> OutputParserException
 ```
 
-**Which one should you write?** Intermediate's. The Build Task's test file uses the same `parser.parse(...)` check for its "wrong shape" case.
+**Note:** the Build Task's test file uses the same `parser.parse(...)` check for its "wrong shape" case.

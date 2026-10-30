@@ -21,7 +21,9 @@ The pipeline turns the graph's state into a storable dict:
 ```python
 def run_pipeline(config, destination):
     final = app.invoke(start_state(destination))   # app built once
-    itinerary = final["draft"] if final["status"] == "done" else ""
+    itinerary = ""
+    if final["status"] == "done":
+        itinerary = final["draft"]
     return {"destination": destination, "status": final["status"],
             "itinerary": itinerary}
 ```

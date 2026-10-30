@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-rate_limit_handling) · [Hint 1](rate_limit_handling_hints.md#hint-1) · [Hint 2](rate_limit_handling_hints.md#hint-2) · [Solution](rate_limit_handling_solution.md)
 
-**Story — `retry_backoff_practice.py` (Failure section):** a real API doesn't just fail randomly — a 429 often comes with a `Retry-After` header telling you exactly how long to wait, and ignoring it makes the rate limit worse for you and everyone sharing your API key. This exercise builds the one function that reads that header correctly, with a safe fallback when it's missing or malformed. **If not:** the Build Task's `http_client.py` would fall back to blind exponential backoff even when the server explicitly says how long to wait — slower to recover, and a worse citizen on a shared API key.
+**Story — `retry_backoff_practice.py` (Failure section):** a real API doesn't just fail randomly — a 429 often comes with a `Retry-After` header telling you exactly how long to wait, and ignoring it makes the rate limit worse for you and everyone sharing your API key. This exercise builds the one function that reads that header, converts it to a number of seconds, caps it so a huge value can't stall you, and falls back to normal exponential backoff when it's missing or malformed. **If not:** the Build Task's `http_client.py` would fall back to blind exponential backoff even when the server explicitly says how long to wait — slower to recover, and a worse citizen on a shared API key.
 
 ## Solution
 

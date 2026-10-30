@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-sequential_measure) · [Hint 1](sequential_measure_hints.md#hint-1) · [Hint 2](sequential_measure_hints.md#hint-2) · [Solution](sequential_measure_solution.md)
 
-**Story — `architecture_comparison_practice.py` (Intermediate section):** this is the first real number behind the Basic exercise's on-paper guess — the sequential design, built and measured stage by stage. **If not:** `supervisor_compare` would have nothing fair to compare against, and "sequential is cheaper" would stay a guess.
+**Story — `architecture_comparison_practice.py`:** this is the first real number behind the Basic exercise's on-paper guess — the sequential design actually built, with each stage timed and its tokens counted as it runs. **If not:** `supervisor_compare` would have nothing fair and real to compare against, and "sequential is cheaper" would stay an unverified guess forever.
 
 ## Solution
 
-**Story:** a loose 3-item tuple makes `result[1]` mean "tokens" only if you remember the order; named dict keys can't be misread. **If not:** comparing two runs side by side would invite reading seconds as tokens.
+**Story:** a loose 3-item tuple makes `result[1]` mean "tokens" only if you've memorized the exact order it was built in; named dict keys like `result["tokens"]` can't be misread that way. **If not:** comparing two runs side by side would invite accidentally reading a seconds figure as a token count, or vice versa.
 
 ```python
 # architecture_comparison_practice.py

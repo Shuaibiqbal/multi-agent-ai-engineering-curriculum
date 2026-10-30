@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#dbg-rag) · [Round 1: Basic](rag_debugging_hints.md#round-basic) · [Round 2: Intermediate](rag_debugging_hints.md#round-intermediate) · [Round 3: Real-world](rag_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](rag_debugging_hints.md#round-multi-agent) · [Hints](rag_debugging_hints.md)
 
-**Story — `rag_debugging_practice.py`:** RAG bugs rarely crash — they give quietly worse answers, so they look like "the model is confused". Each round's fix sits next to a test that checks the retrieval side directly, with no model call. **If not:** you'd keep rewriting prompts for problems that live in chunking, embeddings, or shared state.
+**Story — `rag_debugging_practice.py`:** RAG bugs rarely crash outright — they usually just give quietly worse answers, which makes them look like "the model is confused" when the model actually did nothing wrong. Each round's fix sits right next to a test that checks the retrieval side directly, with no model call needed. **If not:** you'd keep rewriting prompts for problems that actually live in chunking, embeddings, or shared state — places a prompt rewrite can never fix.
 
 Every fix and test below goes in `practice/rag_debugging_practice.py`, and runs with `pytest rag_debugging_practice.py -v` from inside `practice/`. None of the tests need an API key.
 
@@ -16,7 +16,7 @@ Every fix and test below goes in `practice/rag_debugging_practice.py`, and runs 
 
 **Real cause:** `text[start:end - 1]` — the `- 1` is an off-by-one slicing mistake. Python slicing (`text[start:end]`) already stops one character before `end`; subtracting 1 again drops one more character from every chunk — here, the space at each boundary.
 
-**Story:** no error, just slightly wrong data — the most common kind of RAG bug. This round trains checking a chunker's output against its input, not just "did it run". **If not:** one dropped character per chunk would quietly damage every document you ever index.
+**Story:** no error anywhere, just slightly wrong data — this is the single most common kind of RAG bug. This round trains actually checking a chunker's output against its original input character for character, not just confirming "did it run without crashing". **If not:** one dropped character per chunk would quietly damage every single document you ever index, with nothing ever flagging it.
 
 **The fix:**
 ```python
@@ -45,7 +45,7 @@ def test_chunk_by_chars_reproduces_the_original_text():
 
 **Real cause:** documents were embedded with one model (`text-embedding-3-small`) and questions are now embedded with a different one (`text-embedding-3-large`). Different embedding models don't share the same number space — comparing a `-large` question vector with `-small` document vectors compares two unrelated coordinate systems, so every score comes back low and meaningless. Nothing raises an error, because both models return valid-looking vectors — which is why this first looks like a generation problem, not a config mismatch.
 
-**Story:** every question got worse at once, right after a config change — "everything, suddenly" points at shared setup, not at any one question. This round trains checking what changed before blaming the model. **If not:** you'd tune the prompt for a problem no prompt can fix.
+**Story:** every question got worse all at once, right after a config change — "everything, suddenly" is a pattern that points straight at shared setup, not at any one specific question. This round trains checking what actually changed recently before reaching for the model as the suspect. **If not:** you'd end up tuning the prompt for a problem no prompt rewrite could ever fix.
 
 **The fix:**
 ```python
@@ -69,7 +69,7 @@ A one-line test, but it turns a silent quality drop into a loud, named failure t
 
 **Real cause:** fixed-size chunking cut a sentence in half, right at the spot holding the fact the question needed. Retrieval technically "worked" — both halves came back — but the model never reliably joined "Customers" (end of one chunk) to "have 30 days..." (start of the next) as one sentence. The symptom shows up in generation; the cause is one step earlier, in chunking.
 
-**Story:** only one question fails, and only because its answer happens to sit on a chunk boundary. This round trains building a test input that puts the answer exactly on the boundary on purpose. **If not:** the bug would keep hitting whichever facts happen to land on a boundary, at random.
+**Story:** only one question fails, and only because its answer happens to sit right on a chunk boundary by chance. This round trains deliberately constructing a test input that puts the answer exactly on a boundary on purpose, instead of hoping a random test case happens to hit it. **If not:** the bug would keep randomly hitting whichever facts happen to land on a boundary, with no test ever reliably catching it.
 
 **The fix:**
 ```python
@@ -106,7 +106,7 @@ With no overlap, the answer is split at character 100 and the test fails; with 5
 
 **Real cause:** the Research agent writes only a plain-text summary into shared state, dropping the score and source the retriever returned. The Analysis agent's "flag unsourced claims" check works exactly as designed — it just never receives the sources it needs, because they were thrown away one node earlier. Retrieval and generation were both correct; the bug is in what one agent chose to write into shared state.
 
-**Story:** testing the retriever alone passes forever, because the retriever was never broken. This round trains testing what a node *hands on*, not just what it computes. **If not:** a correct, well-sourced fact would keep getting softened into a vague answer, with every individual part looking fine.
+**Story:** testing the retriever in isolation passes forever, because the retriever itself was never actually broken — the bug is downstream. This round trains testing what a node *hands on* to the next one, not just what it internally computes. **If not:** a correct, well-sourced fact would keep getting quietly softened into a vague, hedged answer, with every individual part of the pipeline still looking fine on its own.
 
 **The fix:**
 ```python

@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-search_as_tool) · [Hint 1](search_as_tool_hints.md#hint-1) · [Hint 2](search_as_tool_hints.md#hint-2) · [Solution](search_as_tool_solution.md)
 
-**Story — `search_tool_integration_practice.py`:** this wraps a document search as a real `@tool` the model can call — the exact wrapper the Build Task's search step reuses. A tiny in-memory `retrieve()` stands in for Doc08's vector search, so the file runs on its own. **If not:** the Build Task would be the first place you ever wrapped search as a `@tool`, with no smaller version to trust.
+**Story — `search_tool_integration_practice.py`:** this wraps a document search as a real `@tool` (Doc06's pattern) that the model decides whether to call — the exact wrapper the Build Task's search step reuses. A tiny in-memory `retrieve()` stands in for Doc08's vector search, so the file runs on its own without a real Chroma store. **If not:** the Build Task would be the first place you ever wrapped search as a `@tool`, with no smaller version to trust.
 
 ## Solution
 

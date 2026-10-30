@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-llm_judge_scoring) · [Hint 1](llm_judge_scoring_hints.md#hint-1) · [Hint 2](llm_judge_scoring_hints.md#hint-2) · [Solution](llm_judge_scoring_solution.md)
 
-**Story — `llm_output_testing_practice.py` (Real-world section):** this is the Build Task's `judge.py` in miniature — rules written first, a second model call that checks them, and a test that the judge itself gets obvious cases right. One small task (summarizing a support ticket) keeps the focus on the judge, not the pipeline. **If not:** the Build Task's judge would be the first judge you ever wrote, scoring Project 4's output with nothing to show it can be trusted.
+**Story — `llm_output_testing_practice.py` (Real-world section):** this is the Build Task's `judge.py` in miniature — the grading rules written first, a second model call that checks the real output against them, and a calibration test proving the judge itself gets obvious cases right before you trust its verdict on anything subtle. One small task (summarizing a support ticket) keeps the focus purely on the judge, not on a whole pipeline. **If not:** the Build Task's judge would be the first judge you ever wrote, scoring Project 4's output with nothing to show it can actually be trusted.
 
 The solution calls the real OpenAI API (`OPENAI_API_KEY` in your `.env`), so run it from inside `practice/` with `pytest llm_output_testing_practice.py -v`.
 
 ## Solution
 
-**Story:** "under 60 words" is a rule plain code can check for free, so it shouldn't cost a judge call. The judge handles only the rules about meaning. A dataclass result and a saved prompt version make every score readable and traceable. **If not:** you'd pay for a model call to count words, and a score from last month couldn't be tied to the judge prompt that produced it.
+**Story:** "under 60 words" is a rule plain Python can check for free with `len(text.split())`, so it shouldn't cost a paid judge call at all — the judge is reserved for the rules that genuinely need judgment about meaning. A typed dataclass result plus a saved prompt version string make every score both readable and traceable back to exactly what produced it. **If not:** you'd pay for a model call just to count words, and a score saved last month couldn't be tied back to the judge prompt version that produced it.
 
 ```python
 # practice/llm_output_testing_practice.py — Real-world section

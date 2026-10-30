@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-timeout_retry_backoff) · [Hint 1](timeout_retry_backoff_hints.md#hint-1) · [Hint 2](timeout_retry_backoff_hints.md#hint-2) · [Solution](timeout_retry_backoff_solution.md)
 
-**Story — `retry_backoff_practice.py` (Intermediate section):** a network call with no timeout can hang forever, and a network call that just retries instantly on failure makes a busy server's day worse, not better. This exercise builds the retry-with-backoff loop that becomes `http_client.py`'s core almost unchanged. **If not:** the Build Task's retry logic would be written from scratch under deadline pressure, with no smaller, already-working version to copy from — exactly the mistake this document's whole structure is built to avoid.
+**Story — `retry_backoff_practice.py`:** a network call with no `timeout=` can hang forever, and one that retries *instantly* on failure just hammers a struggling server. This exercise builds the retry-with-backoff loop — a timeout on every call, and a wait that doubles after each failure (`2 ** attempt`) — that becomes `http_client.py`'s core almost unchanged. **If not:** the Build Task's retry logic would be written from scratch under deadline pressure, with no smaller, already-working version to copy from — exactly the mistake this document's whole structure is built to avoid.
 
 ## Solution
 

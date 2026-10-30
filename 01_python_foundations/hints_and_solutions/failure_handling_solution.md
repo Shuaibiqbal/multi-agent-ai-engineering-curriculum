@@ -6,7 +6,7 @@
 
 **Builds on:** the `# Basic` section of that same file — same habit, three error classes instead of one. Nothing to copy or import: scroll up in the file you already have.
 
-**Story — `custom_errors_practice.py` (Failure handling section):** a real program has more than one way to fail, and each way usually needs a different reaction — retry, ask for new payment info, ask for a new address. Three separate error types and three separate `except` blocks make that difference explicit in the code itself. **If not:** a single `except Exception` would treat "out of stock" the same as "payment declined," so the code would end up with an `if/elif` chain re-deriving what the exception type already told it for free.
+**Story — `custom_errors_practice.py` (Failure handling section):** a real program has more than one way to fail, and each way usually needs a different reaction — retry, ask for new payment info, ask for a new address. This defines three separate exception subclasses and catches each in its own `except` block, so Python's exception matching (which dispatches *by type*) does the sorting for you and the right reaction is wired straight to the right failure. **If not:** a single `except Exception` would treat "out of stock" the same as "payment declined," so the code would end up with an `if/elif` chain re-deriving what the exception type already told it for free.
 
 ## Solution
 

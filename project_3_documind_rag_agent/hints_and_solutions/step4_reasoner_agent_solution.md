@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-4-a-reasoner-agent-that-only-answers-from-what-the-retriever-found) · [Hint 1](step4_reasoner_agent_hints.md#hint-1) · [Hint 2](step4_reasoner_agent_hints.md#hint-2) · [Solution](step4_reasoner_agent_solution.md)
 
-**Story — Step 4:** Step 3's `reason_node` quotes one excerpt word for word. A real answer often needs several excerpts, rephrased — so a model has to write it. The risk is that the model quietly fills gaps from memory. So the upgraded Reasoner may use **only** the excerpts, must cite each fact's file, and has an exact sentence for "not covered". It stays a separate node, so search quality and answer quality can be checked apart. **If not:** when an answer is wrong, you couldn't tell whether the search found the wrong thing or the writer used the right thing badly.
+**Story — Step 4:** Step 3's `reason_node` quotes one excerpt word for word — good enough to prove the plumbing works, but a real answer often needs several excerpts combined and rephrased, which means a model has to write it. The risk the moment a model is writing is that it quietly fills gaps from its own training data instead of saying what the documents don't cover. So the upgraded Reasoner's prompt constrains it to use **only** the retrieved excerpts, cite each fact's source file, and use an exact fixed sentence when something isn't covered. It stays a separate node from the Retriever, so search quality and answer-writing quality can be checked and debugged apart. **If not:** when an answer is wrong, you couldn't tell whether the search found the wrong thing or the writer used the right thing badly.
 
 After this step document questions get real, cited answers. Only `agents/reasoner_agent.py` and a new prompt file change — the graph, the state and every other node stay the same.
 
 ## Solution — a strict, citing Reasoner with its own prompt
 
-**Story — `prompts/reasoner.txt`:** three rules — only the excerpts; name each fact's file in brackets; and an **exact** sentence for "not covered". **If not:** an unprompted model tends to fill the gap from memory instead of admitting the excerpts fall short.
+**Story — `prompts/reasoner.txt`:** this prompt carries three rules a schema alone couldn't enforce: answer only from the excerpts; name each fact's source file in brackets; and use an **exact**, fixed sentence when the excerpts don't cover the question. **If not:** an unprompted model tends to fill the gap from its own memory instead of admitting the excerpts fall short.
 
 `src/prompts/reasoner.txt`
 
@@ -26,7 +26,7 @@ Question: {task}
 
 **Changed from Step 3:** `reason_node` keeps its name, its input (the state) and its output (`answer` + its path entry); inside, a Doc05 chain now writes the answer. `format_sources()` is new.
 
-**Story — `agents/reasoner_agent.py`:** `format_sources()` puts each excerpt's file name in front of it, so the model *can* cite it. The node only writes — it doesn't search and doesn't approve. **If not:** the model would have text but no file names to cite.
+**Story — `agents/reasoner_agent.py`:** `format_sources()` puts each excerpt's file name directly in front of its text before it ever reaches the prompt, so the model *can* cite it — it has no other way to know which file a fact came from. The node only writes the answer — it doesn't search (that's the Retriever's job) and doesn't approve (that's Step 5's). **If not:** the model would have the excerpt text but no file names to cite, making the citation rule impossible to follow.
 
 ```python
 # src/agents/reasoner_agent.py
@@ -58,7 +58,7 @@ def reason_node(state):
 
 **Changed from Step 3:** the integration test adds case 7 — the answer must name the file it came from.
 
-**Story — `tests/integration/test_live_graph.py`:** citing the file is this step's promise, so it gets its own check: the refund answer must contain `[refund_policy.md]`. **If not:** a prompt change that stopped the citations would go unnoticed — and in Step 5, every answer would then need a human.
+**Story — `tests/integration/test_live_graph.py`:** citing the source file is this step's core promise, so it gets its own check against the real model: the refund answer must literally contain `[refund_policy.md]`. **If not:** a prompt change that quietly stopped the citations would go unnoticed — and in Step 5, every answer would then fail the citation check and need a human.
 
 ```python
 # tests/integration/test_live_graph.py

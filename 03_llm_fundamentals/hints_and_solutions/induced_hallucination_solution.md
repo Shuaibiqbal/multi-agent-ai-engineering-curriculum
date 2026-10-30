@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-induced_hallucination) · [Hint 1](induced_hallucination_hints.md#hint-1) · [Hint 2](induced_hallucination_hints.md#hint-2) · [Solution](induced_hallucination_solution.md)
 
-**Story — `induced_hallucination_practice.md`:** a model will state made-up facts with full confidence. Causing it on purpose, and explaining why it happens, is what makes you design around it instead of being surprised by it. **If not:** you'd trust fluent answers as if fluency meant truth.
+**Story — `induced_hallucination_practice.md`:** a language model will state made-up facts with full, fluent confidence — fluency is not truth. Causing a hallucination on purpose here, and explaining why it happens, is what makes you design *around* it (with sources, checks, and refusals) instead of being surprised by it in production. **If not:** you'd trust fluent answers as if fluency meant truth.
 
 ## Solution
 
-**Story:** a subtler case, and the actual mechanism — a next-token predictor completing a likely-sounding answer. **If not:** you'd try to "fix" it like a bug instead of designing around it (sources, checks, refusals).
+**Story:** a subtler case, plus the actual mechanism behind it: the model is a next-token predictor, so when a confident-sounding continuation is statistically likely, it produces it whether or not it's true. **If not:** you'd try to "fix" it like a bug instead of designing around it (sources, checks, refusals).
 
 **Prompt used:** "In which chapter does the narrator of [a real, well-known novel] first describe the color of the house on Elm Street?" (a specific, invented detail about a real book).
 

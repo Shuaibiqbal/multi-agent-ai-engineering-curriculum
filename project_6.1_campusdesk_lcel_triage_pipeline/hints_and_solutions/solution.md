@@ -397,7 +397,9 @@ def main():
         except openai.AuthenticationError:
             print("Login failed — check OPENAI_API_KEY in .env.")
             sys.exit(1)
-        flag = "NEEDS HUMAN" if record.needs_human_review else "ok"
+        flag = "ok"
+        if record.needs_human_review:
+            flag = "NEEDS HUMAN"
         print(f"  -> {record.category} | fallback={record.used_fallback} "
               f"| {flag} {record.review_reasons}")
 
@@ -661,15 +663,19 @@ from src.services.pipeline import handle_ticket
 
 def test_routes_enrollment(model):
     record = handle_ticket(model, "s-1001", "How do I add a class?")
-    ok = record.category == "enrollment"
-    print(f"case 1 (enrollment routed) -> {'OK' if ok else 'WRONG'}")
+    result = "WRONG"
+    if record.category == "enrollment":
+        result = "OK"
+    print(f"case 1 (enrollment routed) -> {result}")
 
 def test_urgent_is_flagged(model):
     record = handle_ticket(
         model, "s-2002", "My aid is late and tuition is due today."
     )
-    ok = record.needs_human_review
-    print(f"case 2 (urgent flagged)    -> {'OK' if ok else 'WRONG'}")
+    result = "WRONG"
+    if record.needs_human_review:
+        result = "OK"
+    print(f"case 2 (urgent flagged)    -> {result}")
 
 if __name__ == "__main__":
     config = load_config()

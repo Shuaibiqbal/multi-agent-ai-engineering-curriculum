@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#dbg-langchain) · [Round 1: Basic](langchain_debugging_hints.md#round-basic) · [Round 2: Intermediate](langchain_debugging_hints.md#round-intermediate) · [Round 3: Real-world](langchain_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](langchain_debugging_hints.md#round-multi-agent) · [Hints](langchain_debugging_hints.md)
 
-**Story — `langchain_debugging_practice.py`:** every round here is about what goes *into* a prompt template — the key names, the instructions, and where outside text is placed. The prompt can be checked on its own, before any model call, so each test here runs with no API key. **If not:** you'd test chains only by calling the model, paying for every check, and still not see which part broke.
+**Story — `langchain_debugging_practice.py`:** every round here is about what actually goes *into* a prompt template — the key names it expects, the instructions it carries, and exactly where outside text gets inserted into it. A prompt template can be inspected and checked on its own, before any model call ever runs, so every test here needs no API key at all. **If not:** you'd end up testing chains only by calling the real model, paying for every single check, and still not clearly see which part of the chain actually broke.
 
 Every fix and test below goes in `practice/langchain_debugging_practice.py`, and runs with `pytest langchain_debugging_practice.py -v` from inside `practice/`.
 
@@ -16,7 +16,7 @@ Every fix and test below goes in `practice/langchain_debugging_practice.py`, and
 
 **Real cause:** the prompt template declares one variable, `{question}`, but the caller invoked the chain with the key `"input"`. LangChain's error names the mismatch directly (`Expected: ['question'] Received: ['input']`) — it's easy to miss because `KeyError` makes it feel like a Python dictionary bug rather than a naming mismatch.
 
-**Story:** the error message already contains the answer. This round trains reading the whole message slowly before guessing. **If not:** you'd blame the API or LangChain, for a one-word typo in your own call.
+**Story:** the error message itself already contains the full answer, if you actually read it. This round trains reading the whole message slowly and carefully before jumping to a guess. **If not:** you'd end up blaming the API or LangChain itself, for what's really a one-word typo in your own call.
 
 **The fix:**
 ```python
@@ -42,7 +42,7 @@ Testing the prompt on its own catches every key mismatch for free, before the mo
 
 **Real cause:** the prompt never tells the model what shape to write. `PydanticOutputParser` checks the reply against `Answer`, but the model has never seen `Answer` — so it guesses, and `"confidence": "high"` is a perfectly human guess. As Doc05 says, `PydanticOutputParser` needs `parser.get_format_instructions()` inserted into the prompt, or the model never learns the shape. The API call is fine; the bug is in the chain's prompt layer.
 
-**Story:** the error comes from the parser, at the end of the chain, but the cause is at the start — the prompt. This round trains following a failure back up the chain. **If not:** you'd add retries or loosen `confidence` to a string, and the model would keep guessing a different shape every time.
+**Story:** the error surfaces from the parser, at the very end of the chain, but the actual cause sits at the start — in the prompt itself. This round trains following a failure *backward* through the chain to where it genuinely originates. **If not:** you'd add retries or loosen `confidence`'s type to a plain string, and the model would just keep guessing a different wrong shape every time.
 
 **The fix:**
 ```python
@@ -87,7 +87,7 @@ The first test checks that the instructions reach the prompt; the second checks 
 
 **Real cause:** the user's text was put *into the template itself* (`("human", user_question)`), so LangChain reads it as template text — and every `{...}` in it as a variable it must fill. `{"status": "error"}` becomes a "missing variable" named `"status"`. Text passed as a *value* for a variable is never read this way, so the fix is to keep a fixed template with a `{question}` slot and pass the user's text in as its value.
 
-**Story:** the error's own "Note" suggests escaping the braces — which would make this one error go away while leaving user text inside the template, where the next odd character can break it again. This round trains asking *why* before taking the first suggestion. **If not:** you'd add an escape helper, and every new place that builds a template from outside text would need to remember it.
+**Story:** the error's own "Note" suggests escaping the braces, which would make this one specific error go away while still leaving raw user text embedded inside the template — exactly where the next odd character can break it again, differently. This round trains asking *why* a suggestion works before taking it at face value. **If not:** you'd add a one-off escape helper, and every new place that builds a template from outside text would need to remember to call it too.
 
 **The fix:**
 ```python
@@ -119,7 +119,7 @@ A test suite of clean, hand-typed questions never reaches this path — the test
 
 **Real cause:** the same mistake as Round 3 — outside text glued into the template itself — but the text now comes from another agent's output instead of a user. Fixing `qa.py` didn't cover it, because the fix was applied at one place instead of as a rule: *any* text that comes from outside (a user, a tool, another agent) must be a variable's value, never part of the template.
 
-**Story:** the bug only appears when real Research output happens to contain a JSON snippet — something nobody puts in a hand-written test. This round trains applying a real-cause fix everywhere the same pattern exists, not just where it was first seen. **If not:** every agent that builds a prompt from another agent's text would carry the same hidden crash.
+**Story:** the bug only appears when real Research output happens to contain a stray JSON-like snippet — exactly the kind of thing nobody thinks to put in a hand-written test case. This round trains applying a real-cause fix everywhere the same underlying pattern exists in the codebase, not just at the one spot where it happened to be first noticed. **If not:** every agent that builds a prompt from another agent's free-text output would carry the exact same hidden crash, waiting to happen again elsewhere.
 
 **The fix:**
 ```python

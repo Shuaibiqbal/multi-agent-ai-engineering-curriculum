@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-lcel_patterns) · [Hint 1](lcel_patterns_hints.md#hint-1) · [Hint 2](lcel_patterns_hints.md#hint-2) · [Solution](lcel_patterns_solution.md)
 
-**Story — `lcel_patterns_practice.py`:** the LCEL topic names three things every chain can do for free — run steps in parallel, fall back to a backup, and stream. This exercise uses each one once, on purpose, and proves it works. **If not:** Project 6's parallel lookups, fallbacks and streamed replies would be the first time you met `RunnableParallel`, `.with_fallbacks()` and `.stream()`.
+**Story — `lcel_patterns_practice.py`:** once anything is an LCEL `Runnable` (which everything built with `|` is), three powerful features come for free, and this exercise uses each one once to prove it. `RunnableParallel` runs several chains at the same time and hands you back a dict of their results — so two independent lookups take as long as the slower one, not the sum of both. `.with_fallbacks()` wraps a chain with a backup that's used only if the first one raises — so one provider having an outage doesn't take your whole feature down. `.stream()` yields the answer in pieces as the model produces them, instead of making the user wait for the entire reply. Seeing all three on a tiny chain here is what makes them obvious when they're doing real work later. **If not:** Project 6's parallel lookups, fallbacks and streamed replies would be the first time you met `RunnableParallel`, `.with_fallbacks()` and `.stream()`.
 
 ## Solution
 

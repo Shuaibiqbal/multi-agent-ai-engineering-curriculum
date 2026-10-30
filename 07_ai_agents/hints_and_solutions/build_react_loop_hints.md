@@ -35,6 +35,6 @@ run_tool(call, tools) -> (result, error):
     except Exception as e: return (None, str(e))
 ```
 
-Write Approach 1 with `add` only, then Approach 2 with every tool in `ALL_TOOLS`. Then three more: a factory `make_flaky_add(state)` that returns a new `@tool` failing on its first call; `run_tool_checked()` that builds the tool's Pydantic model from the arguments and calls `.invoke(checked.model_dump())`; and the same loop on the raw SDK (`client.chat.completions.create(..., tools=[schema])`, `json.loads(call.function.arguments)`). Compare against the [Solution](build_react_loop_solution.md).
+Write the loop first with `add` only, then widen it to every tool in `ALL_TOOLS`. Then add a factory `make_flaky_add(state)` that returns a new `@tool` failing on its first call; `run_tool_checked()` that builds the tool's Pydantic model from the arguments and calls `.invoke(checked.model_dump())`; and the same loop on the raw SDK (`client.chat.completions.create(..., tools=[schema])`, `json.loads(call.function.arguments)`). Compare against the [Solution](build_react_loop_solution.md).
 
 Full solution: [Show me the solution](build_react_loop_solution.md)

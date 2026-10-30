@@ -62,7 +62,7 @@ New here: **dynamic routing**. Project 3's graph had fixed conditional edges; he
 | A loop that won't converge | [Doc11 — convergence exercise](../11_multi_agent_systems/README.md#ex-convergence_and_cost_cutting) | Steps 2, 5 |
 | The whole team, as a practice run | [Doc11 Build Task](../11_multi_agent_systems/README.md#build-task-project-4-multi-agent-system) | Step 5 |
 
-Reused code, unchanged except for its folder and import lines: `config.py`, `exceptions.py`, `utils/logger.py` (Doc01), `utils/prompts.py` (Project 1), `models/llm.py` (Project 3). The Supervisor, the `routing_log` with reasons, the feedback history and the "clear the draft to revise" rule are Doc11's Build Task (Intermediate, Approach 2).
+Reused code, unchanged except for its folder and import lines: `config.py`, `exceptions.py`, `utils/logger.py` (Doc01), `utils/prompts.py` (Project 1), `models/llm.py` (Project 3). The Supervisor, the `routing_log` with reasons, the feedback history and the "clear the draft to revise" rule are Doc11's Build Task.
 
 ## Project Structure (the professional layout)
 

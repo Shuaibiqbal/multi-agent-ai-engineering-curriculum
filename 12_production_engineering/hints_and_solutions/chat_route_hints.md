@@ -88,6 +88,6 @@ def chat(request: ChatRequest) -> ChatResponse:
         # then raise a 500 with a generic message only
         ...
 ```
-Send `{"message": ""}` and confirm a 400. Send `{"message": "boom"}` and confirm: the client gets a plain 500 message, and the *real* `RuntimeError: simulated internal failure` traceback only shows up in your terminal. Then add the request-ID middleware — the Solution's Approach 4 shows it.
+Send `{"message": ""}` and confirm a 400. Send `{"message": "boom"}` and confirm: the client gets a plain 500 message, and the *real* `RuntimeError: simulated internal failure` traceback only shows up in your terminal. Then add the request-ID middleware — the Solution shows it.
 
 Full solution: [Show me the solution](chat_route_solution.md)

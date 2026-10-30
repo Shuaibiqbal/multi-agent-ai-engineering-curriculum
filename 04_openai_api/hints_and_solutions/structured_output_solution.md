@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-structured_output) · [Hint 1](structured_output_hints.md#hint-1) · [Hint 2](structured_output_hints.md#hint-2) · [Solution](structured_output_solution.md)
 
-**Story — `structured_output_practice.py`:** asking for "JSON, please" in a prompt is only a request. A Pydantic model sent with `.parse()` is a form with locked fields: the model can only fill in the blanks you defined, in the types you defined. This exercise practices that form — first by hand, then with the model filling it. **If not:** the Build Task's `schemas.py`, Project 1's triage agent and Doc05's `.with_structured_output()` would be the first time you ever met a Pydantic model.
+**Story — `structured_output_practice.py`:** asking for "JSON, please" in a prompt is only a request the model can ignore. A Pydantic model sent with `.parse()` is a form with locked fields: the model can only fill in the blanks you defined, in the types you defined, and the SDK hands you back an already-validated object. This exercise practices that form — first by hand, then with the model filling it. **If not:** the Build Task's `schemas.py`, Project 1's triage agent and Doc05's `.with_structured_output()` would be the first time you ever met a Pydantic model.
 
 All examples below need `pip install openai python-dotenv pydantic` and your key in `.env`.
 
 ## Solution
 
-**Story — `extract_info()`:** the caller should never have to know about refusals, validation errors or empty answers. One function turns all three into `None`, and everything else into an `ExtractedInfo` it can trust. **If not:** every caller would repeat the same three checks — and the one that forgets the refusal check reads `parsed` as `None` and crashes.
+**Story — `extract_info()`:** the caller should never have to know about refusals, validation errors, or empty answers. This one function turns all three into a clean `None`, and everything else into an `ExtractedInfo` the caller can trust — one checkpoint instead of three scattered checks at every call site. **If not:** every caller would repeat the same three checks — and the one that forgets the refusal check reads `parsed` as `None` and crashes.
 
 ```python
 # structured_output_practice.py

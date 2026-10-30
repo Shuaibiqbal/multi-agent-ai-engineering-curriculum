@@ -1,49 +1,40 @@
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, ValidationError
 from dotenv import load_dotenv
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.exceptions import OutputParserException
+from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
-# Version 1
-class Person(BaseModel):
-    name: str
-    age: int
-structured_model = ChatOpenAI(temperature=0, model="gpt-4o-mini").with_structured_output(Person)
 
-good_result = structured_model.invoke("Extract: SHuaib is 30 years old.")
 
-print(good_result)
+class Rating(BaseModel):
+    score: str
+parser = PydanticOutputParser(pydantic_object=Rating)
 
-unclear_result = structured_model.invoke("Extract: the sky is blue today.")
-print(unclear_result)
+model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-#Version 2
+def get_rating(template, thing):
+    prompt = ChatPromptTemplate.from_template(template)
 
-from langchain_core.runnables import Runnable
-
-def get_structured_result() -> Runnable:
-
-    structured_model = ChatOpenAI(temperature=0, model="gpt-4o-mini")
-
-    return structured_model.with_structured_output(Person)
-
-def extract_person(text: str) -> Person | None:
-
+    if "{format_instructions}" in template:
+        prompt = prompt.partial(
+            format_instructions = parser.get_config_jsonschema()
+        )
     try:
-        person = structured_model.invoke(text)
-    except ValidationError as e:
+        return (prompt | model | parser).invoke({"thing": thing})
+    except OutputParserException:
         return None
-    if person.name is None and person.age is None:
 
-        return None
-    return person
-def main() -> None:
-    texts = [
-            "Extract: Maria is 34 years old.",
-            "Extract: the sky is blue today.",
-            ]
-    for text in texts:
-        person = extract_person(text=text)
-        print(f"{text} -> {person}")
-if __name__ == "__main__":
-    main()
+no_hint = get_rating("Rate {thing} from 1 to 10.", "pizza")
+print(f"case 1 (no instructions) -> {no_hint}")
 
+fixed = "Rate {thing} from 1 to 10.\n{format_instructions}"
+with_hint = get_rating(fixed, "pizza")
+print(f"case 2 (with instructions) -> {with_hint}")
+
+try:
+    parser.parse("I'd say eight")
+    print("case 3 (parse by hand)")
+except OutputParserException:
+    print("case 3 (parse by hand) -> OutputParserException")

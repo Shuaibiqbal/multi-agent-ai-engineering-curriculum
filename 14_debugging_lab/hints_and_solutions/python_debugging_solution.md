@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#dbg-python) · [Round 1: Basic](python_debugging_hints.md#round-basic) · [Round 2: Intermediate](python_debugging_hints.md#round-intermediate) · [Round 3: Real-world](python_debugging_hints.md#round-real-world) · [Round 4: Multi-agent](python_debugging_hints.md#round-multi-agent) · [Hints](python_debugging_hints.md)
 
-**Story — `python_debugging_practice.py`:** each round's buggy function, its fix, and the test that would have caught it go into this one file, so you can run the bug, watch it fail, fix it, and run the test — the whole Method, in one place. **If not:** you'd read the answer, nod, and never find out whether you could have spotted it yourself.
+**Story — `python_debugging_practice.py`:** each round's buggy function, its fix, and the test that would have caught the bug ahead of time all go into this one file, so you can actually run the bug, watch it fail with a real traceback, fix it, then run the test that would have caught it — the whole debugging method, practiced end to end, in one place. **If not:** you'd just read the answer, nod along, and never find out whether you could have actually spotted the bug yourself.
 
 Every fix and test below goes in `practice/python_debugging_practice.py`, and runs with `pytest python_debugging_practice.py -v` from inside `practice/`.
 
@@ -16,7 +16,7 @@ Every fix and test below goes in `practice/python_debugging_practice.py`, and ru
 
 **Real cause:** `trim_history()` never has a `return` statement on the path where `len(trimmed) % 2 != 0` is false — it just falls off the end of the function, and a function with no `return` always gives back `None`.
 
-**Story:** the crash line (`for msg in ...`) is one call away from the bug, so this round trains the most basic trace-reading move: "something returned `None` — go to that function and check every path returns." **If not:** you'd stare at the loop, which is fine, and never look at the function that fed it.
+**Story:** the crash line itself (`for msg in ...`) is one function call away from where the actual bug lives, so this round trains the most basic trace-reading move: "something returned `None` where a list was expected — go to the function that returned it and check *every* code path actually returns something." **If not:** you'd stare at the loop that crashed, which looks fine on its own, and never look at the function that fed it bad data.
 
 **The fix:**
 ```python
@@ -43,7 +43,7 @@ Reading the trace from the bottom up: the error fires at the `for msg in ...` li
 
 **Real cause:** `notes=[]` is a **mutable default argument**. Python creates that empty list exactly once, when the function is defined — not once per call. Every call to `log_turn()` that doesn't pass its own `notes` argument gets the *same* list object back, and keeps appending to it, for as long as the process stays alive. It looks like a session/state bug because the symptom is "data leaking between sessions" — but no session code is involved at all; it's one shared list living on the function object itself.
 
-**Story:** the symptom points at session code, but no session code is involved — this round trains checking the plain Python layer first, before blaming the bigger system. **If not:** you'd spend hours on session isolation and never look at a function signature.
+**Story:** the symptom here looks exactly like it points at session code — but no session code is actually involved in the bug at all. This round trains checking the plain Python layer first (argument defaults, variable scope) before assuming the bug lives in the bigger, more complex system. **If not:** you'd spend hours investigating session isolation and never think to look at a simple function signature.
 
 **The fix:**
 ```python
@@ -71,7 +71,7 @@ This test calls the function twice in a row, on purpose, without passing `notes`
 
 **Real cause:** `for key in cache:` iterates directly over the dictionary while `del cache[key]` changes its size inside that same loop. Python detects this and raises `RuntimeError` — but only once a delete actually happens mid-loop. A cache with nothing expired yet just loops harmlessly to the end, which is exactly why quick manual testing (fresh cache, nothing expired) never triggers it.
 
-**Story:** a bug that only shows up once real data ages is the classic "works in every test I ran" failure. The fix is simple; the lesson is building a test whose data actually triggers the bad path. **If not:** your tests would keep using a fresh cache and keep passing, while production kept crashing.
+**Story:** a bug that only shows up once real data has had time to age is the classic "works in every test I ran" failure — the test data never got old enough to hit it. The fix itself is simple; the real lesson is building a test whose data is deliberately shaped to actually trigger the bad path, not just the happy one. **If not:** your tests would keep using a fresh cache and keep passing comfortably, while production kept crashing on data your tests never resembled.
 
 **The fix:**
 ```python
@@ -107,7 +107,7 @@ The test that "passed" during development only ever ran against an empty or all-
 
 **Real cause:** the exact same mutable-default-argument bug as Round 2, just in a place where the usual test (call the node once, check the `Command`) can't see it. `test_route()` only calls `route(state)` a single time before the test process exits, so the shared default list only ever has one entry in it when the assertion runs — it looks correct. The bug only appears once the *same process* handles several requests back to back, which a live multi-agent run does constantly and a narrow unit test never does.
 
-**Story:** the same Round 2 bug, hidden inside a graph node, where a one-call unit test can't see it. This round trains writing a test that calls the node more than once, the way a live pipeline does. **If not:** `test_route()` would stay green forever while the Reviewer kept rejecting confused drafts.
+**Story:** this is the same shape of bug as Round 2, now hidden inside a graph node, where a unit test that calls the node only once can never see it fire. This round trains writing a test that calls the node more than once in sequence, the way a real live pipeline would, which is the only way this particular bug shows up. **If not:** `test_route()` would stay green forever while the Reviewer kept rejecting confused drafts in production.
 
 **The fix:**
 ```python

@@ -17,7 +17,7 @@ This step proves one thing: your code can load its settings and get a sensible r
 
 You need four pieces, each in its final folder:
 
-- `src/exceptions.py`, `src/config.py` and `src/utils/logger.py` — Doc01's Build Task files. Copy them in; the only change is the import line in `config.py`: `from src.exceptions import MissingConfigError`.
+- `src/exceptions.py`, `src/config.py` and `src/utils/logger.py` — the same config/logging/errors foundation you built in Doc01's Build Task (the solution lists all three in full); the only change is the import line in `config.py`: `from src.exceptions import MissingConfigError`.
 - `src/models/llm.py` — builds the OpenAI client and sends a message.
 - `main.py` — the file you run.
 - An empty `__init__.py` in `models/` and `utils/`, so Python treats them as packages.

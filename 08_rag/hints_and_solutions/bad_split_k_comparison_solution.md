@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-bad_split_k_comparison) · [Hint 1](bad_split_k_comparison_hints.md#hint-1) · [Hint 2](bad_split_k_comparison_hints.md#hint-2) · [Solution](bad_split_k_comparison_solution.md)
 
-**Story — `chunking_practice.py` (Failure section):** it's tempting to treat "just raise `k`" as a fix once it appears to work on a tiny test document — this exercise makes you watch that assumption fail at real scale before you carry it into the Build Task. **If not:** the Build Task's knowledge base would inherit a `k`-bump habit that quietly stops working the moment the corpus grows past a few dozen chunks.
+**Story — `chunking_practice.py` (Failure section):** it's tempting to treat "just raise `k`" (retrieve more chunks) as a fix once it appears to work on a tiny test document, because with only a handful of chunks total, a bigger `k` can accidentally pull in everything relevant. This exercise builds a larger, realistic corpus and makes you watch that same fix fail — raising `k` stops helping once the right chunk is buried among many irrelevant ones — before you carry the assumption into the Build Task. **If not:** the Build Task's knowledge base would inherit a `k`-bump habit that quietly stops working the moment the corpus grows past a few dozen chunks.
 
 All examples below use:
 ```python

@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-4-an-analysis-agent-that-turns-raw-research-into-organized-findings) · [Hint 1](step4_analysis_agent_hints.md#hint-1) · [Hint 2](step4_analysis_agent_hints.md#hint-2) · [Solution](step4_analysis_agent_solution.md)
 
-**Story — Step 4:** raw notes are a flat list; a good article needs structure. The Analysis agent groups the notes into themes — **without losing any fact**. It's the first step that feeds one built agent's *real* output into another, so an interface mismatch between Research and Analysis shows up now, before a Supervisor hides it. **If not:** the Writer would get an unordered list, or silently lose a fact that didn't fit a theme.
+**Story — Step 4:** raw research notes are a flat list of facts; a good article needs structure. The Analysis agent groups the notes into themes with a model call — **without losing any fact**, including ones that don't cleanly fit a theme. This is the first step that feeds one already-built agent's *real* output (Research's notes) into another, so an interface mismatch between the two shows up now, in isolation, before a Supervisor graph hides it inside a bigger run. **If not:** the Writer would get an unordered list, or silently lose a fact that didn't fit a theme.
 
 After this step the project runs: research → analysis → write → review. Files not shown here don't change.
 
 ## Solution — themes, every fact kept, checked on Research's real output
 
-**Story — `prompts/analysis.txt`:** 2-4 themes, keep **every** fact and its tag, and an "Other" theme for facts that don't fit. **If not:** the article would quietly lose facts between Research and Writer.
+**Story — `prompts/analysis.txt`:** this spells out the rules a schema alone can't: group into 2-4 themes, keep **every** fact and its `[source]` tag somewhere, and use a catch-all "Other" theme for facts that genuinely don't fit elsewhere — so nothing is ever silently dropped. **If not:** the article would quietly lose facts between Research and the Writer.
 
 `src/prompts/analysis.txt`
 
@@ -22,7 +22,7 @@ Research notes:
 {notes}
 ```
 
-**Story — `agents/analysis_agent.py`:** a plain chain, no tool — organizing is thinking, not looking up. **If not:** you'd give it a tool it never needs.
+**Story — `agents/analysis_agent.py`:** this is a plain LCEL chain with no tool attached, because organizing existing notes into themes is reasoning over text already in hand, not looking something up. **If not:** you'd give it a tool it never needs, adding complexity with no benefit.
 
 ```python
 # src/agents/analysis_agent.py

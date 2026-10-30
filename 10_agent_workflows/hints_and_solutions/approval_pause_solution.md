@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-approval_pause) · [Hint 1](approval_pause_hints.md#hint-1) · [Hint 2](approval_pause_hints.md#hint-2) · [Solution](approval_pause_solution.md)
 
-**Story — `approval_pause_practice.py`:** this is the exact `interrupt()` pattern the Build Task needs at its final gate — pause with the draft and its sources, and only continue after a human decides. **If not:** the Build Task's approval step would be the first `interrupt()` you ever wired to a real search-and-draft graph.
+**Story — `approval_pause_practice.py`:** this is the exact `interrupt()` pattern the Build Task needs at its final gate: the graph calls `interrupt()` with the draft and its sources, execution genuinely stops there (nothing after it runs), and only `Command(resume=decision)` continues it — with a human's decision now part of the state. **If not:** the Build Task's approval step would be the first `interrupt()` you ever wired to a real search-and-draft graph.
 
 Uses the same `practice/` setup as the Basic exercise (Doc08's files, `docs/` and `kb.py`).
 

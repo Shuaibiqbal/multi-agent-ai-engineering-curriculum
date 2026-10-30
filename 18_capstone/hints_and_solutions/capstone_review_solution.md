@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-capstone_review) · [Hint 1](capstone_review_hints.md#hint-1) · [Hint 2](capstone_review_hints.md#hint-2) · [Solution](capstone_review_solution.md)
 
-**Story — `capstone_review.md`:** the final exam of the curriculum: a cold review of your finished capstone, jumping between cost, testing, database and auth at a reviewer's pace. **If not:** the first time you faced this kind of cross-examination would be a final-round interview.
+**Story — `capstone_review.md`:** this is the final exam of the whole curriculum — a genuinely cold review of your finished capstone, jumping unpredictably between cost, testing, database design, and auth, at a real reviewer's pace, not yours. **If not:** the very first time you faced this kind of rapid cross-examination would be a final-round job interview, with a real offer on the line.
 
 Write your own version first, in `practice/capstone_review.md`, then compare.
 
@@ -10,7 +10,7 @@ Write your own version first, in `practice/capstone_review.md`, then compare.
 
 ## Solution
 
-**Story:** every answer tied to a specific requirement or failure mode, including the gaps you volunteer. **If not:** your answers would describe the pieces without saying why each one is there.
+**Story:** this ties every answer back to a specific requirement or failure mode it addresses, including volunteering the genuine gaps yourself before being asked. **If not:** your answers would just describe the pieces you built without ever saying *why* each one is actually there.
 
 **Reviewer:** "Same as before, but I'm not going in system order — I'll jump around."
 

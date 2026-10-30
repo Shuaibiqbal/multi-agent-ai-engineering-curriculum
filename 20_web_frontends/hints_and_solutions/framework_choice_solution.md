@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-framework_choice) · [Hint 1](framework_choice_hints.md#hint-1) · [Hint 2](framework_choice_hints.md#hint-2)
 
-**Story:** the real skill isn't writing all four web layers — it's knowing which one a job needs, so you don't put Django on a weekend demo or Streamlit on a product with logins. **If not:** you waste days building auth and an ORM for a throwaway demo, or hit a wall when a "quick Streamlit app" needs real users and routing.
+**Story:** the real skill here isn't being able to write all four web layers — it's knowing which one a given job actually needs, so you don't put Django on a weekend demo, or reach for Streamlit on a real product that needs user logins. **If not:** you'd waste days building auth and an ORM for a throwaway demo, or hit a hard wall when a "quick Streamlit app" suddenly needs real users and proper routing.
 
 ## The five scenarios
 

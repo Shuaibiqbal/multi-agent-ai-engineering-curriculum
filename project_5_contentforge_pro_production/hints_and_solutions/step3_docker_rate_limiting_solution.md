@@ -2,7 +2,7 @@
 
 > [Back to this step](../READING_README.md#step-3-containerized-and-rate-limited-runs-the-same-everywhere-survives-abuse) · [Hint 1](step3_docker_rate_limiting_hints.md#hint-1) · [Hint 2](step3_docker_rate_limiting_hints.md#hint-2) · [Solution](step3_docker_rate_limiting_solution.md)
 
-**Story — Step 3:** the API works on your laptop. Now it must run the same on any machine, and survive a caller who sends 1,000 requests — each one five paid agents. A `Dockerfile` packages the app with the key passed in only at `docker run` time, and a rolling-window rate limiter answers `429` before any model is called (Doc12). **If not:** "works on my machine" is all you could promise, and one script in a loop could empty your OpenAI budget.
+**Story — Step 3:** the API works on your laptop, but it must run the same way on any machine, and survive a caller who sends 1,000 requests back to back — each one triggering five paid agent calls. A `Dockerfile` packages the app so it runs identically anywhere, with the API key passed in only at `docker run` time, never baked into the image. A rolling-window rate limiter checks the request count *before* any model is called and answers `429 Too Many Requests` once the window fills (Doc12's pattern). **If not:** "works on my machine" is all you could promise, and one script in a loop could empty your OpenAI budget in minutes.
 
 After this step the project runs in a container: `docker build`, then `docker run` with the key passed in. Files not shown here don't change.
 
@@ -91,7 +91,7 @@ def get_run(run_id):
     return run
 ```
 
-**Story — `Dockerfile`:** Doc12's, pointed at `src.api.main:app`. `requirements.txt` is installed **before** `COPY . .`, so a code change doesn't redo the slow install; `--host 0.0.0.0` makes it reachable from outside the container. **If not:** every build would reinstall everything, and `curl` would get "connection refused".
+**Story — `Dockerfile`:** this follows Doc12's shape, pointed at `src.api.main:app`. `requirements.txt` is copied and installed **before** `COPY . .`, so Docker's layer cache means a plain code change doesn't force the slow dependency install to rerun; `--host 0.0.0.0` (not the default `127.0.0.1`) is what makes the server reachable from outside the container at all. **If not:** every build would reinstall everything from scratch, and `curl` from the host would get "connection refused".
 
 `Dockerfile`
 
@@ -109,7 +109,7 @@ CMD ["uvicorn", "src.api.main:app", \
      "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-**Story — `.dockerignore`:** keeps `.env`, `.git`, the venv and your local `runs.db` out of the image — a second safety net under "secrets only at run time". **If not:** your key would sit in an image layer forever, visible with `docker history`.
+**Story — `.dockerignore`:** this keeps `.env`, `.git`, the venv, and your local `runs.db` out of the built image entirely — a second, independent safety net under "secrets only at run time," in case someone forgets and the file is sitting in the build context anyway. **If not:** your key would sit baked into an image layer forever, visible to anyone with `docker history`.
 
 `.dockerignore`
 

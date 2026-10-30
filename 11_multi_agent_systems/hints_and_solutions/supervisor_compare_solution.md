@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-supervisor_compare) · [Hint 1](supervisor_compare_hints.md#hint-1) · [Hint 2](supervisor_compare_hints.md#hint-2) · [Solution](supervisor_compare_solution.md)
 
-**Story — `architecture_comparison_practice.py`:** the supervisor version of the same task, measured the same way, so the "why a supervisor?" question gets a real answer instead of a feeling. The sequential stages (`research`, `write`) and a `run_sequential()` are inline here too, so the file runs on its own. **If not:** Project 4's "Plan Before You Code" step would defend its design with guesses.
+**Story — `architecture_comparison_practice.py`:** this builds the supervisor version of the exact same task, measured the exact same way as the sequential version, so the "why a supervisor instead of a fixed sequence?" question gets a real, measured answer instead of a feeling. The sequential stages (`research`, `write`) and a `run_sequential()` are included inline here too, so this one file runs its own comparison standalone. **If not:** Project 4's "Plan Before You Code" step would be defending its design choice with guesses instead of numbers.
 
 ## Solution
 

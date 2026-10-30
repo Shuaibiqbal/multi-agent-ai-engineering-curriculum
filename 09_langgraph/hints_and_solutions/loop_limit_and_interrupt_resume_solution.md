@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-loop_limit_and_interrupt_resume) · [Hint 1](loop_limit_and_interrupt_resume_hints.md#hint-1) · [Hint 2](loop_limit_and_interrupt_resume_hints.md#hint-2) · [Solution](loop_limit_and_interrupt_resume_solution.md)
 
-**Story — `loop_limit_interrupt_practice.py`:** watching an endless loop actually hit its limit, and a paused graph actually resume across a real process restart, is the difference between trusting these mechanisms and just believing the docs about them. **If not:** the Build Task's own checkpointer choice (`MemorySaver` vs. `SqliteSaver`) would be a guess instead of something you watched fail and then fixed yourself.
+**Story — `loop_limit_interrupt_practice.py`:** this builds a graph that loops forever on purpose and proves a step counter actually stops it, then uses `interrupt()` to pause a graph mid-run and shows that a `MemorySaver` checkpoint is lost on restart while a `SqliteSaver` one survives. Watching an endless loop actually hit its limit, and a paused graph actually resume across a real process restart, is the difference between trusting these mechanisms and just believing the docs about them. **If not:** the Build Task's own checkpointer choice (`MemorySaver` vs. `SqliteSaver`) would be a guess instead of something you watched fail and then fixed yourself.
 
 This exercise has 2 separate halves — the endless loop, and the checkpoint/interrupt/resume cycle. The solution below covers both.
 

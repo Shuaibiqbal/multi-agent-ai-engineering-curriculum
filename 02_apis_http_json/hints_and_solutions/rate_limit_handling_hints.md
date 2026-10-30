@@ -68,9 +68,9 @@ def decide_wait_seconds(response, attempt: int) -> int:
         return int(retry_after)
     return 2 ** attempt
 ```
-What's missing: the test calls for both branches, and type hints on `FakeResponse`'s use in the function signature. Write those yourself, then compare against the [Solution](rate_limit_handling_solution.md)'s Approach 1.
+What's missing: the test calls for both branches, and type hints on `FakeResponse`'s use in the function signature. Write those yourself first — this simple form handles the common case.
 
-Once that's working, go one step further — Approach 2, the shape the Build Task actually needs:
+Once that's working, go one step further — the fuller shape the Build Task actually needs:
 
 ```
 constant MAX_RETRY_AFTER_SECONDS = 60

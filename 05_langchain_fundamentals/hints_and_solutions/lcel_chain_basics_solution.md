@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-lcel_chain_basics) · [Hint 1](lcel_chain_basics_hints.md#hint-1) · [Hint 2](lcel_chain_basics_hints.md#hint-2) · [Solution](lcel_chain_basics_solution.md)
 
-**Story — `lcel_chain_basics_practice.py`:** this 3-piece chain — prompt, model, parser, joined with `|` — is the atom every LangChain thing you'll ever build is made of. Written here, once, on its own, so the `|` syntax and what each piece does is obvious before Doc06's tools, Doc08's RAG pipeline, or this document's own Build Task pile more onto it. **If not:** the first time you'd see `prompt | model | parser` would be inside a bigger chain already doing three other things, making it hard to tell which part the `|` syntax actually changed.
+**Story — `lcel_chain_basics_practice.py`:** this 3-piece chain — a `ChatPromptTemplate`, a chat model, and an output parser, joined with `|` — is the atom every LangChain thing you'll ever build is made of. The `|` works like a Unix pipe: each step's output becomes the next step's input, so the prompt turns your variables into messages, the model turns those messages into a reply, and the parser turns that reply into a plain string (and, later, into a structured object). Writing it here once, on its own, is what makes the `|` syntax and each piece's job obvious before Doc06's tools, Doc08's RAG pipeline, or this document's own Build Task pile more onto it. **If not:** the first time you'd see `prompt | model | parser` would be inside a bigger chain already doing three other things, making it hard to tell which part the `|` syntax actually changed.
 
 ## Solution
 

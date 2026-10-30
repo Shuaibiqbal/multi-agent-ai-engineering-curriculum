@@ -15,7 +15,7 @@ OPENAI_API_KEY="sk-test123"
 LOG_LEVEL=DEBUG
 ```
 
-**Story — `env_config_practice.py` (Intermediate section):** before trusting `python-dotenv` to read a `.env` file, this exercise writes the same parsing loop by hand once, so the library stops being a black box. **If not:** you'd never see why quoting, blank lines, and comments actually need special handling — and `load_dotenv()` would feel like magic instead of "oh, that's just a loop with a dictionary."
+**Story — `env_config_practice.py`:** before trusting `python-dotenv` to read a `.env` file, this exercise writes the same parser by hand once — split each line on the first `=`, skip blank lines and `#` comments, strip surrounding quotes — so the library stops being a black box. **If not:** you'd never see why quoting, blank lines, and comments actually need special handling — and `load_dotenv()` would feel like magic instead of "oh, that's just a loop with a dictionary."
 
 ## Solution
 

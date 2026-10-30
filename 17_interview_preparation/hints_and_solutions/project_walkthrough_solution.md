@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-project_walkthrough) · [Hint 1](project_walkthrough_hints.md#hint-1) · [Hint 2](project_walkthrough_hints.md#hint-2) · [Solution](project_walkthrough_solution.md)
 
-**Story — `project_walkthrough.md`:** explaining your own project to someone who has never seen it is asked in nearly every AI engineering interview. The four beats — problem, shape, one decision, one limitation — give that explanation a structure you can reuse for any project. **If not:** you'd list features, and the interviewer would never hear *why* you built it that way.
+**Story — `project_walkthrough.md`:** explaining your own project clearly to someone who has never seen it before is asked in nearly every single AI engineering interview. The four beats — the problem, the shape of the solution, one real decision, one honest limitation — give that explanation a reusable structure you can apply to any project you've ever built. **If not:** you'd just list features one by one, and the interviewer would never actually hear *why* you built it the way you did.
 
 Write your own answer first, in `practice/project_walkthrough.md`, then compare.
 
@@ -10,7 +10,7 @@ Write your own answer first, in `practice/project_walkthrough.md`, then compare.
 
 ## Solution
 
-**Story:** the same four beats with the real mechanism and trade-off behind each one — the decision *and* what it cost. **If not:** the design would sound picked, not weighed.
+**Story:** this keeps the same four beats, but now names the real underlying mechanism and genuine trade-off behind each one — not just the decision, but what it actually cost to make. **If not:** the design would sound like it was simply picked off a list, not genuinely weighed against real alternatives.
 
 "ContentForge solves content production for teams that need researched, reviewed briefs without one person running every step by hand.
 

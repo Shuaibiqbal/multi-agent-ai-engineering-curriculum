@@ -2,11 +2,11 @@
 
 > [Back to the exercise](../README.md#ex-lcel_vs_raw_sdk) · [Hint 1](lcel_vs_raw_sdk_hints.md#hint-1) · [Hint 2](lcel_vs_raw_sdk_hints.md#hint-2) · [Solution](lcel_vs_raw_sdk_solution.md)
 
-**Story — `lcel_vs_raw_sdk_practice.py`:** reading about "LangChain vs. raw SDK" isn't the same as running both versions of one real feature side by side. This rebuilds Doc04's `get_structured_reply()` with LCEL and compares the two. **If not:** the Build Task's `compare_with_raw_sdk.py` would be the first time you built this comparison, with no smaller version to trust it against.
+**Story — `lcel_vs_raw_sdk_practice.py`:** reading that "LangChain just wraps the raw SDK" isn't the same as proving it. This exercise takes one real feature — Doc04's `get_structured_reply()`, which pulls structured info out of a message — and builds it twice: once with the plain OpenAI SDK you already know, and once as an LCEL chain (`prompt | model.with_structured_output(...)`). Running both on the same inputs and checking they agree is what turns "LangChain is a convenience layer over the same call" from a claim you were told into something you've watched happen. **If not:** the Build Task's `compare_with_raw_sdk.py` would be the first time you built this comparison, with no smaller version to trust it against.
 
 ## Solution
 
-**Story — `compare()`:** the script decides "match" itself, with a fair rule: names must agree; intent wording may differ. **If not:** a human reads printed text and misses a real difference.
+**Story — `compare()`:** rather than print two results and trust your eyes, this helper decides "do they match?" in code, with a deliberately fair rule — the extracted *name* must be identical, but the *intent* wording is allowed to differ (two phrasings of the same intent still count as agreement). Encoding the rule once means every run is judged the same way, automatically. **If not:** a human reads the printed text each time and quietly misses a real difference — or flags a harmless wording change as a failure.
 
 ```python
 # lcel_vs_raw_sdk_practice.py

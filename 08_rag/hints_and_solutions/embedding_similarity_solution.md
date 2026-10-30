@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-embedding_similarity) · [Hint 1](embedding_similarity_hints.md#hint-1) · [Hint 2](embedding_similarity_hints.md#hint-2) · [Solution](embedding_similarity_solution.md)
 
-**Story — `embedding_similarity_practice.py`:** "embeddings are just numbers that capture meaning" stays an abstract claim until you watch 2 similar sentences actually score closer together than unrelated ones — this is the exercise that turns it into something you measured yourself. **If not:** every later exercise in this document (chunking, retrieval, the Build Task) would be built on a formula you took on faith instead of one you watched work.
+**Story — `embedding_similarity_practice.py`:** "embeddings are just numbers that capture meaning" stays an abstract claim until you embed a few sentences yourself, compute the distance between each pair, and watch 2 similar sentences actually score closer together than unrelated ones — this is the exercise that turns it into something you measured yourself. **If not:** every later exercise in this document (chunking, retrieval, the Build Task) would be built on a formula you took on faith instead of one you watched work.
 
 ## Solution
 

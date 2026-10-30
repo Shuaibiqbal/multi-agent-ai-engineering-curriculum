@@ -37,9 +37,9 @@ test_project3.py:
     case 3 nothing relevant            case 4 approved -> answer == draft
     case 5 rejected -> "Not approved"
 
-Approach 2: search_node calls search_with_retry(); the resume value is
+search_node calls search_with_retry(); the resume value is
             {"decision": ..., "by": ..., "at": ...}
-Approach 3: ProjectState(BaseModel) with defaults; nodes use state.task
+ProjectState(BaseModel) with defaults; nodes use state.task
 ```
 
 > [Back to the Build Task](../README.md#build-task-project-3-langgraph-app) · [Hint 1](build_task.md#hint-1) · [Hint 2](build_task.md#hint-2) · [Solution](build_task.md#solution)

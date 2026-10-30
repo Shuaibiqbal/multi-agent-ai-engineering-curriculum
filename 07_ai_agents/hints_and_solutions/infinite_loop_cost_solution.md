@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-infinite_loop_cost) · [Hint 1](infinite_loop_cost_hints.md#hint-1) · [Hint 2](infinite_loop_cost_hints.md#hint-2) · [Solution](infinite_loop_cost_solution.md)
 
-**Story — `loop_safety_cost_practice.py`:** a step limit only feels necessary once you've watched a loop run away. This exercise lets one run — safely, with a deadline — then puts a number on what looping costs compared with one direct call. **If not:** the Build Task's `MaxIterationsExceeded` would be a rule you follow without ever having seen what it protects you from.
+**Story — `loop_safety_cost_practice.py`:** a step limit only feels necessary once you've actually watched a loop run away. This exercise builds a tool that always asks to be called again, then lets the agent run against it — safely, bounded by both a step count and a wall-clock deadline — and counts the real tokens burned, compared against one direct call with no tools. **If not:** the Build Task's `MaxIterationsExceeded` would be a rule you follow without ever having seen what it protects you from.
 
 ## Solution
 
@@ -49,7 +49,9 @@ def run_with_limits(task, max_iterations, timeout_seconds):
             messages.append(
                 {"role": "tool", "content": result, "tool_call_id": call["id"]}
             )
-    raise MaxIterationsExceeded(f"No answer after {max_iterations} steps", steps)
+    raise MaxIterationsExceeded(
+        f"No answer after {max_iterations} steps", steps
+    )
 
 
 # case 1: the tool always asks again, so the loop runs until its limit.

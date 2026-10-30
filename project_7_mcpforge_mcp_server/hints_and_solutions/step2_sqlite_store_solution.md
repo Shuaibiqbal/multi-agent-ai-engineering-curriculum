@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-2-a-real-sqlite-backed-store-and-the-search-tool) · [Hint 1](step2_sqlite_store_hints.md#hint-1) · [Hint 2](step2_sqlite_store_hints.md#hint-2) · [Solution](step2_sqlite_store_solution.md)
 
-**Story — Step 2:** a server that forgets everything on restart isn't something a real client would rely on, and a tool that silently stores an empty note is exactly the "fail loudly, not silently" bug Doc01 and Doc06 exist to prevent. This step makes the data real (SQLite) and adds a second Tool (`search_notes`) and content validation. **If not:** every demo would start from an empty store, and `add_note("")` would quietly create blank rows.
+**Story — Step 2:** a server that forgets everything on restart isn't something a real client could ever rely on, and a tool that silently stores an empty note is exactly the "fail loudly, not silently" bug Doc01 and Doc06 both exist to prevent. This step replaces the in-memory list with real SQLite storage, and adds a second Tool (`search_notes`) plus real content validation. **If not:** every demo would start from an empty store, and `add_note("")` would quietly create blank, useless rows.
 
 After this step the project runs: notes survive a full restart, and empty text is rejected with a clear message. Files not shown here don't change.
 
 ## The store and the custom error
 
-**Story — `exceptions.py` + `db.py`:** every SQL statement lives behind a small named function, and the new `EmptyNoteError` names the one failure this step guards against. `find_notes` lowercases both sides so `"Dentist"` matches `"dentist"`. **If not:** SQL would be scattered through `server.py`, and a case-sensitive search would miss obvious matches.
+**Story — `exceptions.py` + `db.py`:** every SQL statement lives behind a small, named function, and the new `EmptyNoteError` names the one specific failure this step guards against. `find_notes` lowercases both sides of the comparison, so searching "Dentist" still matches a note saved as "dentist". **If not:** SQL would be scattered through `server.py`, and a case-sensitive search would miss obvious, expected matches.
 
 ```python
 # src/exceptions.py
@@ -77,7 +77,7 @@ Also create an empty `src/__init__.py` (already there from Step 1) — `db.py` s
 
 **Changed from Step 1:** `add_note` now writes to SQLite and validates its input; `search_notes` is new. The in-memory list is gone.
 
-**Story — `server.py`:** `add_note` raises `EmptyNoteError` on empty text, **catches it, and returns a clear error string** — because the official `mcp` SDK, when a tool raises, hands the client only a generic *"Error executing tool add_note"*, with no reason. Catching it and returning `f"Error: {e}"` is Doc06's "get a tool's failure back to the model, correctly" — a clean result the client can read, not a crash and not a vague message. **If not:** the client would see a useless generic error, or `add_note("")` would store a blank note.
+**Story — `server.py`:** `add_note` raises `EmptyNoteError` on empty text, then **catches it itself and returns a clear error string** — because the official `mcp` SDK, when a tool raises, hands the client back only a generic *"Error executing tool add_note"*, with no useful reason attached. Catching it and returning `f"Error: {e}"` as the tool's normal result is Doc06's "get a tool's failure back to the model, correctly" pattern — a clean, readable result, not a crash and not a vague message. **If not:** the client would see a useless generic error, or `add_note("")` would silently store a blank note.
 
 ```python
 # server.py
@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
 ## The Step 2 tests
 
-**Story — `tests/unit/test_db.py`:** the SQL helpers on a throwaway database, no server needed. **If not:** a search bug would look like a model mistake, instead of being caught here in a second.
+**Story — `tests/unit/test_db.py`:** this exercises the SQL helper functions directly against a throwaway test database, no server or client involved at all. **If not:** a search bug would look like a model mistake during a real run, instead of being caught here instantly.
 
 ```python
 # tests/unit/test_db.py

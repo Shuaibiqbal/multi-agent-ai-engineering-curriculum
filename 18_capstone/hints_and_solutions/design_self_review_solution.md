@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-design_self_review) · [Hint 1](design_self_review_hints.md#hint-1) · [Hint 2](design_self_review_hints.md#hint-2) · [Solution](design_self_review_solution.md)
 
-**Story — `design_self_review.md`:** a weak design decision caught on paper costs nothing; the same decision caught three weeks into building costs three weeks. This exercise is that pause, done on purpose, before Stage 2. **If not:** unneeded pieces would get built, and missing ones would be found only when a requirement fails in production.
+**Story — `design_self_review.md`:** a weak design decision caught on paper costs you essentially nothing; the exact same decision caught three weeks into building costs you three real weeks. This exercise is that deliberate pause, done on purpose, before Stage 2 ever starts. **If not:** unneeded pieces would get built anyway, and missing ones would only be discovered when a real requirement fails in production.
 
 Write your own version first, in `practice/design_self_review.md`, then compare.
 
@@ -10,7 +10,7 @@ Since this document's real requirements are handed to you live, this solution wa
 
 ## Solution
 
-**Story:** check both directions — every component needs a requirement, and every requirement needs a component. The second direction finds what's *missing*, which is easier to overlook than what's extra. **If not:** the cost limit here would have no component enforcing it, and nothing on the page would look wrong.
+**Story:** this checks both directions deliberately — every component on the page needs a requirement justifying it, and every requirement needs a component that actually satisfies it. The second direction is what finds what's genuinely *missing*, which is far easier to overlook than something extra and unneeded. **If not:** a stated cost limit would have no actual component enforcing it anywhere, and nothing on the page would visibly look wrong.
 
 Run the full two-direction traceability check.
 

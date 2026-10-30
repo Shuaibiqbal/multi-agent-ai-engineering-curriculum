@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-tool_error_and_description_fix) · [Hint 1](tool_error_and_description_fix_hints.md#hint-1) · [Hint 2](tool_error_and_description_fix_hints.md#hint-2) · [Solution](tool_error_and_description_fix_solution.md)
 
-**Story — `tool_selection_practice.py` (Failure section):** a crashing tool and a vague description are both real production bugs you will cause yourself at least once — better to see them here, on purpose, where nothing's at stake. **If not:** the Build Task's "one tool designed to sometimes fail" would be the first time you ever turned a raised exception into a clean, model-readable error string.
+**Story — `tool_selection_practice.py` (Failure section):** this is two real production bugs you *will* cause yourself at least once — a tool that crashes (raises instead of returning), and a tool whose description is so vague the model calls it at the wrong moment. The exercise makes you create both on purpose, where nothing's at stake, and fix them: catch the exception and return a clean, model-readable `Error: ...` string, and sharpen the description so the model chooses correctly. **If not:** the Build Task's "one tool designed to sometimes fail" would be the first time you ever turned a raised exception into a clean, model-readable error string.
 
 ## Solution
 

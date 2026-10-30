@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-tool_test_no_llm) · [Hint 1](tool_test_no_llm_hints.md#hint-1) · [Hint 2](tool_test_no_llm_hints.md#hint-2) · [Solution](tool_test_no_llm_solution.md)
 
-**Story — `tool_test_no_llm_practice.py`:** an agent bug is usually either "the tool did the wrong thing" or "the model called the wrong tool". Testing the tool alone, with no model, settles the first question for free, every time. **If not:** every tool bug would show up only through the full agent, mixed up with the model's own choices, and cost an API call each time you checked.
+**Story — `tool_test_no_llm_practice.py`:** an agent bug is usually one of exactly two things — "the tool itself did the wrong thing" or "the model called the wrong tool." Testing the tool directly, by calling it yourself with no model anywhere in the loop, settles the first question for free, instantly, every single time. **If not:** every tool bug would only show up through the full agent, mixed up with the model's own choices, and cost a real API call each time you tried to check.
 
 Run it with `pytest tool_test_no_llm_practice.py -v`.
 
 ## Solution
 
-**Story:** a model will sometimes call a tool that fails. Doc06's `flaky_lookup` catches its own error and returns an `"Error: ..."` string, so the agent can read it and recover. A test on that exact string locks the behavior in. **If not:** someone could "tidy up" the tool so it raises instead, and the agent would start crashing mid-run with no test to warn you.
+**Story:** a model will sometimes call a tool that fails. Doc06's `flaky_lookup` catches its own error internally and returns an `"Error: ..."` string as its normal result, so the agent can read it and decide how to recover, instead of crashing. A test checking for that exact string locks this behavior in place for good. **If not:** someone could later "tidy up" the tool so it raises instead of returning an error string, and the agent would start crashing mid-run with no test anywhere to warn you.
 
 ```python
 # practice/tool_test_no_llm_practice.py

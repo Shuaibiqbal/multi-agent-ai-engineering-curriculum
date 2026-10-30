@@ -2,13 +2,13 @@
 
 > [Back to this step](../READING_README.md#step-2-one-tool-one-loop-the-smallest-possible-working-agent) · [Hint 1](step2_single_tool_loop_hints.md#hint-1) · [Hint 2](step2_single_tool_loop_hints.md#hint-2) · [Solution](step2_single_tool_loop_solution.md)
 
-**Story — Step 2:** an agent is a model in a loop that can ask for tools. This step builds the **real** Worker loop — the one the finished project uses — but gives it only one pure-logic tool, so every line can be understood before more tools arrive. Think → act → observe, a step log, and a hard step limit are all here from the start. **If not:** Step 3 would have to rewrite the loop to add a limit and a log, instead of just adding tools.
+**Story — Step 2:** an agent is really just a model running in a loop that can ask to call tools. This step builds the **real** Worker loop — the exact one the finished project uses — but gives it only one pure-logic tool, so every line of the loop can be understood before more tools arrive. The full pattern is here from the start: **think** (a model call) → **act** (run the tool it asked for) → **observe** (feed the result back), plus a step log and a hard step limit. **If not:** Step 3 would have to rewrite the loop to add a limit and a log, instead of just adding tools.
 
 After this step the project runs as a small agent: ask for a temperature in Fahrenheit and the model calls the converter, you see each step, and it can never loop forever. Files from Step 1 that aren't shown here don't change.
 
 ## The tool
 
-**Story — `tools/converter.py`:** the simplest possible tool — pure maths, no network, so it can't fail for outside reasons. (Also create an empty `tools/__init__.py`.) **If not:** a network problem could look like a loop bug.
+**Story — `tools/converter.py`:** this is the simplest possible tool — pure maths (a celsius→fahrenheit conversion), no network — so it can't fail for any outside reason. Starting with a tool that can't have an outage means any problem you see really is a loop bug, not a flaky connection. (Also create an empty `tools/__init__.py`.) **If not:** a network problem could look like a loop bug, and you'd chase the wrong thing.
 
 ```python
 # src/tools/converter.py
@@ -27,7 +27,7 @@ def celsius_to_fahrenheit(celsius):
 
 **Changed from Step 1:** `exceptions.py` adds Doc07's `MaxIterationsExceeded`.
 
-**Story — `exceptions.py`:** `MaxIterationsExceeded` carries the partial step log, so hitting the limit still shows where the Worker got stuck. **If not:** the limit would throw away every step that happened before it.
+**Story — `exceptions.py`:** this defines `MaxIterationsExceeded`, and crucially it *carries the partial step log* — so when the Worker hits its limit, the error still shows exactly where it got stuck and what it tried. An exception that dropped that context would throw away the most useful debugging information at the worst moment. **If not:** the limit would throw away every step that happened before it, leaving only "gave up."
 
 ```python
 # src/exceptions.py
@@ -44,7 +44,7 @@ class MaxIterationsExceeded(Exception):
         super().__init__(message)
 ```
 
-**Story — `prompts/worker.txt`:** tells the model *when* to use its tool. Without it, the model often converts temperatures itself — and gets it slightly wrong. **If not:** the tool would exist, but be used only sometimes.
+**Story — `prompts/worker.txt`:** this tells the model *when* to reach for its tool instead of answering from memory. Models will happily convert temperatures themselves — and get them slightly wrong — so the prompt is what actually makes the tool get used. **If not:** the tool would exist but be called only sometimes, and the "verified" answers wouldn't really be verified.
 
 `src/prompts/worker.txt`
 
@@ -55,7 +55,7 @@ conversion — never convert in your head. Answer everything else directly.
 
 (Step 3 rewrites this prompt once there are 3 tools.)
 
-**Story — `agents/worker.py`:** Doc07's Build Task Worker, driving Doc06's `@tool` tools. `ALL_TOOLS` is the toolbox — one tool for now. `find_tool()` and `run_tool()` turn **any** failure (unknown tool, bad arguments, a crash inside the tool) into an `Error: ...` observation the model can read. Every call becomes a step record; the log comes back in `AgentResult`, or inside `MaxIterationsExceeded` when the limit is hit. **If not:** a bad tool call would crash the run, and a wrong answer would have no record of how it was reached. This file does **not** change in Step 3 except for the tool list.
+**Story — `agents/worker.py`:** this is the heart of the project — Doc07's Build Task Worker loop driving Doc06's `@tool` tools. `ALL_TOOLS` is the toolbox (one tool for now). `find_tool()` and `run_tool()` turn **any** failure — an unknown tool, bad arguments, or a crash inside the tool — into a plain `Error: ...` observation the model can read and react to, instead of a crash. Every call becomes a step record, and the full log comes back in `AgentResult` (or inside `MaxIterationsExceeded` when the limit is hit). This design is exactly why the file does **not** change in Step 3 except for the tool list — new tools just slot into `ALL_TOOLS`. **If not:** a bad tool call would crash the run, and a wrong answer would have no record of how it was reached.
 
 ```python
 # src/agents/worker.py
@@ -137,7 +137,7 @@ def run_worker(model, task, max_iterations):
 
 **Changed from Step 1:** `main.py` calls `run_worker()` instead of the chain, prints the step log with `print_steps()`, and catches `MaxIterationsExceeded` and `openai.RateLimitError`.
 
-**Story — `main.py`:** hitting the limit ends one task with its partial log, not the whole app. **If not:** you'd see "gave up" with no clue why.
+**Story — `main.py`:** this makes hitting the step limit end *one task* with its partial log printed, not the whole app — so you can see how far the Worker got and why it stopped, then ask the next question. **If not:** you'd see "gave up" with no clue why, or the whole program would crash out.
 
 ```python
 # main.py
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     main()
 ```
 
-**Story — `tests/unit/test_tools.py`:** checks the tool with no model and no network. Case 2 proves `@tool` checks the argument's type *before* the function runs — the Pydantic contract from Doc06. **If not:** a wrong argument type would only show up during a real run.
+**Story — `tests/unit/test_tools.py`:** this checks the tool with no model and no network. Case 2 is the interesting one: it proves `@tool` validates the argument's *type* before your function ever runs — the Pydantic contract from Doc06 — so a bad type is rejected at the door, not deep inside the function. **If not:** a wrong argument type would only show up during a real, paid run.
 
 ```python
 # tests/unit/test_tools.py
@@ -233,7 +233,7 @@ if __name__ == "__main__":
     test_converter_rejects_bad_arguments()
 ```
 
-**Story — `tests/unit/test_agents.py`:** checks `find_tool()` and `run_tool()` with hand-made tool calls — no model needed. One function per case: a known tool, an unknown tool, a good call, a call to an unknown tool, and bad arguments. **If not:** a bug in how failures are turned into observations would only appear during a real, paid run.
+**Story — `tests/unit/test_agents.py`:** this checks `find_tool()` and `run_tool()` with hand-made tool calls — no model needed — one function per case: a known tool, an unknown tool, a good call, a call to an unknown tool, and bad arguments. These two functions are the project's safety net (they turn every failure into a readable observation), so they're tested exhaustively and for free. **If not:** a bug in how failures are turned into observations would only appear during a real, paid run.
 
 ```python
 # tests/unit/test_agents.py
@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
 **Changed from Step 1:** `tests/integration/test_live_agents.py` gets cases 2-4 — `tools_used()`, three test functions, their imports, and three calls at the bottom.
 
-**Story — `tests/integration/test_live_agents.py`:** three Worker cases with the real model: a conversion uses the tool, a general question uses none, and `max_iterations=1` raises `MaxIterationsExceeded`. **If not:** "it only calls the tool when needed" and "it always stops" would be claims, not checks.
+**Story — `tests/integration/test_live_agents.py`:** this runs three Worker cases against the real model: a conversion question uses the tool, a general question uses none, and `max_iterations=1` raises `MaxIterationsExceeded`. Together they turn the project's two core promises — "it only calls the tool when needed" and "it always stops" — into things the suite actually verifies. **If not:** those two guarantees would be claims, not checks.
 
 ```python
 # tests/integration/test_live_agents.py

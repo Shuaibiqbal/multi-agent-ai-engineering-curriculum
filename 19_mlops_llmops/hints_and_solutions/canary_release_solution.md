@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-canary_release) · [Hint 1](canary_release_hints.md#hint-1) · [Hint 2](canary_release_hints.md#hint-2) · [Solution](canary_release_solution.md)
 
-**Story — `canary_release_practice.py`:** a canary sends a small share of real traffic to the new version and compares it against the old one, before everyone gets it. Acting it out on your own project makes it something you can explain concretely. **If not:** "we'd do a canary release" would stay a phrase you can't back up with numbers.
+**Story — `canary_release_practice.py`:** a canary release sends only a small share of real traffic to the new version and measures it directly against the old one, before the new version ever reaches everyone. Actually simulating this on your own small project turns it from a buzzword into something you can explain with real numbers. **If not:** "we'd do a canary release" would stay a phrase you've heard, not something you can back up with actual numbers.
 
 All examples below use this shared setup — 20 fake test requests, and a `run_eval_suite` stub where `"v2"`'s prompt scores better than `"v1"`'s:
 
@@ -26,7 +26,7 @@ Each example below calls `random.seed(...)` with a fixed number so the "random" 
 
 ## Solution
 
-**Story:** quality isn't the only number that matters — a better answer that costs twice as much may not be worth it. And an empty canary group should say *why* it's empty. **If not:** you'd promote on score alone, and a small run would crash with a bare `ZeroDivisionError`.
+**Story:** quality score isn't the only number that genuinely matters — a marginally better answer that costs twice as much to produce may not actually be worth shipping. And an empty canary group, with zero samples, should say explicitly *why* it's empty rather than silently producing a meaningless number. **If not:** you'd promote purely on score alone, and a small sample run would crash outright with a bare, unexplained `ZeroDivisionError`.
 
 ```python
 # canary_release_practice.py

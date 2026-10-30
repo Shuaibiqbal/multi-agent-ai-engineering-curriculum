@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-paper_design) · [Hint 1](paper_design_hints.md#hint-1) · [Hint 2](paper_design_hints.md#hint-2) · [Solution](paper_design_solution.md)
 
-**Story — `architecture_comparison_practice.py` (Basic section):** a prediction written *before* any code is the only way to find out later whether your design instinct was right. This section is plain text, kept as a comment block at the top of the file, so the measured numbers below it can be checked against it. **If not:** after building, you'd remember "I expected that" — whether you did or not.
+**Story — `architecture_comparison_practice.py`:** a prediction written *before* any code runs is the only honest way to find out later whether your design instinct was actually right. This section is kept as a plain-text comment block at the very top of the file, so the real measured numbers produced below it can be checked directly against what you predicted. **If not:** after building and measuring, you'd just remember "I expected that" — whether you actually did or not, with no written record to check yourself against.
 
 Task chosen below: "research the top 3 causes of X, then write a 3-sentence summary."
 
 ## Solution
 
-**Story:** a guess becomes useful once it has numbers and mechanisms a colleague could argue with. **If not:** "the supervisor is slower" can't be proven wrong — so it can't teach you anything either.
+**Story:** a vague guess becomes genuinely useful the moment it has specific numbers and named mechanisms a colleague could actually argue with and check. **If not:** a vague claim like "the supervisor is slower" can never be proven wrong — and if it can't be proven wrong, it can't teach you anything either.
 
 ```
 design 1 -- single agent

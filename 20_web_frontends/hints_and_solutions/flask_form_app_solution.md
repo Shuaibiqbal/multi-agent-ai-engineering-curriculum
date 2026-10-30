@@ -2,7 +2,7 @@
 
 > [Back to the exercise](../README.md#ex-flask_form_app) · [Hint 1](flask_form_app_hints.md#hint-1) · [Hint 2](flask_form_app_hints.md#hint-2)
 
-**Story:** the real web-app pattern Streamlit hides — you write the route and the HTML yourself. **If not:** you never learn what a route or a template actually is, and you can't build anything Streamlit doesn't already shape for you.
+**Story:** this is the real web-app pattern that Streamlit normally hides from you entirely — here, you write the route function and the HTML template yourself, by hand. **If not:** you'd never actually learn what a route or a template really is underneath, and you couldn't build anything Streamlit doesn't already shape for you in advance.
 
 ## The Flask app
 

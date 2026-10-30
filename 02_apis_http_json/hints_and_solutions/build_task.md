@@ -95,7 +95,7 @@ function request_with_retry(method, url, max_attempts=5, **kwargs) -> dict:
         raise PermanentHTTPError(response.status_code, response.text)
 ```
 
-The key structural idea: the loop has exactly two ways out — a successful return, or a raised error — and exactly one way to keep going — `continue` after sleeping. Nothing falls through silently. Write out the full, typed version yourself, then go one step further — Approach 2, which folds in the session-reuse and rate-limit exercises.
+The key structural idea: the loop has exactly two ways out — a successful return, or a raised error — and exactly one way to keep going — `continue` after sleeping. Nothing falls through silently. Write out the full, typed version yourself — the solution below folds in the session-reuse and rate-limit exercises.
 
 ## Solution {: #solution }
 

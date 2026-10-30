@@ -2,13 +2,13 @@
 
 > [Back to the exercise](../README.md#ex-gate_bypass) · [Hint 1](gate_bypass_hints.md#hint-1) · [Hint 2](gate_bypass_hints.md#hint-2) · [Solution](gate_bypass_solution.md)
 
-**Story — `release_gate_practice.py` (Edge cases section):** a gate that can be skipped by editing one file isn't a gate. This section proves the bypass is real, then closes it — first by signing the pointer, then by removing the separate pointer altogether. **If not:** the Build Task's constraint ("the gate must not be skippable by accident") would be a hope, not something you'd tested.
+**Story — `release_gate_practice.py` (Edge cases section):** a gate that can be bypassed just by editing one plain-text file isn't really a gate at all. This section first proves that bypass is genuinely real by actually doing it, then closes it in two stages — first by cryptographically signing the pointer file, then by removing the separate pointer altogether so there's nothing left to edit. **If not:** the Build Task's constraint "the gate must not be skippable by accident" would stay a hope, never something you actually tested and proved.
 
 Every approach below starts by proving the bypass is real, then fixes it a different way.
 
 ## Solution
 
-**Story:** a plain hash can be recomputed by anyone who reads the code. A signature that needs a secret from `.env` can't. **If not:** a teammate who saw the script could "fix" the check along with the pointer.
+**Story:** a plain hash can be recomputed by anyone who simply reads the source code, which makes it useless as a tamper check. A signature built from a secret key stored only in `.env` genuinely can't be recomputed without that secret. **If not:** a teammate who saw the verification script could just "fix" the check to match their edited pointer, defeating the whole point of it.
 
 ```python
 # release_gate_practice.py — Edge cases section

@@ -4,11 +4,11 @@
 
 **Where this exercise is saved:** `practice/venv_setup_practice.md` — notes, not a script. Every block below is a terminal command, so there is nothing to `python`-run: keep a Markdown file with each command you ran and the output you got back, and you will have your own record of the sequence the next time you start a project.
 
-**Story — `venv_setup_practice.md`:** every later document installs packages into a project, so the venv has to be second nature before any real code exists. Writing the steps down once, with what each one prints, makes it something you can repeat without thinking. **If not:** the first import error in a later document would send you guessing about which Python and which packages you're actually using.
+**Story — `venv_setup_practice.md`:** every later document installs packages into a project, so a virtual environment — an isolated, per-project Python with its own installed packages, kept separate from the system Python — has to be second nature before any real code exists. Writing the steps down once (create, activate, install, freeze), with what each one prints, makes it something you can repeat without thinking. **If not:** the first import error in a later document would send you guessing about which Python and which packages you're actually using.
 
 ## Solution
 
-**Story:** the same four steps, with Windows' different activate command — so the notes work on any teammate's machine. **If not:** a Windows teammate would get stuck on the very first step.
+**Story:** the same four steps, but with Windows' different activate command (`.venv\Scripts\activate` instead of `source .venv/bin/activate`) — so the notes work on any teammate's machine, not just yours. **If not:** a Windows teammate would get stuck on the very first step.
 
 macOS / Linux:
 ```bash
