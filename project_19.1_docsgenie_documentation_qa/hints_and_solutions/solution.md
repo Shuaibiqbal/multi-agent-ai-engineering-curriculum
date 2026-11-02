@@ -390,7 +390,9 @@ def test_answers_from_the_docs():
     answer, pages = run_query(
         model, config.docs_dir, "How do I authenticate with the API?")
     ok = "key" in answer.lower() and "authentication.md" in pages
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 1 (auth answered, page cited) -> {status}")
 
 def test_offtopic_says_unknown():
@@ -400,7 +402,9 @@ def test_offtopic_says_unknown():
         model, config.docs_dir, "How do I train a machine-learning model?")
     lowered = answer.lower()
     ok = "don't know" in lowered or "not" in lowered
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 2 (off-topic -> unknown)      -> {status}")
 
 if __name__ == "__main__":

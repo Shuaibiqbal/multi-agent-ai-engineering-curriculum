@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-code-index-and-the-context-builder) · [Hint 1](step1_index_and_context_hints.md#hint-1) · [Hint 2](step1_index_and_context_hints.md#hint-2)
 
-**Story:** the code store, the retriever, and the deterministic context + citation builders — the parts that turn retrieved snippets into a model-ready block and a citation list, with no model. **If not:** the grounding and citations are the whole value; debugging them *and* the model at once in Step 3 is miserable.
+**Story:** this builds the code store, the retriever, and the deterministic context and citation builders — the parts that turn raw retrieved code snippets into a model-ready text block and a clean citation list, with no model call involved at all. **If not:** grounding and citations are the whole value of this project; debugging them *and* real model behavior at the same time in Step 3 would be miserable.
 
 ## Setup files
 

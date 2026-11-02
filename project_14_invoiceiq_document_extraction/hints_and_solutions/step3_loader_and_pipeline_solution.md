@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-the-loader-and-the-full-pipeline-final) · [Hint 1](step3_loader_and_pipeline_hints.md#hint-1) · [Hint 2](step3_loader_and_pipeline_hints.md#hint-2)
 
-**Story:** the document loader (Doc08), the pipeline that ties load → extract → validate together, `main.py`, and the integration test. **If not:** without the loader the project only works on text you pasted by hand — real invoices are files, and often PDFs.
+**Story:** this adds the document loader (Doc08's pattern), the pipeline function that ties load → extract → validate together into one call, `main.py`, and the integration test against a real model. **If not:** without a real loader the project would only work on text you pasted in by hand — real invoices arrive as files, and often as PDFs.
 
 ## Sample invoices (`samples/`)
 
@@ -142,7 +142,10 @@ def test_clean_invoice_clears():
     model = get_model(config)
     result = process_invoice(model, "samples/clean.txt")
     ok = result.invoice.invoice_number == "INV-1001" and not result.problems
-    print(f"case 1 (clean invoice clears)     -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (clean invoice clears)     -> {result1}")
 
 
 def test_bad_total_is_flagged():

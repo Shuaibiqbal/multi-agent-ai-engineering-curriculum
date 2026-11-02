@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-security-reviewer-on-a-diff) · [Hint 1](step1_security_reviewer_chain_hints.md#hint-1) · [Hint 2](step1_security_reviewer_chain_hints.md#hint-2)
 
-**Story:** the smallest piece — a Security reviewer working on a diff, proven on a planted *and* a clean example before anything else exists. **If not:** a reviewer only ever tested on bad input will happily flag good code.
+**Story:** this builds the smallest piece first — a Security reviewer that scans a diff — proven on a deliberately planted vulnerability *and* a genuinely clean example, before anything else in the project exists. **If not:** a reviewer only ever tested on bad input will happily, falsely flag good code too, with no test ever catching it.
 
 ## Setup files
 
@@ -115,7 +115,7 @@ def categorize(path):
 
 ## The Security reviewer
 
-**Story:** a deterministic scanner is the trustworthy core — it looks only at the added lines for secret and unsafe patterns, and returns `Finding`s. (You can add an LLM pass for judgment calls, but the scanner is what you can actually test.) **If not:** a purely prompted reviewer is non-deterministic and hard to pin down on a clean diff.
+**Story:** a deterministic pattern scanner is the actual trustworthy core here — it looks only at the newly added lines for secret and unsafe code patterns, and returns a list of `Finding`s directly. You can layer an LLM pass on top for genuine judgment calls, but the scanner itself is what you can actually test reliably. **If not:** a purely prompted reviewer with no deterministic core is non-deterministic and hard to pin down confidently on a known-clean diff.
 
 ```python
 # src/agents/security_reviewer.py

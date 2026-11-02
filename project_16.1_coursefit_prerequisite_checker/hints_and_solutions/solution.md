@@ -407,7 +407,10 @@ def test_meets_most_and_finds_gap():
     model = get_model(config)
     report = run_check(model, BACKGROUND, COURSE, config.match_cutoff)
     ok = report.score >= 50 and "Statistics" in report.missing
-    print(f"case 1 (meets most, stats gap) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (meets most, stats gap) -> {result1}")
 
 if __name__ == "__main__":
     test_meets_most_and_finds_gap()

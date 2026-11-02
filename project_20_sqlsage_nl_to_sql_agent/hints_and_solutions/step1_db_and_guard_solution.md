@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-database-and-the-safety-guard) · [Hint 1](step1_db_and_guard_hints.md#hint-1) · [Hint 2](step1_db_and_guard_hints.md#hint-2)
 
-**Story:** the sample database (seed, schema reader, query runner) and the deterministic `is_safe_select` guard — the parts that hold the data and stop an unsafe query, with no model. **If not:** the guard is the whole safety story; debugging it *and* the model at once in Step 3 is miserable.
+**Story:** this builds the sample database (seed, schema reader, query runner) and the deterministic `is_safe_select` guard — the parts that hold the real data and stop an unsafe query before it ever runs, with no model call involved at all. **If not:** the guard is the entire safety story of this project; debugging it *and* real model behavior at the same time in Step 3 would be miserable.
 
 ## Setup files
 
@@ -235,7 +235,9 @@ from src.guard import is_safe_select
 
 def test_plain_select_passes():
     sql = "SELECT count(*) FROM orders WHERE status = 'completed'"
-    result = "OK" if is_safe_select(sql) else "WRONG"
+    result = "WRONG"
+    if is_safe_select(sql):
+        result = "OK"
     print(f"case 1 (plain SELECT allowed)     -> {result}")
 
 def test_writes_are_rejected():

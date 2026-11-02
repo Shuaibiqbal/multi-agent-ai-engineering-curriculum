@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-the-pipeline-final) · [Hint 1](step3_pipeline_hints.md#hint-1) · [Hint 2](step3_pipeline_hints.md#hint-2)
 
-**Story:** `run_query` ties it together — index the repo, retrieve, build context, answer, attach cited files — plus `main.py` and the integration test. **If not:** the tested pieces never meet, and there's no single call that answers a codebase question.
+**Story:** `run_query` ties everything together — index the repo, retrieve relevant snippets, build context, get an answer, attach the cited files — plus `main.py` and the integration test against the real model. **If not:** the separately-tested pieces would never actually meet, and there'd be no single call that answers a real codebase question end to end.
 
 ## Sample repo (`sample_repo/`)
 
@@ -116,7 +116,9 @@ def test_answers_from_the_code():
     model = get_model(config)
     answer, files = run_query(model, config.repo_dir, "How is login handled?")
     ok = "login" in answer.lower() and "auth.py" in files
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 1 (login answered, auth.py cited) -> {status}")
 
 
@@ -127,7 +129,10 @@ def test_offtopic_says_unknown():
         model, config.repo_dir, "How do I train a neural network here?")
     lowered = answer.lower()
     ok = "don't know" in lowered or "not" in lowered
-    print(f"case 2 (off-topic -> unknown)         -> {'OK' if ok else 'WRONG'}")
+    status = "WRONG"
+    if ok:
+        status = "OK"
+    print(f"case 2 (off-topic -> unknown)         -> {status}")
 
 
 if __name__ == "__main__":

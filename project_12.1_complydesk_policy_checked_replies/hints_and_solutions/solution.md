@@ -258,7 +258,9 @@ def run_pipeline(model, ticket, max_rounds, progress=None):
 def format_result(result):
     lines = [f"Reply for ticket: {result.ticket}", "", "Compliance trace:"]
     for entry in result.rounds:
-        state = "approved" if entry["approved"] else "rejected"
+        state = "rejected"
+        if entry["approved"]:
+            state = "approved"
         lines.append(f"  Round {entry['round']}: {state}")
         for issue in entry["issues"]:
             lines.append(f"    - {issue}")
@@ -364,7 +366,9 @@ def main():
         result = run_pipeline(model, ticket, config.max_revision_rounds)
         print(f"\n=== {ticket} ===")
         for entry in result.rounds:
-            mark = "approved" if entry["approved"] else "rejected"
+            mark = "rejected"
+            if entry["approved"]:
+                mark = "approved"
             print(f"  Round {entry['round']}: {mark}")
         print(f"approved={result.approved}\n{result.final_reply}")
 
@@ -447,7 +451,10 @@ def test_result_shows_trace():
           and "Round 2: approved" in out
           and "approved after 2 round(s)" in out
           and "We can offer a 10% credit." in out)
-    print(f"case 1 (trace + status + reply)  -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (trace + status + reply)  -> {result1}")
 
 def test_cap_status_says_human():
     result = FakeResult(
@@ -457,12 +464,18 @@ def test_cap_status_says_human():
     )
     out = format_result(result)
     ok = "send to a human" in out
-    print(f"case 2 (cap -> send to human)    -> {'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (cap -> send to human)    -> {result2}")
 
 def test_partial():
     out = format_partial("slow", FakeProgress("half a reply", [{"round": 1}]))
     ok = "PARTIAL" in out and "half a reply" in out
-    print(f"case 3 (partial names the draft) -> {'OK' if ok else 'WRONG'}")
+    result3 = "WRONG"
+    if ok:
+        result3 = "OK"
+    print(f"case 3 (partial names the draft) -> {result3}")
 
 if __name__ == "__main__":
     test_result_shows_trace()
@@ -508,12 +521,18 @@ def test_rejects_then_approves():
     ok = result.approved and len(result.rounds) == 2
     if "credit" not in result.final_reply.lower():
         ok = False
-    print(f"case 1 (refund fixed, approved r2) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (refund fixed, approved r2) -> {result1}")
 
 def test_stops_at_cap():
     result = run_pipeline(AlwaysReject(), "anything", max_rounds=2)
     ok = (not result.approved) and len(result.rounds) == 2
-    print(f"case 2 (never approved -> cap)     -> {'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (never approved -> cap)     -> {result2}")
 
 if __name__ == "__main__":
     test_rejects_then_approves()
@@ -545,14 +564,20 @@ async def call_tool(ticket, env=None):
 async def test_returns_trace_and_reply():
     text = await call_tool("My order #1001 was late - I want a full refund.")
     ok = "Compliance trace" in text and "Reply:" in text
-    print(f"case 1 (trace + reply)   -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (trace + reply)   -> {result1}")
 
 async def test_timeout_gives_partial():
     env = dict(os.environ)
     env["REPLY_TIMEOUT_SECONDS"] = "0.001"
     text = await call_tool("anything", env=env)
     ok = "PARTIAL" in text
-    print(f"case 2 (timeout -> PARTIAL) -> {'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (timeout -> PARTIAL) -> {result2}")
 
 async def main():
     await test_returns_trace_and_reply()

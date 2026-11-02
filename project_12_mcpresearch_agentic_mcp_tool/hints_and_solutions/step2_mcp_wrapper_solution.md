@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-2-wrap-it-as-a-single-mcp-tool) · [Hint 1](step2_mcp_wrapper_hints.md#hint-1) · [Hint 2](step2_mcp_wrapper_hints.md#hint-2)
 
-**Story:** the whole pipeline, exposed as one `deep_research(topic) -> str` tool. The tool's body is just "run the pipeline, return the summary" — the thinnest possible MCP layer. **If not:** putting logic in the tool body (timeouts, formatting) mixes the MCP layer's job with the pipeline's, the mistake this project warns about.
+**Story:** this exposes the whole Step 1 pipeline as one single `deep_research(topic) -> str` MCP tool. The tool's body is deliberately just "run the pipeline, return the summary" — the thinnest possible MCP layer over already-proven logic. **If not:** putting real logic in the tool body itself (timeouts, formatting) would mix the MCP layer's job with the pipeline's own job, exactly the mistake this project warns against.
 
 ## `mcp_server.py` (new, at the repo root)
 
-**Story:** a `MCPServer` with exactly one tool. The tool builds the model and the config once (module level), then each call runs the pipeline and returns the final summary. **If not:** rebuilding the model and config on every call would be slow and noisy.
+**Story:** this is an `MCPServer` with exactly one tool registered. The model and config are built once at module level, not inside the tool function, so each call just runs the pipeline against the already-built model and returns the final summary. **If not:** rebuilding the model client and config fresh on every single call would be slow and unnecessarily noisy.
 
 ```python
 # mcp_server.py  (Step 2 version — the thinnest wrapper)

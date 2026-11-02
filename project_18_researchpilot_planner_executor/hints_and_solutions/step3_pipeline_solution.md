@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-the-pipeline-final) · [Hint 1](step3_pipeline_hints.md#hint-1) · [Hint 2](step3_pipeline_hints.md#hint-2)
 
-**Story:** `run_research` ties it together — plan, build the search, execute, compile the cited report — plus `main.py` and the integration test. **If not:** the three tested pieces never meet, and there's no single call that researches a question end to end.
+**Story:** `run_research` ties everything together — plan, build the search tool, execute the plan, compile the cited final report — plus `main.py` and the integration test against the real model. **If not:** the three separately-tested pieces would never actually meet, and there'd be no single call that researches a question end to end.
 
 ## Sample sources (`data/sources/`)
 
@@ -99,7 +99,10 @@ def test_report_has_cited_findings():
         model, "Give me a briefing on retrieval-augmented generation")
     text = format_report(report)
     ok = len(report.findings) >= 2 and "[1]" in text and "Sources:" in text
-    print(f"case 1 (several cited findings) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (several cited findings) -> {result1}")
 
 
 def test_sources_are_real_files():
@@ -110,7 +113,10 @@ def test_sources_are_real_files():
     for finding in report.findings:
         if not finding.source.endswith(".md"):
             real = False
-    print(f"case 2 (sources are real files) -> {'OK' if real else 'WRONG'}")
+    result2 = "WRONG"
+    if real:
+        result2 = "OK"
+    print(f"case 2 (sources are real files) -> {result2}")
 
 
 if __name__ == "__main__":

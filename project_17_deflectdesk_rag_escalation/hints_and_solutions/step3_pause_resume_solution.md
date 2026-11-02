@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-pause-resume-and-the-cli-final) · [Hint 1](step3_pause_resume_hints.md#hint-1) · [Hint 2](step3_pause_resume_hints.md#hint-2)
 
-**Story:** compile the graph with a checkpointer, run it, and handle the pause — on escalation the run stops, a human replies, and the graph resumes. **If not:** `interrupt()` has nothing to pause against, and the "escalate to a human" never actually waits for one.
+**Story:** this compiles the graph with a real checkpointer, runs it, and handles the pause properly — on escalation the run genuinely stops, a human replies, and the graph resumes from exactly where it paused. **If not:** `interrupt()` would have no checkpointer to pause against, and "escalate to a human" would never actually wait for one to respond.
 
 ## Sample help docs (`data/help_docs/`)
 
@@ -117,7 +117,10 @@ def test_confident_question_is_answered():
     thread = {"configurable": {"thread_id": "t-answer"}}
     result = app.invoke(start_state("How do refunds work?"), thread)
     ok = not app.get_state(thread).next and "refund" in result["answer"].lower()
-    print(f"case 1 (covered question answered) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (covered question answered) -> {result1}")
 
 
 def test_offtopic_escalates_and_resumes():
@@ -127,7 +130,9 @@ def test_offtopic_escalates_and_resumes():
     paused = bool(app.get_state(thread).next)
     result = app.invoke(Command(resume="A human will handle this."), thread)
     ok = paused and result["escalated"] is True
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 2 (off-topic escalates + resumes) -> {status}")
 
 

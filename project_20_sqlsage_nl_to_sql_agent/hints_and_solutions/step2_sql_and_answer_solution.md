@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-the-sql-generator-and-the-answer) · [Hint 1](step2_sql_and_answer_hints.md#hint-1) · [Hint 2](step2_sql_and_answer_hints.md#hint-2)
 
-**Story:** turn the question into a `SELECT` with structured output, and phrase the result rows in one sentence. **If not:** you'd be parsing SQL out of free-form prose, and the user would get raw tuples instead of an answer.
+**Story:** this turns the user's plain-English question into a real `SELECT` statement using structured output, and phrases the resulting rows back into one readable sentence. **If not:** you'd be parsing SQL out of free-form model prose by hand, and the user would end up seeing raw database tuples instead of an actual answer.
 
 ## The query shape
 

@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-the-three-extractor-agents) · [Hint 1](step2_extractor_agents_hints.md#hint-1) · [Hint 2](step2_extractor_agents_hints.md#hint-2)
 
-**Story:** the three specialist chains — actions, decisions, summary — each a small LCEL chain over the transcript. **If not:** one giant "give me everything" prompt does each part worse than a focused chain, and you can't test or swap one piece without touching the rest.
+**Story:** this builds three separate specialist chains — one for action items, one for decisions, one for the summary — each a small, focused LCEL chain reading the same transcript. **If not:** one giant "give me everything" prompt does each individual part worse than a focused chain would, and you couldn't test or swap out one piece without touching all the rest.
 
 Each agent is a prompt plus a model call. Two use `with_structured_output` (typed
 lists); the summarizer uses `StrOutputParser` (plain text). Every chain takes the

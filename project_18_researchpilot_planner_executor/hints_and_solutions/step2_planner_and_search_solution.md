@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-the-planner-and-the-rag-search) · [Hint 1](step2_planner_and_search_hints.md#hint-1) · [Hint 2](step2_planner_and_search_hints.md#hint-2)
 
-**Story:** the planner (a structured LLM call) and the RAG search (a document store + a `search` the executor calls). **If not:** without the planner there's no "plan first"; without a cited search, findings have nothing to point back to.
+**Story:** this builds the planner (a structured LLM call that breaks the question into research steps) and the RAG search (a document store plus a `search` function the executor actually calls). **If not:** without the planner there's no real "plan first" behavior; without a properly cited search, every finding would have nothing concrete to point back to.
 
 ## The planner (plan-first)
 

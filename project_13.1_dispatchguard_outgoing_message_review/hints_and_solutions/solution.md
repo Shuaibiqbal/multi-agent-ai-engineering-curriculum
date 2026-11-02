@@ -449,7 +449,10 @@ def compile_review(findings):
         if key not in seen:
             seen.add(key)
             unique.append(finding)
-    unique.sort(key=lambda f: SEVERITY_ORDER.get(f.severity, 3))
+    def severity_rank(finding):
+        return SEVERITY_ORDER.get(finding.severity, 3)
+
+    unique.sort(key=severity_rank)
     if not unique:
         return "DispatchGuard: cleared to send."
     lines = ["DispatchGuard review:"]
@@ -770,12 +773,18 @@ def test_full_review():
     final = build_app().invoke(start_state(DIRTY))
     review = final["review"].lower()
     ok = "email" in review and "end date" in review and "b-1" in review
-    print(f"case 1 (full review, all 3)      -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (full review, all 3)      -> {result1}")
 
 def test_internal_skips_brand():
     final = build_app().invoke(start_state(INTERNAL))
     ok = "brand" not in final["routing_log"]
-    print(f"case 2 (internal skips brand)    -> {'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (internal skips brand)    -> {result2}")
 
 if __name__ == "__main__":
     test_full_review()

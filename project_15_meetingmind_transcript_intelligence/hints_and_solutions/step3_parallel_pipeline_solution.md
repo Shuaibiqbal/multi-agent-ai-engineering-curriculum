@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-run-them-in-parallel-and-compile-final) · [Hint 1](step3_parallel_pipeline_hints.md#hint-1) · [Hint 2](step3_parallel_pipeline_hints.md#hint-2)
 
-**Story:** `RunnableParallel` to run all three chains at once, `run_meeting` to compile the results, `main.py`, and the integration test. **If not:** running three independent model calls one after another is three times the wait for no reason.
+**Story:** this uses `RunnableParallel` (Doc05's pattern) to run all three specialist chains at the same time instead of one after another, `run_meeting` to compile their results into the final report, `main.py`, and the integration test. **If not:** running three genuinely independent model calls one after another would be three times the wait for absolutely no benefit, since none depends on another's result.
 
 ## A sample transcript (`samples/standup.txt`)
 
@@ -107,7 +107,10 @@ def test_report_names_decision_and_action():
     report = run_meeting(model, TRANSCRIPT)
     text = format_report(report).lower()
     ok = "v2" in text and "venue" in text
-    print(f"case 1 (names decision + action) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (names decision + action) -> {result1}")
 
 
 def test_has_at_least_one_of_each():
@@ -115,7 +118,10 @@ def test_has_at_least_one_of_each():
     model = get_model(config)
     report = run_meeting(model, TRANSCRIPT)
     ok = len(report.decisions) >= 1 and len(report.action_items) >= 1
-    print(f"case 2 (>= 1 decision + action)  -> {'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (>= 1 decision + action)  -> {result2}")
 
 
 if __name__ == "__main__":

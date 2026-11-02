@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-a-supervisor-routes-between-them) · [Hint 1](step2_supervisor_routing_hints.md#hint-1) · [Hint 2](step2_supervisor_routing_hints.md#hint-2)
 
-**Story:** a `Command`-based Supervisor (Project 4's pattern) in a LangGraph graph, routing between the two proven specialists. The Supervisor only *routes* — it never opens a connection. **If not:** the coordinator would reach into each specialist's MCP connection, and the clean "each specialist owns its own server" boundary would be gone.
+**Story:** this wires up a `Command`-based Supervisor (Project 4's pattern) inside a real LangGraph graph, routing between the two already-proven specialists from Step 1. The Supervisor's job is strictly to *route* — it never opens an MCP connection itself, or touches a specialist's internals. **If not:** the coordinator would end up reaching into each specialist's own MCP connection, and the clean "each specialist owns its own server" boundary this project depends on would be gone.
 
 ## `src/state.py` (new)
 
@@ -36,7 +36,7 @@ def start_state(task):
 
 ## `src/agents/supervisor.py` (new)
 
-**Story:** `decide_next` reads the state and names who runs next, based on what's still needed and what the task asks for. `supervisor` logs the decision and routes with `Command`. **If not:** routing logic scattered through the graph would be impossible to unit-test without a model.
+**Story:** `decide_next` is a plain function of the state — no model call — that names exactly who runs next, based on what's still missing and what the task actually asked for. `supervisor()` wraps it as a node: logs the decision, then routes with `Command`. **If not:** routing logic scattered directly through the graph's edges would be impossible to unit-test without a real model call every time.
 
 ```python
 # src/agents/supervisor.py
@@ -78,7 +78,7 @@ def supervisor(state):
 
 ## `src/graph.py` — the async graph
 
-**Story:** `START → supervisor`. The specialist nodes are **async** (they open MCP connections), and the graph is run with `.ainvoke()`. Each specialist node calls its agent and returns `Command(goto="supervisor", ...)`, so control always comes back to the Supervisor. **If not:** a sync node wrapping the async specialist in `asyncio.run()` fights LangGraph's own event loop and hangs.
+**Story:** the only fixed edge in this graph is `START → supervisor`. The specialist nodes are themselves declared **async** (since they open real MCP connections), and the whole graph is run with `.ainvoke()` to match. Each specialist node calls its agent and returns `Command(goto="supervisor", ...)`, so control always flows back to the Supervisor to decide what happens next. **If not:** a sync node wrapping the async specialist in `asyncio.run()` would fight LangGraph's own event loop and hang.
 
 ```python
 # src/graph.py  (Step 2 version — no writer yet; the writer target ends the
@@ -139,16 +139,20 @@ BOTH = "Check my notes for Atlas, fetch its status page, and give a report."
 
 def test_fresh_routes_to_notes():
     target = decide_next(start_state(BOTH))
-    print(f"case 1 (fresh -> notes)  -> "
-          f"{'OK' if target == 'notes' else 'WRONG'}")
+    result = "WRONG"
+    if target == "notes":
+        result = "OK"
+    print(f"case 1 (fresh -> notes)  -> {result}")
 
 
 def test_notes_done_routes_to_web():
     state = start_state(BOTH)
     state["notes_findings"] = "found"
     target = decide_next(state)
-    print(f"case 2 (notes done -> web) -> "
-          f"{'OK' if target == 'web' else 'WRONG'}")
+    result = "WRONG"
+    if target == "web":
+        result = "OK"
+    print(f"case 2 (notes done -> web) -> {result}")
 
 
 def test_both_done_routes_to_writer():
@@ -156,8 +160,10 @@ def test_both_done_routes_to_writer():
     state["notes_findings"] = "found"
     state["web_findings"] = "fetched"
     target = decide_next(state)
-    print(f"case 3 (both done -> writer) -> "
-          f"{'OK' if target == 'writer' else 'WRONG'}")
+    result = "WRONG"
+    if target == "writer":
+        result = "OK"
+    print(f"case 3 (both done -> writer) -> {result}")
 
 
 def test_web_unavailable_skips_web():
@@ -165,8 +171,10 @@ def test_web_unavailable_skips_web():
     state["notes_findings"] = "found"
     state["web_unavailable"] = True
     target = decide_next(state)
-    print(f"case 4 (web down -> writer) -> "
-          f"{'OK' if target == 'writer' else 'WRONG'}")
+    result = "WRONG"
+    if target == "writer":
+        result = "OK"
+    print(f"case 4 (web down -> writer) -> {result}")
 
 
 if __name__ == "__main__":

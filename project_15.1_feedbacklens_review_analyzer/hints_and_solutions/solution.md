@@ -378,7 +378,10 @@ def test_finds_praise_and_complaint():
     model = get_model(config)
     report = run_analysis(model, REVIEWS)
     ok = len(report.praises) >= 1 and len(report.complaints) >= 1
-    print(f"case 1 (>= 1 praise + complaint) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (>= 1 praise + complaint) -> {result1}")
 
 if __name__ == "__main__":
     test_finds_praise_and_complaint()

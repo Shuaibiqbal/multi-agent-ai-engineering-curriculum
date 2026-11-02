@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-match-report-and-the-matcher) · [Hint 1](step1_match_report_and_matcher_hints.md#hint-1) · [Hint 2](step1_match_report_and_matcher_hints.md#hint-2)
 
-**Story:** the typed shapes and the deterministic `match_skills` — the decision engine — built and proven with a fake retriever, no model or embeddings. **If not:** if the match logic or the score is wrong, a perfect semantic search still gives a wrong answer, and you'd be debugging RAG and arithmetic at once.
+**Story:** this builds the typed `MatchReport` shapes and the deterministic `match_skills` function — the actual decision engine — proven with a fake retriever standing in, no real model or embeddings needed yet. **If not:** if the matching logic or the score calculation is wrong, even a perfect semantic search would still give a wrong final answer, and you'd be debugging RAG retrieval and arithmetic at the same time.
 
 ## Setup files
 

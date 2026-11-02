@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-help-docs-rag-and-the-confidence-gate) · [Hint 1](step1_rag_and_confidence_hints.md#hint-1) · [Hint 2](step1_rag_and_confidence_hints.md#hint-2)
 
-**Story:** the help store, the retriever, and the deterministic confidence gate — the one decision the whole bot turns on, proven with no model. **If not:** if the gate is wrong, the bot either answers off-topic questions (confidently wrong) or escalates everything (useless).
+**Story:** this builds the help-docs store, the retriever, and a deterministic confidence gate based on distance — the one decision the entire bot's behavior actually turns on — proven with no model call at all. **If not:** if the gate itself is wrong, the bot either confidently answers off-topic questions it shouldn't, or escalates absolutely everything to a human, making it useless either way.
 
 ## Setup files
 

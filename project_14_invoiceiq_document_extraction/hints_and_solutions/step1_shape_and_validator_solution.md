@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-typed-shape-and-the-deterministic-validator) · [Hint 1](step1_shape_and_validator_hints.md#hint-1) · [Hint 2](step1_shape_and_validator_hints.md#hint-2)
 
-**Story:** the `Invoice`/`LineItem` models and the validator — the heart of the project — built and proven with no model at all. **If not:** if the validator is wrong, perfect extraction still produces data you can't trust.
+**Story:** this builds the `Invoice`/`LineItem` Pydantic models and the validator function that checks line items actually sum to the stated total — the real heart of the project — proven entirely with hand-made data, no model call at all. **If not:** if the validator itself is wrong, even perfect extraction from a real invoice still produces numbers you can't actually trust.
 
 ## Setup files
 

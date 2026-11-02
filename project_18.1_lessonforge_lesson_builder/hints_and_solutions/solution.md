@@ -420,7 +420,10 @@ def test_lesson_has_cited_sections():
     lesson = run_lesson(model, "retrieval-augmented generation")
     text = format_lesson(lesson)
     ok = len(lesson.sections) >= 2 and "[1]" in text and "Sources:" in text
-    print(f"case 1 (several cited sections) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (several cited sections) -> {result1}")
 
 if __name__ == "__main__":
     test_lesson_has_cited_sections()

@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-two-agent-pipeline-running-standalone-no-mcp-yet) · [Hint 1](step1_standalone_pipeline_hints.md#hint-1) · [Hint 2](step1_standalone_pipeline_hints.md#hint-2)
 
-**Story:** the Researcher, the Fact-Checker, and the revise loop as a plain Python program — no MCP. Prove it works before anything wraps it. **If not:** a pipeline bug hidden behind a protocol in Step 2 is two bugs to find instead of one.
+**Story:** this builds the Researcher, the Fact-Checker, and the revise loop between them as a plain Python program first — no MCP involved at all yet. Proving the pipeline logic works correctly before anything wraps it in a protocol is what keeps the two concerns separate. **If not:** a pipeline bug hidden behind an MCP protocol layer in Step 2 becomes two bugs to untangle instead of one.
 
 ## Setup files
 
@@ -166,7 +166,7 @@ def run_fact_checker(model, draft):
 
 ## The pipeline
 
-**Story:** the loop that ties them together, bounded by `max_rounds`, recording what happened each round into a `Progress` holder (the holder matters for Step 4's partial fallback). **If not:** a loop with no cap can run forever on a topic the checker never likes (Doc11's warning).
+**Story:** this is the loop that actually ties the Researcher and Fact-Checker together, bounded by a hard `max_rounds` limit, recording what happened each round into a `Progress` holder object as it goes — that holder is what Step 4's timeout fallback later reads from. **If not:** a loop with no cap at all can run forever on a topic the Fact-Checker simply never approves (exactly Doc11's warning about unbounded revision loops).
 
 ```python
 # src/pipeline.py
@@ -241,7 +241,9 @@ def main():
         result = run_pipeline(model, topic, config.max_revision_rounds)
         print(f"\n=== {topic} ===")
         for entry in result.rounds:
-            mark = "approved" if entry["approved"] else "rejected"
+            mark = "rejected"
+            if entry["approved"]:
+                mark = "approved"
             print(f"  Round {entry['round']}: {mark}")
         print(f"approved={result.approved}\n{result.final_summary}")
 
@@ -336,14 +338,18 @@ def test_rejects_then_approves():
     ok = result.approved and len(result.rounds) == 2
     if "Meta AI" not in result.final_summary:
         ok = False
-    print(f"case 1 (wrong draft -> fixed, approved r2) -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (wrong draft -> fixed, approved r2) -> {result1}")
 
 def test_stops_at_cap():
     result = run_pipeline(AlwaysReject(), "blue", max_rounds=2)
     ok = (not result.approved) and len(result.rounds) == 2
-    print(f"case 2 (never approved -> stops at cap)    -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (never approved -> stops at cap)    -> {result2}")
 
 if __name__ == "__main__":
     test_rejects_then_approves()

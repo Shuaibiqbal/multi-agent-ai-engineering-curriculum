@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-the-graph-answer-or-escalate) · [Hint 1](step2_graph_hints.md#hint-1) · [Hint 2](step2_graph_hints.md#hint-2)
 
-**Story:** the whole behavior as explicit graph structure — retrieve, route on the gate, answer or escalate. **If not:** the answer-or-escalate decision stays buried in an `if`, invisible and un-pausable, instead of being the visible graph it should be.
+**Story:** this builds the whole behavior as an explicit LangGraph structure — retrieve, route on the confidence gate, then answer or escalate as separate named nodes. **If not:** the answer-or-escalate decision would stay buried inside a plain `if` statement, invisible and un-pausable, instead of being the visible, inspectable graph structure it genuinely needs to be.
 
 ## The state
 

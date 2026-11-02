@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-4-a-timeout-and-a-partial-result-fallback) · [Hint 1](step4_timeout_fallback_hints.md#hint-1) · [Hint 2](step4_timeout_fallback_hints.md#hint-2)
 
-**Story:** a run that's too slow or breaks returns a clearly-marked partial answer — the best draft so far — instead of hanging. **If not:** a tool that can hang forever is one nobody will build on.
+**Story:** a run that's taking too long, or actually breaks, now returns a clearly-marked partial answer — the best draft reached so far — instead of hanging the caller indefinitely. **If not:** a tool that can hang forever with no timeout is one nobody will ever trust enough to build on.
 
 ## `mcp_server.py` (final) — the async tool with a timeout
 
-**Story:** the tool is now `async`. The pipeline is **synchronous**, so it runs inside `asyncio.to_thread(...)` (a plain blocking call wrapped directly in `wait_for` would block the event loop and never time out). `asyncio.wait_for` enforces the timeout; on `TimeoutError`, the `Progress` holder the thread has been writing gives the best draft so far. **If not:** `await asyncio.wait_for(run_pipeline(...))` on a sync function would hang exactly like before.
+**Story:** the tool function itself is now declared `async`. The pipeline underneath is still **synchronous** code, so it runs inside `asyncio.to_thread(...)` — a plain blocking call wrapped directly in `wait_for` would block the whole event loop and never actually time out, defeating the point. `asyncio.wait_for` is what enforces the real timeout; on a `TimeoutError`, the `Progress` holder that background thread has been writing to the whole time gives you the best draft reached so far. **If not:** `await asyncio.wait_for(run_pipeline(...))` called directly on a sync function would hang exactly like before, timeout or not.
 
 ```python
 # mcp_server.py  (final)
@@ -87,7 +87,10 @@ async def call_tool(topic, env=None):
 async def test_returns_trace_and_summary():
     text = await call_tool("Retrieval-Augmented Generation (RAG)")
     ok = "Revision trace" in text and "Summary:" in text
-    print(f"case 1 (trace + summary) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (trace + summary) -> {result1}")
 
 
 async def test_timeout_gives_partial():
@@ -96,7 +99,10 @@ async def test_timeout_gives_partial():
     env["DEEP_RESEARCH_TIMEOUT_SECONDS"] = "0.001"
     text = await call_tool("anything", env=env)
     ok = "PARTIAL" in text
-    print(f"case 2 (timeout -> PARTIAL) -> {'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (timeout -> PARTIAL) -> {result2}")
 
 
 async def main():

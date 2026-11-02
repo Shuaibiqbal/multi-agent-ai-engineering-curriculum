@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-the-test-coverage-reviewer-the-supervisor-routing-compile-final-4-agents) · [Hint 1](step3_test_coverage_supervisor_hints.md#hint-1) · [Hint 2](step3_test_coverage_supervisor_hints.md#hint-2)
 
-**Story:** the team finished — the Test-Coverage reviewer, and the Supervisor that routes by diff and compiles findings into one clean review. **If not:** three separately-correct reviewers stuck together is three reports, not one useful review — and the multi-agent value never appears.
+**Story:** this finishes the team — adding the Test-Coverage reviewer, and a Supervisor that routes by what kind of diff it's actually looking at, and compiles every reviewer's findings into one clean, unified review. **If not:** three separately-correct reviewers stuck together with no coordination produces three separate reports, not one genuinely useful review — and the whole point of going multi-agent never actually shows up.
 
 ## The Test-Coverage reviewer
 
@@ -82,7 +82,10 @@ def compile_review(findings):
         if key not in seen:
             seen.add(key)
             unique.append(finding)
-    unique.sort(key=lambda f: SEVERITY_ORDER.get(f.severity, 3))
+    def severity_rank(finding):
+        return SEVERITY_ORDER.get(finding.severity, 3)
+
+    unique.sort(key=severity_rank)
     if not unique:
         return "CodeGuard: no issues found."
     lines = ["CodeGuard review:"]
@@ -327,13 +330,19 @@ def test_full_review():
     final = build_app().invoke(start_state(DIRTY))
     review = final["review"].lower()
     ok = "secret" in review and "snake_case" in review and "test" in review
-    print(f"case 1 (full review, all 3)    -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (full review, all 3)    -> {result1}")
 
 
 def test_docs_skips_security():
     final = build_app().invoke(start_state(DOCS))
     ok = "security" not in final["routing_log"]
-    print(f"case 2 (docs-only skips security) -> {'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (docs-only skips security) -> {result2}")
 
 
 if __name__ == "__main__":

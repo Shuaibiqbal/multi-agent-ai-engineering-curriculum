@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-report-shape-the-executor-and-the-compiler) · [Hint 1](step1_report_and_executor_hints.md#hint-1) · [Hint 2](step1_report_and_executor_hints.md#hint-2)
 
-**Story:** the engine — run each step, collect findings, cite sources — the whole project minus the model, proven with a fake search. **If not:** the citation numbering and source de-duplication are fiddly; debugging them *and* the model at once in Step 3 is miserable.
+**Story:** this builds the engine — run each research step, collect findings, cite their sources — essentially the whole project minus the model, proven with a fake search standing in. **If not:** citation numbering and source de-duplication are genuinely fiddly logic; debugging them *and* real model behavior at the same time in Step 3 would be miserable.
 
 ## Setup files
 

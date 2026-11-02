@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-the-grounded-answer) · [Hint 1](step2_answer_hints.md#hint-1) · [Hint 2](step2_answer_hints.md#hint-2)
 
-**Story:** ask the model to answer the question using **only** the retrieved code context. **If not:** the model answers from its training memory, which is generic and often wrong for *this* codebase — the whole reason you retrieved real snippets is lost.
+**Story:** this asks the model to answer the question using **only** the retrieved code context built in Step 1, never its own general training knowledge. **If not:** the model answers from its training memory, which is generic and often flat-out wrong for *this specific* codebase — the whole reason you bothered retrieving real snippets would be lost.
 
 ## The answer chain
 

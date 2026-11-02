@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-two-standalone-mcp-connected-specialists) · [Hint 1](step1_standalone_specialists_hints.md#hint-1) · [Hint 2](step1_standalone_specialists_hints.md#hint-2)
 
-**Story:** two specialists, each opening its own MCP connection, each proven alone. No Supervisor, no graph yet. **If not:** a broken connection would surface inside Step 2's routing, and you'd be debugging two things at once.
+**Story:** this builds two specialists, each opening its own independent MCP connection to its own server, each proven working entirely on its own — no Supervisor, no graph wiring them together yet. **If not:** a broken connection would first surface tangled inside Step 2's routing logic, and you'd be debugging two separate problems at once instead of one at a time.
 
 ## Setup files
 
@@ -142,7 +142,7 @@ def create_client(config):
 
 ## The shared MCP specialist loop
 
-**Story:** both specialists do the same thing — connect to *their* server, discover its tools, run a small ReAct loop. One shared `run_specialist` does it, returning the findings and an `unavailable` flag (the flag matters in Step 4). **If not:** you'd copy the whole connect-discover-loop into both agents.
+**Story:** both specialists genuinely do the exact same shape of thing — connect to *their own* server, discover its tools at runtime, run a small ReAct loop over them. One shared `run_specialist` function does all of that, returning both the findings and an `unavailable` flag (that flag is what Step 4's graceful degradation actually checks). **If not:** you'd end up copying the whole connect-discover-loop sequence into both agents separately, drifting apart the moment one needed a fix.
 
 ```python
 # src/mcp_client.py

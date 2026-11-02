@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-the-pipeline-final) · [Hint 1](step3_pipeline_hints.md#hint-1) · [Hint 2](step3_pipeline_hints.md#hint-2)
 
-**Story:** `run_match` ties it together — build the resume store, extract the JD skills, match each one — plus `main.py` and the integration test. **If not:** the three verified pieces never meet, and there's no single call a caller can make.
+**Story:** `run_match` ties everything together into one function — build the resume store, extract the job description's required skills, match each one against it — plus `main.py` and the integration test against the real model. **If not:** the three separately-verified pieces would never actually meet, and there'd be no single call a caller could make to use them together.
 
 ## Sample resume and job (`samples/`)
 
@@ -109,7 +109,10 @@ def test_scores_high_and_finds_the_gap():
     model = get_model(config)
     report = run_match(model, RESUME, JOB, config.match_cutoff)
     ok = report.score >= 60 and "Kubernetes" in report.missing
-    print(f"case 1 (high score, Kubernetes gap) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (high score, Kubernetes gap) -> {result1}")
 
 
 if __name__ == "__main__":

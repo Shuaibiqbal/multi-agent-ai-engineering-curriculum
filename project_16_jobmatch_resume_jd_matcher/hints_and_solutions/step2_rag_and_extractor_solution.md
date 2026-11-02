@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-the-rag-layer-and-the-skill-extractor) · [Hint 1](step2_rag_and_extractor_hints.md#hint-1) · [Hint 2](step2_rag_and_extractor_hints.md#hint-2)
 
-**Story:** the resume RAG store (chunk + embed + retrieve) and the job-description skill extractor — the two sources the matcher needs. **If not:** without semantic search, "built APIs in Python" would never match a "Python" requirement, and the whole point of the project is lost.
+**Story:** this builds the resume RAG store (chunk, embed, retrieve — Doc08's pattern) and the job-description skill extractor with structured output — the two real data sources the matcher from Step 1 actually needs. **If not:** without semantic search, a resume line like "built APIs in Python" would never match a plain "Python" requirement, and the whole point of using embeddings here would be lost.
 
 ## The resume store
 

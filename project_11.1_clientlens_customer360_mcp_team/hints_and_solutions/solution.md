@@ -502,28 +502,36 @@ from src.state import start_state
 T = "Give me a customer-360 for c-42: orders and support tickets."
 
 def test_fresh_routes_to_orders():
-    print(f"case 1 (fresh -> orders)    -> "
-          f"{'OK' if decide_next(start_state(T)) == 'orders' else 'WRONG'}")
+    result = "WRONG"
+    if decide_next(start_state(T)) == "orders":
+        result = "OK"
+    print(f"case 1 (fresh -> orders)    -> {result}")
 
 def test_orders_done_routes_to_tickets():
     state = start_state(T)
     state["orders"] = "found"
-    print(f"case 2 (orders done -> tickets) -> "
-          f"{'OK' if decide_next(state) == 'tickets' else 'WRONG'}")
+    result = "WRONG"
+    if decide_next(state) == "tickets":
+        result = "OK"
+    print(f"case 2 (orders done -> tickets) -> {result}")
 
 def test_both_done_routes_to_writer():
     state = start_state(T)
     state["orders"] = "found"
     state["tickets"] = "found"
-    print(f"case 3 (both done -> writer) -> "
-          f"{'OK' if decide_next(state) == 'writer' else 'WRONG'}")
+    result = "WRONG"
+    if decide_next(state) == "writer":
+        result = "OK"
+    print(f"case 3 (both done -> writer) -> {result}")
 
 def test_tickets_down_skips():
     state = start_state(T)
     state["orders"] = "found"
     state["tickets_unavailable"] = True
-    print(f"case 4 (tickets down -> writer) -> "
-          f"{'OK' if decide_next(state) == 'writer' else 'WRONG'}")
+    result = "WRONG"
+    if decide_next(state) == "writer":
+        result = "OK"
+    print(f"case 4 (tickets down -> writer) -> {result}")
 
 if __name__ == "__main__":
     test_fresh_routes_to_orders()
@@ -553,8 +561,10 @@ async def test_both_services(client):
     ok = "orders" in used and "tickets" in used and "writer" in used
     if "c-42" not in report and "laptop" not in report:
         ok = False
-    print(f"case 1 (both services -> one 360)       -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result = "WRONG"
+    if ok:
+        result = "OK"
+    print(f"case 1 (both services -> one 360)       -> {result}")
 
 async def test_tickets_down(client):
     app = build_graph(client, tickets_args=["servers/does_not_exist.py"])
@@ -565,8 +575,10 @@ async def test_tickets_down(client):
         ok = False
     if "reach" not in report and "unavailable" not in report:
         ok = False
-    print(f"case 2 (tickets down -> honest 360)     -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result = "WRONG"
+    if ok:
+        result = "OK"
+    print(f"case 2 (tickets down -> honest 360)     -> {result}")
 
 async def main():
     client = create_client(load_config())

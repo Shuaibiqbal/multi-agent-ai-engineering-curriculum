@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-3-the-pipeline-final) · [Hint 1](step3_pipeline_hints.md#hint-1) · [Hint 2](step3_pipeline_hints.md#hint-2)
 
-**Story:** `ask` ties it together — read the schema, generate the SQL, **guard it**, run it, and summarize the rows — plus `main.py` and the integration test. **If not:** the tested pieces never meet, and there's no single call that answers a plain-English question safely.
+**Story:** `ask` ties everything together — read the schema, generate the SQL, **guard it** before anything runs, execute it, and summarize the rows into a readable answer — plus `main.py` and the integration test against the real model. **If not:** the separately-tested pieces would never actually meet, and there'd be no single call that answers a plain-English question against the database safely.
 
 ## The pipeline
 
@@ -88,7 +88,9 @@ def test_counts_completed_orders():
     answer, sql, rows = ask(
         model, config.db_path, "How many orders are completed?")
     ok = "select" in sql.lower() and "3" in answer
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 1 (completed orders counted) -> {status}")
 
 
@@ -99,7 +101,9 @@ def test_lists_a_city():
     answer, sql, rows = ask(
         model, config.db_path, "Which city is Ada in?")
     ok = "london" in answer.lower()
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 2 (city answered)            -> {status}")
 
 

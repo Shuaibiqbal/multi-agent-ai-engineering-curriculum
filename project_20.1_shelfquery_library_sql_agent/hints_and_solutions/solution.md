@@ -362,7 +362,9 @@ from src.guard import is_safe_select
 
 def test_plain_select_passes():
     sql = "SELECT count(*) FROM loans WHERE returned = 0"
-    result = "OK" if is_safe_select(sql) else "WRONG"
+    result = "WRONG"
+    if is_safe_select(sql):
+        result = "OK"
     print(f"case 1 (plain SELECT allowed)     -> {result}")
 
 def test_writes_are_rejected():
@@ -456,7 +458,9 @@ def test_counts_books_on_loan():
     answer, sql, rows = ask(
         model, config.db_path, "How many books are currently on loan?")
     ok = "select" in sql.lower() and "2" in answer
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 1 (books on loan counted) -> {status}")
 
 def test_lists_an_author():
@@ -466,7 +470,9 @@ def test_lists_an_author():
     answer, sql, rows = ask(
         model, config.db_path, "Which books do we have by Le Guin?")
     ok = "earthsea" in answer.lower() or "dispossessed" in answer.lower()
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 2 (author books listed)   -> {status}")
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-extract-an-invoice-from-text-the-models-job) · [Hint 1](step2_structured_extraction_hints.md#hint-1) · [Hint 2](step2_structured_extraction_hints.md#hint-2)
 
-**Story:** the one place the model is involved — turn raw invoice text into a typed `Invoice` with `with_structured_output`, the guaranteed-shape method from Doc04/05. **If not:** hand-parsing the model's text into fields is exactly the fragile "please return JSON" problem structured output exists to remove.
+**Story:** this is the one place the model gets involved at all — turning raw invoice text into a typed `Invoice` object using `with_structured_output`, the guaranteed-shape method from Doc04/05, instead of free text that needs parsing. **If not:** hand-parsing the model's raw text into fields yourself is exactly the fragile "please return JSON" problem that structured output exists to remove entirely.
 
 ## The extractor
 

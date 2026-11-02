@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-1-the-report-shape-and-the-compiler) · [Hint 1](step1_report_shape_and_compiler_hints.md#hint-1) · [Hint 2](step1_report_shape_and_compiler_hints.md#hint-2)
 
-**Story:** the typed shapes and the deterministic compiler/formatter — built and proven with hand-made parts, no model. **If not:** if the formatting is wrong, perfect extractions still print a messy report, and you'd be debugging two things at once in Step 3.
+**Story:** this builds the typed `MeetingReport` shapes and the deterministic compiler/formatter that turns them into readable text — proven with hand-made parts, no model call involved at all. **If not:** if the formatting itself is wrong, even perfect extractions from Step 2 would still print a messy, confusing report, and you'd end up debugging two problems at once in Step 3.
 
 ## Setup files
 

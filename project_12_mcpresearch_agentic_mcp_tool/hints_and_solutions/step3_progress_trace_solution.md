@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-3-report-progress-as-a-trace) · [Hint 1](step3_progress_trace_hints.md#hint-1) · [Hint 2](step3_progress_trace_hints.md#hint-2)
 
-**Story:** return a short revision **trace** alongside the summary, so a caller waiting on a slow, multi-round call can see what happened — without breaking the "one tool call" illusion. **If not:** the caller stares at a black box and then gets only the bare final string.
+**Story:** this returns a short revision **trace** alongside the final summary, so a caller waiting on a slow, multi-round pipeline call can actually see what happened round by round — all without breaking the "one tool call" interface the MCP side still presents. **If not:** the caller would stare at a black box for the whole call and then only ever get the bare final string back.
 
 ## `src/formatting.py` (new)
 
-**Story:** two pure formatters. `format_result` turns a `PipelineResult` into the "Deep research on / Revision trace / Status / Summary" block. `format_partial` (used in Step 4) turns a `Progress` holder into a marked partial answer. Pure functions, so they unit-test with no model. **If not:** formatting tangled inside the tool body couldn't be tested on its own.
+**Story:** these are two pure formatting functions. `format_result` turns a `PipelineResult` into the "Deep research on / Revision trace / Status / Summary" text block. `format_partial` (used in Step 4) turns a `Progress` holder into a clearly marked partial answer. Both are pure functions with no model call, so they're unit-tested directly with no API key needed. **If not:** formatting logic tangled inside the tool body itself couldn't be tested on its own, separate from the pipeline.
 
 ```python
 # src/formatting.py
@@ -15,7 +15,9 @@
 def format_result(result):
     lines = [f"Deep research on: {result.topic}", "", "Revision trace:"]
     for entry in result.rounds:
-        state = "approved" if entry["approved"] else "rejected"
+        state = "rejected"
+        if entry["approved"]:
+            state = "approved"
         lines.append(f"  Round {entry['round']}: {state}")
         for issue in entry["issues"]:
             lines.append(f"    - {issue}")
@@ -98,8 +100,10 @@ def test_result_shows_trace():
           and "Round 2: approved" in out
           and "approved after 2 round(s)" in out
           and "RAG is from Meta AI, 2020." in out)
-    print(f"case 1 (trace + status + summary) -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (trace + status + summary) -> {result1}")
 
 
 def test_cap_status():
@@ -110,16 +114,20 @@ def test_cap_status():
     )
     out = format_result(result)
     ok = "stopped at the 2-round cap" in out
-    print(f"case 2 (cap status)              -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result2 = "WRONG"
+    if ok:
+        result2 = "OK"
+    print(f"case 2 (cap status)              -> {result2}")
 
 
 def test_partial():
     progress = FakeProgress("a half-finished draft", [{"round": 1}])
     out = format_partial("slow topic", progress)
     ok = "PARTIAL" in out and "a half-finished draft" in out
-    print(f"case 3 (partial names the draft) -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result3 = "WRONG"
+    if ok:
+        result3 = "OK"
+    print(f"case 3 (partial names the draft) -> {result3}")
 
 
 if __name__ == "__main__":

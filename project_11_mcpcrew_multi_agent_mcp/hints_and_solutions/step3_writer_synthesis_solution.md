@@ -2,11 +2,11 @@
 
 > [Back to the step](../READING_README.md#step-3-the-writer-synthesizes-a-final-report) · [Hint 1](step3_writer_synthesis_hints.md#hint-1) · [Hint 2](step3_writer_synthesis_hints.md#hint-2)
 
-**Story:** a Writer — a plain LLM call, no tools — that takes both specialists' findings and writes **one** coherent report, not two raw dumps side by side. The prompt must say *synthesize*, not concatenate. **If not:** the team's output reads like two paragraphs stapled together, and the whole point of a Writer is lost.
+**Story:** this adds a Writer — a plain LLM call with no tools attached — that takes both specialists' findings and writes **one** coherent, unified report, not two raw dumps placed side by side. The prompt's wording has to explicitly say *synthesize*, not just hand both texts over and hope. **If not:** the team's final output would read like two separate paragraphs stapled together, and the whole point of having a Writer at all would be lost.
 
 ## `src/agents/writer_agent.py` (new)
 
-**Story:** the Writer gets both findings and an explicit instruction to synthesize, plus the `web_unavailable` flag so it can name a missing source. **If not:** without the flag reaching the prompt, a degraded run would silently produce a report that pretends the web check happened.
+**Story:** the Writer receives both specialists' findings plus an explicit instruction to synthesize them, and crucially also receives the `web_unavailable` flag so it can honestly name a source that was missing, rather than staying silent about it. **If not:** without that flag actually reaching the prompt, a degraded run would silently produce a report that pretends the web check happened when it never did.
 
 ```python
 # src/agents/writer_agent.py

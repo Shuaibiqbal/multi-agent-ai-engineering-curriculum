@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-2-the-style-reviewer-grounded-in-your-style-guide-with-rag) · [Hint 1](step2_style_reviewer_rag_hints.md#hint-1) · [Hint 2](step2_style_reviewer_rag_hints.md#hint-2)
 
-**Story:** the Style reviewer, grounded in your **real** style guide through RAG — it searches your document and cites the actual rule, instead of freelancing from general knowledge. **If not:** an ungrounded reviewer looks right until it confidently cites a rule that was never yours.
+**Story:** this builds the Style reviewer, grounded in your **real** style guide through a RAG search — it retrieves from your actual document and cites the specific real rule, instead of freelancing from the model's own general training knowledge. **If not:** an ungrounded reviewer looks correct right up until it confidently cites a style rule that was never actually in your document.
 
 ## The style guide (`data/style_guide.md`)
 
@@ -80,7 +80,7 @@ def retrieve_rules(collection, query, k=3):
 
 ## The Style reviewer
 
-**Story:** for the changed lines, retrieve the relevant rules and ask the model which lines violate which rule — returning `Finding`s that **cite the retrieved rule text**. The model judges; the rules come from your document, not its memory. **If not:** the reviewer would judge against rules it imagined.
+**Story:** for the changed lines in the diff, this retrieves the relevant rules from the vector store and asks the model which lines actually violate which rule — returning `Finding`s that **cite the retrieved rule text directly**. The model does the judging, but every rule it judges against comes from your real document, never from its own memory. **If not:** the reviewer would end up judging against rules it simply imagined.
 
 ```python
 # src/prompts/style.txt

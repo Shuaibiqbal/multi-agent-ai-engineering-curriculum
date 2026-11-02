@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-4-production-wrap-optional) · [Hint 1](step4_production_wrap_hints.md#hint-1) · [Hint 2](step4_production_wrap_hints.md#hint-2)
 
-**Story:** wrap the finished 4-agent system in Project 5's production layer — a FastAPI `/review` endpoint and an eval that specifically checks routing — proving that layer generalizes too, not just the agent design. **If not:** CodeGuard stays a thing you describe instead of a link you can hand someone.
+**Story:** this wraps the finished 4-agent system in Project 5's production layer — a real FastAPI `/review` endpoint, plus an eval suite that specifically checks the routing logic — proving that production layer generalizes to a new agent team too, not just the one it was first built for. **If not:** CodeGuard would stay a thing you describe in an interview instead of a real link you can actually hand someone to try.
 
 This step reuses Project 5 almost unchanged. No new ideas — just repetition.
 
@@ -127,13 +127,17 @@ def main():
 
     docs = review_diff(model, collection, DOCS_ONLY)
     ok_docs = "security" not in docs["reviewers_run"]
-    print(f"routing (docs-only skips security) -> "
-          f"{'PASS' if ok_docs else 'FAIL'}")
+    verdict_docs = "FAIL"
+    if ok_docs:
+        verdict_docs = "PASS"
+    print(f"routing (docs-only skips security) -> {verdict_docs}")
 
     code = review_diff(model, collection, CODE_WITH_SECRET)
     ok_code = "security" in code["reviewers_run"] and "secret" in code["review"]
-    print(f"routing (code runs security + flags secret) -> "
-          f"{'PASS' if ok_code else 'FAIL'}")
+    verdict_code = "FAIL"
+    if ok_code:
+        verdict_code = "PASS"
+    print(f"routing (code runs security + flags secret) -> {verdict_code}")
 
 
 if __name__ == "__main__":

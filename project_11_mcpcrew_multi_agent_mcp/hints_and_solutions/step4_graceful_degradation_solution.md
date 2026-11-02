@@ -2,7 +2,7 @@
 
 > [Back to the step](../READING_README.md#step-4-graceful-degradation-when-one-mcp-server-is-down) · [Hint 1](step4_graceful_degradation_hints.md#hint-1) · [Hint 2](step4_graceful_degradation_hints.md#hint-2)
 
-**Story:** the team survives a specialist's server being down — the failure is caught **inside** the Web Agent's node, which writes a clear "unavailable" result; the Supervisor then skips web and routes to the Writer; the Writer says the page couldn't be reached. **If not:** one dead server would crash the whole graph, or worse, produce a report that silently pretends the web check happened.
+**Story:** this makes the team genuinely survive one specialist's MCP server being down. The failure is caught **inside** the Web Agent's own node, which writes a clear `web_unavailable` result instead of crashing; the Supervisor then reads that and routes straight to the Writer, skipping web entirely; and the Writer, told honestly, says the page couldn't be reached rather than staying silent. **If not:** one dead server would either crash the whole graph outright, or worse, quietly produce a report that pretends the web check happened when it never did.
 
 ## The degradation is already in `run_specialist`
 
@@ -96,8 +96,10 @@ async def test_both_specialists_report(client):
     ok = "notes" in used and "web" in used and "writer" in used
     if "atlas" not in report:
         ok = False
-    print(f"case 1 (both specialists -> one report) -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result = "WRONG"
+    if ok:
+        result = "OK"
+    print(f"case 1 (both specialists -> one report) -> {result}")
 
 
 async def test_web_down_degrades(client):
@@ -110,8 +112,10 @@ async def test_web_down_degrades(client):
         ok = False
     if "reach" not in report and "unavailable" not in report:
         ok = False
-    print(f"case 2 (web down -> honest degraded report) -> "
-          f"{'OK' if ok else 'WRONG'}")
+    result = "WRONG"
+    if ok:
+        result = "OK"
+    print(f"case 2 (web down -> honest degraded report) -> {result}")
 
 
 async def main():

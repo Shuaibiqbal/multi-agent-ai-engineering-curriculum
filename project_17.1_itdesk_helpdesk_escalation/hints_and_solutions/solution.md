@@ -406,7 +406,10 @@ def test_covered_is_answered():
     thread = {"configurable": {"thread_id": "t-answer"}}
     result = app.invoke(start_state("How do I connect to the VPN?"), thread)
     ok = not app.get_state(thread).next and "vpn" in result["answer"].lower()
-    print(f"case 1 (covered answered) -> {'OK' if ok else 'WRONG'}")
+    result1 = "WRONG"
+    if ok:
+        result1 = "OK"
+    print(f"case 1 (covered answered) -> {result1}")
 
 def test_sensitive_escalates():
     app = build_app()
@@ -415,7 +418,9 @@ def test_sensitive_escalates():
     paused = bool(app.get_state(thread).next)
     result = app.invoke(Command(resume="I'll verify and unlock it."), thread)
     ok = paused and result["escalated"] is True
-    status = "OK" if ok else "WRONG"
+    status = "WRONG"
+    if ok:
+        status = "OK"
     print(f"case 2 (sensitive escalates + resumes) -> {status}")
 
 if __name__ == "__main__":
